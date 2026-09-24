@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-revocation-crl-openssl"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+native = []
+
+[dependencies]
+thiserror = { workspace = true }
+time = "0.3"
+
+envelopes-x509 = { workspace = true }
+identity-revocation-crl-core = { version = "0.1.0", path = "../core" }
+reallyme-ssi-proto = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+openssl = "0.10.81"
+
+[dev-dependencies]
+identity-revocation-core = { workspace = true }
+[lints]
+workspace = true

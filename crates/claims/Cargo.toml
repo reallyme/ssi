@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-credential-claims"
+version = "0.1.0"
+description = "Protocol-neutral credential claim values, registries, paths, and disclosure validation."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "credentials", "claims", "ssi", "eidas"]
+categories = ["authentication", "data-structures"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = ["native"]
+native = ["reallyme-cose/native", "reallyme-crypto/native"]
+proto = [
+    "dep:buffa",
+]
+wasm = ["reallyme-cose/wasm", "reallyme-crypto/wasm"]
+
+[dependencies]
+buffa = { workspace = true, optional = true }
+reallyme-codec = { workspace = true, features = ["base64", "base64url"] }
+reallyme-cose = { workspace = true }
+reallyme-crypto = { workspace = true, features = ["jwk", "sha2"] }
+reallyme-ssi-proto = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true, features = ["parsing"] }
+reallyme-trust-x509 = { path = "../trust/x509", version = "0.1.0", default-features = false }
+zeroize = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+buffa = { workspace = true }
+reallyme-ssi-proto = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,81 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+schema: reallyme.ssi.taxonomy_coverage.v1
+operations:
+  identity.dids.create:
+    taxonomy_ref: identity.dids.commands.create
+    backing_contract:
+      request: reallyme.identity.v1.DidCreateRequest
+      result: reallyme.identity.v1.DidCreateResult
+    implementation:
+      owner_crate: crates/did/core/api
+      dispatch_crate: crates/dispatch
+      status: implemented
+      provider_required: true
+      validates_provider_result: true
+    evidence:
+      - crates/did/core/api/tests/provider_command_tests.rs
+      - crates/dispatch/tests/dispatch_tests.rs
+    consumed_by:
+      repository: reallyme/identity
+      public_operation: dids.create
+  eudi.rp_registration.authenticate_registry_record:
+    taxonomy_ref: eudi.rp_registration.registrar.authenticate
+    backing_contract:
+      request: reallyme_ssi::eudi::rp_registration::RegistryAuthenticationInput
+      result: reallyme_ssi::eudi::rp_registration::AuthenticatedRegistryRecord
+    implementation:
+      owner_crate: crates/eudi/rp-registration
+      dispatch_crate: null
+      status: implemented
+      provider_required: true
+      validates_provider_result: true
+      authenticated_material_handoff: one_time_leaf_first_der_chain
+    evidence:
+      - crates/eudi/rp-registration/tests/registration_tests.rs
+      - conformance/requirements/eudi-rp-registration.json
+    consumed_by:
+      repository: reallyme/apps/apps/eudi-qp
+      public_operation: registrar.read
+  eudi.rp_registration.evaluate_registry_signer:
+    taxonomy_ref: eudi.rp_registration.registrar.evaluate_signer_trust
+    backing_contract:
+      request: reallyme_trust_core::TrustConfig
+      result: reallyme_trust_core::TrustDecision
+    implementation:
+      owner_crate: crates/trust/core
+      dispatch_crate: crates/trust/api
+      status: implemented
+      provider_required: true
+      validates_provider_result: true
+      purpose: WalletRelyingPartyRegistrySigning
+      policy_id: EudiTs5RegistryResponseSigningV1
+    evidence:
+      - crates/trust/core/tests/registrar_signing_tests.rs
+      - crates/trust/api/src/dto_proto_tests.rs
+      - conformance/requirements/eudi-rp-registration.json
+    consumed_by:
+      repository: reallyme/apps/apps/eudi-trust
+      public_operation: registrar_signer.evaluate
+  eudi.rp_registration.authenticate_credentials:
+    taxonomy_ref: eudi.rp_registration.credentials.authenticate
+    backing_contract:
+      request: reallyme_ssi::eudi::rp_registration::{RegistrationCertificateJadesAuthenticationInput,RegistrationCertificateCoseAuthenticationInput,AccessCertificateBinding}
+      result: reallyme_ssi::eudi::rp_registration::{RegistrationCertificateProof,AuthenticatedRegistrationCertificate,AuthenticatedAccessCertificateAssociation}
+    implementation:
+      owner_crate: crates/eudi/rp-registration
+      dispatch_crate: null
+      status: implemented
+      provider_required: true
+      validates_provider_result: true
+    evidence:
+      - crates/eudi/rp-registration/src/wrprc.rs
+      - crates/eudi/rp-registration/src/wrprc/proof.rs
+      - crates/trust/jades/src/validate.rs
+      - crates/eudi/rp-registration/src/wrpac.rs
+      - conformance/requirements/eudi-rp-registration.json
+    consumed_by:
+      repository: reallyme/apps/apps/eudi-qp
+      public_operation: credential_lifecycle.authenticate

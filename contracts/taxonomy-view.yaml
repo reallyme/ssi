@@ -1,0 +1,113 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+schema: reallyme.ssi.taxonomy_consumer_view.v1
+source:
+  lock: contracts/taxonomy.lock
+operations:
+  identity.dids.create:
+    taxonomy_ref: identity.dids.commands.create
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidCreateRequest
+    result_type: reallyme.identity.v1.DidCreateResult
+    provider_capability: IDENTITY_PROVIDER_CAPABILITY_DID_CREATE
+    behavior: { idempotent: false, side_effects: provider_dependent, network_access: provider_dependent, offline_capable: provider_dependent }
+  identity.dids.resolve:
+    taxonomy_ref: identity.dids.commands.resolve
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidResolveRequest
+    result_type: reallyme.identity.v1.DidResolveResult
+    provider_capability: IDENTITY_PROVIDER_CAPABILITY_DID_RESOLVE
+    behavior: { idempotent: true, side_effects: none, network_access: provider_dependent, offline_capable: provider_dependent }
+  identity.dids.parse:
+    taxonomy_ref: identity.dids.commands.parse
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidParseRequest
+    result_type: reallyme.identity.v1.DidParseResult
+    behavior: { idempotent: true, side_effects: none, network_access: forbidden, offline_capable: true }
+  identity.dids.dereference:
+    taxonomy_ref: identity.dids.commands.dereference
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidDereferenceRequest
+    result_type: reallyme.identity.v1.DidDereferenceResult
+    behavior: { idempotent: true, side_effects: none, network_access: forbidden, offline_capable: true }
+  identity.dids.validate:
+    taxonomy_ref: identity.dids.commands.validate
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidValidateRequest
+    result_type: reallyme.identity.v1.DidValidateResult
+    behavior: { idempotent: true, side_effects: none, network_access: forbidden, offline_capable: true }
+  identity.dids.update:
+    taxonomy_ref: identity.dids.commands.update
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidUpdateRequest
+    result_type: reallyme.identity.v1.DidUpdateResult
+    provider_capability: IDENTITY_PROVIDER_CAPABILITY_DID_UPDATE
+    behavior: { idempotent: false, side_effects: provider_dependent, network_access: provider_dependent, offline_capable: provider_dependent }
+  identity.dids.keys.rotate:
+    taxonomy_ref: identity.dids.subresources.keys.commands.rotate
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidRotateSelectedKeysRequest
+    result_type: reallyme.identity.v1.DidRotateSelectedKeysResult
+    provider_capability: IDENTITY_PROVIDER_CAPABILITY_DID_ROTATE_SELECTED_KEYS
+    behavior: { idempotent: false, side_effects: provider_dependent, network_access: provider_dependent, offline_capable: provider_dependent }
+  identity.dids.keys.rotate_relationship:
+    taxonomy_ref: identity.dids.subresources.keys.commands.rotate_relationship
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidRotateRelationshipKeysRequest
+    result_type: reallyme.identity.v1.DidRotateRelationshipKeysResult
+    provider_capability: IDENTITY_PROVIDER_CAPABILITY_DID_ROTATE_RELATIONSHIP_KEYS
+    behavior: { idempotent: false, side_effects: provider_dependent, network_access: provider_dependent, offline_capable: provider_dependent }
+  identity.dids.keys.replace_compromised:
+    taxonomy_ref: identity.dids.subresources.keys.commands.replace_compromised
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidReplaceCompromisedKeysRequest
+    result_type: reallyme.identity.v1.DidReplaceCompromisedKeysResult
+    provider_capability: IDENTITY_PROVIDER_CAPABILITY_DID_REPLACE_COMPROMISED_KEYS
+    behavior: { idempotent: false, side_effects: provider_dependent, network_access: provider_dependent, offline_capable: provider_dependent }
+  identity.dids.keys.rotate_all:
+    taxonomy_ref: identity.dids.subresources.keys.commands.rotate_all
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidRotateAllKeysRequest
+    result_type: reallyme.identity.v1.DidRotateAllKeysResult
+    provider_capability: IDENTITY_PROVIDER_CAPABILITY_DID_ROTATE_ALL_KEYS
+    behavior: { idempotent: false, side_effects: provider_dependent, network_access: provider_dependent, offline_capable: provider_dependent }
+  identity.dids.keys.set_relationships:
+    taxonomy_ref: identity.dids.subresources.keys.commands.set_relationships
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidSetKeyRelationshipsRequest
+    result_type: reallyme.identity.v1.DidSetKeyRelationshipsResult
+    provider_capability: IDENTITY_PROVIDER_CAPABILITY_DID_SET_KEY_RELATIONSHIPS
+    behavior: { idempotent: provider_dependent, side_effects: provider_dependent, network_access: provider_dependent, offline_capable: provider_dependent }
+  identity.dids.deactivate:
+    taxonomy_ref: identity.dids.commands.deactivate
+    disposition: backing_operation
+    semantic_owner: crates/did/core/api
+    dispatch_owner: crates/dispatch
+    request_type: reallyme.identity.v1.DidDeactivateRequest
+    result_type: reallyme.identity.v1.DidDeactivateResult
+    provider_capability: IDENTITY_PROVIDER_CAPABILITY_DID_DEACTIVATE
+    behavior: { idempotent: provider_dependent, side_effects: provider_dependent, network_access: provider_dependent, offline_capable: provider_dependent }

@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-did-method-ebsi"
+version = "0.1.0"
+description = "did:ebsi versioned base58btc identifier helpers."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true, features = ["parsing"] }
+zeroize = { workspace = true }
+
+[lints]
+workspace = true

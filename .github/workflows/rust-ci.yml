@@ -1,0 +1,216 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: Rust CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE-MIT"
+      - "LICENSE-APACHE"
+      - ".github/renovate.json"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE-MIT"
+      - "LICENSE-APACHE"
+      - ".github/renovate.json"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_AUDIT_VERSION: 0.22.2
+  CARGO_DENY_VERSION: 0.20.2
+  CARGO_NEXTEST_VERSION: 0.9.140
+
+jobs:
+  rust:
+    name: fmt, lint, test, dependency policy
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout SSI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: reallyme/ssi
+
+      - name: Checkout shared protobuf contracts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: me-id/protos
+          path: me-id/protos
+
+      - name: Checkout release-readiness runner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: reallyme/release-readiness
+          ref: 985cf16f866bcdbd384edd8a9b6f332b38c5eb52
+          path: reallyme/ssi/.release-readiness
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.98.1
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: reallyme/ssi
+
+      - name: Install nextest
+        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        with:
+          tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
+
+      - name: Install Buf
+        uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+
+      - name: Install Buffa generators
+        run: |
+          cargo install protoc-gen-buffa --version 0.9.2 --locked
+          cargo install protoc-gen-buffa-packaging --version 0.9.2 --locked
+
+      - name: Install XMLSec build dependencies
+        run: sudo apt-get update && sudo apt-get install --yes libxmlsec1-dev pkg-config
+
+      - name: Format
+        working-directory: reallyme/ssi
+        run: cargo fmt --check
+
+      - name: Lint protobuf contracts
+        working-directory: reallyme/ssi
+        run: sh scripts/lint-protos.sh
+
+      - name: Check protobuf boundary rules
+        working-directory: reallyme/ssi
+        run: sh scripts/check-proto-contract.sh
+
+      - name: Check proto-first repository boundaries
+        working-directory: reallyme/ssi
+        run: node scripts/check-proto-first-boundaries.mjs
+
+      - name: Check protobuf redaction and cleanup coverage
+        working-directory: reallyme/ssi
+        run: node scripts/check_proto_zeroize_coverage.mjs
+
+      - name: Check generated Buffa freshness
+        working-directory: reallyme/ssi
+        run: sh scripts/check-protos-fresh.sh
+
+      - name: Check conformance requirement coverage
+        working-directory: reallyme/ssi
+        run: node scripts/check_conformance_coverage.mjs
+
+      - name: Check all features with warnings denied
+        working-directory: reallyme/ssi
+        run: cargo check --locked --workspace --all-features
+        env:
+          RUSTFLAGS: -Dwarnings
+
+      - name: Clippy
+        working-directory: reallyme/ssi
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+
+      - name: Test native lane
+        working-directory: reallyme/ssi
+        run: node scripts/run_bounded_nextest.mjs native
+
+      - name: Test all features
+        working-directory: reallyme/ssi
+        run: node scripts/run_bounded_nextest.mjs all-features
+
+      - name: Doc build
+        working-directory: reallyme/ssi
+        run: cargo doc --locked --workspace --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+      - name: Check native lane
+        working-directory: reallyme/ssi
+        run: cargo check --locked --workspace --no-default-features --features native
+
+      - name: Check wasm lane
+        working-directory: reallyme/ssi
+        run: cargo check --locked --workspace --no-default-features --features wasm --target wasm32-unknown-unknown
+
+      - name: Check shared dependency boundaries
+        working-directory: reallyme/ssi
+        run: node scripts/check-shared-dependency-boundaries.mjs
+
+      - name: Release readiness
+        working-directory: reallyme/ssi
+        run: node .release-readiness/scripts/run-consumer-check.mjs
+
+      - name: Test repository scripts
+        working-directory: reallyme/ssi
+        run: node --test scripts/*.test.mjs
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        with:
+          tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
+
+      - name: Dependency policy
+        working-directory: reallyme/ssi
+        run: cargo deny check
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        with:
+          tool: cargo-audit@${{ env.CARGO_AUDIT_VERSION }}
+
+      - name: Security advisory audit
+        working-directory: reallyme/ssi
+        run: scripts/audit_committed_lockfiles.sh
+
+  platform-boundaries:
+    name: OCSP host ABI (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Apple
+            runner: macos-15
+            target: ""
+            feature: apple-platform
+          - name: Android
+            runner: ubuntu-24.04
+            target: aarch64-linux-android
+            feature: android-platform
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout SSI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: reallyme/ssi
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.98.1
+          targets: ${{ matrix.target }}
+
+      - name: Type-check platform OCSP boundary
+        working-directory: reallyme/ssi
+        env:
+          TARGET_ARGUMENT: ${{ matrix.target }}
+        run: |
+          target_args=()
+          if [[ -n "$TARGET_ARGUMENT" ]]; then
+            target_args=(--target "$TARGET_ARGUMENT")
+          fi
+          cargo check --locked -p identity-revocation-ocsp-dispatch --no-default-features --features "${{ matrix.feature }}" "${target_args[@]}"

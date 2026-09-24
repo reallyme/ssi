@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-openid-oauth"
+version = "0.1.0"
+description = "OAuth substrate: PAR, DPoP, PKCE, AS metadata, and attestation-based client authentication."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["oauth", "dpop", "pkce", "openid", "identity"]
+categories = ["authentication"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = ["native"]
+native = ["reallyme-trust-core/native"]
+wasm = ["reallyme-trust-core/wasm"]
+
+[dependencies]
+buffa = { workspace = true }
+reallyme-trust-core = { path = "../trust/core", version = "0.1.0", default-features = false }
+percent-encoding = { workspace = true }
+reallyme-codec = { workspace = true, features = ["base64url"] }
+reallyme-crypto = { workspace = true, features = ["constant-time", "sha2"] }
+reallyme-ssi-proto = { workspace = true }
+secrecy = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+envelopes-x509 = { workspace = true }
+time = { workspace = true }
+
+[lints]
+workspace = true

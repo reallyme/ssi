@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-trust-x509"
+version = "0.1.0"
+description = "X.509 parsing and policy helpers for ReallyMe identity trust decisions."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "x509", "eidas", "credentials", "trust"]
+categories = ["authentication", "cryptography"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = []
+native = [
+    "reallyme-crypto/native",
+    "reallyme-crypto/p256",
+    "reallyme-crypto/rsa",
+]
+wasm = [
+    "reallyme-crypto/wasm",
+    "reallyme-crypto/p256",
+    "reallyme-crypto/rsa",
+]
+
+[dependencies]
+asn1-rs = { workspace = true }
+oid-registry = { workspace = true }
+pem = { workspace = true }
+reallyme-ssi-proto = { workspace = true }
+reallyme-codec = { workspace = true, features = ["base64"] }
+reallyme-crypto = { workspace = true }
+sha1 = "0.11"
+thiserror = { workspace = true }
+time = { workspace = true }
+x509-parser = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+openssl = "0.10.81"
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

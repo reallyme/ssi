@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-presentation-delivery-web-validator"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[package.metadata.cargo-machete]
+# This edge is consumed by the native/wasm feature forwarding below.
+ignored = ["identity-presentation-delivery-web-core"]
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+reallyme-crypto = { workspace = true, features = ["sha2"] }
+zeroize = { workspace = true, features = ["derive"] }
+codec-base64url = { package = "reallyme-codec-base64url", version = "=0.2.3" }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "=0.3.9" }
+
+identity-core-primitives = { workspace = true }
+identity-credential-claims-core = { workspace = true }
+identity-credential-status-core = { workspace = true }
+reallyme-credential = { workspace = true }
+identity-presentation-vp-core = { workspace = true }
+identity-presentation-vp-policy = { version = "0.1.0", path = "../../../presentation/policy" }
+identity-presentation-vp-sd-jwt = { version = "0.1.0", path = "../../../presentation/sd-jwt" }
+identity-presentation-vp-validator = { version = "0.1.0", path = "../../../presentation/validator" }
+identity-presentation-delivery-web-core = { version = "0.1.0", path = "../core" }
+
+[features]
+default = ["native"]
+native = [
+    "identity-presentation-delivery-web-core/native",
+    "identity-presentation-vp-sd-jwt/native",
+    "identity-presentation-vp-validator/native",
+    "reallyme-credential/native",
+]
+wasm = [
+    "identity-presentation-delivery-web-core/wasm",
+    "identity-presentation-vp-sd-jwt/wasm",
+    "identity-presentation-vp-validator/wasm",
+    "reallyme-credential/wasm",
+]
+
+[dev-dependencies]
+identity-core-primitives = { workspace = true }
+reallyme-credential-audit = { workspace = true }
+identity-credential-status-core = { workspace = true }
+identity-credential-claims-core = { workspace = true }
+crypto-core = { package = "reallyme-crypto-core", version = "=0.3.9" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "=0.3.9" }
+envelopes-jwt = { workspace = true }
+[lints]
+workspace = true

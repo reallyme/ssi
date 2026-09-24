@@ -1,0 +1,96 @@
+[
+  {
+    "id": "OAUTH-PKCE-MUST-001",
+    "source": "RFC7636",
+    "section": "4.2 Client Creates the Code Challenge",
+    "keyword": "MUST",
+    "feature": "pkce_s256_challenge_generation",
+    "implementation": ["crates/oauth/src/pkce.rs"],
+    "positive_tests": ["pkce_uses_s256_only"],
+    "negative_tests": ["pkce_rejects_invalid_verifier_values"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "OAUTH-PAR-MUST-001",
+    "source": "RFC9126",
+    "section": "2.1",
+    "keyword": "MUST NOT",
+    "feature": "par_request_uri_rejection",
+    "implementation": ["reallyme_openid_oauth::ParRequest::validate"],
+    "positive_tests": ["metadata_accepts_par_dpop_and_s256"],
+    "negative_tests": ["par_rejects_request_uri_parameter"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "OAUTH-METADATA-MUST-001",
+    "source": "COMPLIANCE-MAP",
+    "section": "Shared OAuth substrate for protocol crates",
+    "keyword": "MUST",
+    "feature": "authorization_server_metadata_validation",
+    "implementation": ["crates/oauth/src/metadata.rs"],
+    "positive_tests": ["metadata_accepts_par_dpop_and_s256"],
+    "negative_tests": ["metadata_rejects_unsupported_pkce_method", "metadata_rejects_duplicate_json_members"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "OAUTH-DPOP-MUST-001",
+    "source": "RFC9449",
+    "section": "4.2",
+    "keyword": "MUST",
+    "feature": "asymmetric_dpop_proof_key",
+    "implementation": ["reallyme_openid_oauth::DpopHeader::validate"],
+    "positive_tests": ["dpop_generation_and_validation_enforces_replay_hook"],
+    "negative_tests": ["dpop_header_rejects_symmetric_algorithm", "dpop_header_rejects_symmetric_jwk", "dpop_header_rejects_algorithm_confusion_and_alternate_key_material", "proof_headers_reject_unprocessed_jose_parameters"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "OAUTH-DPOP-MUST-002",
+    "source": "RFC9449",
+    "section": "4.3",
+    "keyword": "MUST",
+    "feature": "dpop_replay_and_sender_constraint",
+    "implementation": ["reallyme_openid_oauth::DpopProof::validate", "reallyme_openid_oauth::DpopVerifier"],
+    "positive_tests": [
+      "dpop_generation_and_validation_enforces_replay_hook",
+      "dpop_validation_accepts_matching_access_token_jkt_binding"
+    ],
+    "negative_tests": ["dpop_validation_rejects_mismatched_access_token_jkt_binding"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "OAUTH-JWK-MUST-001",
+    "source": "RFC7638",
+    "section": "3.2 JWK Thumbprint",
+    "keyword": "MUST",
+    "feature": "jwk_thumbprint_canonicalization",
+    "implementation": ["crates/oauth/src/dpop.rs"],
+    "positive_tests": [
+      "jwk_thumbprint_ignores_member_order_and_extra_fields",
+      "jwk_thumbprint_supports_okp_and_rsa_required_members",
+      "jwk_thumbprint_positive_vectors_match"
+    ],
+    "negative_tests": [
+      "jwk_thumbprint_rejects_missing_required_member",
+      "jwk_thumbprint_negative_vectors_fail_closed"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "OAUTH-ATTESTATION-MUST-001",
+    "source": "COMPLIANCE-MAP",
+    "section": "Shared OAuth substrate for protocol crates",
+    "keyword": "MUST",
+    "feature": "attestation_client_authentication_with_cnf_jwk_bound_pop_validation",
+    "implementation": ["crates/oauth/src/attestation_client_auth.rs", "crates/oauth/src/attestation_trust_receipt.rs", "crates/oauth/src/attestation_trust_receipt/freshness.rs", "crates/oauth/src/bind_attested_client_key.rs", "crates/oauth/src/jwt.rs", "crates/oauth/src/strict_json.rs"],
+    "positive_tests": ["attestation_client_auth_headers_are_draft_names", "attestation_client_authentication_validation_enforces_replay_hook"],
+    "negative_tests": ["attestation_client_authentication_rejects_pop_signed_by_different_key", "attestation_client_authentication_rejects_pop_algorithm_key_family_mismatch", "attestation_client_authentication_rejects_receipt_for_a_different_jwt", "attestation_client_authentication_rejects_missing_or_non_public_cnf_jwk", "attestation_client_authentication_rejects_noncurrent_trust_receipts", "attestation_trust_receipt_rejects_inconsistent_path_evidence", "attestation_trust_receipt_rejects_stale_and_future_evidence", "compact_jwt_decode_rejects_duplicate_json_members_at_every_depth", "compact_jwt_decode_rejects_noncanonical_base64url", "proof_headers_reject_unprocessed_jose_parameters", "attestation_client_authentication_rejects_wrong_challenge"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

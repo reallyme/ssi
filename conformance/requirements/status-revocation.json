@@ -1,0 +1,279 @@
+[
+  {
+    "id": "STATUS-MUST-001",
+    "source": "W3C-VC-DM-2.0",
+    "section": "4.9",
+    "keyword": "MUST",
+    "feature": "status_list_signature_binding",
+    "implementation": ["crates/status/src/verify.rs", "crates/status/src/model.rs"],
+    "positive_tests": ["verifies_clear_revocation_status", "signing_payload_changes_when_status_bytes_change", "status_list_vectors_verify_or_fail_closed"],
+    "negative_tests": ["rejects_invalid_status_list_signature", "rejects_empty_status_list_signature_metadata"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "STATUS-MUST-002",
+    "source": "W3C-VC-DM-2.0",
+    "section": "4.9",
+    "keyword": "MUST",
+    "feature": "status_bit_semantics",
+    "implementation": ["crates/status/src/verify.rs"],
+    "positive_tests": ["verifies_clear_revocation_status", "status_list_vectors_verify_or_fail_closed"],
+    "negative_tests": ["rejects_revoked_status_bit", "rejects_suspended_status_bit", "status_list_vectors_verify_or_fail_closed"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "STATUS-MUST-003",
+    "source": "W3C-VC-DM-2.0",
+    "section": "4.9",
+    "keyword": "MUST",
+    "feature": "status_list_temporal_and_index_bounds",
+    "implementation": ["crates/status/src/verify.rs", "reallyme_credential_status::MAX_STATUS_LIST_ENTRIES"],
+    "positive_tests": ["verifies_clear_revocation_status", "status_list_vectors_verify_or_fail_closed"],
+    "negative_tests": ["rejects_expired_status_list", "rejects_status_list_before_issued_time", "rejects_out_of_bounds_index", "rejects_status_list_over_entry_limit", "status_list_vectors_verify_or_fail_closed"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "STATUS-MUST-004",
+    "source": "W3C-VC-DM-2.0",
+    "section": "4.9 Credential Status",
+    "keyword": "MUST",
+    "feature": "status_list_structural_validation",
+    "implementation": ["crates/status/src/verify.rs", "crates/status/src/model.rs"],
+    "positive_tests": ["verifies_clear_revocation_status"],
+    "negative_tests": ["rejects_empty_status_list_issuer", "rejects_invalid_status_list_time_window", "rejects_short_status_list_encoded_bytes", "rejects_overlong_status_list_encoded_bytes", "rejects_empty_status_list_signature_metadata"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "STATUS-MUST-005",
+    "source": "W3C-VC-DM-2.0",
+    "section": "4.9 Credential Status bitstring processing",
+    "keyword": "MUST",
+    "feature": "status_bit_index_and_byte_order",
+    "implementation": ["crates/status/src/verify.rs"],
+    "positive_tests": ["verifies_clear_revocation_status", "status_list_vectors_verify_or_fail_closed"],
+    "negative_tests": ["rejects_revoked_status_bit", "rejects_suspended_status_bit", "rejects_out_of_bounds_index", "rejects_short_status_list_encoded_bytes", "rejects_overlong_status_list_encoded_bytes", "status_list_vectors_verify_or_fail_closed"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "STATUS-MUST-006",
+    "source": "COMPLIANCE-MAP",
+    "section": "Status-list protobuf transport",
+    "keyword": "MUST",
+    "feature": "status_list_buffa_protobuf_roundtrip",
+    "implementation": ["crates/proto/src/generated.rs", "crates/proto/src/lib.rs"],
+    "positive_tests": ["status_list_proto_round_trips_with_buffa"],
+    "negative_tests": ["status_list_proto_rejects_truncated_buffa_message"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "TOKEN-STATUS-LIST-MUST-001",
+    "source": "I-D-OAUTH-STATUS-LIST-21",
+    "section": "4.1-4.3",
+    "keyword": "MUST",
+    "feature": "token_status_list_encoding_and_bounds",
+    "implementation": [
+      "crates/status/src/token_status_list/compress.rs",
+      "crates/status/src/token_status_list/model.rs"
+    ],
+    "positive_tests": [
+      "draft_21_compression_vector_matches_exactly",
+      "extracts_each_supported_packed_value_width",
+      "supports_full_capacity_one_bit_revocation_list"
+    ],
+    "negative_tests": [
+      "rejects_value_that_exceeds_bit_width",
+      "issuer_rejects_malformed_compressed_status_bytes",
+      "verifier_rejects_a_one_bit_list_above_the_entry_limit"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "TOKEN-STATUS-LIST-MUST-002",
+    "source": "I-D-OAUTH-STATUS-LIST-21",
+    "section": "5.1",
+    "keyword": "MUST",
+    "feature": "token_status_list_jwt_authentication",
+    "implementation": [
+      "crates/status/src/token_status_list/issue_jwt.rs",
+      "crates/status/src/token_status_list/verify_jwt.rs"
+    ],
+    "positive_tests": [
+      "jwt_round_trip_authenticates_type_claims_and_compressed_bytes",
+      "jwt_provider_signer_round_trip_keeps_private_key_out_of_profile_api",
+      "jwt_verifier_accepts_additional_authenticated_claims"
+    ],
+    "negative_tests": [
+      "verifier_rejects_wrong_typ_even_with_valid_signature",
+      "verifier_rejects_expired_token",
+      "verifier_enforces_exact_subject_uri_binding"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "TOKEN-STATUS-LIST-MUST-003",
+    "source": "I-D-OAUTH-STATUS-LIST-21",
+    "section": "5.2",
+    "keyword": "MUST",
+    "feature": "token_status_list_cwt_authentication",
+    "implementation": ["crates/status/src/token_status_list/cwt.rs"],
+    "positive_tests": [
+      "cwt_round_trip_uses_tagged_sign1_and_authenticated_type",
+      "p256_cwt_round_trip_uses_cose_signature_encoding"
+    ],
+    "negative_tests": [
+      "cwt_verifier_rejects_wrong_authenticated_type",
+      "cwt_verifier_rejects_untagged_sign1"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "REVOCATION-MUST-001",
+    "source": "COMPLIANCE-MAP",
+    "section": "eIDAS/EUDI credential and certificate revocation evidence policy",
+    "keyword": "MUST",
+    "feature": "resolved_revocation_evidence_composition",
+    "implementation": ["crates/revocation/src/composite.rs", "crates/revocation/src/cache.rs", "crates/revocation/src/presets.rs"],
+    "positive_tests": ["fallback_policy_uses_second_available_source"],
+    "negative_tests": ["strict_policy_stops_on_unavailable_source", "status_outcomes_have_distinct_stable_proto_reasons", "revocation_configuration_failures_have_distinct_stable_proto_reasons"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "REVOCATION-MUST-002",
+    "source": "COMPLIANCE-MAP",
+    "section": "eIDAS/EUDI credential and certificate revocation evidence policy",
+    "keyword": "MUST",
+    "feature": "statuslist_source_mapping",
+    "implementation": ["crates/revocation/src/statuslist.rs"],
+    "positive_tests": ["verifies_clear_revocation_status"],
+    "negative_tests": ["statuslist_checker_maps_revoked_status", "statuslist_checker_maps_not_yet_valid_status"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "REVOCATION-MUST-003",
+    "source": "COMPLIANCE-MAP",
+    "section": "eIDAS/EUDI credential and certificate revocation evidence policy",
+    "keyword": "MUST",
+    "feature": "revocation_cache_terminal_result",
+    "implementation": ["crates/revocation/src/cache.rs"],
+    "positive_tests": ["cache_returns_terminal_revocation"],
+    "negative_tests": ["cache_ignores_expired_evidence", "cache_does_not_replay_transient_errors"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "REVOCATION-MUST-004",
+    "source": "COMPLIANCE-MAP",
+    "section": "eIDAS/EUDI credential and certificate revocation evidence policy",
+    "keyword": "MUST",
+    "feature": "revocation_profile_presets",
+    "implementation": ["crates/revocation/src/presets.rs"],
+    "positive_tests": ["vc_statuslist_preset_is_statuslist_only", "fallback_policy_uses_second_available_source"],
+    "negative_tests": ["strict_policy_stops_on_unavailable_source"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "REVOCATION-MUST-005",
+    "source": "COMPLIANCE-MAP",
+    "section": "eIDAS/EUDI credential and certificate revocation evidence policy",
+    "keyword": "MUST",
+    "feature": "revocation_cache_freshness_and_terminal_only_replay",
+    "implementation": ["crates/revocation/src/cache.rs"],
+    "positive_tests": ["cache_returns_terminal_revocation"],
+    "negative_tests": ["cache_ignores_expired_evidence", "cache_does_not_replay_transient_errors"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "REVOCATION-MUST-006",
+    "source": "COMPLIANCE-MAP",
+    "section": "eIDAS/EUDI credential and certificate revocation evidence policy",
+    "keyword": "MUST",
+    "feature": "revocation_composite_strict_vs_fallback",
+    "implementation": ["crates/revocation/src/composite.rs", "crates/revocation/src/presets.rs"],
+    "positive_tests": ["fallback_policy_uses_second_available_source"],
+    "negative_tests": ["strict_policy_stops_on_unavailable_source"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "REVOCATION-MUST-007",
+    "source": "COMPLIANCE-MAP",
+    "section": "Credential verification revocation composition",
+    "keyword": "MUST",
+    "feature": "credential_verification_uses_revocation_policy_composition",
+    "implementation": [
+      "crates/credential/src/verify.rs",
+      "crates/revocation/src/composite.rs",
+      "crates/revocation/src/statuslist.rs"
+    ],
+    "positive_tests": [
+      "credential_status_policy_verifies_statuslist_source",
+      "credential_revocation_policy_falls_back_to_available_source",
+      "verify_credential_composes_signature_and_revocation_policy",
+      "verify_credential_composes_signature_and_statuslist_policy"
+    ],
+    "negative_tests": ["credential_revocation_policy_maps_unavailable_sources", "credential_status_rejects_not_yet_valid_list"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "SINGLE-USE-MUST-001",
+    "source": "COMPLIANCE-MAP",
+    "section": "Shared replay protection substrate",
+    "keyword": "MUST",
+    "feature": "single_use_exactly_once_consumption",
+    "implementation": ["crates/single-use/src/store.rs"],
+    "positive_tests": ["stored_value_can_be_consumed", "concurrent_consume_allows_one_success"],
+    "negative_tests": ["replay_value_is_rejected_after_first_consume", "unknown_value_is_rejected"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "SINGLE-USE-MUST-002",
+    "source": "COMPLIANCE-MAP",
+    "section": "Shared replay protection substrate",
+    "keyword": "MUST",
+    "feature": "single_use_expiry_and_pruning",
+    "implementation": ["crates/single-use/src/store.rs"],
+    "positive_tests": ["prune_preserves_unexpired_value"],
+    "negative_tests": ["expired_value_is_rejected", "prune_removes_expired_entries"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "SINGLE-USE-MUST-003",
+    "source": "COMPLIANCE-MAP",
+    "section": "Shared replay protection substrate",
+    "keyword": "MUST",
+    "feature": "single_use_non_oracle_rejection",
+    "implementation": ["crates/single-use/src/store.rs"],
+    "positive_tests": ["stored_value_can_be_consumed"],
+    "negative_tests": ["unknown_value_is_rejected", "expired_value_is_rejected"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "SINGLE-USE-MUST-004",
+    "source": "COMPLIANCE-MAP",
+    "section": "Shared replay protection substrate",
+    "keyword": "MUST",
+    "feature": "single_use_key_validation",
+    "implementation": ["crates/single-use/src/store.rs"],
+    "positive_tests": ["stored_value_can_be_consumed"],
+    "negative_tests": ["empty_key_is_invalid"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

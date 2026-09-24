@@ -1,0 +1,24 @@
+{
+  "schema": "reallyme.identity.conformance.vectors.v1",
+  "suite": "resource-limits",
+  "cases": [
+    {
+      "id": "identity-resource-limits-v1",
+      "source": "CONTRACT",
+      "format": "json",
+      "expected_limits": {
+        "compact_jwe_bytes": 65536,
+        "compact_jws_bytes": 65536,
+        "sd_jwt_disclosures": 256,
+        "sd_jwt_disclosure_bytes": 4096,
+        "mdoc_device_response_documents": 8,
+        "mdoc_cbor_depth": 64,
+        "mdoc_cbor_map_entries": 512,
+        "mdoc_cbor_array_items": 512,
+        "x509_chain_certificates": 10,
+        "qeaa_cert_chain_total_der_bytes": 262144,
+        "status_list_entries": 1000000
+      }
+    }
+  ]
+}

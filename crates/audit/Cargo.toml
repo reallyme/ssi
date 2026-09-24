@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-credential-audit"
+version = "0.1.0"
+description = "Protocol-neutral QEAA compliance metadata and audit evidence validation."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "credentials", "qeaa", "eidas", "compliance"]
+categories = ["authentication", "data-structures"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = ["native"]
+native = []
+wasm = []
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+thiserror = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
+
+[lints]
+workspace = true

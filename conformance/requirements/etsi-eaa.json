@@ -1,0 +1,67 @@
+[
+  {
+    "id": "ETSI-EAA-MUST-001",
+    "source": "ETSI-TS-119-472-1",
+    "section": "normative requirement registry and supported format profiles",
+    "keyword": "MUST",
+    "feature": "etsi_eaa_credential_format_policy",
+    "implementation": [
+      "crates/eudi/etsi-eaa-conformance/src/requirements.rs",
+      "crates/eudi/etsi-eaa-conformance/src/validate.rs"
+    ],
+    "positive_tests": [
+      "production_registry_resolves_all_740_normative_identifiers",
+      "accepts_complete_json_ld_eaa_profile",
+      "accepts_complete_x509_attribute_certificate_eaa_profile"
+    ],
+    "negative_tests": [
+      "production_registry_rejects_unknown_and_noncanonical_identifiers",
+      "rejects_json_ld_eaa_without_valid_enveloping_proof",
+      "rejects_x509_attribute_certificate_eaa_with_invalid_extensions"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "ETSI-EAA-MUST-002",
+    "source": "ETSI-TS-119-472-2",
+    "section": "normative presentation requirements",
+    "keyword": "MUST",
+    "feature": "etsi_eaa_presentation_policy",
+    "implementation": [
+      "crates/eudi/etsi-eaa-conformance/src/presentation.rs",
+      "crates/eudi/etsi-eaa-conformance/src/requirements.rs"
+    ],
+    "positive_tests": [
+      "accepts_complete_sd_jwt_presentation_profile",
+      "accepts_complete_mdoc_presentation_profile"
+    ],
+    "negative_tests": [
+      "rejects_sd_jwt_presentation_with_unverified_key_binding",
+      "presentation_authorization_rejects_silent_or_preticked_approval"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "ETSI-EAA-MUST-003",
+    "source": "ETSI-TS-119-472-3",
+    "section": "normative issuance requirements",
+    "keyword": "MUST",
+    "feature": "etsi_eaa_issuance_policy",
+    "implementation": [
+      "crates/eudi/etsi-eaa-conformance/src/issuance.rs",
+      "crates/eudi/etsi-eaa-conformance/src/requirements.rs"
+    ],
+    "positive_tests": [
+      "accepts_complete_issuance_profile",
+      "validates_structured_notification_request"
+    ],
+    "negative_tests": [
+      "rejects_missing_required_issuance_crypto_suite",
+      "eu_issuance_requires_registration_certificate"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

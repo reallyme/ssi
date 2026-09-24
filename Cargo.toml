@@ -1,0 +1,157 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/ssi",
+    "crates/compression/brotli",
+    "crates/audit",
+    "crates/claims",
+    "crates/credential",
+    "crates/credential/vc/api",
+    "crates/credential/vc/ietf-sd-jwt",
+    "crates/credential/vc/jwt",
+    "crates/delivery/core",
+    "crates/delivery/contact/api",
+    "crates/delivery/contact/core",
+    "crates/delivery/contact/validator",
+    "crates/delivery/siop/api",
+    "crates/delivery/siop/core",
+    "crates/delivery/siop/verifier",
+    "crates/delivery/web/core",
+    "crates/delivery/web/validator",
+    "crates/disclosure-policy",
+    "crates/did/core/api",
+    "crates/did/core/common",
+    "crates/did/core/engine",
+    "crates/did/core/types",
+    "crates/did/methods/cheqd",
+    "crates/did/methods/conformance",
+    "crates/did/methods/ebsi",
+    "crates/did/methods/ion",
+    "crates/did/methods/jwk",
+    "crates/did/methods/key",
+    "crates/did/methods/me",
+    "crates/did/methods/web",
+    "crates/envelopes/data_integrity",
+    "crates/envelopes/jwt_vc",
+    "crates/envelopes/mdoc",
+    "crates/envelopes/profiles",
+    "crates/envelopes/sd_jwt",
+    "crates/eudi/etsi-eaa-conformance",
+    "crates/eudi/rp-registration",
+    "crates/oauth",
+    "crates/profiles",
+    "crates/proto",
+    "crates/proto-codec",
+    "crates/revocation",
+    "crates/revocation/crl/core",
+    "crates/revocation/crl/openssl",
+    "crates/revocation/ocsp/core",
+    "crates/revocation/ocsp/dispatch",
+    "crates/revocation/ocsp/openssl",
+    "crates/single-use",
+    "crates/status",
+    "crates/keys",
+    "crates/trust/api",
+    "crates/trust/core",
+    "crates/trust/jades",
+    "crates/trust/openssl",
+    "crates/trust/tsl-core",
+    "crates/trust/tsl-xmlsec",
+    "crates/trust/tsl-xmlsec-sys",
+    "crates/trust/tsl-openssl",
+    "crates/trust/wasm",
+    "crates/trust/x509",
+    "crates/presentation/api",
+    "crates/presentation/core",
+    "crates/presentation/policy",
+    "crates/presentation/sd-jwt",
+    "crates/presentation/validator",
+]
+
+# The Data Integrity crate owns the did:me `es256-jws-cid-2025` cryptosuite
+# used to bind DID documents to their current core CID.
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.96"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/reallyme/ssi"
+publish = false
+
+[workspace.dependencies]
+buffa = { version = "0.9.2", features = ["json"] }
+buffa-types = { version = "0.9.2", features = ["json"] }
+email_address = { version = "0.2.9", default-features = false }
+asn1-rs = "0.7.2"
+brotli = "9.0.0"
+percent-encoding = "2.3"
+url = "2.5"
+ciborium = "0.2"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+oid-registry = "0.8.1"
+pem = "4.0.0"
+secrecy = "0.10.3"
+serde = "1.0"
+serde_ignored = "0.1.14"
+serde_json = "1.0"
+thiserror = "2.0"
+time = "0.3"
+x509-parser = "0.18.1"
+zeroize = "1.9"
+
+reallyme-codec = { version = "=0.2.3", default-features = false }
+reallyme-cose = { version = "=0.2.5", default-features = false }
+reallyme-crypto = { version = "=0.3.9", default-features = false }
+reallyme-crypto-proto = { version = "=0.3.9", default-features = false }
+reallyme-jose = { version = "=0.4.0", default-features = false }
+reallyme-compression-brotli = { path = "crates/compression/brotli", version = "0.1.0" }
+reallyme-credential-audit = { path = "crates/audit", version = "0.1.0", default-features = false }
+reallyme-credential = { path = "crates/credential", version = "0.1.0", default-features = false }
+identity-credential-claims-core = { package = "reallyme-credential-claims", path = "crates/claims", version = "0.1.0", default-features = false }
+identity-core-primitives = { package = "reallyme-ssi-core", path = "crates/did/core/common", version = "0.1.0" }
+reallyme-ssi-proto = { path = "crates/proto", version = "0.1.0", features = ["generated"] }
+reallyme-ssi-proto-codec = { path = "crates/proto-codec", version = "0.1.0" }
+reallyme-did-api = { path = "crates/did/core/api", version = "0.1.0", default-features = false }
+reallyme-did-method-web = { path = "crates/did/methods/web", version = "0.1.0" }
+reallyme-did-method-ebsi = { path = "crates/did/methods/ebsi", version = "0.1.0" }
+reallyme-did-types = { path = "crates/did/core/types", version = "0.1.0" }
+identity-credential-status-core = { package = "reallyme-credential-status", path = "crates/status", version = "0.1.0", default-features = false }
+identity-revocation-core = { package = "reallyme-revocation", path = "crates/revocation", version = "0.1.0", default-features = false }
+identity-trust-jades = { path = "crates/trust/jades", version = "0.1.0", default-features = false }
+reallyme-eudi-rp-registration = { path = "crates/eudi/rp-registration", version = "0.1.0", default-features = false }
+identity-presentation-vp-core = { package = "reallyme-vp-core", path = "crates/presentation/core", version = "0.1.0", default-features = false }
+envelopes-x509 = { package = "reallyme-trust-x509", path = "crates/trust/x509", version = "0.1.0" }
+envelopes-jwt = { package = "reallyme-jose", version = "=0.4.0", default-features = false }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+# Missing public item docs are enforced during API review, not as a blanket
+# compiler warning. Several internal support crates expose DTO-heavy surfaces;
+# warning on every field creates noise and encourages filler comments.
+missing_docs = "warn"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+bare_urls = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+expect_used = "deny"
+large_include_file = "deny"
+panic = "deny"
+print_stderr = "deny"
+print_stdout = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+unwrap_used = "deny"
+wildcard_imports = "deny"

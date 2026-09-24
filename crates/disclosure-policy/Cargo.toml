@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-disclosure-policy"
+version = "0.1.0"
+description = "Reusable eIDAS-oriented verifiable presentation disclosure policies."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "credentials", "disclosure", "eidas", "privacy"]
+categories = ["authentication"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[dependencies]
+reallyme-credential-claims = { path = "../claims", version = "0.1.0", default-features = false }
+reallyme-ssi-proto = { workspace = true }
+identity-core-primitives = { package = "reallyme-ssi-core", path = "../did/core/common", version = "0.1.0" }
+reallyme-vp-core = { path = "../presentation/core", version = "0.1.0" }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

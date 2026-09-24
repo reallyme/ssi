@@ -1,0 +1,30 @@
+{
+  "tradeName": "Example RP",
+  "registryURI": "https://registry.example/wrp",
+  "services": [
+    {
+      "serviceTradeName": "Example Service",
+      "serviceIdentifier": "service-1",
+      "supportURI": "https://rp.example/support",
+      "email": "support@rp.example",
+      "srvDescription": [[{"lang": "en", "content": "Example verification service"}]],
+      "intendedUses": [
+        {
+          "purpose": [{"lang": "en", "content": "Verify age"}],
+          "privacyPolicy": [{"policyURI": "https://rp.example/privacy", "type": "privacy"}],
+          "intendedUseIdentifier": "age-check",
+          "createdAt": "2026-09-17T00:00:00Z",
+          "credentials": [
+            {
+              "format": "dc+sd-jwt",
+              "meta": {"vct_values": ["urn:example:pid"]},
+              "claims": [{"path": "[\"age_over_18\"]"}]
+            }
+          ]
+        }
+      ],
+      "entitlements": ["https://uri.etsi.org/19475/Entitlement/Service_Provider"],
+      "providesAttestations": []
+    }
+  ]
+}

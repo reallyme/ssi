@@ -1,0 +1,514 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+schema: reallyme.identity.conformance_evidence_map.v1
+repository: reallyme/ssi
+# Add a row only after reviewing every required source and test locator against
+# the pinned requirement digest. Unmapped requirements are generated as planned.
+requirements:
+  type-rule:types.DidResolutionResult.document:
+    accepted_requirement_sha256: 0213da1134fb04725cad9473a6f4ad74677e9043739ef586c21b61d03fc353db
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub document: Option<DIDDocument>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: complete_resolution_metadata_crosses_the_validation_boundary
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/parse_dereference_resolve_tests.rs
+        symbol: validate_resolution_result_rejects_absent_with_document
+        artifact_id:
+        source_sha256: eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f
+  type-rule:types.DidResolutionResult.document_metadata.created:
+    accepted_requirement_sha256: a52ce0d4f366d6c97596979af6ccbb1686468fb3c51064971a3528c5e63f9842
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub created: Option<String>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "created: Some(CREATED.into())"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: '.created = Some("not-a-timestamp".into())'
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.document_metadata.deactivated:
+    accepted_requirement_sha256: 07a07ffc82a5f36fb5fc6505fb8c21e73ec9035a8d78ce07e4dd742468a839fc
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub deactivated: bool"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/parse_dereference_resolve_tests.rs
+        symbol: validate_resolution_result_accepts_deactivation_document
+        artifact_id:
+        source_sha256: eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: ".deactivated = true"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.document_metadata.next_version_id:
+    accepted_requirement_sha256: 2c1c1a98e4ee205e0a78ef21ac77eb349b15aacbf1b18aacdd1def6acbb31e97
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub next_version_id: Option<String>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: 'next_version_id: Some("next-version".into())'
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: ".next_version_id = Some(String::new())"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.document_metadata.updated:
+    accepted_requirement_sha256: 650e06ca08f61f20a2dbfbad73a3f71fd0e766526a37a983ce7535000ccfc19b
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub updated: Option<String>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "updated: Some(UPDATED.into())"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: '.updated = Some("not-a-timestamp".into())'
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.document_metadata.version_id:
+    accepted_requirement_sha256: 880b3835e12623b13ae5b65705b932886e42cf8d877d9e39930cbc5f62d371ae
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub version_id: Option<String>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "version_id: Some(doc.current_core.clone())"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: ".version_id = Some(String::new())"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.resolution_metadata.assurance_achieved.enum:
+    accepted_requirement_sha256: 61506d0fdac3bdc35bc5fb49401dc846791ea05bedde8eda11b02382c3a26af9
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub assurance_achieved: Option<DidResolutionAssurance>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "assurance_achieved: Some(DidResolutionAssurance::ChainVerified)"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "Some(DidResolutionAssurance::AttestationVerified)"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.resolution_metadata.content_type:
+    accepted_requirement_sha256: d229c9654abbedf071d43cc612056bd10230d4a2d03d4b6650e3cffac44e206d
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub content_type: Option<String>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: 'content_type: Some("application/did+json".into())'
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: 'content_type = Some("text/plain".into())'
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.resolution_metadata.deactivation_status.enum:
+    accepted_requirement_sha256: 0d913dcd21b487a28d275fb83ea68dd7b385bca31f2a6555866e5dffbca93326
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub deactivation_status: DidDeactivationStatus"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/parse_dereference_resolve_tests.rs
+        symbol: validate_resolution_result_accepts_deactivation_document
+        artifact_id:
+        source_sha256: eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/parse_dereference_resolve_tests.rs
+        symbol: validate_resolution_result_rejects_absent_with_document
+        artifact_id:
+        source_sha256: eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f
+  type-rule:types.DidResolutionResult.resolution_metadata.error:
+    accepted_requirement_sha256: f8df797cbeab1c4bc70de7efad04621daa9b3e25fdd130fa558e318485b62cd8
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub error: Option<DidResolutionErrorCode>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/parse_dereference_resolve_tests.rs
+        symbol: validate_resolution_result_requires_typed_not_found_for_absent_result
+        artifact_id:
+        source_sha256: eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "error = Some(DidResolutionErrorCode::ResolverFailure)"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.resolution_metadata.resolver:
+    accepted_requirement_sha256: f44c44038009f810d98f90fc37610b25a3a5db12bee77b05312cf5b80b34da9c
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub resolver: Option<String>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: 'resolver: Some("did-me-history".into())'
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "resolver = Some(String::new())"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.resolution_metadata.retrieved_at:
+    accepted_requirement_sha256: 97fd46cb7fab2024d8d67481fc038bd32f02fd999b483e425af89e47af0f67ba
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub retrieved_at: Option<String>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "retrieved_at: Some(RETRIEVED.into())"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: 'retrieved_at = Some("not-a-timestamp".into())'
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  type-rule:types.DidResolutionResult.resolution_metadata.sequence:
+    accepted_requirement_sha256: 1538c7632ef5b84d0adbf934b58052906621031c3989f2a943ed7423e1c24cb9
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/core/api/src/resolve/section_01.rs
+        symbol: "pub sequence: Option<u64>"
+        artifact_id:
+        source_sha256: 5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704
+      - class: boundary_validation_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "sequence: Some(doc.sequence)"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+      - class: invalid_input_test
+        path: crates/did/core/api/tests/resolution_metadata_tests.rs
+        symbol: "checked_add(1)"
+        artifact_id:
+        source_sha256: b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687
+  command:identity.did_web.create_document:
+    accepted_requirement_sha256: 7018db0047adcf67462fe873163debf0a73e5199290925667b7e5e748448ed86
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/methods/web/src/provider.rs
+        symbol: create_did_web_document
+        artifact_id:
+        source_sha256: 1b31cb2f2f72c58c73bc2bf3a1fc5abc15a78babed71406163ab132247fb42f9
+      - class: behavior_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: create_did_web_document(
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: invalid_input_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: hosting_fails_closed_without_authenticated_provider
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: round_trip_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: resolved.document.id(), created.document.id()
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+  command:identity.did_web.deactivate_document:
+    accepted_requirement_sha256: a976f2cd6d9f3a1bd196d04d337ed062443978b3343de02aa178a9eaf89d521e
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/methods/web/src/provider.rs
+        symbol: deactivate_did_web_document
+        artifact_id:
+        source_sha256: 1b31cb2f2f72c58c73bc2bf3a1fc5abc15a78babed71406163ab132247fb42f9
+      - class: behavior_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: deactivate_did_web_document(
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: invalid_input_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: hosting_fails_closed_without_authenticated_provider
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: round_trip_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: provider.calls.get(), 3
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+  command:identity.did_web.derive_resolution_url:
+    accepted_requirement_sha256: cbddf4a4efb6d25d80494f37bd29da515a10056bb42fef5a1734d3e59eca1354
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/methods/web/src/method.rs
+        symbol: did_web_document_url
+        artifact_id:
+        source_sha256: 97b42b3000de218069c47628f72f07d9e01f371a97dbc7960f7e9a2b56ef5199
+      - class: behavior_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: did_web_document_url(
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: invalid_input_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: DidWebErrorReason::InvalidPercentEncoding
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: round_trip_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: canonicalize_did_web(
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+  command:identity.did_web.resolve_document:
+    accepted_requirement_sha256: 8c5db8ad1c6c42484b63a817bafe97aca50a26af43304719405808cf13e9dec2
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/methods/web/src/resolution.rs
+        symbol: resolve_did_web_document
+        artifact_id:
+        source_sha256: ede1290a0e8f9edee04f828c1df81dcfe38a7a607c43e243d0c138228592daff
+      - class: behavior_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: resolver_pins_dns_and_validates_document_and_media_type
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: invalid_input_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: resolver_rejects_private_dns_rebinding_media_size_and_cancellation
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: round_trip_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: resolver_rechecks_redirect_dns_and_rejects_http_redirects
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+  command:identity.did_web.update_document:
+    accepted_requirement_sha256: f25e1aa9debe5fdcff4425bc1294f0d0c58a735c42d9797ad069c3af89741d89
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/methods/web/src/provider.rs
+        symbol: update_did_web_document
+        artifact_id:
+        source_sha256: 1b31cb2f2f72c58c73bc2bf3a1fc5abc15a78babed71406163ab132247fb42f9
+      - class: behavior_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: update_did_web_document(
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: invalid_input_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: hosting_fails_closed_without_authenticated_provider
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: round_trip_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: DidWebHostingOperation::Update
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+  command:identity.did_web.validate_document:
+    accepted_requirement_sha256: 7144a537c069e267abd9838c803c84031038b0846ff55662b78396ab37502f59
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/methods/web/src/document.rs
+        symbol: parse_and_validate_did_web_document
+        artifact_id:
+        source_sha256: 7aba20282e0b8ee6041d9a6fb0e8c9bd2595a80394d1b3eb5b5dc9291620846b
+      - class: behavior_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: document_validation_accepts_absolute_canonical_relationships
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: invalid_input_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: document_validation_rejects_mismatch_relative_urls_and_dangling_relationships
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+      - class: round_trip_test
+        path: crates/did/methods/web/tests/did_web_profile_tests.rs
+        symbol: did_url_dereferencing_selects_document_and_absolute_fragment
+        artifact_id:
+        source_sha256: 3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400
+  type-rule:types.VerificationProvenance.standards_versions.did_web:
+    accepted_requirement_sha256: a6aa577bff222f1abd63e47ff82aec3538172c7887647acdc34f2fbe0a373987
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/audit/src/provenance.rs
+        symbol: versions.did_web
+        artifact_id:
+        source_sha256: cb86da26c193d86b02d95dd457dca9eee2bc1b367b12651f5b4d84d85f8ff650
+      - class: boundary_validation_test
+        path: crates/audit/tests/verification_provenance_tests.rs
+        symbol: did_web_standard_version_is_required_at_the_provenance_boundary
+        artifact_id:
+        source_sha256: bdfcabe50c1191257f9f2368ddf1b7434958bd1561e962e7154a09a16553f5bf
+      - class: invalid_input_test
+        path: crates/audit/tests/verification_provenance_tests.rs
+        symbol: did_web_standard_version_rejects_oversized_untrusted_input
+        artifact_id:
+        source_sha256: bdfcabe50c1191257f9f2368ddf1b7434958bd1561e962e7154a09a16553f5bf
+  command:identity.did_ebsi.create_document:
+    accepted_requirement_sha256: 0150dd4b8fd5cbd15281faf4fbd2f27c375ee63b705f6a29c16f1d91e5f9e425
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/methods/ebsi/src/registry.rs
+        symbol: create_did_ebsi_document
+        artifact_id:
+        source_sha256: e8b61f355ffc83592e4c24447e10abc08f41c1420b1f8bca2773aa9bc028b1e1
+      - class: behavior_test
+        path: crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs
+        symbol: document_profile_accepts_canonical_legal_entity_document
+        artifact_id:
+        source_sha256: ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7
+      - class: invalid_input_test
+        path: crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs
+        symbol: document_profile_rejects_mismatch_private_dangling_and_limits
+        artifact_id:
+        source_sha256: ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7
+      - class: round_trip_test
+        path: crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs
+        symbol: document_profile_creation_preserves_canonical_bytes
+        artifact_id:
+        source_sha256: ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7
+  command:identity.did_ebsi.derive_identifier:
+    accepted_requirement_sha256: 7c765edff9956d1db1a5bd1c20fb282762a9f7aed339c8b50a89f0ba61185914
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/methods/ebsi/src/method.rs
+        symbol: generate_did_ebsi
+        artifact_id:
+        source_sha256: 626736072897f7392ab5a04092349174a1e5973926141adc4476143b9016110e
+      - class: behavior_test
+        path: crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs
+        symbol: "for published in [DID"
+        artifact_id:
+        source_sha256: ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7
+      - class: invalid_input_test
+        path: crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs
+        symbol: identifier_profile_rejects_noncanonical_personal_and_oversized_values
+        artifact_id:
+        source_sha256: ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7
+      - class: round_trip_test
+        path: crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs
+        symbol: identifier_profile_vectors_round_trip_byte_exact
+        artifact_id:
+        source_sha256: ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7
+  command:identity.did_ebsi.validate_document:
+    accepted_requirement_sha256: de50081cafa05f323d05e68563bf08c1da020c2d2b17d136ac03c7b4ad550757
+    status: implemented
+    reason_code:
+    evidence:
+      - class: code_symbol
+        path: crates/did/methods/ebsi/src/document.rs
+        symbol: parse_and_validate_did_ebsi_document
+        artifact_id:
+        source_sha256: de8e03d9b07a3cd03c7f788e2d1fb3d3cf719019147a47e2eeb5fca0036f35b7
+      - class: behavior_test
+        path: crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs
+        symbol: document_profile_accepts_canonical_legal_entity_document
+        artifact_id:
+        source_sha256: ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7
+      - class: invalid_input_test
+        path: crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs
+        symbol: document_profile_rejects_mismatch_private_dangling_and_limits
+        artifact_id:
+        source_sha256: ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7
+      - class: round_trip_test
+        path: crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs
+        symbol: document_profile_creation_preserves_canonical_bytes
+        artifact_id:
+        source_sha256: ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7

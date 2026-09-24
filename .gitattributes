@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# Preserve byte-for-byte upstream fixtures and licensed schemas. Their source
+# formatting includes significant historical whitespace that is not owned here.
+crates/trust/tsl-xmlsec/schemas/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space
+vectors/ietf-sd-jwt/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space

@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-presentation-vp-sd-jwt"
+version = "0.1.0"
+description = "Legacy ReallyMe Merkle-envelope presentation compatibility; not RFC 9901 SD-JWT VC"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[features]
+default = ["native"]
+native = ["envelopes-jwt/native", "reallyme-credential/native"]
+wasm = ["envelopes-jwt/wasm", "reallyme-credential/wasm"]
+
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = { workspace = true }
+reallyme-crypto = { workspace = true, features = ["sha2"] }
+
+codec-base64url = { package = "reallyme-codec-base64url", version = "=0.2.3" }
+
+reallyme-credential = { workspace = true }
+identity-presentation-vp-core = { workspace = true }
+identity-credential-claims-core = { workspace = true }
+
+
+envelopes-jwt = { workspace = true }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "=0.3.9", default-features = false }
+
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "=0.3.9", default-features = false }
+crypto-core = { package = "reallyme-crypto-core", version = "=0.3.9" }
+[lints]
+workspace = true

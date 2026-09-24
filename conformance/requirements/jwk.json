@@ -1,0 +1,86 @@
+[
+  {
+    "id": "JWK-MUST-001",
+    "source": "RFC7517",
+    "section": "4.4 alg",
+    "keyword": "MUST",
+    "feature": "jwk_algorithm_binding",
+    "implementation": ["reallyme-jose/crates/src/jwt/header.rs", "reallyme_crypto::jwk"],
+    "positive_tests": ["p256_signed_jwt_roundtrip", "secp256k1_signed_jwt_roundtrip", "ed25519_signed_jwt_roundtrip"],
+    "negative_tests": ["reject_jwt_when_header_alg_differs_from_jwk_alg", "reject_jwt_when_jwk_alg_is_missing", "reject_jwt_when_jwk_curve_and_alg_disagree"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWK-MUST-002",
+    "source": "RFC7517",
+    "section": "4.5 kid",
+    "keyword": "MUST",
+    "feature": "jwk_key_id_header_propagation",
+    "implementation": ["reallyme-jose/crates/src/jwt/header.rs", "reallyme-jose/crates/src/jwt/sign.rs"],
+    "positive_tests": ["signed_jwt_carries_jwk_key_id"],
+    "negative_tests": ["reject_jwt_when_header_alg_differs_from_jwk_alg"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWK-MUST-003",
+    "source": "RFC7516",
+    "section": "4.1.3 jwk and 4.1.2 jku",
+    "keyword": "MUST NOT",
+    "feature": "jwe_untrusted_key_reference_rejection",
+    "implementation": ["reallyme-jose/crates/src/jwe/header.rs"],
+    "positive_tests": ["decrypts_compact_dir_a128gcm_json"],
+    "negative_tests": ["rejects_remote_key_header", "rejects_embedded_jwk_header"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWK-MUST-004",
+    "source": "RFC7638",
+    "section": "3.2 JWK Thumbprint Canonicalization",
+    "keyword": "MUST",
+    "feature": "jwk_thumbprint_binding",
+    "implementation": ["crates/oauth/src/dpop.rs"],
+    "positive_tests": ["dpop_validation_accepts_matching_access_token_jkt_binding"],
+    "negative_tests": ["dpop_header_rejects_symmetric_jwk"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWK-MUST-005",
+    "source": "RFC7638",
+    "section": "3.2 JWK Thumbprint Canonicalization",
+    "keyword": "MUST",
+    "feature": "jwk_thumbprint_canonical_member_selection",
+    "implementation": ["crates/oauth/src/dpop.rs"],
+    "positive_tests": ["jwk_thumbprint_ignores_member_order_and_extra_fields", "jwk_thumbprint_supports_okp_and_rsa_required_members"],
+    "negative_tests": ["jwk_thumbprint_rejects_missing_required_member"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWK-MUST-006",
+    "source": "RFC9449",
+    "section": "4.2 DPoP Proof JWT Header",
+    "keyword": "MUST",
+    "feature": "dpop_public_jwk_header_policy",
+    "implementation": ["crates/oauth/src/dpop.rs"],
+    "positive_tests": ["dpop_generation_and_validation_enforces_replay_hook"],
+    "negative_tests": ["dpop_header_rejects_symmetric_algorithm", "dpop_header_rejects_symmetric_jwk"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWK-MUST-007",
+    "source": "RFC7638",
+    "section": "3.2 JWK Thumbprint Canonicalization",
+    "keyword": "MUST",
+    "feature": "portable_jwk_thumbprint_vectors",
+    "implementation": ["crates/oauth/src/dpop.rs", "vectors/jwk-thumbprint.json"],
+    "positive_tests": ["jwk_thumbprint_positive_vectors_match", "jwk-thumbprint"],
+    "negative_tests": ["jwk_thumbprint_negative_vectors_fail_closed"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

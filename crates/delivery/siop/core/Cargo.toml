@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-presentation-delivery-siop-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+thiserror = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
+[lints]
+workspace = true

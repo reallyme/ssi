@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-credential-status"
+version = "0.1.0"
+description = "Credential status-list models and verification policy for ReallyMe identity."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "credentials", "status-list", "revocation", "eidas"]
+categories = ["authentication", "data-structures"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = ["native"]
+native = [
+    "dep:reallyme-cose",
+    "dep:reallyme-crypto",
+    "dep:reallyme-jose",
+    "reallyme-cose/native",
+    "reallyme-crypto/native",
+    "reallyme-jose/native",
+]
+proto = [
+    "dep:buffa",
+    "dep:buffa-types",
+]
+wasm = [
+    "dep:reallyme-cose",
+    "dep:reallyme-crypto",
+    "dep:reallyme-jose",
+    "reallyme-cose/wasm",
+    "reallyme-crypto/wasm",
+    "reallyme-jose/wasm",
+]
+
+[dependencies]
+buffa = { workspace = true, optional = true }
+buffa-types = { workspace = true, optional = true }
+flate2 = { workspace = true }
+reallyme-codec = { workspace = true, features = ["base64url", "cbor"] }
+reallyme-cose = { workspace = true, optional = true }
+reallyme-crypto = { workspace = true, optional = true }
+reallyme-ssi-proto = { workspace = true }
+reallyme-jose = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+url = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

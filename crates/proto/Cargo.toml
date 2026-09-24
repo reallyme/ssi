@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-ssi-proto"
+version = "0.1.0"
+description = "Canonical ReallyMe identity protobuf bindings generated with Buffa."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["identity", "ssi", "protobuf", "credentials", "did"]
+categories = ["authentication", "encoding"]
+publish = true
+include = [
+    "/src/**/*.rs",
+    "/proto/**/*.proto",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[package.metadata.cargo-machete]
+# Generated Buffa messages reference this crate through generated modules.
+ignored = ["buffa-types"]
+
+[features]
+default = []
+generated = [
+    "dep:buffa",
+    "dep:buffa-types",
+    "dep:reallyme-crypto-proto",
+    "reallyme-crypto-proto/generated",
+    "dep:serde",
+    "dep:zeroize",
+]
+
+[dependencies]
+buffa = { workspace = true, optional = true }
+buffa-types = { workspace = true, optional = true }
+reallyme-crypto-proto = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+zeroize = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

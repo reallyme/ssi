@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-presentation-vp-policy"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# Errors
+thiserror = { workspace = true }
+
+# Core identity semantics
+identity-core-primitives = { workspace = true }
+reallyme-ssi-proto = { workspace = true }
+
+# Claims semantics & disclosure rules
+identity-credential-claims-core = { workspace = true }
+
+# Credential status / revocation checking
+identity-credential-status-core = { workspace = true }
+
+# VP models (SD-JWT, ZK)
+identity-presentation-vp-core = { workspace = true }
+
+codec-base64url = { package = "reallyme-codec-base64url", version = "=0.2.3" }
+
+serde_json = "1.0"
+
+# QEAA audit evidence
+reallyme-credential-audit = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,44 @@
+{
+  "schema": "reallyme.identity.conformance.vectors.v1",
+  "suite": "mdoc-issuer-signed",
+  "cases": [
+    {
+      "id": "reallyme-mdoc-issuer-signed-digests-001",
+      "source": "ISO18013-5",
+      "format": "mdoc-issuer-signed",
+      "doc_type": "org.iso.18013.5.1.mDL",
+      "digest_algorithm": "SHA-256",
+      "validity_info": {
+        "signed": 1700000000,
+        "valid_from": 1700000000,
+        "valid_until": 1800000000
+      },
+      "elements": [
+        {
+          "namespace": "org.iso.18013.5.1",
+          "digest_id": 1,
+          "element_identifier": "family_name",
+          "random_hex": "01010101010101010101010101010101",
+          "element_value_cbor_hex": "63444f45",
+          "issuer_signed_item_bytes_hex": "d8185852a4686469676573744944016672616e646f6d500101010101010101010101010101010171656c656d656e744964656e7469666965726b66616d696c795f6e616d656c656c656d656e7456616c756563444f45",
+          "sha256_digest_hex": "dd0b85c33b9f18826c49f65f2983adcbc7274e69e82a8f49eb5f7c67aaecfb45"
+        },
+        {
+          "namespace": "org.iso.18013.5.1",
+          "digest_id": 2,
+          "element_identifier": "given_name",
+          "random_hex": "02020202020202020202020202020202",
+          "element_value_cbor_hex": "65414c494345",
+          "issuer_signed_item_bytes_hex": "d8185853a4686469676573744944026672616e646f6d500202020202020202020202020202020271656c656d656e744964656e7469666965726a676976656e5f6e616d656c656c656d656e7456616c756565414c494345",
+          "sha256_digest_hex": "f72eb07cd74c3d1f4f45cd121d56d37cef6e6c311bc56c6b839b00702391dfce"
+        }
+      ],
+      "expected_value_digests": {
+        "org.iso.18013.5.1": {
+          "1": "dd0b85c33b9f18826c49f65f2983adcbc7274e69e82a8f49eb5f7c67aaecfb45",
+          "2": "f72eb07cd74c3d1f4f45cd121d56d37cef6e6c311bc56c6b839b00702391dfce"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-trust-tsl-xmlsec"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+# The workspace frequently runs `--features native`; keep an empty feature for compatibility.
+native = []
+# Enable the libxmlsec FFI backend. Requires system libxmlsec + libxml2 + OpenSSL + pkg-config.
+xmlsec-ffi = ["identity-trust-tsl-xmlsec-sys"]
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+reallyme-crypto = { workspace = true, features = ["sha2"] }
+thiserror = { workspace = true }
+quick-xml = "0.42"
+codec-base64 = { package = "reallyme-codec-base64", version = "=0.2.3" }
+zeroize = { workspace = true, features = ["derive"] }
+time = { workspace = true, features = ["parsing"] }
+
+identity-trust-tsl-xmlsec-sys = { version = "0.1.0", path = "../tsl-xmlsec-sys", optional = true, features = ["xmlsec-ffi"] }
+
+[dev-dependencies]
+# For fixtures only.
+tempfile = "3"
+
+[lints]
+workspace = true

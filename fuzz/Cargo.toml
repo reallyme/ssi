@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-ssi-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# Fuzz target names are stable operator-facing commands and evidence labels.
+# Cargo's binary-name style lint would require changing those public names.
+[lints.cargo]
+non_kebab_case_bins = "allow"
+
+[workspace]
+members = ["."]
+
+[dependencies]
+reallyme-mdoc = { path = "../crates/envelopes/mdoc", default-features = false }
+identity-trust-tsl-core = { path = "../crates/trust/tsl-core" }
+libfuzzer-sys = "0.4"
+reallyme-credential-claims = { path = "../crates/claims", default-features = false, features = ["native"] }
+reallyme-credential-status = { path = "../crates/status", default-features = false, features = ["native"] }
+reallyme-trust-x509 = { path = "../crates/trust/x509", default-features = false }
+
+[[bin]]
+name = "fuzz_claim_path"
+path = "fuzz_targets/fuzz_claim_path.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_claim_set"
+path = "fuzz_targets/fuzz_claim_set.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_mdoc_device_response"
+path = "fuzz_targets/fuzz_mdoc_device_response.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_parse_tsl_xml"
+path = "fuzz_targets/fuzz_parse_tsl_xml.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_status_list"
+path = "fuzz_targets/fuzz_status_list.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_x509_trust_der"
+path = "fuzz_targets/fuzz_x509_trust_der.rs"
+test = false
+doc = false

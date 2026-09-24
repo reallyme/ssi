@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-trust-openssl"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+native = []
+
+[dependencies]
+time = "0.3"
+
+# Core trust traits + errors
+reallyme-trust-core = { version = "0.1.0", path = "../core" }
+
+# Portable X.509 model used across the system
+envelopes-x509 = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+openssl = "0.10.81"
+
+[dev-dependencies]
+# used only for generating test certs (still via openssl crate)
+[lints]
+workspace = true

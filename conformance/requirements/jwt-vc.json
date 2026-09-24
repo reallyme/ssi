@@ -1,0 +1,50 @@
+[
+  {
+    "id": "JWTVC-MUST-001",
+    "source": "COMPLIANCE-MAP",
+    "section": "JWT-VC credential byte envelope",
+    "keyword": "MUST",
+    "feature": "jwt_vc_canonical_and_proto_transport_bytes",
+    "implementation": ["crates/envelopes/jwt_vc/src/claims.rs", "crates/envelopes/jwt_vc/src/issue.rs", "crates/envelopes/jwt_vc/src/verify.rs"],
+    "positive_tests": ["jwt_vc_issues_and_verifies_canonical_and_proto_bytes"],
+    "negative_tests": ["jwt_vc_rejects_empty_canonical_credential_bytes", "jwt_vc_rejects_empty_proto_transport_bytes"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWTVC-MUST-002",
+    "source": "RFC7519",
+    "section": "4.1 Registered Claim Names",
+    "keyword": "MUST",
+    "feature": "jwt_vc_issuer_subject_and_jwt_id_claims",
+    "implementation": ["crates/envelopes/jwt_vc/src/claims.rs", "crates/envelopes/jwt_vc/src/issue.rs"],
+    "positive_tests": ["jwt_vc_issues_and_verifies_canonical_and_proto_bytes"],
+    "negative_tests": ["jwt_vc_rejects_empty_issuer_or_subject"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWTVC-MUST-003",
+    "source": "RFC7519",
+    "section": "4.1.4 exp and 4.1.5 nbf",
+    "keyword": "MUST",
+    "feature": "jwt_vc_temporal_claim_window",
+    "implementation": ["crates/envelopes/jwt_vc/src/claims.rs"],
+    "positive_tests": ["jwt_vc_issues_and_verifies_canonical_and_proto_bytes"],
+    "negative_tests": ["jwt_vc_rejects_invalid_temporal_window"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWTVC-MUST-004",
+    "source": "RFC8725",
+    "section": "3.1 Perform Algorithm Verification and 3.11 Use Explicit Typing",
+    "keyword": "MUST",
+    "feature": "jwt_vc_signature_key_and_typ_policy",
+    "implementation": ["crates/envelopes/jwt_vc/src/issue.rs", "crates/envelopes/jwt_vc/src/verify.rs"],
+    "positive_tests": ["jwt_vc_issues_and_verifies_canonical_and_proto_bytes"],
+    "negative_tests": ["jwt_vc_rejects_wrong_issuer_key"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

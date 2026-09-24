@@ -1,0 +1,264 @@
+/*
+ * SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+ *
+ * SPDX-License-Identifier: MIT OR Apache-2.0
+ */
+
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <limits.h>
+
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+#include <libxml/xmlschemas.h>
+#include <libxml/parserInternals.h>
+
+#include <libxslt/xslt.h>
+#include <libxslt/security.h>
+#include <libxslt/xsltutils.h>
+
+#include <xmlsec/xmlsec.h>
+#include <xmlsec/xmldsig.h>
+#include <xmlsec/crypto.h>
+#include <xmlsec/xmltree.h>
+#include <xmlsec/errors.h>
+#include <xmlsec/list.h>
+#include <xmlsec/keysdata.h>
+
+// We currently target the OpenSSL xmlsec backend (Homebrew: xmlsec1-openssl).
+#include <xmlsec/openssl/app.h>
+#include <xmlsec/openssl/crypto.h>
+#include <xmlsec/openssl/x509.h>
+
+/*__SCHEMA_BYTES__*/
+
+static const xmlChar* meid_id_attrs[] = {
+    BAD_CAST "id",  /* xml:id */
+ BAD_CAST "Id",
+ BAD_CAST "ID",
+ NULL
+};
+
+static int meid_xmlsec_initialized = 0;
+static xmlSchemaPtr meid_tsl_schema = NULL;
+
+// Native libraries otherwise print certificate subjects, XML content, file
+// paths, and backend details directly to stderr. The Rust boundary returns
+// typed, non-PII errors, so native diagnostics must not bypass that boundary.
+static void meid_xml_schema_error_callback(void* context, const char* message, ...) {
+ (void)context;
+ (void)message;
+}
+
+static void meid_xmlsec_error_callback(const char* file, int line, const char* function,
+ const char* error_object, const char* error_subject, int reason, const char* message) {
+ (void)file;
+ (void)line;
+ (void)function;
+ (void)error_object;
+ (void)error_subject;
+ (void)reason;
+ (void)message;
+}
+
+static xmlParserInputPtr meid_schema_loader(const char* url, const char* id, xmlParserCtxtPtr ctxt) {
+ (void)id;
+ if(url == NULL || ctxt == NULL) return NULL;
+ if(strstr(url, "xml.xsd") != NULL) {
+ return xmlNewStringInputStream(ctxt, meid_xml_namespace_xsd);
+ }
+ if(strstr(url, "xmldsig-core-schema.xsd") != NULL) {
+ return xmlNewStringInputStream(ctxt, meid_xmldsig_xsd);
+ }
+ return NULL;
+}
+
+static int meid_tsl_schema_init_once(void) {
+ if(meid_tsl_schema != NULL) return 0;
+ xmlExternalEntityLoader previous_loader = xmlGetExternalEntityLoader();
+ xmlSetExternalEntityLoader(meid_schema_loader);
+ xmlSchemaParserCtxtPtr parser = xmlSchemaNewMemParserCtxt(
+ (const char*)meid_etsi_tsl_xsd, (int)meid_etsi_tsl_xsd_len);
+ if(parser != NULL) {
+ xmlSchemaSetParserErrors(parser, meid_xml_schema_error_callback,
+ meid_xml_schema_error_callback, NULL);
+ meid_tsl_schema = xmlSchemaParse(parser);
+ xmlSchemaFreeParserCtxt(parser);
+ }
+ xmlSetExternalEntityLoader(previous_loader);
+ return (meid_tsl_schema == NULL) ? -1 : 0;
+}
+
+static int meid_xmlsec_init_once(void) {
+ if(meid_xmlsec_initialized) {
+ return 0;
+ }
+
+ // libxml2 global init
+ xmlInitParser();
+ LIBXML_TEST_VERSION
+
+ // libxslt global init (xmlsec may reference default security prefs)
+ xsltInit();
+
+ // xmlsec 1.3.9's XSLT transform asserts if default security prefs are unset.
+ // We set a restrictive default to avoid file/network access even if an XSLT
+ // transform is present.
+ xsltSecurityPrefsPtr prefs = xsltNewSecurityPrefs();
+ if(prefs != NULL) {
+ xsltSetSecurityPrefs(prefs, XSLT_SECPREF_READ_FILE, xsltSecurityForbid);
+ xsltSetSecurityPrefs(prefs, XSLT_SECPREF_WRITE_FILE, xsltSecurityForbid);
+ xsltSetSecurityPrefs(prefs, XSLT_SECPREF_CREATE_DIRECTORY, xsltSecurityForbid);
+ xsltSetSecurityPrefs(prefs, XSLT_SECPREF_READ_NETWORK, xsltSecurityForbid);
+ xsltSetSecurityPrefs(prefs, XSLT_SECPREF_WRITE_NETWORK, xsltSecurityForbid);
+ xsltSetDefaultSecurityPrefs(prefs);
+ }
+
+ if(xmlSecInit() < 0) return -1;
+ if(xmlSecCheckVersion() != 1) return -1;
+ xmlSecErrorsSetCallback(meid_xmlsec_error_callback);
+
+ if(xmlSecCryptoAppInit(NULL) < 0) return -1;
+ if(xmlSecCryptoInit() < 0) return -1;
+
+ meid_xmlsec_initialized = 1;
+ return 0;
+}
+
+// Verify an enveloped XMLDSig in `xml` against a PEM bundle of trusted roots at `trusted_pem_path`.
+// Returns 0 on success, non-zero on failure.
+int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len, const char* trusted_pem_path,
+ int64_t verification_time_unix, int allow_trusted_leaf, unsigned char* signer_der,
+ size_t signer_der_capacity, size_t* signer_der_len) {
+ if(xml == NULL || trusted_pem_path == NULL || signer_der == NULL || signer_der_len == NULL) return -1;
+ *signer_der_len = 0;
+ if(xml_len > INT_MAX) return -1;
+ if(meid_xmlsec_init_once() != 0) return -2;
+ if(meid_tsl_schema_init_once() != 0) return -11;
+
+ xmlDocPtr doc = xmlReadMemory(xml, (int)xml_len, NULL, NULL,
+ XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING);
+ if(doc == NULL) {
+ return -3;
+ }
+
+ xmlNodePtr root = xmlDocGetRootElement(doc);
+ if(root == NULL) {
+ xmlFreeDoc(doc);
+ return -4;
+ }
+
+ xmlSchemaValidCtxtPtr schema_validation = xmlSchemaNewValidCtxt(meid_tsl_schema);
+ if(schema_validation == NULL) {
+ xmlFreeDoc(doc);
+ return -11;
+ }
+ xmlSchemaSetValidErrors(schema_validation, meid_xml_schema_error_callback,
+ meid_xml_schema_error_callback, NULL);
+ int schema_result = xmlSchemaValidateDoc(schema_validation, doc);
+ xmlSchemaFreeValidCtxt(schema_validation);
+ if(schema_result != 0) {
+ xmlFreeDoc(doc);
+ return -12;
+ }
+
+ // Ensure XML ID attributes are registered for same-document references.
+ //
+ // Note: xmlsec uses an XPointer like `xpointer(id('TSL'))` for same-doc refs.
+ // Registering through xmlsec avoids double-registering libxml2 ID tables on
+ // platforms that already treat `xml:id` specially.
+ xmlSecAddIDs(doc, root, meid_id_attrs);
+
+ // Find the first Signature node (namespace-aware).
+ xmlNodePtr sig_node = xmlSecFindNode(root, xmlSecNodeSignature, xmlSecDSigNs);
+ if(sig_node == NULL) {
+ xmlFreeDoc(doc);
+ return -5;
+ }
+
+ // Keys manager + trust roots.
+ xmlSecKeysMngrPtr mngr = xmlSecKeysMngrCreate();
+ if(mngr == NULL) {
+ xmlFreeDoc(doc);
+ return -6;
+ }
+ int result = -10;
+
+ if(xmlSecCryptoAppDefaultKeysMngrInit(mngr) < 0) {
+ result = -7;
+ goto cleanup_manager;
+ }
+
+ // Load trusted certs (root store) for chain validation.
+ if(xmlSecCryptoAppKeysMngrCertLoad(mngr, trusted_pem_path, xmlSecKeyDataFormatPem, xmlSecKeyDataTypeTrusted) < 0) {
+ result = -8;
+ goto cleanup_manager;
+ }
+
+ xmlSecDSigCtxPtr dsig = xmlSecDSigCtxCreate(mngr);
+ if(dsig == NULL) {
+ result = -9;
+ goto cleanup_manager;
+ }
+
+ // RFC 5280 Section 6 path validation is defined at the caller-selected time.
+ // xmlsec otherwise uses the ambient system clock and could reject a valid
+ // historical signature before the independently evaluated SSI trust policy runs.
+ time_t verification_time = (time_t)verification_time_unix;
+ if((int64_t)verification_time != verification_time_unix) {
+ result = -13;
+ goto cleanup_context;
+ }
+ dsig->keyInfoReadCtx.certsVerificationTime = verification_time;
+ if(allow_trusted_leaf != 0) {
+ // Exact-leaf bootstrap trust is enforced by the Rust caller after XMLSec
+ // returns the certificate that performed the signature operation. Requiring
+ // XMLSec to build a CA-style path here would reject an explicitly pinned
+ // end-entity signer before that byte-exact authorization can run.
+ dsig->keyInfoReadCtx.flags |= XMLSEC_KEYINFO_FLAGS_X509DATA_DONT_VERIFY_CERTS;
+ }
+
+ // Allow KeyInfo/X509Data for public key extraction (equivalent to `xmlsec1 --enabled-key-data x509`).
+ if(!xmlSecPtrListIsValid(&(dsig->keyInfoReadCtx.enabledKeyData))) {
+ if(xmlSecPtrListInitialize(&(dsig->keyInfoReadCtx.enabledKeyData), xmlSecKeyDataIdListGetKlass()) < 0) {
+ result = -9;
+ goto cleanup_context;
+ }
+ }
+ if(xmlSecPtrListAdd(&(dsig->keyInfoReadCtx.enabledKeyData), xmlSecOpenSSLKeyDataX509Id) < 0) {
+ result = -9;
+ goto cleanup_context;
+ }
+ int rc = xmlSecDSigCtxVerify(dsig, sig_node);
+ int ok = (rc >= 0) && (dsig->status == xmlSecDSigStatusSucceeded);
+
+ if(ok) {
+ xmlSecKeyDataPtr x509_data = xmlSecKeyGetData(dsig->signKey, xmlSecOpenSSLKeyDataX509Id);
+ X509* signer_cert = (x509_data == NULL) ? NULL : xmlSecOpenSSLKeyDataX509GetKeyCert(x509_data);
+ int der_len = (signer_cert == NULL) ? -1 : i2d_X509(signer_cert, NULL);
+ if(der_len <= 0 || (size_t)der_len > signer_der_capacity) {
+ ok = 0;
+ } else {
+ unsigned char* output_cursor = signer_der;
+ int written = i2d_X509(signer_cert, &output_cursor);
+ if(written != der_len) {
+ ok = 0;
+ } else {
+ *signer_der_len = (size_t)der_len;
+ }
+ }
+ }
+
+ result = ok ? 0 : -10;
+
+cleanup_context:
+ xmlSecDSigCtxDestroy(dsig);
+ // xmlSecDSigCtx borrows the manager. Destroy the context first, then release
+ // the independently owned manager at the single common cleanup point.
+cleanup_manager:
+ xmlSecKeysMngrDestroy(mngr);
+ xmlFreeDoc(doc);
+
+ return result;
+}

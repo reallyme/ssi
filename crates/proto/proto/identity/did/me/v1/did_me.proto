@@ -1,0 +1,35 @@
+// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+syntax = "proto3";
+
+package identity.did.me.v1;
+
+import "identity/did/v1/did.proto";
+import "meid/did/v1/did.proto";
+
+option java_multiple_files = true;
+option java_package = "me.really.identity.did.me.v1";
+option swift_prefix = "ReallyMeIdentityProto";
+
+// DidMeCoreSnapshot carries an optional decoded view of a did:me core snapshot
+// together with the canonical DAG-CBOR bytes that are hashed into its CID. The
+// decoded core is imported from the official me-id protobuf contract; identity
+// code must not maintain a parallel did:me core schema.
+message DidMeCoreSnapshot {
+  string cid = 1;
+  bytes canonical_dag_cbor = 2;
+  meid.did.v1.Core core = 3;
+}
+
+// DidMeRecord composes the official did:me protobuf document with the
+// method-neutral identity DID projection. The spec_document is the authoritative
+// did:me wire shape; document is the generic DID view used by cross-method
+// identity code.
+message DidMeRecord {
+  meid.did.v1.DIDDocument spec_document = 1;
+  identity.did.v1.DidDocument document = 2;
+  repeated DidMeCoreSnapshot core_chain = 3;
+  meid.did.v1.GenesisBinding genesis_binding = 4;
+}

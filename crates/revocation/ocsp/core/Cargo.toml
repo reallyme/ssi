@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-revocation-ocsp-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+identity-revocation-core = { workspace = true }
+reallyme-ssi-proto = { workspace = true }
+
+envelopes-x509 = { workspace = true }
+
+[dev-dependencies]
+time = "0.3"
+[lints]
+workspace = true

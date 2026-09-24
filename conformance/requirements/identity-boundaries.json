@@ -1,0 +1,62 @@
+[
+  {
+    "id": "BOUNDARY-ZK-001",
+    "source": "CONTRACT",
+    "section": "Sources Of Truth",
+    "keyword": "MUST NOT",
+    "feature": "concrete_zk_backend_in_identity",
+    "implementation": [],
+    "positive_tests": [],
+    "negative_tests": [],
+    "applicable": false,
+    "exclusion_reason": "Concrete circuit selection, proving, and verification live in reallyme/zk and are composed with SSI credential contracts by reallyme/openid4vp. SSI has no compile-time dependency on ZK crates."
+  },
+  {
+    "id": "BOUNDARY-OAUTH-001",
+    "source": "CONTRACT",
+    "section": "OAuth Substrate",
+    "keyword": "MUST",
+    "feature": "shared_oauth_substrate_without_endpoint_state",
+    "implementation": ["crates/oauth"],
+    "positive_tests": ["pkce_uses_s256_only", "metadata_accepts_par_dpop_and_s256"],
+    "negative_tests": ["par_rejects_request_uri_parameter"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "BOUNDARY-OPENID-001",
+    "source": "CONTRACT",
+    "section": "Sources Of Truth",
+    "keyword": "MUST NOT",
+    "feature": "openid_endpoint_state_machines",
+    "implementation": [],
+    "positive_tests": [],
+    "negative_tests": [],
+    "applicable": false,
+    "exclusion_reason": "OpenID4VCI and OpenID4VP request/response state machines, HTTP handlers, nonce stores, and endpoint orchestration live in protocol repositories."
+  },
+  {
+    "id": "BOUNDARY-PROVIDER-001",
+    "source": "CONTRACT",
+    "section": "Canonical Provider Transport",
+    "keyword": "MUST",
+    "feature": "generated_typed_bounded_provider_turns",
+    "implementation": [],
+    "positive_tests": [],
+    "negative_tests": [],
+    "applicable": false,
+    "exclusion_reason": "Typed product operation transport, dispatch, and provider execution moved to reallyme/identity. SSI retains only protocol-neutral messages and bounded domain codecs."
+  },
+  {
+    "id": "BOUNDARY-PROVIDER-002",
+    "source": "CONTRACT",
+    "section": "Replay And Correlation Safety",
+    "keyword": "MUST",
+    "feature": "provider_executor_binds_request_sequence_and_operation",
+    "implementation": [],
+    "positive_tests": [],
+    "negative_tests": [],
+    "applicable": false,
+    "exclusion_reason": "Replay-safe provider executor sequencing and operation binding moved to reallyme/identity with the product operation runtime."
+  }
+]

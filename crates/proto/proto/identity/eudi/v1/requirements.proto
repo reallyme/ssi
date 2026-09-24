@@ -1,0 +1,154 @@
+// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+syntax = "proto3";
+
+package identity.eudi.v1;
+
+option java_multiple_files = true;
+option java_package = "me.really.identity.eudi.v1";
+option csharp_namespace = "Identity.Eudi.V1";
+option swift_prefix = "ReallyMeIdentityProto";
+
+// EudiRequirementSource identifies one pinned ETSI part or consolidated EU
+// profile ledger. Source plus identifier is globally unique.
+enum EudiRequirementSource {
+  EUDI_REQUIREMENT_SOURCE_UNSPECIFIED = 0;
+  EUDI_REQUIREMENT_SOURCE_ETSI_TS_119_472_1 = 1;
+  EUDI_REQUIREMENT_SOURCE_ETSI_TS_119_472_2 = 2;
+  EUDI_REQUIREMENT_SOURCE_ETSI_TS_119_472_3 = 3;
+  EUDI_REQUIREMENT_SOURCE_CIR_2024_2977 = 4;
+  EUDI_REQUIREMENT_SOURCE_CIR_2024_2979 = 5;
+  EUDI_REQUIREMENT_SOURCE_CIR_2024_2982 = 6;
+  EUDI_REQUIREMENT_SOURCE_ETSI_119_472_1_EU = 7;
+  EUDI_REQUIREMENT_SOURCE_ETSI_119_472_2_EU = 8;
+  EUDI_REQUIREMENT_SOURCE_ETSI_119_472_3_EU = 9;
+}
+
+// EudiRequirementDisposition distinguishes executable routing, external
+// evidence, and justified non-applicability.
+enum EudiRequirementDisposition {
+  EUDI_REQUIREMENT_DISPOSITION_UNSPECIFIED = 0;
+  EUDI_REQUIREMENT_DISPOSITION_CODE_AND_COMPOSED_EVIDENCE = 1;
+  EUDI_REQUIREMENT_DISPOSITION_EXTERNAL_EVIDENCE_REQUIRED = 2;
+  EUDI_REQUIREMENT_DISPOSITION_NOT_APPLICABLE = 3;
+}
+
+enum EudiRequirementHandler {
+  EUDI_REQUIREMENT_HANDLER_UNSPECIFIED = 0;
+  EUDI_REQUIREMENT_HANDLER_COMMON_ATTESTATION = 1;
+  EUDI_REQUIREMENT_HANDLER_SD_JWT_CREDENTIAL = 2;
+  EUDI_REQUIREMENT_HANDLER_MDOC_CREDENTIAL = 3;
+  EUDI_REQUIREMENT_HANDLER_JSON_LD_CREDENTIAL = 4;
+  EUDI_REQUIREMENT_HANDLER_X509_ATTRIBUTE_CERTIFICATE = 5;
+  EUDI_REQUIREMENT_HANDLER_OPENID4VP_PRESENTATION = 6;
+  EUDI_REQUIREMENT_HANDLER_MDOC_PRESENTATION = 7;
+  EUDI_REQUIREMENT_HANDLER_SD_JWT_PRESENTATION = 8;
+  EUDI_REQUIREMENT_HANDLER_ISSUER_METADATA = 9;
+  EUDI_REQUIREMENT_HANDLER_CREDENTIAL_OFFER = 10;
+  EUDI_REQUIREMENT_HANDLER_AUTHORIZATION_CODE = 11;
+  EUDI_REQUIREMENT_HANDLER_PRE_AUTHORIZED_CODE = 12;
+  EUDI_REQUIREMENT_HANDLER_DPOP_AUTHORIZATION = 13;
+  EUDI_REQUIREMENT_HANDLER_CREDENTIAL_REQUEST = 14;
+  EUDI_REQUIREMENT_HANDLER_CREDENTIAL_RESPONSE_ENCRYPTION = 15;
+  EUDI_REQUIREMENT_HANDLER_NOTIFICATION = 16;
+}
+
+enum EudiEvidenceBoundary {
+  EUDI_EVIDENCE_BOUNDARY_UNSPECIFIED = 0;
+  EUDI_EVIDENCE_BOUNDARY_CREDENTIAL_VERIFICATION = 1;
+  EUDI_EVIDENCE_BOUNDARY_PRESENTATION_PROTOCOL = 2;
+  EUDI_EVIDENCE_BOUNDARY_ISSUANCE_PROTOCOL = 3;
+}
+
+enum EudiRequirementProfile {
+  EUDI_REQUIREMENT_PROFILE_UNSPECIFIED = 0;
+  EUDI_REQUIREMENT_PROFILE_EAA_OR_PID = 1;
+  EUDI_REQUIREMENT_PROFILE_QEAA = 2;
+  EUDI_REQUIREMENT_PROFILE_PUBLIC_BODY_EAA = 3;
+  EUDI_REQUIREMENT_PROFILE_SD_JWT_VC = 4;
+  EUDI_REQUIREMENT_PROFILE_ISO_MDOC = 5;
+  EUDI_REQUIREMENT_PROFILE_JSON_LD_VC = 6;
+  EUDI_REQUIREMENT_PROFILE_X509_ATTRIBUTE_CERTIFICATE = 7;
+  EUDI_REQUIREMENT_PROFILE_OPENID4VP_HAIP = 8;
+}
+
+enum EudiRequirementArea {
+  EUDI_REQUIREMENT_AREA_UNSPECIFIED = 0;
+  EUDI_REQUIREMENT_AREA_ALL_FORMATS = 1;
+  EUDI_REQUIREMENT_AREA_AUTHORIZATION_OR_TOKEN = 2;
+  EUDI_REQUIREMENT_AREA_CREDENTIAL_ENDPOINT = 3;
+  EUDI_REQUIREMENT_AREA_CREDENTIAL_OFFER = 4;
+  EUDI_REQUIREMENT_AREA_ISO_MDOC = 5;
+  EUDI_REQUIREMENT_AREA_ISSUANCE = 6;
+  EUDI_REQUIREMENT_AREA_ISSUANCE_CRYPTOGRAPHY = 7;
+  EUDI_REQUIREMENT_AREA_ISSUANCE_SECURITY = 8;
+  EUDI_REQUIREMENT_AREA_ISSUER_METADATA = 9;
+  EUDI_REQUIREMENT_AREA_JSON_LD_VC = 10;
+  EUDI_REQUIREMENT_AREA_NOTIFICATION = 11;
+  EUDI_REQUIREMENT_AREA_SD_JWT_VC = 12;
+  EUDI_REQUIREMENT_AREA_X509_ATTRIBUTE_CERTIFICATE = 13;
+  EUDI_REQUIREMENT_AREA_PRESENTATION = 14;
+}
+
+enum EudiEuProfileStatus {
+  EUDI_EU_PROFILE_STATUS_UNSPECIFIED = 0;
+  EUDI_EU_PROFILE_STATUS_APPLICABLE = 1;
+  EUDI_EU_PROFILE_STATUS_APPLICABLE_SUBJECT_TO_ADAPTATIONS = 2;
+  EUDI_EU_PROFILE_STATUS_APPLICABLE_WHEN_FORMAT_SELECTED = 3;
+  EUDI_EU_PROFILE_STATUS_APPLICABLE_WHEN_NOTIFICATION_IDENTIFIER_ISSUED = 4;
+  EUDI_EU_PROFILE_STATUS_INCORPORATED_SUBJECT_TO_ADAPTATIONS = 5;
+  EUDI_EU_PROFILE_STATUS_PART2_LEGAL_AND_LATEST_TRACKED = 6;
+  EUDI_EU_PROFILE_STATUS_ANNEX_A_VOID_IN_CURRENT_PROFILE = 7;
+}
+
+message EudiRequirementReference {
+  EudiRequirementSource source = 1;
+  string identifier = 2;
+}
+
+// EudiRequirementEvidence preserves the exact repository evidence mapping.
+// A hyphen is retained where the canonical trace intentionally records no
+// local code, test, or external evidence for that disposition.
+message EudiRequirementEvidence {
+  string source_edition = 1;
+  EudiRequirementDisposition disposition = 2;
+  string owner_repository = 3;
+  string code_path = 4;
+  string code_symbol = 5;
+  string test_path = 6;
+  string test_symbol = 7;
+  string external_evidence = 8;
+  string justification = 9;
+  string ledger_enforcement = 10;
+}
+
+message EudiRequirementControl {
+  EudiRequirementReference reference = 1;
+  EudiRequirementHandler handler = 2;
+  EudiEvidenceBoundary evidence_boundary = 3;
+  EudiRequirementProfile profile = 4;
+  EudiRequirementArea area = 5;
+  EudiEuProfileStatus eu_profile_status = 6;
+  string applicability = 7;
+  string eu_profile_status_text = 8;
+  EudiRequirementEvidence evidence = 9;
+}
+
+message EudiRequirementRegistrySummary {
+  uint32 etsi_part1 = 1;
+  uint32 etsi_part2 = 2;
+  uint32 etsi_part3 = 3;
+  uint32 etsi_total = 4;
+  uint32 cir_2024_2977 = 5;
+  uint32 cir_2024_2979 = 6;
+  uint32 cir_2024_2982 = 7;
+  uint32 etsi_part1_eu = 8;
+  uint32 etsi_part2_eu = 9;
+  uint32 etsi_part3_eu = 10;
+  uint32 eu_direct = 11;
+  uint32 eu_composed = 12;
+  uint32 eu_void = 13;
+  uint32 eu_total = 14;
+}

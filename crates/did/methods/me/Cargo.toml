@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-did-method-me"
+version = "0.1.0"
+description = "did:me method-specific identifier generation and validation."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+default = ["native"]
+native = ["reallyme-did-core/native"]
+wasm = ["reallyme-did-core/wasm"]
+
+[dependencies]
+reallyme-codec = { workspace = true, features = ["cbor"] }
+reallyme-crypto = { workspace = true, features = ["sha2"] }
+identity-core-primitives = { package = "reallyme-ssi-core", path = "../../core/common", version = "0.1.0" }
+reallyme-ssi-proto = { workspace = true }
+reallyme-did-core = { path = "../../core/engine", version = "0.1.0", default-features = false }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

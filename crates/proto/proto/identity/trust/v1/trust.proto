@@ -1,0 +1,190 @@
+// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+syntax = "proto3";
+
+package identity.trust.v1;
+
+option java_multiple_files = true;
+option java_package = "me.really.identity.trust.v1";
+option swift_prefix = "ReallyMeIdentityProto";
+
+// TrustDecision is the stable semantic result exposed by trust API boundaries.
+message TrustDecision {
+  // Whether the evaluated chain and policy were accepted.
+  bool accepted = 1;
+
+  // Fixed, non-secret rejection classes. Empty when accepted is true.
+  repeated TrustDecisionFailure failures = 2;
+
+  // Three-state semantic outcome. This is authoritative; accepted is retained
+  // as a compatibility projection for older consumers.
+  TrustDecisionOutcome outcome = 3;
+
+  // Reproducible, non-secret evidence for the decision.
+  TrustDecisionEvidence evidence = 4;
+}
+
+// TrustDecisionOutcome distinguishes conclusive rejection from an inability to
+// establish trust because required evidence or capability was unavailable.
+enum TrustDecisionOutcome {
+  TRUST_DECISION_OUTCOME_UNSPECIFIED = 0;
+  TRUST_DECISION_OUTCOME_TRUSTED = 1;
+  TRUST_DECISION_OUTCOME_REJECTED = 2;
+  TRUST_DECISION_OUTCOME_INDETERMINATE = 3;
+}
+
+// TrustDecisionEvidence binds the result to the evaluated inputs and policy.
+message TrustDecisionEvidence {
+  TrustPurpose purpose = 1;
+  TrustPolicyId policy_id = 2;
+  int64 evaluated_at_unix = 3;
+  bytes source_id = 4;
+  bytes snapshot_id = 5;
+  TrustAnchorEvidence trust_anchor = 6;
+  repeated CertificateStatusEvidence certificate_status = 7;
+  // SHA-256 fingerprints in leaf-to-anchor order for the selected path.
+  repeated bytes selected_path_certificate_sha256 = 8;
+}
+
+// WalletAttestationTrustEvidence is the bounded, non-PII trust receipt minted
+// by the verifier that accepted one exact Client Attestation JWT.
+message WalletAttestationTrustEvidence {
+  TrustPurpose purpose = 1;
+  TrustPolicyId policy_id = 2;
+  int64 evaluated_at_unix = 3;
+  int64 valid_until_unix = 4;
+  // SHA-256 of the DER SubjectPublicKeyInfo for the attestation signer.
+  bytes signer_spki_sha256 = 5;
+  bytes source_id = 6;
+  bytes snapshot_id = 7;
+  TrustAnchorEvidence trust_anchor = 8;
+  repeated CertificateStatusEvidence certificate_status = 9;
+  // SHA-256 of the exact configured anchor certificate DER.
+  bytes anchor_certificate_sha256 = 10;
+  // SHA-256 fingerprints in leaf-to-anchor order for the selected path.
+  repeated bytes selected_path_certificate_sha256 = 11;
+}
+
+// WalletAttestationClientAuthenticationReceipt atomically identifies the
+// accepted attestation, its permitted Client Instance Key, the PoP event, and
+// the wallet-provider trust decision used for that authentication event.
+message WalletAttestationClientAuthenticationReceipt {
+  bytes client_attestation_sha256 = 1;
+  bytes client_instance_key_jwk_thumbprint_sha256 = 2;
+  bytes pop_jti_sha256 = 3;
+  int64 pop_issued_at_unix = 4;
+  WalletAttestationTrustEvidence trust = 5;
+}
+
+// Stable authorization purpose evaluated by the trust engine.
+enum TrustPurpose {
+  TRUST_PURPOSE_UNSPECIFIED = 0;
+  TRUST_PURPOSE_GENERIC = 1;
+  TRUST_PURPOSE_QEAA_ISSUER = 2;
+  TRUST_PURPOSE_QWAC_TLS_SERVER = 3;
+  TRUST_PURPOSE_QSEAL_SIGNER = 4;
+  TRUST_PURPOSE_TRUSTED_LIST_SIGNER = 5;
+  TRUST_PURPOSE_WALLET_ATTESTATION_ISSUER = 6;
+  TRUST_PURPOSE_JADES_SIGNER = 7;
+  TRUST_PURPOSE_PID_ISSUANCE = 8;
+  TRUST_PURPOSE_PID_STATUS = 9;
+  TRUST_PURPOSE_EUDI_WALLET_PROVIDER_ATTESTATION = 10;
+  TRUST_PURPOSE_EUDI_WALLET_OR_KEY_STORAGE_STATUS = 11;
+  TRUST_PURPOSE_WALLET_RELYING_PARTY_ACCESS_CERTIFICATE = 12;
+  TRUST_PURPOSE_WALLET_RELYING_PARTY_REGISTRATION_CERTIFICATE = 13;
+  TRUST_PURPOSE_WALLET_RELYING_PARTY_REGISTRATION_CERTIFICATE_STATUS = 14;
+  TRUST_PURPOSE_WALLET_RELYING_PARTY_REGISTRY_SIGNING = 15;
+}
+
+// Versioned trust policy profile retained by the decision receipt.
+enum TrustPolicyId {
+  TRUST_POLICY_ID_UNSPECIFIED = 0;
+  TRUST_POLICY_ID_GENERIC_X509_V1 = 1;
+  TRUST_POLICY_ID_EU_QEAA_V1 = 2;
+  TRUST_POLICY_ID_EU_QWAC_V1 = 3;
+  TRUST_POLICY_ID_EU_QSEAL_V1 = 4;
+  TRUST_POLICY_ID_EU_TRUSTED_LIST_SIGNER_V1 = 5;
+  TRUST_POLICY_ID_WALLET_ATTESTATION_ISSUER_V1 = 6;
+  TRUST_POLICY_ID_ETSI_JADES_BASELINE_B_V1 = 7;
+  TRUST_POLICY_ID_ETSI_TS_119_412_6_PID_PROVIDER_V1 = 8;
+  TRUST_POLICY_ID_EUDI_PID_STATUS_V1 = 9;
+  TRUST_POLICY_ID_ETSI_TS_119_412_6_WALLET_PROVIDER_V1 = 10;
+  TRUST_POLICY_ID_EUDI_WALLET_OR_KEY_STORAGE_STATUS_V1 = 11;
+  TRUST_POLICY_ID_ETSI_TS_119_411_8_WRPAC_V1 = 12;
+  TRUST_POLICY_ID_ETSI_TS_119_475_WRPRC_V1 = 13;
+  TRUST_POLICY_ID_ETSI_TS_119_475_WRPRC_STATUS_V1 = 14;
+  TRUST_POLICY_ID_EUDI_TS5_REGISTRY_RESPONSE_SIGNING_V1 = 15;
+}
+
+// TrustAnchorEvidence identifies the exact configured trust entry selected.
+message TrustAnchorEvidence {
+  TrustAnchorKind kind = 1;
+  uint32 configured_index = 2;
+}
+
+enum TrustAnchorKind {
+  TRUST_ANCHOR_KIND_UNSPECIFIED = 0;
+  TRUST_ANCHOR_KIND_ROOT_CERTIFICATE = 1;
+  TRUST_ANCHOR_KIND_DIRECT_END_ENTITY = 2;
+}
+
+// CertificateStatusEvidence retains the status of one path position.
+message CertificateStatusEvidence {
+  CertificatePosition position = 1;
+  uint32 intermediate_index = 2;
+  CertificateStatus status = 3;
+}
+
+enum CertificatePosition {
+  CERTIFICATE_POSITION_UNSPECIFIED = 0;
+  CERTIFICATE_POSITION_LEAF = 1;
+  CERTIFICATE_POSITION_INTERMEDIATE = 2;
+  CERTIFICATE_POSITION_TRUST_ANCHOR = 3;
+}
+
+enum CertificateStatus {
+  CERTIFICATE_STATUS_UNSPECIFIED = 0;
+  CERTIFICATE_STATUS_GOOD = 1;
+  CERTIFICATE_STATUS_REVOKED = 2;
+  CERTIFICATE_STATUS_SUSPENDED = 3;
+  CERTIFICATE_STATUS_UNKNOWN = 4;
+  CERTIFICATE_STATUS_UNAVAILABLE = 5;
+  CERTIFICATE_STATUS_STALE = 6;
+  CERTIFICATE_STATUS_NOT_YET_VALID = 7;
+  CERTIFICATE_STATUS_MALFORMED = 8;
+  CERTIFICATE_STATUS_INVALID_SIGNATURE = 9;
+  CERTIFICATE_STATUS_UNSUPPORTED = 10;
+  CERTIFICATE_STATUS_EXEMPT = 11;
+}
+
+// TrustDecisionFailure identifies stable trust-evaluation rejection classes.
+enum TrustDecisionFailure {
+  TRUST_DECISION_FAILURE_UNSPECIFIED = 0;
+  TRUST_DECISION_FAILURE_NO_VALID_PATH = 1;
+  TRUST_DECISION_FAILURE_CHAIN_LINK_POLICY = 2;
+  TRUST_DECISION_FAILURE_POLICY = 3;
+  TRUST_DECISION_FAILURE_STATUS = 4;
+  TRUST_DECISION_FAILURE_SIGNATURE = 5;
+  TRUST_DECISION_FAILURE_STATUS_REVOKED = 6;
+  TRUST_DECISION_FAILURE_STATUS_SUSPENDED = 7;
+  TRUST_DECISION_FAILURE_STATUS_UNKNOWN = 8;
+  TRUST_DECISION_FAILURE_STATUS_UNAVAILABLE = 9;
+  TRUST_DECISION_FAILURE_STATUS_STALE = 10;
+  TRUST_DECISION_FAILURE_STATUS_MALFORMED = 11;
+  TRUST_DECISION_FAILURE_STATUS_UNSUPPORTED = 12;
+  TRUST_DECISION_FAILURE_SIGNATURE_INDETERMINATE = 13;
+  TRUST_DECISION_FAILURE_INVALID_EVALUATION_TIME = 14;
+  TRUST_DECISION_FAILURE_PATH_SEARCH_LIMIT = 15;
+  TRUST_DECISION_FAILURE_STATUS_NOT_YET_VALID = 16;
+  TRUST_DECISION_FAILURE_STATUS_INVALID_SIGNATURE = 17;
+}
+
+// AuthorizationPurpose identifies the relying-party authorization being checked.
+enum AuthorizationPurpose {
+  AUTHORIZATION_PURPOSE_UNSPECIFIED = 0;
+  AUTHORIZATION_PURPOSE_QEAA_ISSUER = 1;
+  AUTHORIZATION_PURPOSE_QWAC_TLS_SERVER = 2;
+  AUTHORIZATION_PURPOSE_QSEAL_SIGNER = 3;
+}

@@ -1,0 +1,42 @@
+// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+syntax = "proto3";
+
+package identity.eudi.v1;
+
+option java_multiple_files = true;
+option java_package = "me.really.identity.eudi.v1";
+option csharp_namespace = "Identity.Eudi.V1";
+option swift_prefix = "ReallyMeIdentityProto";
+
+// EudiCatalogueKind selects one of the two Commission TS11 catalogue wire
+// schemas. The JSON document remains the canonical wire representation; this
+// enum prevents callers from relying on schema guessing.
+enum EudiCatalogueKind {
+  EUDI_CATALOGUE_KIND_UNSPECIFIED = 0;
+  EUDI_CATALOGUE_KIND_ATTRIBUTE = 1;
+  EUDI_CATALOGUE_KIND_ATTESTATION = 2;
+}
+
+// EudiCatalogueDocument carries one bounded TS11 catalogue JSON document.
+// The SSI codec rejects malformed, duplicate-member, oversized, and
+// profile-inconsistent JSON before it reaches product dispatch.
+message EudiCatalogueDocument {
+  EudiCatalogueKind kind = 1;
+  bytes json = 2 [debug_redact = true];
+}
+
+// EudiCatalogueValidation is the non-identifying result of validating one
+// catalogue document. Counts are bounded by the SSI parser's resource limits.
+message EudiCatalogueValidation {
+  EudiCatalogueKind kind = 1;
+  uint32 localized_name_count = 2;
+  uint32 distribution_count = 3;
+  uint32 authentic_source_count = 4;
+  uint32 supported_format_count = 5;
+  uint32 schema_count = 6;
+  uint32 trust_authority_count = 7;
+  bool semantic_review_required = 8;
+}

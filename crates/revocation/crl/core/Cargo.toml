@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-revocation-crl-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[package.metadata.cargo-machete]
+# Used only by the crate's integration tests.
+ignored = ["time"]
+
+[features]
+default = []
+native = []
+
+[dependencies]
+envelopes-x509 = { workspace = true }
+identity-revocation-core = { workspace = true }
+
+[dev-dependencies]
+time = "0.3"
+[lints]
+workspace = true

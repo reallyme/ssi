@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-sd-jwt"
+version = "0.1.0"
+description = "RFC 9901 SD-JWT issuance, presentation, and verification primitives."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["sd-jwt", "identity", "credentials", "selective-disclosure", "jwt"]
+categories = ["authentication", "cryptography"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = ["native"]
+native = ["sd-jwt-crypto", "reallyme-crypto/native", "reallyme-jose/native"]
+wasm = ["sd-jwt-crypto", "reallyme-crypto/wasm", "reallyme-jose/wasm"]
+sd-jwt-crypto = [
+    "reallyme-crypto/csprng",
+    "reallyme-crypto/dispatch",
+    "reallyme-crypto/ed25519",
+    "reallyme-crypto/jwk",
+    "reallyme-crypto/sha2",
+]
+
+[dependencies]
+reallyme-codec = { workspace = true, features = ["base64", "base64url", "jcs"] }
+reallyme-crypto = { workspace = true, features = ["constant-time"] }
+reallyme-ssi-proto = { workspace = true }
+reallyme-jose = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+zeroize = { workspace = true }
+
+[lints]
+workspace = true

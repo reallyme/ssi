@@ -1,0 +1,62 @@
+[
+  {
+    "id": "JWT-MUST-001",
+    "source": "RFC7519",
+    "section": "4.1",
+    "keyword": "MUST",
+    "feature": "registered_claim_representation",
+    "implementation": ["reallyme-jose/crates/src/jwt/claims/registered.rs"],
+    "positive_tests": ["registered_claims_roundtrip", "numeric_date_serializes", "string_or_uri_roundtrip"],
+    "negative_tests": ["strict_temporal_rejects_missing_exp"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWT-MUST-004",
+    "source": "RFC7519",
+    "section": "7.2 Validating a JWT",
+    "keyword": "MUST",
+    "feature": "jwt_compact_structure_and_encoding",
+    "implementation": ["reallyme-jose/crates/src/jwt/unsigned.rs", "reallyme-jose/crates/src/jwt/verify.rs"],
+    "positive_tests": ["unsigned_jwt_roundtrip", "ed25519_signed_jwt_roundtrip"],
+    "negative_tests": ["reject_non_three_part_jwt", "reject_invalid_base64url_segments", "reject_two_part_jwt", "reject_four_part_jwt", "reject_invalid_base64url_segment"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWT-MUST-005",
+    "source": "RFC7519",
+    "section": "4.1.4 exp and 4.1.5 nbf",
+    "keyword": "MUST",
+    "feature": "jwt_temporal_claim_policy",
+    "implementation": ["reallyme-jose/crates/src/jwt/validate_temporal_claims.rs"],
+    "positive_tests": ["ed25519_signed_jwt_roundtrip"],
+    "negative_tests": ["strict_temporal_rejects_missing_exp"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWT-MUST-002",
+    "source": "RFC8725",
+    "section": "3.11",
+    "keyword": "MUST",
+    "feature": "explicit_token_type_policy",
+    "implementation": ["reallyme-jose/crates/src/jwt/header.rs", "reallyme-jose/crates/src/jwt/verify.rs"],
+    "positive_tests": ["can_require_typ_presence", "can_encode_and_decode_custom_typ_when_policy_allows_it"],
+    "negative_tests": ["standard_policy_rejects_non_jwt_typ", "reject_unsigned_with_typ_not_jwt"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWT-MUST-003",
+    "source": "RFC8725",
+    "section": "3.1",
+    "keyword": "MUST",
+    "feature": "algorithm_and_key_binding",
+    "implementation": ["reallyme-jose/crates/src/jwt/sign.rs", "reallyme-jose/crates/src/jwt/verify.rs"],
+    "positive_tests": ["p256_signed_jwt_roundtrip", "secp256k1_signed_jwt_roundtrip", "ed25519_signed_jwt_roundtrip"],
+    "negative_tests": ["reject_jwt_when_header_alg_differs_from_jwk_alg", "reject_jwt_when_jwk_curve_and_alg_disagree", "reject_unsigned_with_alg_not_none"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

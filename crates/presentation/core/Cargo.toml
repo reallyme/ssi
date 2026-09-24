@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-vp-core"
+version = "0.1.0"
+description = "Protocol-agnostic verifiable presentation models and holder-binding primitives."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["identity", "ssi", "credentials", "presentation"]
+categories = ["authentication", "data-structures"]
+publish = true
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*.rs",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+zeroize.workspace = true
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

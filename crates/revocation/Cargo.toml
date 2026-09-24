@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-revocation"
+version = "0.1.0"
+description = "Protocol-neutral credential revocation and suspension policy helpers."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "credentials", "revocation", "status", "eidas"]
+categories = ["authentication"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = ["native"]
+native = ["reallyme-credential-status/native", "reallyme-trust-x509/native"]
+wasm = ["reallyme-credential-status/wasm", "reallyme-trust-x509/wasm"]
+
+[dependencies]
+reallyme-credential-status = { path = "../status", version = "0.1.0", default-features = false }
+reallyme-ssi-proto = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+time = { workspace = true }
+reallyme-trust-x509 = { path = "../trust/x509", version = "0.1.0", default-features = false }
+
+[lints]
+workspace = true

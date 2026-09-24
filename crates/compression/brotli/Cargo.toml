@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-compression-brotli"
+version = "0.1.0"
+description = "Bounded Brotli compression and decompression for untrusted byte payloads."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["identity", "ssi", "brotli", "compression"]
+categories = ["compression", "encoding"]
+publish = true
+include = ["/src/**/*.rs", "/tests/**/*.rs", "/Cargo.toml", "/README.md", "/LICENSE-MIT", "/LICENSE-APACHE"]
+
+[dependencies]
+brotli = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

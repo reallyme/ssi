@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+version: v2
+modules:
+  # All SSI-owned schemas form one module and one generated Rust package.
+  # DID schemas may import the external me-id contract through the generation
+  # workspace without copying that contract into this repository.
+  - path: crates/proto/proto
+deps:
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

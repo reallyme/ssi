@@ -1,0 +1,205 @@
+{
+  "schema": "reallyme.identity.conformance.did_methods.v1",
+  "source": "DID method specifications and upstream resolver examples",
+  "suites": [
+    {
+      "method": "did:me",
+      "source": "did:me spec / me-id repository",
+      "valid": [
+        {
+          "id": "did-me-known-genesis-payload",
+          "did": "did:me:me1072e0a7myhee5da50wt3tu2a9sds44xv",
+          "payload_hex": "7f9597f7db25f39a37b47b9715f15d2c"
+        }
+      ],
+      "invalid": [
+        {
+          "id": "did-me-tampered-checksum",
+          "did": "did:me:me1072e0a7myhee5da50wt3tu2a9sds44xu",
+          "reason": "InvalidChecksum"
+        }
+      ]
+    },
+    {
+      "method": "did:key",
+      "source": "W3C CCG did:key method v0.9 test vectors",
+      "valid": [
+        {
+          "id": "did-key-ed25519",
+          "did": "did:key:z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP",
+          "multicodec": "Ed25519",
+          "public_key_len": 32
+        },
+        {
+          "id": "did-key-secp256k1",
+          "did": "did:key:zQ3shokFTS3brHcDQrn82RUDfCZESWL1ZdCEJwekUDPQiYBme",
+          "multicodec": "Secp256k1",
+          "public_key_len": 33
+        },
+        {
+          "id": "did-key-p256",
+          "did": "did:key:zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv",
+          "multicodec": "P256",
+          "public_key_len": 33
+        },
+        {
+          "id": "did-key-p384",
+          "did": "did:key:z82LkvCwHNreneWpsgPEbV3gu1C6NFJEBg4srfJ5gdxEsMGRJUz2sG9FE42shbn2xkZJh54",
+          "multicodec": "P384",
+          "public_key_len": 49
+        }
+      ],
+      "invalid": [
+        {
+          "id": "did-key-unsupported-multibase",
+          "did": "did:key:mabc",
+          "reason": "UnsupportedMultibase"
+        }
+      ]
+    },
+    {
+      "method": "did:jwk",
+      "source": "did:jwk specification examples",
+      "valid": [
+        {
+          "id": "did-jwk-p256",
+          "did": "did:jwk:eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6ImFjYklRaXVNczNpOF91c3pFakoydHBUdFJNNEVVM3l6OTFQSDZDZEgyVjAiLCJ5IjoiX0tjeUxqOXZXTXB0bm1LdG00NkdxRHo4d2Y3NEk1TEtncmwyR3pIM25TRSJ9",
+          "jwk_json": "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"acbIQiuMs3i8_uszEjJ2tpTtRM4EU3yz91PH6CdH2V0\",\"y\":\"_KcyLj9vWMptnmKtm46GqDz8wf74I5LKgrl2GzH3nSE\"}"
+        },
+        {
+          "id": "did-jwk-x25519",
+          "did": "did:jwk:eyJrdHkiOiJPS1AiLCJjcnYiOiJYMjU1MTkiLCJ1c2UiOiJlbmMiLCJ4IjoiM3A3YmZYdDl3YlRUVzJIQzdPUTFOei1EUThoYmVHZE5yZngtRkctSUswOCJ9",
+          "jwk_json": "{\"kty\":\"OKP\",\"crv\":\"X25519\",\"use\":\"enc\",\"x\":\"3p7bfXt9wbTTW2HC7OQ1Nz-DQ8hbeGdNrfx-FG-IK08\"}"
+        }
+      ],
+      "invalid": [
+        {
+          "id": "did-jwk-private-material",
+          "jwk_json": "{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"11qYAYdkYOC5VYxRjAtUjR5_bVG7pR3v-d-TG3L_6Xk\",\"d\":\"nWGxne_9WmC6Sff6YQ2M-fcXhQWdAyd2R2zVdu7VcMc\"}",
+          "reason": "PrivateKeyMaterial"
+        }
+      ]
+    },
+    {
+      "method": "did:web",
+      "source": "W3C CCG did:web method examples",
+      "valid": [
+        {
+          "id": "did-web-well-known",
+          "did": "did:web:w3c-ccg.github.io",
+          "document_url": "https://w3c-ccg.github.io/.well-known/did.json"
+        },
+        {
+          "id": "did-web-path",
+          "did": "did:web:w3c-ccg.github.io:user:alice",
+          "document_url": "https://w3c-ccg.github.io/user/alice/did.json"
+        },
+        {
+          "id": "did-web-port-and-path",
+          "did": "did:web:example.com%3A3000:user:alice",
+          "document_url": "https://example.com:3000/user/alice/did.json"
+        }
+      ],
+      "invalid": [
+        {
+          "id": "did-web-ip-address",
+          "did": "did:web:192.0.2.1",
+          "reason": "InvalidDomain"
+        }
+      ]
+    },
+    {
+      "method": "did:ebsi",
+      "source": "@cef-ebsi/ebsi-did-resolver README examples",
+      "valid": [
+        {
+          "id": "did-ebsi-resolver-example",
+          "did": "did:ebsi:zub5ZZUfHLLptCduwEy8xRj",
+          "version": "LegalEntity",
+          "payload_len": 16
+        },
+        {
+          "id": "did-ebsi-create-example",
+          "did": "did:ebsi:ztRBFfMCY7VAGHH1Ba8Q5o9",
+          "version": "LegalEntity",
+          "payload_len": 16
+        }
+      ],
+      "invalid": [
+        {
+          "id": "did-ebsi-missing-multibase",
+          "did": "did:ebsi:ub5ZZUfHLLptCduwEy8xRj",
+          "reason": "MissingMultibasePrefix"
+        }
+      ]
+    },
+    {
+      "method": "did:cheqd",
+      "source": "cheqd DID method ADR examples",
+      "valid": [
+        {
+          "id": "did-cheqd-mainnet-indy",
+          "did": "did:cheqd:mainnet:TAwT8WVt3dz2DBAifwuSkn",
+          "namespace": "mainnet",
+          "unique_id": "TAwT8WVt3dz2DBAifwuSkn",
+          "kind": "IndyStyle"
+        },
+        {
+          "id": "did-cheqd-testnet-indy",
+          "did": "did:cheqd:testnet:TAwT8WVt3dz2DBAifwuSkn",
+          "namespace": "testnet",
+          "unique_id": "TAwT8WVt3dz2DBAifwuSkn",
+          "kind": "IndyStyle"
+        },
+        {
+          "id": "did-cheqd-mainnet-uuid",
+          "did": "did:cheqd:mainnet:de9786cd-ec53-458c-857c-9342cf264f80",
+          "namespace": "mainnet",
+          "unique_id": "de9786cd-ec53-458c-857c-9342cf264f80",
+          "kind": "Uuid"
+        },
+        {
+          "id": "did-cheqd-implicit-mainnet-uuid",
+          "did": "did:cheqd:de9786cd-ec53-458c-857c-9342cf264f80",
+          "namespace": null,
+          "unique_id": "de9786cd-ec53-458c-857c-9342cf264f80",
+          "kind": "Uuid"
+        }
+      ],
+      "invalid": [
+        {
+          "id": "did-cheqd-invalid-namespace",
+          "did": "did:cheqd:test-net:TAwT8WVt3dz2DBAifwuSkn",
+          "reason": "InvalidNamespace"
+        }
+      ]
+    },
+    {
+      "method": "did:ion",
+      "source": "Sidetree method versioning examples",
+      "valid": [
+        {
+          "id": "did-ion-testnet3",
+          "did": "did:ion:testnet3:EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ",
+          "network": "Testnet3",
+          "did_suffix": "EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ",
+          "short_form": "did:ion:testnet3:EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ"
+        },
+        {
+          "id": "did-ion-sidetree-short-form",
+          "did": "did:ion:EiDahaOGH-liLLdDtTxEAdc8i-cfCz-WUcQdRJheMVNn3A",
+          "network": "Mainnet",
+          "did_suffix": "EiDahaOGH-liLLdDtTxEAdc8i-cfCz-WUcQdRJheMVNn3A",
+          "short_form": "did:ion:EiDahaOGH-liLLdDtTxEAdc8i-cfCz-WUcQdRJheMVNn3A"
+        }
+      ],
+      "invalid": [
+        {
+          "id": "did-ion-padded-suffix",
+          "did": "did:ion:EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ=",
+          "reason": "InvalidSuffix"
+        }
+      ]
+    }
+  ]
+}

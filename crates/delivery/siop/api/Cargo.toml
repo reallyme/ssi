@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-presentation-delivery-siop-api"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+
+native = ["identity-presentation-delivery-siop-verifier/native"]
+wasm   = ["identity-presentation-delivery-siop-verifier/wasm"]
+
+[dependencies]
+identity-presentation-delivery-siop-core = { version = "0.1.0", path = "../core" }
+identity-presentation-delivery-siop-verifier = { version = "0.1.0", path = "../verifier", default-features = false }
+
+[dev-dependencies]
+codec-base64url = { package = "reallyme-codec-base64url", version = "=0.2.3" }
+crypto-core = { package = "reallyme-crypto-core", version = "=0.3.9" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "=0.3.9", features = ["native"] }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "=0.3.9" }
+envelopes-jwt = { workspace = true, features = ["native"] }
+[lints]
+workspace = true

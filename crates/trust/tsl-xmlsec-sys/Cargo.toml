@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-trust-tsl-xmlsec-sys"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+# The workspace frequently runs `--features native`; keep an empty feature for compatibility.
+native = []
+# Build/link the libxmlsec backend. Off by default.
+xmlsec-ffi = []
+
+[dependencies]
+
+[lints]
+workspace = true

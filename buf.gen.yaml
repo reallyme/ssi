@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+version: v2
+clean: true
+plugins:
+  - local: protoc-gen-buffa
+    out: crates/proto/src/generated/buffa
+    strategy: all
+    opt:
+      - views=true
+      - json=true
+      - extern_path=.reallyme.crypto.v1=::reallyme_crypto_proto::generated::proto::reallyme::crypto::v1
+      - exclude_package=.reallyme.crypto.v1
+  - local: protoc-gen-buffa-packaging
+    out: crates/proto/src/generated/buffa
+    strategy: all
+    opt:
+      - exclude_package=.reallyme.crypto.v1

@@ -1,0 +1,232 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# source\tidentifier\tdisposition\tenforcement
+CIR-2024-2977	ART-3.1	direct	validate_pid_issuance_authorization
+CIR-2024-2977	ART-3.2	direct	validate_pid_issuance_authorization
+CIR-2024-2977	ART-3.3	direct	validate_natural_person_pid
+CIR-2024-2977	ART-3.4	direct	validate_pid_allocation
+CIR-2024-2977	ART-3.5	direct	validate_pid_issuance_authorization
+CIR-2024-2977	ART-3.6	composed	member-state supported-wallet publication evidence
+CIR-2024-2977	ART-3.7	direct	validate_pid_issuance_authorization
+CIR-2024-2977	ART-3.8	direct	validate_pid_issuance_authorization
+CIR-2024-2977	ART-3.9	direct	validate_pid_issuance_authorization
+CIR-2024-2977	ART-3A.1	direct	PortraitDisclosureGate
+CIR-2024-2977	ART-3A.2	direct	PortraitDisclosureGate
+CIR-2024-2977	ART-3A.3	composed	relying-party retention and transfer controls
+CIR-2024-2977	ART-4.1	direct	validate_attestation
+CIR-2024-2977	ART-4.2	direct	validate_pid_issuance_authorization
+CIR-2024-2977	ART-4.3	direct	validate_attestation
+CIR-2024-2977	ART-5.1	direct	validate_pid_revocation
+CIR-2024-2977	ART-5.2	direct	validate_pid_revocation
+CIR-2024-2977	ART-5.3	direct	validate_pid_revocation
+CIR-2024-2977	ART-5.4	direct	validate_pid_revocation
+CIR-2024-2977	ART-5.5	direct	validate_pid_revocation
+CIR-2024-2977	ART-5.6	composed	statutory retention configuration evidence
+CIR-2024-2977	ART-5.7	direct	validate_pid_revocation
+CIR-2024-2977	ART-5.8	direct	validate_pid_revocation
+CIR-2024-2977	ANNEX-NATURAL-MANDATORY	direct	NaturalPersonPidClaims
+CIR-2024-2977	ANNEX-NATURAL-OPTIONAL	direct	OptionalNaturalPersonPidClaims
+CIR-2024-2977	ANNEX-PORTRAIT-QUALITY-2028	direct	PortraitQualityProfile applicability gate
+CIR-2024-2977	ANNEX-NATIONALITY-QU-QS	direct	validate_nationalities
+CIR-2024-2977	ANNEX-LEGAL-PERSON	direct	validate_legal_person_pid
+CIR-2024-2977	ANNEX-PROVIDER-METADATA	direct	validate_provider_metadata
+CIR-2024-2977	ANNEX-MDOC-ENCODING	direct	validate_natural_person_pid plus mdoc envelope parser
+CIR-2024-2977	ANNEX-SD-JWT-ENCODING	direct	validate_natural_person_pid plus SD-JWT envelope parser
+CIR-2024-2977	ANNEX-DOMESTIC-SCHEMES	composed	published domestic scheme registry
+CIR-2024-2977	ANNEX-TRUST-INFRASTRUCTURE	composed	EU provider-list trust resolver
+CIR-2024-2979	ART-3.1	direct	WalletOperationGate
+CIR-2024-2979	ART-3.2	void	deleted by Regulation 2026/1731
+CIR-2024-2979	ART-4.1	direct	validate_wallet_cryptographic_capabilities
+CIR-2024-2979	ART-4.2	direct	validate_wallet_cryptographic_capabilities
+CIR-2024-2979	ART-4.3	direct	validate_wallet_cryptographic_capabilities
+CIR-2024-2979	ART-5.1	direct	validate_wallet_cryptographic_capabilities
+CIR-2024-2979	ART-5.2	composed	embedded-secure-element standards or equivalence evidence
+CIR-2024-2979	ART-5A	direct	validate_wallet_cryptographic_capabilities
+CIR-2024-2979	ART-6.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	ART-6.2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	ART-6.3(a)	composed	wallet-user rights and obligations information evidence
+CIR-2024-2979	ART-6.3(b)	composed	independent secure identification and authentication service evidence
+CIR-2024-2979	ART-6.3(c)	composed	authenticated wallet-user revocation-request service evidence
+CIR-2024-2979	ART-7.1	direct	validate_wallet_attestation_revocation
+CIR-2024-2979	ART-7.2	direct	validate_wallet_attestation_revocation
+CIR-2024-2979	ART-7.3	direct	validate_wallet_attestation_revocation
+CIR-2024-2979	ART-7.4	direct	validate_wallet_attestation_revocation
+CIR-2024-2979	ART-8	direct	validate_wallet_format_capabilities
+CIR-2024-2979	ART-9.1	direct	validate_wallet_transaction_log
+CIR-2024-2979	ART-9.2	direct	validate_wallet_transaction_log
+CIR-2024-2979	ART-9.3	direct	validate_wallet_transaction_log
+CIR-2024-2979	ART-9.4	direct	validate_wallet_transaction_log
+CIR-2024-2979	ART-9.5	direct	validate_wallet_transaction_log
+CIR-2024-2979	ART-9.6	composed	statutory retention configuration evidence
+CIR-2024-2979	ART-9.7	direct	validate_wallet_transaction_log
+CIR-2024-2979	ART-10.1	direct	evaluate_wallet_disclosure_policy
+CIR-2024-2979	ART-10.2	direct	evaluate_wallet_disclosure_policy
+CIR-2024-2979	ART-10.3	direct	evaluate_wallet_disclosure_policy
+CIR-2024-2979	ART-11.1	composed	qualified-certificate receipt and QSCD integration evidence
+CIR-2024-2979	ART-11.2	composed	local external or remote QSCD interface evidence
+CIR-2024-2979	ART-11.3	composed	free non-professional qualified-signature service evidence
+CIR-2024-2979	ART-12.1	composed	signature-application provider deployment evidence
+CIR-2024-2979	ART-12.2	composed	signature-application functional and format conformance evidence
+CIR-2024-2979	ART-12.3	composed	signature-application integration evidence
+CIR-2024-2979	ART-12.4	composed	ETSI TS 119 432 API conformance evidence
+CIR-2024-2979	ART-13	composed	high-assurance secure portability and critical-asset exclusion evidence
+CIR-2024-2979	ART-14.1	void	deleted by Regulation 2026/1731
+CIR-2024-2979	ART-14.2	direct	validate_relying_party_pseudonym
+CIR-2024-2979	ART-14A.1	composed	trust-mark rendering evidence
+CIR-2024-2979	ART-14A.2	composed	certification-status URL and trust-mark data evidence
+CIR-2024-2979	ART-14A.3	composed	trust-mark reference-colour evidence
+CIR-2024-2979	ART-14A.4	composed	black-and-white exception evidence
+CIR-2024-2979	ART-14A.5	composed	negative-format and contrast evidence
+CIR-2024-2979	ART-14A.6	composed	minimum rendered-size evidence
+CIR-2024-2979	ART-14A.7	composed	wallet-unit association and recognisability evidence
+CIR-2024-2979	ART-14A.8	composed	trust-mark removal after WUA revocation evidence
+CIR-2024-2979	ANNEX-IA	direct	validate_wallet_cryptographic_capabilities
+CIR-2024-2979	ANNEX-I	composed	embedded-secure-element standards or equivalence evidence
+CIR-2024-2979	ANNEX-II	direct	validate_wallet_format_capabilities plus ETSI adaptation validators
+CIR-2024-2979	ANNEX-III	direct	evaluate_wallet_disclosure_policy
+CIR-2024-2979	ANNEX-IV	composed	PAdES support and ETSI TS 119 432 API evidence
+CIR-2024-2979	ANNEX-VI	composed	colour trust-mark asset evidence
+CIR-2024-2979	ANNEX-VII	composed	black-and-white trust-mark asset evidence
+CIR-2024-2979	ANNEX-VIII	composed	TrustMarkResourceURL and ListOfCertifiedWalletsURL evidence
+CIR-2024-2979	FR-WIA-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	FR-WIA-1.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	FR-KA-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	FR_KA_1.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-2.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-2.2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-3	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-3.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-3.2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-3.2.1	direct	WiaStatusIndexPolicy
+CIR-2024-2979	TR-WIA-3.2.2	direct	WiaStatusIndexPolicy
+CIR-2024-2979	TR-WIA-4	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-4.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-4.2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR-WIA-4.3	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-1.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-2.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-2.2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-2.3	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-2.4	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-2.5	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-3	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA_3.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-4	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-4.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-5	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-6	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-6.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-7	direct	validate_wallet_attestation_profile
+CIR-2024-2979	TR_KA-8	direct	validate_wallet_attestation_profile
+CIR-2024-2979	C_WIA-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	C_WIA-2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	C_WIA-3	direct	validate_wallet_attestation_profile
+CIR-2024-2979	C_KA-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	C_KA-2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	C_KA-3	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_WIA-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_WIA-1.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_WIA_2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_WIA_3	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_KA-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_KA-1.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_KA-2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_KA-3	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_GEN-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_GEN-2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_GEN_2.1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_GEN_2.2	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_GEN-3	direct	validate_wallet_attestation_profile
+CIR-2024-2979	LC_GEN-4	direct	validate_wallet_attestation_profile
+CIR-2024-2979	R_GEN-1	direct	validate_wallet_attestation_profile
+CIR-2024-2979	R_WIA-1	direct	WiaStatusIndexPolicy
+CIR-2024-2979	R_WIA-1.1	direct	WiaStatusIndexPolicy
+CIR-2024-2979	R_WIA-1.2	direct	WiaStatusIndexPolicy
+CIR-2024-2979	R_WIA-1.3	direct	WiaStatusIndexPolicy
+CIR-2024-2979	R_WIA-2	direct	WiaStatusIndexPolicy
+CIR-2024-2979	R_WIA-3	direct	WiaStatusIndexPolicy
+CIR-2024-2979	R_WIA-4	composed	wallet-provider bulk revocation transaction evidence
+CIR-2024-2979	R_WIA-5	direct	validate_wallet_attestation_profile
+CIR-2024-2979	R_KA_1	direct	KeyAttestationIndexPolicy
+CIR-2024-2979	R_KA-2	direct	KeyAttestationIndexPolicy plus WiaStatusIndexPolicy
+CIR-2024-2979	R_KA-3	direct	KeyAttestationIndexPolicy
+CIR-2024-2979	R_KA-4	direct	KeyAttestationIndexPolicy
+CIR-2024-2979	SA-1	direct	WalletAttestationAlgorithm
+CIR-2024-2979	SA-2	direct	WalletAttestationAlgorithm
+CIR-2024-2979	SA-3	direct	validate_wallet_attestation_profile
+CIR-2024-2982	ART-1	composed	regulatory scope and deployed wallet-solution evidence
+CIR-2024-2982	ART-2	composed	shared wallet protocol domain model
+CIR-2024-2982	ART-3.1	direct	presentation validators plus access-certificate verification evidence
+CIR-2024-2982	ART-3.2	void	deleted by Regulation 2026/1731
+CIR-2024-2982	ART-3.3	direct	presentation validators plus request authentication evidence
+CIR-2024-2982	ART-3.4	direct	authorize_eu_presentation
+CIR-2024-2982	ART-3.5	composed	wallet UI access-certificate display evidence
+CIR-2024-2982	ART-3.6	composed	wallet UI requested-attribute display evidence
+CIR-2024-2982	ART-3.7	composed	wallet UI registration-certificate display evidence
+CIR-2024-2982	ART-3.8	void	deleted by Regulation 2026/1731
+CIR-2024-2982	ART-3.9	direct	evaluate_wallet_disclosure_policy plus authorize_eu_presentation
+CIR-2024-2982	ART-3.10	composed	cross-relying-party unlinkability end-to-end evidence
+CIR-2024-2982	ART-4.1	direct	validate_eu_issuance
+CIR-2024-2982	ART-4.2	composed	issuer access-certificate role and trust-path evidence
+CIR-2024-2982	ART-4.3(a)	composed	multi-format issuance request and response evidence
+CIR-2024-2982	ART-4.3(b)	direct	validate_wallet_attestation_profile
+CIR-2024-2982	ART-4.3(c)	composed	assurance-level-high issuance delivery and activation evidence
+CIR-2024-2982	ART-4.3(d)	composed	credential signature trust validity and status evidence
+CIR-2024-2982	ART-5.1	direct	presentation profile validators
+CIR-2024-2982	ART-5.2	direct	authorize_eu_presentation plus presentation profile validators
+CIR-2024-2982	ART-5.3	direct	validate_sd_jwt_presentation plus validate_mdoc_presentation
+CIR-2024-2982	ART-5.4	direct	selective-disclosure validators and presentation authorization
+CIR-2024-2982	ART-5.5	void	deleted by Regulation 2026/1731
+CIR-2024-2982	ART-6.1	composed	deployed Article 17 erasure-request protocol evidence
+CIR-2024-2982	ART-6.2	composed	wallet-user relying-party selection evidence
+CIR-2024-2982	ART-6.3	composed	prior erasure-request display and audit evidence
+CIR-2024-2982	ART-7.1	composed	supervisory-authority reporting UI and protocol evidence
+CIR-2024-2982	ART-7.2	composed	national-procedure reporting integration evidence
+CIR-2024-2982	ART-7.3	composed	machine-readable report substantiation evidence
+CIR-2024-2982	ART-8	composed	applicability and 11 August 2028 registration-certificate gate
+CIR-2024-2982	ANNEX-I	direct	validate_eu_issuance plus composed OpenID4VCI evidence
+CIR-2024-2982	ANNEX-II	direct	presentation validators plus composed transport parser cryptography and UI evidence
+ETSI-119-472-1-EU	EAA-4.2.11.1-06	direct	validate_attestation
+ETSI-119-472-1-EU	EAA-4.2.11.1-06.1	direct	validate_attestation
+ETSI-119-472-1-EU	EAA-4.2.13-03	direct	validate_attestation
+ETSI-119-472-1-EU	PuB-EAA-4.6.2-03	void	EU adaptation
+ETSI-119-472-1-EU	PuB-EAA-4.6.2-04	void	EU adaptation
+ETSI-119-472-1-EU	PuB-EAA-4.6.3-03	composed	qualified-certificate presence evidence
+ETSI-119-472-1-EU	PuB-EAA-4.6.3-04	composed	ETSI TS 119 412-6 certificate parser and trust evidence
+ETSI-119-472-1-EU	EAA-5.2.10.1-06	direct	SD-JWT status parser plus validate_attestation
+ETSI-119-472-1-EU	EAA-6.2.10.1-01..17	direct	validate_eu_mdoc_status and mdoc envelope status parser
+ETSI-119-472-2-EU	EAAP-API-GEN-01	direct	validate_eu_mediating_api
+ETSI-119-472-2-EU	EAAP-API-GEN-02	direct	validate_eu_mediating_api
+ETSI-119-472-2-EU	EAAP-SD-JWT VC-04	void	EU adaptation
+ETSI-119-472-2-EU	EAAP-ISO/IEC-mdoc-01	void	EU adaptation
+ETSI-119-472-2-EU	EAAP-ISO/IEC-mdoc-02	void	EU adaptation
+ETSI-119-472-2-EU	WRP-VALIDATION-01..03	direct	authorize_eu_presentation
+ETSI-119-472-2-EU	WRP-OVERASKING-01..03	direct	authorize_eu_presentation
+ETSI-119-472-2-EU	ISO/IEC 18013-SUPPORT-01..02	direct	validate_mdoc_presentation and validate_eu_mediating_api
+ETSI-119-472-2-EU	ISO/IEC 18013-SUPPORT-04	composed	non-mandatory relying-party mdoc API recommendation
+ETSI-119-472-2-EU	ISO/IEC 18013-5-REQ-04..07	direct	validate_mdoc_presentation
+ETSI-119-472-2-EU	ISO/IEC 18013-5-REQ-08..11	void	EU adaptation
+ETSI-119-472-2-EU	ISO/IEC 18013-5-RESP-02..03	direct	validate_mdoc_presentation
+ETSI-119-472-2-EU	ISO/IEC 18013-7-API-01..03	direct	validate_eu_mediating_api
+ETSI-119-472-2-EU	ISO/IEC 18013-ADD-API-01..05	direct	validate_eu_mediating_api
+ETSI-119-472-2-EU	OIDFVP-HAIP-SUPPORT-02	direct	validate_openid4vp_presentation_for_profile
+ETSI-119-472-2-EU	OIDFVP-HAIP-SUPPORT-03	composed	non-blocking redirect-disable security recommendation; NOTE 3 forbids treating support as non-conformity
+ETSI-119-472-2-EU	OIDFVP-HAIP-SUPPORT-04..05	direct	validate_openid4vp_presentation_for_profile
+ETSI-119-472-2-EU	OIDFVP-HAIP-GEN-01..05	direct	validate_openid4vp_presentation_for_profile and validate_eu_mediating_api
+ETSI-119-472-2-EU	OIDFVP-HAIP-COMMON-REQ-01	void	EU adaptation
+ETSI-119-472-2-EU	OIDFVP-HAIP-COMMON-REQ-RO-02..12	void	EU adaptation
+ETSI-119-472-2-EU	OIDFVP-HAIP-COMMON-REQ-RO-13	direct	validate_openid4vp_presentation_for_profile
+ETSI-119-472-2-EU	OIDFVP-HAIP-COMMON-REQ-RO-23	direct	validate_openid4vp_presentation_for_profile
+ETSI-119-472-2-EU	OIDFVP-HAIP-COMMON-RESP-01	void	EU adaptation
+ETSI-119-472-2-EU	OIDFVP-HAIP-REDIRECTS-04	void	EU adaptation
+ETSI-119-472-2-EU	OIDFVP-HAIP-ADD-API-01..05	direct	validate_eu_mediating_api
+ETSI-119-472-2-EU	OIDFVP-HAIP-ISO/IEC_18013_5_REQ-02	direct	validate_mdoc_presentation
+ETSI-119-472-3-EU	GEN-REQ-4.1-05	void	EU adaptation
+ETSI-119-472-3-EU	ISS-MDATA-REG_CERT-4.2.3-04	direct	validate_eu_issuance
+ETSI-119-472-3-EU	ISS-MDATA-REG_CERT-4.2.3-07..13	void	EU adaptation
+ETSI-119-472-3-EU	ISS-MDATA-EAA-REUSE-POL-4.2.4.2-09	direct	validate_issuance
+ETSI-119-472-3-EU	ANNEX-A	void	validate_eu_issuance

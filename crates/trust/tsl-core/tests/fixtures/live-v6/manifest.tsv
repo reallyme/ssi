@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# selection-date: 2026-09-17
+# columns: territory sha256 source expected clause derived-test
+AT	f91bbd67a2bf913dfea5f35e9d3bf9157a1bac7d3d2377558ebf071e251e557b	https://www.signatur.rtr.at/vertrauensliste.xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+BE	d96e4697b8ef8d8d9b797f2dd00bb4440b73900c848943cf3ede61fbd6d14bee	https://tsl.belgium.be/tsl-be.xml	accepted	5.1.4,5.4.4	normalizes_deployed_provider_metadata_compatibility_forms
+BG	b7ac246a31e6d805f4830cb36449ed86cdecef328a66a37b9bca9c2969b6fd66	https://crc.bg/files/_en/TSL_BG.xml	accepted	5.1.4,5.3.11	normalizes_layout_whitespace_in_multilingual_legal_notices
+CY	e6fdfec4ffc3f40aeb3231936a8097fc22e07a4f0e26e79d28a7e843da8203a8	https://dec.dmrid.gov.cy/dmrid/dec/ws_dec.nsf/all/5064247FF4FC3DCCC2258506002EEA17/$file/TSL-CY-sign.xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+CZ	d491de75685929fec2274b2a259715013398b780a5eb2ea1c15f8776aaf8de95	https://tsl.gov.cz/publ/TSL_CZ.xtsl	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+DE	3760d12287e88df109705fc0c4fb3cd465b852ecd8428eaeb731d12d1333ca76	https://tl.bundesnetzagentur.de/TL-DE.xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+DK	4fcbf5c7d4a3e6b62d54efd36123ae467dfd6f3dee6961a30a3df59e83c03326	https://www.digst.dk/TSLDK_v6xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+EE	c6b7b872fadcafdd24ad772f7b6649c5c87e3aa27ea44952727ea73d2c435918	https://sr.riik.ee/tsl/estonian-tsl.xml	accepted	5.4.2	retains_multiple_official_provider_registration_identifiers
+EL	6ca821dc9e6781f974fa90e11cf896166d6d64cdae8fd5579d305106001a0bb1	https://www.eett.gr/tsl/tl-el.xml	accepted	5.5.3,5.6.3	handles_unusable_history_and_opaque_non_pki_identifier_forms
+ES	4f85f15618537f1a36fa57402b4cbe4535e84c82df67155a238b94c3c7a66086	https://tsl.digital.gob.es/TSL.xml	accepted	5.6.3	enforces_history_ski_without_a_certificate
+FI	1b5ba620df63a93a0810a0a6ccbdbfb55d34b40141a5dc8a6560a989db8b6f89	https://dp.trustedlist.fi/fi-tl-v6.xml	accepted	-	normalizes_xades_object_identifier_forms_and_rejects_non_oid_policies
+FR	4e62a87d61365d60993184c7b94d03a6ff29f3f5cb93893d435b145dcabc4756	https://messervices.cyber.gouv.fr/visas/tl-fr_v6.xml	accepted	5.5.5,5.6.3	selects_the_authenticated_service_state_effective_at_evaluation_time
+HR	1e51b2987fc41e54848e91c76cfc7017cd2ff0043b146b95efff018528468ae3	https://gov.hr/UserDocsImages/Usluge%20povjerenja/Pouzdani_popis_RH.xml	accepted	5.5.3,5.6.3	handles_unusable_history_and_opaque_non_pki_identifier_forms
+HU	aa2dabaaea6266d907e12c4225d4173262466b9c6add91776776a00dd6c528a3	https://www.nmhh.hu/tl/pub/HU_TL.xml	accepted	5.5.3	enforces_current_service_identity_presence_and_representation_consistency
+IE	9e88d44c3f33013b47463b2e473f672f23e69b20ae93c770228b0635707d4c3c	https://eidas.gov.ie/Irelandtslsignedv6.xml	accepted	5.5.3	separates_pki_and_non_pki_service_identity_forms
+IS	ea3ff288d1e6c6668ea98bfc5b7c1a4e174aae855e093c0afc2648058d97d777	https://tsl.fjarskiptastofa.is/library/skrar/tsl/tsl.xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+IT	209974ece2c641a202644eed56cffe84da20402e69276032c5c0cef464ef1b02	https://eidas.agid.gov.it/TL/TSL-IT.xml	accepted	5.1.4,5.5.3	handles_unusable_history_and_opaque_non_pki_identifier_forms
+LI	f406b0346fd742340f5173c9080aa1368534b7e5503de1697bb827a6baf7ca1f	https://www.llv.li/serviceportal2/amtsstellen/amt-fuer-kommunikation/trustedlist-li.xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+LT	1e154a455f627bb55d960c47d8cc7a1399b07498a1abd2837d5d9c5d746af2e9	https://rrt.lt/static/files/LT-TSL.xml	accepted	-	accepts_noncritical_extension_subtrees_and_understood_taken_over_by
+LU	979384a04a416d6601c86fdd25a2921602a8e031be0f4df0a50d805f3913666c	https://trusted-list.lu/tsl.xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+LV	406073daa0dcf04670002803ad91026001d85274da64a9264739027d88566be1	https://trustlist.gov.lv/tsl/latvian-tsl.xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+MT	cf942917c4855535fddb101f4c10f0ff122e723a1c48bc7f717029e764cf211c	https://tsl.mca.org.mt/MT_TSL.xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+NL	0a0cc4cbdec9e989318f2c5da634cb24cb69b349d57c39acc7e3804c62fb7979	https://www.rdi.nl/site/binaries/content/assets/site-content/bestanden/current-tsl.xml	accepted	-	accepts_multilingual_electronic_address_roles_without_positional_inference
+NO	1f4c834cd55fb32482bdc68351f3614bb77d44767c2b8631dcefb6430eef2ce4	https://nkom.no/files/TL/NO_TL.xml	accepted	5.1.4,5.4.3.2	accepts_multilingual_electronic_address_roles_without_positional_inference
+PL	d5b3a64cecdeda5107d39eae71136d93a72f025e67a8fd34e5e143f827925558	https://www.nccert.pl/tsl/PL_TSL.xml	accepted	5.4.2	normalizes_deployed_provider_metadata_compatibility_forms
+PT	c8b251ad2ff13980455e61b9075012237305e1d7bbbc4281daa2bb0d78532c6a	https://www.gns.gov.pt/media/TSLPT.xml	accepted	5.5.3,5.6.3	handles_unusable_history_and_opaque_non_pki_identifier_forms
+RO	f3e6d50c908c74bb9580f970af1ba3a2b7a144bd2d3e7bd4b28abb7eef5de839	https://trustedlist.adr.gov.ro/trustedlist.xml	accepted	5.5.9.2.2.2	normalizes_xades_object_identifier_forms_and_rejects_non_oid_policies
+SE	fddd4a9af4bbfa89059b32eba6d821dc036ffba6a3839dc4abba7b668c104789	https://trustedlist.pts.se/tlv6/SE-TL.xml	accepted	-	normalizes_xades_object_identifier_forms_and_rejects_non_oid_policies
+SI	03cece6d16b87f9740a263bce140b6cfa5405f2cceabd1840c7a4a6f729e2a85	https://www.tl.gov.si/SI_TL.xml	accepted	5.5.9.2.2.2	normalizes_xades_object_identifier_forms_and_rejects_non_oid_policies
+SK	2d3ddda0bc1eb4085b22f2e4cd5481cddd7f498d438636a6b1aa15ebf2e66fcd	http://tl.nbu.gov.sk/kca/tsl/tsl.xml	accepted	5.5.3	handles_unusable_history_and_opaque_non_pki_identifier_forms
+UK	c6185978315d1470b023b59af02ab1a200e6e6bec8c60f949e9151f61b2583e5	https://ec.europa.eu/tools/lotl/Final_EU_TSL-UKsigned.xml	accepted	5.3.15,5.5.3,5.6.3	handles_unusable_history_and_opaque_non_pki_identifier_forms

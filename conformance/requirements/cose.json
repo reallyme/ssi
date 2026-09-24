@@ -1,0 +1,122 @@
+[
+  {
+    "id": "COSE-MUST-001",
+    "source": "RFC9052",
+    "section": "4.2",
+    "keyword": "MUST",
+    "feature": "cose_sign1_signature_verification",
+    "implementation": ["reallyme_cose::sign", "reallyme_cose::verify"],
+    "positive_tests": ["all_supported_signing_algorithms_roundtrip_attached_and_detached", "cose_detached_roundtrip"],
+    "negative_tests": ["cose_rejects_tampered_payload", "cose_detached_rejects_wrong_payload"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COSE-MUST-002",
+    "source": "RFC9052",
+    "section": "7",
+    "keyword": "MUST",
+    "feature": "cose_key_structure_and_algorithm_policy",
+    "implementation": ["reallyme-cose/src/key", "reallyme-cose/src/algorithm.rs"],
+    "positive_tests": ["cose_key_ed25519_roundtrip", "cose_key_p256_roundtrip", "cose_key_p384_roundtrip", "cose_key_p521_roundtrip", "cose_key_secp256k1_roundtrip"],
+    "negative_tests": ["cose_key_rejects_invalid_ec_length", "cose_key_rejects_unsupported_algorithm"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COSE-MUST-006",
+    "source": "RFC9052",
+    "section": "7 COSE Keys",
+    "keyword": "MUST",
+    "feature": "cose_private_key_material_handling",
+    "implementation": ["reallyme-cose/src/key/cose_key.rs"],
+    "positive_tests": ["cose_key_ed25519_private_roundtrip", "cose_key_p256_private_roundtrip", "cose_key_p384_private_roundtrip", "cose_key_p521_private_roundtrip", "cose_key_secp256k1_private_roundtrip", "cose_key_private_without_public_is_allowed"],
+    "negative_tests": ["cose_key_private_missing_d_is_rejected", "cose_key_private_rejects_unsupported_algorithm"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COSE-MUST-007",
+    "source": "CONTRACT",
+    "section": "Identity key interop",
+    "keyword": "MUST",
+    "feature": "cose_multikey_interop",
+    "implementation": ["reallyme-cose/src/multikey.rs"],
+    "positive_tests": ["cose_key_ed25519_to_multikey", "cose_key_x25519_to_multikey", "cose_key_p256_to_multikey", "cose_key_p384_to_multikey", "cose_key_p521_to_multikey", "cose_key_secp256k1_to_multikey", "multikey_to_cose_ed25519_roundtrip", "multikey_to_cose_p256_roundtrip", "multikey_to_cose_is_deterministic"],
+    "negative_tests": ["cose_key_to_multikey_rejects_unsupported_algorithm", "multikey_to_cose_rejects_unknown_codec", "multikey_to_cose_rejects_algorithm_unsupported_by_current_mapping"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COSE-MUST-003",
+    "source": "RFC9052",
+    "section": "3",
+    "keyword": "MUST",
+    "feature": "kid_selection_policy",
+    "implementation": ["reallyme-cose/src/key/kid.rs", "reallyme-cose/src/policy.rs"],
+    "positive_tests": ["verify_uses_kid_for_key_selection", "kid_is_stable_for_same_public_key"],
+    "negative_tests": ["policy_rejects_missing_kid", "verify_fails_with_unknown_kid"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COSE-MUST-008",
+    "source": "RFC9052",
+    "section": "4.1 Common COSE Headers",
+    "keyword": "MUST",
+    "feature": "kid_derivation_invariants",
+    "implementation": ["reallyme-cose/src/key/kid.rs"],
+    "positive_tests": ["kid_is_stable_for_same_public_key", "kid_ignores_private_key_material", "kid_differs_for_different_keys", "kid_is_stable_for_ec_p256", "kid_is_stable_for_ec_secp256k1", "kid_length_is_sha256"],
+    "negative_tests": ["verify_fails_with_unknown_kid"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COSE-MUST-004",
+    "source": "RFC9052",
+    "section": "4.4 Signing and Verification Process",
+    "keyword": "MUST",
+    "feature": "detached_payload_integrity",
+    "implementation": ["reallyme_cose::sign_detached", "reallyme_cose::verify_detached"],
+    "positive_tests": ["cose_detached_roundtrip", "cose_detached_allows_empty_kid_when_resolver_accepts_default_key"],
+    "negative_tests": ["cose_detached_rejects_wrong_payload", "cose_detached_with_kid_rejects_wrong_payload"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COSE-MUST-005",
+    "source": "RFC9053",
+    "section": "Algorithm registrations",
+    "keyword": "MUST",
+    "feature": "algorithm_mapping_coverage",
+    "implementation": ["reallyme-cose/src/algorithm.rs", "reallyme-cose/src/key/map_algorithm.rs"],
+    "positive_tests": ["all_supported_signing_algorithms_roundtrip_attached_and_detached", "cose_key_p256_roundtrip", "cose_key_secp256k1_roundtrip"],
+    "negative_tests": ["cose_key_rejects_unsupported_algorithm"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COSE-MUST-009",
+    "source": "RFC9052",
+    "section": "CBOR Encoded Message Syntax",
+    "keyword": "MUST",
+    "feature": "malicious_cbor_and_resource_limits",
+    "implementation": ["reallyme-cose/src/limits.rs", "reallyme-cose/src/sign1/verify.rs", "reallyme-cose/src/key/cose_key.rs"],
+    "positive_tests": ["cose_detached_roundtrip"],
+    "negative_tests": ["cose_sign1_rejects_oversized_input_before_cbor_parse", "cose_sign1_rejects_malformed_cbor", "cose_sign1_rejects_unexpected_top_level_tag", "cose_sign1_rejects_nested_tags", "cose_sign1_rejects_indefinite_forms", "cose_sign1_rejects_critical_protected_header", "cose_sign1_rejects_integrity_fields_in_unprotected_header", "cose_key_rejects_oversized_input_before_cbor_parse", "cose_key_rejects_unexpected_tags", "cose_key_rejects_indefinite_forms", "cose_key_rejects_excessive_nesting_before_shape_decode"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COSE-MUST-010",
+    "source": "CONTRACT",
+    "section": "Portable conformance vectors",
+    "keyword": "MUST",
+    "feature": "portable_cose_vectors",
+    "implementation": ["reallyme-cose/vectors/cose-sign1.json", "reallyme-cose/vectors/cose-key.json"],
+    "positive_tests": ["portable_cose_sign1_vectors_verify", "portable_cose_key_vectors_roundtrip"],
+    "negative_tests": ["portable_cose_sign1_vectors_verify"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

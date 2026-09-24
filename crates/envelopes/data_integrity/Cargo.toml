@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "envelopes-data-integrity"
+version = "0.1.0"
+description = "W3C Data Integrity identity envelope helpers for ReallyMe identity."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+default = ["native"]
+native = ["reallyme-crypto/native"]
+wasm = ["reallyme-crypto/wasm"]
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+reallyme-codec = { workspace = true, features = ["base64url", "multikey"] }
+reallyme-crypto = { workspace = true, features = ["dispatch", "p256"] }
+reallyme-did-types = { path = "../../did/core/types", version = "0.1.0" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

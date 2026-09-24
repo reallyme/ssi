@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-etsi-eaa-conformance"
+version = "0.1.0"
+description = "Typed ETSI TS 119 472 and EUDI PID conformance policy for ReallyMe SSI."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = ["native"]
+native = []
+wasm = []
+
+[dependencies]
+email_address = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
+zeroize = { workspace = true }
+
+[lints]
+workspace = true

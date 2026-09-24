@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-single-use"
+version = "0.1.0"
+description = "Single-use, expiring, server-issued value store for replay and nonce protection."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+default = ["native"]
+native = []
+wasm = []
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+thiserror = { workspace = true }
+zeroize = { workspace = true }
+
+[lints]
+workspace = true

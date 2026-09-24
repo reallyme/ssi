@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-did-api"
+version = "0.1.0"
+description = "Ergonomic Rust API for ReallyMe DID generation, update, validation, and proto transport."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+default = ["native"]
+native = ["reallyme-crypto/native", "reallyme-did-core/native", "reallyme-did-method-me/native"]
+wasm = ["reallyme-crypto/wasm", "reallyme-did-core/wasm", "reallyme-did-method-me/wasm"]
+
+[dependencies]
+reallyme-compression-brotli = { path = "../../../compression/brotli", version = "0.1.0" }
+reallyme-crypto = { workspace = true, features = ["csprng", "dispatch", "ed25519", "ml-dsa-87", "ml-kem-768", "ml-kem-1024", "p256", "secp256k1", "x25519"] }
+identity-core-primitives = { package = "reallyme-ssi-core", path = "../common", version = "0.1.0" }
+reallyme-ssi-proto = { workspace = true }
+reallyme-did-core = { path = "../engine", version = "0.1.0", default-features = false }
+reallyme-did-method-me = { path = "../../methods/me", version = "0.1.0", default-features = false }
+reallyme-did-method-ebsi = { path = "../../methods/ebsi", version = "0.1.0", default-features = false }
+reallyme-did-method-web = { path = "../../methods/web", version = "0.1.0", default-features = false }
+reallyme-ssi-proto-codec = { workspace = true }
+reallyme-did-types = { path = "../types", version = "0.1.0" }
+reallyme-keys = { path = "../../../keys", version = "0.1.0" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true, features = ["parsing"] }
+zeroize = { workspace = true }
+
+[dev-dependencies]
+reallyme-cose = { workspace = true, features = ["native"] }
+
+[lints]
+workspace = true

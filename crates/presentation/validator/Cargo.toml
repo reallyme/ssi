@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "identity-presentation-vp-validator"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[package.metadata.cargo-machete]
+# Validator composition keeps these format and crypto implementations explicit;
+# compile-time feature forwarding is not visible to cargo-machete.
+ignored = ["crypto-core", "crypto-dispatch", "identity-presentation-vp-sd-jwt"]
+
+[features]
+default = ["native"]
+native = [
+  "crypto-dispatch/native",
+  "identity-presentation-vp-sd-jwt/native",
+  "reallyme-credential/native",
+]
+wasm = [
+  "crypto-dispatch/wasm",
+  "identity-presentation-vp-sd-jwt/wasm",
+  "reallyme-credential/wasm",
+]
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+thiserror = { workspace = true }
+
+# policy engine + profiles
+identity-presentation-vp-policy = { version = "0.1.0", path = "../policy" }
+
+# VP models
+identity-presentation-vp-core = { workspace = true }
+
+# Format-specific verification helpers
+identity-presentation-vp-sd-jwt = { version = "0.1.0", path = "../sd-jwt" }
+
+# VC verification + model
+reallyme-credential = { workspace = true }
+
+# claims + status + audit
+identity-credential-claims-core = { workspace = true }
+identity-credential-status-core = { workspace = true }
+reallyme-credential-audit = { workspace = true }
+
+# algorithms
+identity-core-primitives = { workspace = true }
+
+# Crypto layer
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "=0.3.9", default-features = false }
+crypto-core = { package = "reallyme-crypto-core", version = "=0.3.9" }
+[lints]
+workspace = true

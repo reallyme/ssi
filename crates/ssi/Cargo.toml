@@ -1,0 +1,146 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-ssi"
+version = "0.1.0"
+description = "Stable Rust facade for ReallyMe self-sovereign identity primitives."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+include = ["/src/**/*.rs", "/tests/**/*.rs", "/Cargo.toml", "/README.md", "/LICENSE-MIT", "/LICENSE-APACHE"]
+
+[features]
+default = ["native"]
+credential-proto = ["reallyme-credential/proto"]
+native = [
+    "credential-proto",
+    "reallyme-cose/native",
+    "reallyme-credential-audit/native",
+    "reallyme-credential-claims/native",
+    "reallyme-credential/native",
+    "identity-credential-vc-api/native",
+    "identity-credential-vc-api/jwt",
+    "identity-credential-vc-api/ietf-sd-jwt",
+    "reallyme-credential-status/native",
+    "identity-credential-trust-api/native",
+    "identity-trust-jades/native",
+    "reallyme-etsi-eaa-conformance/native",
+    "reallyme-eudi-rp-registration/native",
+    "identity-presentation-delivery-siop-api/native",
+    "identity-presentation-delivery-web-core/native",
+    "identity-presentation-delivery-web-validator/native",
+    "identity-presentation-vp-sd-jwt/native",
+    "identity-presentation-vp-validator/native",
+    "envelopes-data-integrity/native",
+    "reallyme-mdoc/native",
+    "envelopes-profiles/native",
+    "reallyme-sd-jwt/native",
+    "reallyme-did-api/native",
+    "reallyme-did-method-me/native",
+    "envelopes-jwt-vc/native",
+    "reallyme-jose/native",
+    "reallyme-keys/native",
+    "reallyme-openid-oauth/native",
+    "reallyme-profiles/native",
+    "reallyme-revocation/native",
+    "reallyme-single-use/native",
+]
+wasm = [
+    "credential-proto",
+    "reallyme-cose/wasm",
+    "reallyme-credential-audit/wasm",
+    "reallyme-credential-claims/wasm",
+    "reallyme-credential/wasm",
+    "identity-credential-vc-api/wasm",
+    "identity-credential-vc-api/jwt",
+    "identity-credential-vc-api/ietf-sd-jwt",
+    "reallyme-credential-status/wasm",
+    "identity-credential-trust-api/wasm",
+    "identity-trust-jades/wasm",
+    "reallyme-etsi-eaa-conformance/wasm",
+    "reallyme-eudi-rp-registration/wasm",
+    "identity-presentation-delivery-siop-api/wasm",
+    "identity-presentation-delivery-web-core/wasm",
+    "identity-presentation-delivery-web-validator/wasm",
+    "identity-presentation-vp-sd-jwt/wasm",
+    "identity-presentation-vp-validator/wasm",
+    "envelopes-data-integrity/wasm",
+    "reallyme-mdoc/wasm",
+    "envelopes-profiles/wasm",
+    "reallyme-sd-jwt/wasm",
+    "reallyme-did-api/wasm",
+    "reallyme-did-method-me/wasm",
+    "envelopes-jwt-vc/wasm",
+    "reallyme-jose/wasm",
+    "reallyme-keys/wasm",
+    "reallyme-openid-oauth/wasm",
+    "reallyme-profiles/wasm",
+    "reallyme-revocation/wasm",
+    "reallyme-single-use/wasm",
+]
+
+[dependencies]
+reallyme-compression-brotli = { path = "../compression/brotli", version = "0.1.0" }
+identity-core-primitives = { package = "reallyme-ssi-core", path = "../did/core/common", version = "0.1.0" }
+identity-credential-trust-api = { path = "../trust/api", version = "0.1.0", default-features = false }
+identity-credential-vc-api = { path = "../credential/vc/api", version = "0.1.0", default-features = false }
+identity-presentation-delivery-contact-api = { path = "../delivery/contact/api", version = "0.1.0" }
+identity-presentation-delivery-contact-core = { path = "../delivery/contact/core", version = "0.1.0" }
+identity-presentation-delivery-contact-validator = { path = "../delivery/contact/validator", version = "0.1.0" }
+identity-presentation-delivery-core = { path = "../delivery/core", version = "0.1.0" }
+identity-presentation-delivery-siop-api = { path = "../delivery/siop/api", version = "0.1.0", default-features = false }
+identity-presentation-delivery-siop-core = { path = "../delivery/siop/core", version = "0.1.0" }
+identity-presentation-delivery-siop-verifier = { path = "../delivery/siop/verifier", version = "0.1.0", default-features = false }
+identity-presentation-delivery-web-core = { path = "../delivery/web/core", version = "0.1.0", default-features = false }
+identity-presentation-delivery-web-validator = { path = "../delivery/web/validator", version = "0.1.0", default-features = false }
+identity-presentation-vp-policy = { path = "../presentation/policy", version = "0.1.0" }
+identity-presentation-vp-sd-jwt = { path = "../presentation/sd-jwt", version = "0.1.0", default-features = false }
+identity-presentation-vp-validator = { path = "../presentation/validator", version = "0.1.0", default-features = false }
+reallyme-trust-core = { path = "../trust/core", version = "0.1.0" }
+identity-trust-jades = { path = "../trust/jades", version = "0.1.0", default-features = false }
+reallyme-etsi-eaa-conformance = { path = "../eudi/etsi-eaa-conformance", version = "0.1.0", default-features = false }
+reallyme-eudi-rp-registration = { path = "../eudi/rp-registration", version = "0.1.0", default-features = false }
+identity-trust-wasm = { path = "../trust/wasm", version = "0.1.0", default-features = false }
+envelopes-data-integrity = { path = "../envelopes/data_integrity", version = "0.1.0", default-features = false }
+envelopes-jwt-vc = { path = "../envelopes/jwt_vc", version = "0.1.0", default-features = false }
+reallyme-mdoc = { path = "../envelopes/mdoc", version = "0.1.0", default-features = false }
+envelopes-profiles = { path = "../envelopes/profiles", version = "0.1.0", default-features = false }
+reallyme-sd-jwt = { path = "../envelopes/sd_jwt", version = "0.1.0", default-features = false }
+envelopes-x509 = { package = "reallyme-trust-x509", path = "../trust/x509", version = "0.1.0" }
+reallyme-cose = { workspace = true }
+reallyme-credential-audit = { path = "../audit", version = "0.1.0", default-features = false }
+reallyme-credential-claims = { path = "../claims", version = "0.1.0", default-features = false }
+reallyme-credential-status = { path = "../status", version = "0.1.0", default-features = false }
+reallyme-disclosure-policy = { path = "../disclosure-policy", version = "0.1.0" }
+reallyme-credential = { path = "../credential", version = "0.1.0", default-features = false }
+reallyme-did-api = { path = "../did/core/api", version = "0.1.0", default-features = false }
+reallyme-did-core = { path = "../did/core/engine", version = "0.1.0", default-features = false }
+reallyme-did-method-cheqd = { path = "../did/methods/cheqd", version = "0.1.0" }
+reallyme-did-method-ebsi = { path = "../did/methods/ebsi", version = "0.1.0" }
+reallyme-did-method-ion = { path = "../did/methods/ion", version = "0.1.0" }
+reallyme-did-method-jwk = { path = "../did/methods/jwk", version = "0.1.0" }
+reallyme-did-method-key = { path = "../did/methods/key", version = "0.1.0" }
+reallyme-did-method-me = { path = "../did/methods/me", version = "0.1.0", default-features = false }
+reallyme-did-method-web = { path = "../did/methods/web", version = "0.1.0" }
+reallyme-did-types = { path = "../did/core/types", version = "0.1.0" }
+reallyme-vp-api = { path = "../presentation/api", version = "0.1.0" }
+reallyme-vp-core = { path = "../presentation/core", version = "0.1.0" }
+reallyme-ssi-proto = { workspace = true }
+reallyme-ssi-proto-codec = { workspace = true }
+reallyme-jose = { workspace = true }
+reallyme-keys = { path = "../keys", version = "0.1.0", default-features = false }
+reallyme-openid-oauth = { path = "../oauth", version = "0.1.0", default-features = false }
+reallyme-profiles = { path = "../profiles", version = "0.1.0", default-features = false }
+reallyme-revocation = { path = "../revocation", version = "0.1.0", default-features = false }
+reallyme-single-use = { path = "../single-use", version = "0.1.0", default-features = false }
+
+[dev-dependencies]
+reallyme-crypto = { workspace = true, features = ["native", "dispatch", "ed25519", "p256"] }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

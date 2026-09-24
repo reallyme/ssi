@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-mdoc"
+version = "0.1.0"
+description = "ISO/IEC 18013-5 mdoc issuance, presentation, and verification primitives."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "mdoc", "iso-18013-5", "eudi", "credentials"]
+categories = ["authentication", "encoding", "cryptography"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/examples/**/*.rs",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = ["native"]
+native = ["mdoc-crypto", "reallyme-cose/native", "reallyme-crypto/native"]
+wasm = ["mdoc-crypto", "reallyme-cose/wasm", "reallyme-crypto/wasm"]
+mdoc-crypto = [
+    "reallyme-crypto/dispatch",
+    "reallyme-crypto/ed25519",
+    "reallyme-crypto/p256",
+    "reallyme-crypto/p384",
+    "reallyme-crypto/p521",
+    "reallyme-crypto/secp256k1",
+    "reallyme-crypto/sha2",
+]
+
+[dependencies]
+ciborium = { workspace = true }
+reallyme-cose = { workspace = true }
+reallyme-crypto = { workspace = true }
+reallyme-ssi-proto = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true, features = ["formatting", "parsing"] }
+url = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+envelopes-x509 = { workspace = true, features = ["native"] }
+reallyme-credential-claims = { path = "../../claims", version = "0.1.0" }
+reallyme-codec = { workspace = true, features = ["cbor"] }
+reallyme-ssi-proto = { workspace = true }
+reallyme-ssi-proto-codec = { workspace = true }
+
+[lints]
+workspace = true

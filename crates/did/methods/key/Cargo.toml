@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-did-method-key"
+version = "0.1.0"
+description = "did:key multibase and multicodec identifier helpers."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+reallyme-codec = { workspace = true, features = ["base64url"] }
+reallyme-ssi-proto = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

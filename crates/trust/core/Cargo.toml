@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-trust-core"
+version = "0.1.0"
+description = "Protocol-neutral trust policy and revocation composition for ReallyMe identity."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "trust", "x509", "eidas", "credentials"]
+categories = ["authentication", "cryptography"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = ["native"]
+native = ["envelopes-x509/native", "identity-revocation-core/native"]
+wasm = ["envelopes-x509/wasm", "identity-revocation-core/wasm"]
+
+[dependencies]
+reallyme-ssi-proto = { workspace = true }
+thiserror = { workspace = true }
+time = "0.3"
+
+# X.509 envelope + policy
+envelopes-x509 = { workspace = true }
+
+# Status
+identity-revocation-core = { workspace = true }
+[lints]
+workspace = true

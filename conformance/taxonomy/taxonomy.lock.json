@@ -1,0 +1,8 @@
+{
+  "$comment": "SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved\nSPDX-License-Identifier: MIT OR Apache-2.0",
+  "schema": "reallyme.identity.taxonomy_source_lock.v1",
+  "repository": "reallyme/identity-taxonomy",
+  "revision": "9c42c2516d0e79f077ed4131f3e3a951df2d69b0",
+  "inventory_path": "conformance/inventory/requirements.json",
+  "inventory_sha256": "5fb82c24ebeb3031814ae79cfc85c415265e36353276e3d9c87e254152632600"
+}

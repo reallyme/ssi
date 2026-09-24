@@ -1,0 +1,171 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: Crates Package Preflight
+
+run-name: Crates package preflight ${{ inputs.version }} @ ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without a leading v
+        required: true
+        type: string
+        default: 0.1.0
+
+concurrency:
+  group: crates-package-preflight-${{ inputs.version }}-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  CARGO_AUDIT_VERSION: 0.22.2
+
+jobs:
+  verify-source-sha:
+    name: Verify release source
+    runs-on: ubuntu-24.04
+    outputs:
+      release_sha: ${{ steps.verify-source.outputs.release_sha }}
+      release_version: ${{ steps.verify-source.outputs.release_version }}
+    steps:
+      - name: Checkout requested release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: reallyme/ssi
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Match workflow head, current main, and crate versions
+        id: verify-source
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_SOURCE_WRITE_GITHUB_OUTPUT: '1'
+        working-directory: reallyme/ssi
+        run: node scripts/verify_release_source.mjs
+
+  crates-package:
+    name: Review crates.io packages
+    needs: verify-source-sha
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout certified release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify-source-sha.outputs.release_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: reallyme/ssi
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.98.1
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: reallyme/ssi
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        with:
+          tool: cargo-audit@${{ env.CARGO_AUDIT_VERSION }}
+
+      - name: Scan complete Git history
+        working-directory: reallyme/ssi
+        run: scripts/run_gitleaks.sh
+
+      - name: Checkout release-readiness runner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: reallyme/release-readiness
+          ref: 985cf16f866bcdbd384edd8a9b6f332b38c5eb52
+          path: reallyme/ssi/.release-readiness
+          persist-credentials: false
+
+      - name: Security advisory audit
+        working-directory: reallyme/ssi
+        run: scripts/audit_committed_lockfiles.sh
+
+      - name: Check release version and publish order
+        env:
+          RELEASE_VERSION: ${{ needs.verify-source-sha.outputs.release_version }}
+        working-directory: reallyme/ssi
+        run: node scripts/publish_crates_in_order.mjs order
+
+      - name: Inspect approved public package set
+        working-directory: reallyme/ssi
+        run: node scripts/inspect_publishable_crates.mjs
+
+      - name: Run pinned release-readiness gates
+        env:
+          RELEASE_VERSION: ${{ needs.verify-source-sha.outputs.release_version }}
+        working-directory: reallyme/ssi
+        run: node .release-readiness/scripts/run-consumer-check.mjs
+
+      - name: Inspect normalized crate tarballs and dry-run publication
+        env:
+          RELEASE_VERSION: ${{ needs.verify-source-sha.outputs.release_version }}
+        working-directory: reallyme/ssi
+        run: node scripts/publish_crates_in_order.mjs inspect
+
+      - name: Verify full Rust CI for the release commit
+        id: rust-ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.verify-source-sha.outputs.release_sha }}
+          RELEASE_VERSION: ${{ needs.verify-source-sha.outputs.release_version }}
+          RELEASE_ATTESTATION_RUST_CI_ONLY: '1'
+          RELEASE_ATTESTATION_WRITE_GITHUB_OUTPUT: '1'
+          RELEASE_ATTESTATION_WAIT_SECONDS: '3600'
+          RELEASE_ATTESTATION_POLL_SECONDS: '20'
+        working-directory: reallyme/ssi
+        run: node scripts/verify_release_attestation.mjs
+
+      - name: Write reviewed package attestation
+        env:
+          RELEASE_SHA: ${{ needs.verify-source-sha.outputs.release_sha }}
+          RELEASE_VERSION: ${{ needs.verify-source-sha.outputs.release_version }}
+          RUST_CI_RUN_ID: ${{ steps.rust-ci.outputs.rust_ci_run_id }}
+        working-directory: reallyme/ssi
+        run: node scripts/write_release_attestation.mjs
+
+      - name: Upload reviewed package attestation
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reallyme-ssi-crates-preflight-${{ inputs.version }}-${{ github.sha }}
+          path: reallyme/ssi/release-attestation/crates-preflight.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summarize reviewed release
+        env:
+          RELEASE_SHA: ${{ needs.verify-source-sha.outputs.release_sha }}
+          RELEASE_VERSION: ${{ needs.verify-source-sha.outputs.release_version }}
+        run: |
+          {
+            echo '## Crates package preflight passed'
+            echo
+            echo "- Version: \`${RELEASE_VERSION}\`"
+            echo "- Commit: \`${RELEASE_SHA}\`"
+            echo "- Publish set: seventeen SSI support crates in verified dependency order"
+            echo "- Attestation run ID: \`${GITHUB_RUN_ID}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

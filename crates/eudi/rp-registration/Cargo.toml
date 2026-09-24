@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-eudi-rp-registration"
+version = "0.1.0"
+description = "Strict EUDI Wallet Relying Party registration and credential profiles."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+native = [
+    "identity-trust-jades/native",
+    "reallyme-crypto/native",
+    "reallyme-jose/native",
+    "reallyme-trust-x509/native",
+]
+wasm = [
+    "identity-trust-jades/wasm",
+    "reallyme-crypto/wasm",
+    "reallyme-jose/wasm",
+    "reallyme-trust-x509/wasm",
+]
+
+[dependencies]
+identity-trust-jades = { path = "../../trust/jades", version = "0.1.0", optional = true }
+reallyme-codec = { workspace = true, features = ["base64", "base64url", "jcs"] }
+reallyme-crypto = { workspace = true, features = ["ed25519", "sha2"] }
+reallyme-jose = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+reallyme-trust-x509 = { path = "../../trust/x509", version = "0.1.0", default-features = false }
+url = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+openssl = "0.10.81"
+
+[lints]
+workspace = true

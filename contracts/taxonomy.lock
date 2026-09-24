@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+schema: reallyme.ssi.taxonomy_lock.v1
+source:
+  repository: https://github.com/reallyme/identity-taxonomy
+  revision: 6f127ec6e2d3c9c3d7f912b3ac642a8505797ef8
+  taxonomy_version: 0.1.0
+view:
+  path: views/ssi/type-system.yaml
+  digest:
+    algorithm: sha256
+    value: 6d42714c5a623414304590a940136125eaebc0b0458f894f92ebaec71c0e0640
