@@ -1,0 +1,148 @@
+{
+  "schema": "reallyme.identity.conformance.vectors.v1",
+  "suite": "sd-jwt-json-serialization",
+  "cases": [
+    {
+      "id": "ietf-sd-jwt/json_serialization_flattened",
+      "source": "RFC9901",
+      "format": "sd-jwt-json-serialization",
+      "files": [
+        {
+          "path": "vectors/ietf-sd-jwt/json_serialization_flattened/sd_jwt_issuance.json",
+          "media_type": "application/json",
+          "sha256": "924c6f2df13e4c8a1ba1842da5d2d5839b6174233b0c898bdcde8fbb5596a6e2",
+          "bytes": 1838
+        },
+        {
+          "path": "vectors/ietf-sd-jwt/json_serialization_flattened/sd_jwt_presentation.json",
+          "media_type": "application/json",
+          "sha256": "fb2bff2ca6d673e09a518d88a69b4c9651ea0ffab3cdf383477a108fc1ac27f7",
+          "bytes": 1838
+        },
+        {
+          "path": "vectors/ietf-sd-jwt/json_serialization_flattened/sd_jwt_payload.json",
+          "media_type": "application/json",
+          "sha256": "ef1377bd2fcf2640a7c79a23445ed96712c16d41f5d61c1e058afb2c77cbd612",
+          "bytes": 670
+        },
+        {
+          "path": "vectors/ietf-sd-jwt/json_serialization_flattened/verified_contents.json",
+          "media_type": "application/json",
+          "sha256": "333714b4b19e560225a49770c3d1e0163781e0cba837606eb5e975c1cd8f0d6a",
+          "bytes": 452
+        }
+      ],
+      "presentation": {
+        "header": {
+          "disclosures": [
+            "WyI2SWo3dE0tYTVpVlBHYm9TNXRtdlZBIiwgImZhbWlseV9uYW1lIiwgIkRvZ         SJd",
+            "WyJBSngtMDk1VlBycFR0TjRRTU9xUk9BIiwgImFkZHJlc3MiLCB7InN0cmVld         F9hZGRyZXNzIjogIjEyMyBNYWluIFN0IiwgImxvY2FsaXR5IjogIkFueXRvd         24iLCAicmVnaW9uIjogIkFueXN0YXRlIiwgImNvdW50cnkiOiAiVVMifV0",
+            "WyJlbHVWNU9nM2dTTklJOEVZbnN4QV9BIiwgImdpdmVuX25hbWUiLCAiSm9ob         iJd"
+          ],
+          "kb_jwt": "eyJhbGciOiAiRVMyNTYiLCAidHlwIjogImtiK2p3dCJ9.eyJub25j       ZSI6ICIxMjM0NTY3ODkwIiwgImF1ZCI6ICJodHRwczovL2V4YW1wbGUuY29tL3       ZlcmlmaWVyIiwgImlhdCI6IDE3NzE3NzE3NzAsICJzZF9oYXNoIjogIkZGbWJ2       b1pWdzMydGlIVmMyWXlOYnBzRXhSZVJNanpKMGlHcUNRSDFsOG8ifQ.WETCue6       LWo7KmvSkGhpKuxGfBIbJ5B6uXwqkURnzzfNObTU44KluQ_EJjQJag0MNI898R       r5Y_7ozu5ZXuTbR_A"
+        },
+        "payload": "eyJfc2QiOiBbIjRIQm42YUlZM1d0dUdHV1R4LXFVajZjZGs2V0JwWn     lnbHRkRmF2UGE3TFkiLCAiOHNtMVFDZjAyMXBObkhBQ0k1c1A0bTRLWmd5Tk9PQV     ljVGo5SE5hQzF3WSIsICJTRE43OU5McEFuSFBta3JkZVlkRWE4OVhaZHNrME04RE     tZU1FPVTJaeFFjIiwgIlh6RnJ6d3NjTTZHbjZDSkRjNnZWSzhCa01uZkc4dk9TS2     ZwUElaZEFmZEUiLCAiZ2JPc0k0RWRxMngyS3ctdzV3UEV6YWtvYjloVjFjUkQwQV     ROM29RTDlKTSIsICJqTUNYVnotLTliOHgzN1ljb0RmWFFpbnp3MXdaY2NjZkZSQk     NGR3FkRzJvIiwgIm9LSTFHZDJmd041V3d2amxGa29oaWRHdmltLTMxT3VsUjNxMG     hyRE8wNzgiXSwgImlzcyI6ICJodHRwczovL2V4YW1wbGUuY29tL2lzc3VlciIsIC     JpYXQiOiAxNjgzMDAwMDAwLCAiZXhwIjogMTg4MzAwMDAwMCwgIl9zZF9hbGciOi     Aic2hhLTI1NiIsICJjbmYiOiB7Imp3ayI6IHsia3R5IjogIkVDIiwgImNydiI6IC     JQLTI1NiIsICJ4IjogIlRDQUVSMTladnUzT0hGNGo0VzR2ZlNWb0hJUDFJTGlsRG     xzN3ZDZUdlbWMiLCAieSI6ICJaeGppV1diWk1RR0hWV0tWUTRoYlNJaXJzVmZ1ZW     NDRTZ0NGpUOUYySFpRIn19fQ",
+        "protected": "eyJhbGciOiAiRVMyNTYiLCAidHlwIjogImV4YW1wbGUrc2Qtand0In0",
+        "signature": "0S1FMzQY2oEm1J5GrlpcQaP5GO2vvqsQS495PlhiBGExbZLIWwWm     8KXi6JQ_0XyVyjCNS-0GB_tR6U31MdwIDQ"
+      },
+      "expected_verified_contents": {
+        "iss": "https://example.com/issuer",
+        "iat": 1683000000,
+        "exp": 1883000000,
+        "cnf": {
+          "jwk": {
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "TCAER19Zvu3OHF4j4W4vfSVoHIP1ILilDls7vCeGemc",
+            "y": "ZxjiWWbZMQGHVWKVQ4hbSIirsVfuecCE6t4jT9F2HZQ"
+          }
+        },
+        "family_name": "Doe",
+        "address": {
+          "street_address": "123 Main St",
+          "locality": "Anytown",
+          "region": "Anystate",
+          "country": "US"
+        },
+        "given_name": "John"
+      }
+    },
+    {
+      "id": "ietf-sd-jwt/json_serialization_general",
+      "source": "RFC9901",
+      "format": "sd-jwt-json-serialization",
+      "files": [
+        {
+          "path": "vectors/ietf-sd-jwt/json_serialization_general/sd_jwt_issuance.json",
+          "media_type": "application/json",
+          "sha256": "03b4692dd54a68386ff0f73874850bf00a7078426d19ac94f0c2a35e98cb7650",
+          "bytes": 2281
+        },
+        {
+          "path": "vectors/ietf-sd-jwt/json_serialization_general/sd_jwt_presentation.json",
+          "media_type": "application/json",
+          "sha256": "f0b3fb0106255c64c250df6ebf7ad45c031e239bbeac6b38d425aa4c728e8a20",
+          "bytes": 2273
+        },
+        {
+          "path": "vectors/ietf-sd-jwt/json_serialization_general/sd_jwt_payload.json",
+          "media_type": "application/json",
+          "sha256": "ef1377bd2fcf2640a7c79a23445ed96712c16d41f5d61c1e058afb2c77cbd612",
+          "bytes": 670
+        },
+        {
+          "path": "vectors/ietf-sd-jwt/json_serialization_general/verified_contents.json",
+          "media_type": "application/json",
+          "sha256": "333714b4b19e560225a49770c3d1e0163781e0cba837606eb5e975c1cd8f0d6a",
+          "bytes": 452
+        }
+      ],
+      "presentation": {
+        "payload": "eyJfc2QiOiBbIjRIQm42YUlZM1d0dUdHV1R4LXFVajZjZGs2V0JwWn     lnbHRkRmF2UGE3TFkiLCAiOHNtMVFDZjAyMXBObkhBQ0k1c1A0bTRLWmd5Tk9PQV     ljVGo5SE5hQzF3WSIsICJTRE43OU5McEFuSFBta3JkZVlkRWE4OVhaZHNrME04RE     tZU1FPVTJaeFFjIiwgIlh6RnJ6d3NjTTZHbjZDSkRjNnZWSzhCa01uZkc4dk9TS2     ZwUElaZEFmZEUiLCAiZ2JPc0k0RWRxMngyS3ctdzV3UEV6YWtvYjloVjFjUkQwQV     ROM29RTDlKTSIsICJqTUNYVnotLTliOHgzN1ljb0RmWFFpbnp3MXdaY2NjZkZSQk     NGR3FkRzJvIiwgIm9LSTFHZDJmd041V3d2amxGa29oaWRHdmltLTMxT3VsUjNxMG     hyRE8wNzgiXSwgImlzcyI6ICJodHRwczovL2V4YW1wbGUuY29tL2lzc3VlciIsIC     JpYXQiOiAxNjgzMDAwMDAwLCAiZXhwIjogMTg4MzAwMDAwMCwgIl9zZF9hbGciOi     Aic2hhLTI1NiIsICJjbmYiOiB7Imp3ayI6IHsia3R5IjogIkVDIiwgImNydiI6IC     JQLTI1NiIsICJ4IjogIlRDQUVSMTladnUzT0hGNGo0VzR2ZlNWb0hJUDFJTGlsRG     xzN3ZDZUdlbWMiLCAieSI6ICJaeGppV1diWk1RR0hWV0tWUTRoYlNJaXJzVmZ1ZW     NDRTZ0NGpUOUYySFpRIn19fQ",
+        "signatures": [
+          {
+            "header": {
+              "disclosures": [
+                "WyI2SWo3dE0tYTVpVlBHYm9TNXRtdlZBIiwgImZhbWlseV9uYW1lIiwgI             kRvZSJd",
+                "WyJBSngtMDk1VlBycFR0TjRRTU9xUk9BIiwgImFkZHJlc3MiLCB7InN0c             mVldF9hZGRyZXNzIjogIjEyMyBNYWluIFN0IiwgImxvY2FsaXR5IjogI             kFueXRvd24iLCAicmVnaW9uIjogIkFueXN0YXRlIiwgImNvdW50cnkiO             iAiVVMifV0",
+                "WyJlbHVWNU9nM2dTTklJOEVZbnN4QV9BIiwgImdpdmVuX25hbWUiLCAiS             m9obiJd"
+              ],
+              "kid": "issuer-key-1",
+              "kb_jwt": "eyJhbGciOiAiRVMyNTYiLCAidHlwIjogImtiK2p3dCJ9.eyJu           b25jZSI6ICIxMjM0NTY3ODkwIiwgImF1ZCI6ICJodHRwczovL2V4YW1wbG           UuY29tL3ZlcmlmaWVyIiwgImlhdCI6IDE3NzE3NzE3NzAsICJzZF9oYXNo           IjogIk5UNUVWVUp6LTh5blVyQTl4MVF3RHFSUkZqTm1BbDBjZzRGUGs1Rz           FaRVEifQ.LVDKOFdlrdDcDNPJcWJGmiv6wcMFo052mcL4InzRd3dKKkR9X           ZRfzdn2a9UU6V1vs_YQxgHIgziL1B9vt2GnWQ"
+            },
+            "protected": "eyJhbGciOiAiRVMyNTYiLCAidHlwIjogImV4YW1wbGUrc2Qtand0In0",
+            "signature": "RKcNUVrKvBuYQzbNOAz8PK0ZB4t8n6DkKFNtCKFDZCknXbZO         iUdaAbF-hbmI5u4U6s0NkUBkNWDHVF6UFFIl1A"
+          },
+          {
+            "header": {
+              "kid": "issuer-key-2"
+            },
+            "protected": "eyJhbGciOiAiRVMyNTYiLCAidHlwIjogImV4YW1wbGUrc2Qtand0In0",
+            "signature": "1rZwGSV7v-INEFuJIJ93tYLv76Stth4EZJ94fcG3CDDIQ8jH         beR94VQWqh9ukUXhJHInDLOwaVH5jULip0e6LQ"
+          }
+        ]
+      },
+      "expected_verified_contents": {
+        "iss": "https://example.com/issuer",
+        "iat": 1683000000,
+        "exp": 1883000000,
+        "cnf": {
+          "jwk": {
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "TCAER19Zvu3OHF4j4W4vfSVoHIP1ILilDls7vCeGemc",
+            "y": "ZxjiWWbZMQGHVWKVQ4hbSIirsVfuecCE6t4jT9F2HZQ"
+          }
+        },
+        "family_name": "Doe",
+        "address": {
+          "street_address": "123 Main St",
+          "locality": "Anytown",
+          "region": "Anystate",
+          "country": "US"
+        },
+        "given_name": "John"
+      }
+    }
+  ]
+}

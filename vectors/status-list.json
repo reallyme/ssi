@@ -1,0 +1,167 @@
+{
+  "schema": "reallyme.identity.conformance.status_list.v1",
+  "source": "W3C-VC-DM-2.0 credential status and ReallyMe status-list model",
+  "cases": [
+    {
+      "id": "revocation-clear-index-7",
+      "status_list": {
+        "issuer": "did:web:issuer.example",
+        "purpose": "Revocation",
+        "issued_at": 1740000000,
+        "next_update": 1770000000,
+        "encoded_list_hex": "00",
+        "length": 8,
+        "list_id_hex": "0404040404040404040404040404040404040404040404040404040404040404",
+        "signature": {
+          "alg": "Ed25519",
+          "sig_bytes_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+        }
+      },
+      "credential_status_index": 7,
+      "now_unix": 1750000000,
+      "verifier_signature_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+      "expected": {
+        "status_bit": false,
+        "result": "ok",
+        "status_signing_payload_hex": "a766697373756572766469643a7765623a6973737565722e6578616d706c65666c656e67746808666c69737449645820040404040404040404040404040404040404040404040404040404040404040467707572706f73656a7265766f636174696f6e6869737375656441741a67b64b006a6e6578745570646174651a69800e806b656e636f6465644c6973744100"
+      }
+    },
+    {
+      "id": "revocation-set-index-7",
+      "status_list": {
+        "issuer": "did:web:issuer.example",
+        "purpose": "Revocation",
+        "issued_at": 1740000000,
+        "next_update": 1770000000,
+        "encoded_list_hex": "80",
+        "length": 8,
+        "list_id_hex": "0404040404040404040404040404040404040404040404040404040404040404",
+        "signature": {
+          "alg": "Ed25519",
+          "sig_bytes_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+        }
+      },
+      "credential_status_index": 7,
+      "now_unix": 1750000000,
+      "verifier_signature_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+      "expected": {
+        "status_bit": true,
+        "result": "Revoked"
+      }
+    },
+    {
+      "id": "suspension-set-index-2",
+      "status_list": {
+        "issuer": "did:web:issuer.example",
+        "purpose": "Suspension",
+        "issued_at": 1740000000,
+        "next_update": 1770000000,
+        "encoded_list_hex": "04",
+        "length": 8,
+        "list_id_hex": "0404040404040404040404040404040404040404040404040404040404040404",
+        "signature": {
+          "alg": "Ed25519",
+          "sig_bytes_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+        }
+      },
+      "credential_status_index": 2,
+      "now_unix": 1750000000,
+      "verifier_signature_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+      "expected": {
+        "status_bit": true,
+        "result": "Suspended"
+      }
+    },
+    {
+      "id": "revocation-expired-list",
+      "status_list": {
+        "issuer": "did:web:issuer.example",
+        "purpose": "Revocation",
+        "issued_at": 1740000000,
+        "next_update": 1770000000,
+        "encoded_list_hex": "00",
+        "length": 8,
+        "list_id_hex": "0404040404040404040404040404040404040404040404040404040404040404",
+        "signature": {
+          "alg": "Ed25519",
+          "sig_bytes_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+        }
+      },
+      "credential_status_index": 7,
+      "now_unix": 1770000001,
+      "verifier_signature_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+      "expected": {
+        "status_bit": false,
+        "result": "Expired"
+      }
+    },
+    {
+      "id": "revocation-not-yet-valid-list",
+      "status_list": {
+        "issuer": "did:web:issuer.example",
+        "purpose": "Revocation",
+        "issued_at": 1740000000,
+        "next_update": 1770000000,
+        "encoded_list_hex": "00",
+        "length": 8,
+        "list_id_hex": "0404040404040404040404040404040404040404040404040404040404040404",
+        "signature": {
+          "alg": "Ed25519",
+          "sig_bytes_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+        }
+      },
+      "credential_status_index": 7,
+      "now_unix": 1739999999,
+      "verifier_signature_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+      "expected": {
+        "status_bit": false,
+        "result": "NotYetValid"
+      }
+    },
+    {
+      "id": "revocation-invalid-signature",
+      "status_list": {
+        "issuer": "did:web:issuer.example",
+        "purpose": "Revocation",
+        "issued_at": 1740000000,
+        "next_update": 1770000000,
+        "encoded_list_hex": "00",
+        "length": 8,
+        "list_id_hex": "0404040404040404040404040404040404040404040404040404040404040404",
+        "signature": {
+          "alg": "Ed25519",
+          "sig_bytes_hex": "00"
+        }
+      },
+      "credential_status_index": 7,
+      "now_unix": 1750000000,
+      "verifier_signature_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+      "expected": {
+        "status_bit": false,
+        "result": "InvalidSignature"
+      }
+    },
+    {
+      "id": "revocation-index-out-of-bounds",
+      "status_list": {
+        "issuer": "did:web:issuer.example",
+        "purpose": "Revocation",
+        "issued_at": 1740000000,
+        "next_update": 1770000000,
+        "encoded_list_hex": "00",
+        "length": 8,
+        "list_id_hex": "0404040404040404040404040404040404040404040404040404040404040404",
+        "signature": {
+          "alg": "Ed25519",
+          "sig_bytes_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+        }
+      },
+      "credential_status_index": 8,
+      "now_unix": 1750000000,
+      "verifier_signature_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+      "expected": {
+        "result": "InvalidIndex"
+      }
+    }
+  ]
+}

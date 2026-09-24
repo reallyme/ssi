@@ -1,0 +1,62 @@
+[
+  {
+    "id": "KEYS-MUST-001",
+    "source": "CONTRACT",
+    "section": "Keys",
+    "keyword": "MUST",
+    "feature": "verification_method_id_validation",
+    "implementation": ["crates/keys/src/verification_method_id.rs"],
+    "positive_tests": ["insert_and_retrieve_keys", "put_public_only_stores_public_key"],
+    "negative_tests": ["invalid_inputs_are_rejected", "oversized_inputs_are_rejected"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "KEYS-MUST-002",
+    "source": "CONTRACT",
+    "section": "Keys",
+    "keyword": "MUST",
+    "feature": "public_key_multibase_validation",
+    "implementation": ["crates/keys/src/public_key_multibase.rs", "reallyme-codec::multikey"],
+    "positive_tests": ["insert_and_retrieve_keys", "put_public_only_stores_public_key"],
+    "negative_tests": ["invalid_inputs_are_rejected", "oversized_inputs_are_rejected"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "KEYS-MUST-003",
+    "source": "CONTRACT",
+    "section": "Secrets And Memory",
+    "keyword": "MUST",
+    "feature": "private_key_material_bounded_zeroizing_storage",
+    "implementation": ["crates/keys/src/private_key_material.rs", "crates/keys/src/key_set.rs"],
+    "positive_tests": ["insert_and_retrieve_keys", "debug_output_redacts_private_material"],
+    "negative_tests": ["invalid_inputs_are_rejected", "oversized_inputs_are_rejected"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "KEYS-MUST-004",
+    "source": "CONTRACT",
+    "section": "Keys",
+    "keyword": "MUST",
+    "feature": "keyset_public_only_and_missing_private_policy",
+    "implementation": ["crates/keys/src/key_set.rs", "crates/keys/src/read_key.rs", "crates/keys/src/insert_key.rs"],
+    "positive_tests": ["put_public_only_stores_public_key"],
+    "negative_tests": ["missing_keys_return_typed_errors"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "KEYS-MUST-005",
+    "source": "CONTRACT",
+    "section": "Keys",
+    "keyword": "MUST",
+    "feature": "keyset_copy_trim_and_export_invariants",
+    "implementation": ["crates/keys/src/copy_keys.rs", "crates/keys/src/trim_keys.rs", "crates/keys/src/export_key_set.rs", "crates/keys/src/import_key_set.rs"],
+    "positive_tests": ["copy_into_is_deep_copy", "trim_to_vms_removes_unlisted_keys", "export_and_import_roundtrip", "export_serializes_deterministically"],
+    "negative_tests": ["import_rejects_invalid_private_base64"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

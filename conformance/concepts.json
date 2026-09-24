@@ -1,0 +1,673 @@
+{
+  "schema": "reallyme.identity.conformance.concepts.v1",
+  "concepts": [
+    {
+      "id": "identity-core-facade",
+      "title": "Identity core Rust facade",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/ssi/Cargo.toml",
+        "crates/proto/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::{audit, claims, cose, did, envelopes, jose, keys, oauth, revocation, status, presentation}",
+        "reallyme_identity_common_proto",
+        "reallyme_identity_core_proto"
+      ],
+      "conformance_files": [
+        "conformance/requirements/identity-boundaries.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-ssi",
+        "publish_ready": true,
+        "notes": "The reallyme-ssi facade remains source-only and publish = false. The smaller support-crate closure consumed by the public reallyme-identity package is released separately at version 0.1.0."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "jose",
+      "title": "JOSE, JWS, JWT, and JWE mechanics",
+      "owner": "reallyme/jose",
+      "local_crates": [],
+      "external_crates": [
+        "reallyme-jose"
+      ],
+      "public_api": [
+        "reallyme_ssi::jose",
+        "reallyme_jose"
+      ],
+      "conformance_files": [
+        "conformance/requirements/jose.json",
+        "conformance/requirements/jwk.json",
+        "conformance/requirements/jwt.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "external_upstream",
+      "publishing": {
+        "role": "external_dependency",
+        "package": "reallyme-jose",
+        "publish_ready": true,
+        "notes": "Owned by the standalone jose repository and consumed from crates.io."
+      },
+      "release_blocker": false,
+      "next_actions": [
+        "Keep identity records focused on facade and envelope consumption while detailed section-by-section JOSE coverage lives in reallyme/jose."
+      ]
+    },
+    {
+      "id": "cose",
+      "title": "COSE Sign1 and COSE Key mechanics",
+      "owner": "reallyme/cose",
+      "local_crates": [],
+      "external_crates": [
+        "reallyme-cose"
+      ],
+      "public_api": [
+        "reallyme_ssi::cose",
+        "reallyme_cose"
+      ],
+      "conformance_files": [
+        "conformance/requirements/cose.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "external_upstream",
+      "publishing": {
+        "role": "external_dependency",
+        "package": "reallyme-cose",
+        "publish_ready": true,
+        "notes": "Owned by the standalone cose repository and consumed from crates.io."
+      },
+      "release_blocker": false,
+      "next_actions": [
+        "Keep identity records focused on mdoc and facade consumption while detailed COSE coverage lives in reallyme/cose."
+      ]
+    },
+    {
+      "id": "compression-brotli",
+      "title": "Bounded Brotli compression",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/compression/brotli/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::compression::brotli",
+        "reallyme_compression_brotli"
+      ],
+      "conformance_files": [
+        "conformance/requirements/compression.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "core_support_published",
+        "package": "reallyme-compression-brotli",
+        "publish_ready": true,
+        "notes": "This crate is intentionally reusable because protobuf and JSON payloads can exceed practical transport sizes with large PQ material."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "sd-jwt",
+      "title": "RFC 9901 SD-JWT envelope semantics",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/envelopes/sd_jwt/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::envelopes::sd_jwt"
+      ],
+      "conformance_files": [
+        "conformance/requirements/sd-jwt.json",
+        "conformance/requirements/jose.json",
+        "conformance/requirements/jwt.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-sd-jwt",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "mdoc",
+      "title": "ISO/IEC 18013-5 mdoc envelope semantics",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/envelopes/mdoc/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::envelopes::mdoc"
+      ],
+      "conformance_files": [
+        "conformance/requirements/mdoc.json",
+        "conformance/requirements/cose.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-mdoc",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "data-integrity",
+      "title": "VC Data Integrity and es256-jws-cid-2025",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/envelopes/data_integrity/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::envelopes::data_integrity"
+      ],
+      "conformance_files": [
+        "conformance/requirements/did-data-integrity.json",
+        "conformance/requirements/jose.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "envelopes-data-integrity",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "jwt-vc",
+      "title": "JWT-VC envelope semantics",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/envelopes/jwt_vc/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::envelopes::jwt_vc"
+      ],
+      "conformance_files": [
+        "conformance/requirements/jwt-vc.json",
+        "conformance/requirements/jwt.json",
+        "conformance/requirements/jose.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "envelopes-jwt-vc",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "envelope-profiles",
+      "title": "Credential envelope and EUDI profile constraints",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/envelopes/profiles/Cargo.toml",
+        "crates/profiles/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::envelopes::profiles",
+        "reallyme_profiles"
+      ],
+      "conformance_files": [
+        "conformance/requirements/envelope-profiles.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "envelopes-profiles",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The support crates remain source-only behind the SSI facade unless a later package strategy explicitly publishes them."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "claims-and-disclosure-policy",
+      "title": "Claim registries, claim paths, and disclosure policy",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/claims/Cargo.toml",
+        "crates/disclosure-policy/Cargo.toml",
+        "crates/proto/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::claims",
+        "reallyme_ssi::disclosure_policy",
+        "reallyme_ssi::claims::proto"
+      ],
+      "conformance_files": [
+        "conformance/requirements/audit-claims.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-credential-claims",
+        "publish_ready": true,
+        "notes": "Claims normalization, nested paths, registry-backed payload validation, cross-format vectors, claim commitment verification, and claims fuzz harnesses are implemented. Every predefined registry-backed profile is source-mapped in vectors/claims/catalog-sources.json."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "audit-evidence",
+      "title": "QEAA audit and compliance evidence",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/audit/Cargo.toml",
+        "crates/proto/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::audit",
+        "reallyme_ssi::audit::proto"
+      ],
+      "conformance_files": [
+        "conformance/requirements/audit-claims.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-credential-audit",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "status-and-revocation",
+      "title": "Credential status and revocation evidence policy",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/status/Cargo.toml",
+        "crates/proto/Cargo.toml",
+        "crates/revocation/Cargo.toml",
+        "crates/revocation/crl/core/Cargo.toml",
+        "crates/revocation/crl/openssl/Cargo.toml",
+        "crates/revocation/ocsp/core/Cargo.toml",
+        "crates/revocation/ocsp/dispatch/Cargo.toml",
+        "crates/revocation/ocsp/openssl/Cargo.toml",
+        "crates/single-use/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::status",
+        "reallyme_ssi::status::proto",
+        "reallyme_ssi::revocation"
+      ],
+      "conformance_files": [
+        "conformance/requirements/status-revocation.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-credential-status + reallyme-revocation + reallyme-single-use",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. Status, revocation, CRL/OCSP support crates, and single-use remain source-only behind the SSI facade unless a later package strategy explicitly publishes them."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "credential-envelope-core",
+      "title": "Protocol-neutral credential envelope core",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/credential/Cargo.toml",
+        "crates/credential/vc/api/Cargo.toml",
+        "crates/credential/vc/ietf-sd-jwt/Cargo.toml",
+        "crates/credential/vc/jwt/Cargo.toml",
+        "crates/proto/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::credential",
+        "identity_credential_vc_api",
+        "reallyme_credential::committed",
+        "identity_vc_ietf_sd_jwt",
+        "identity_vc_jwt",
+        "reallyme_ssi::claims::proto"
+      ],
+      "conformance_files": [
+        "conformance/requirements/credential.json",
+        "conformance/requirements/envelope-profiles.json",
+        "conformance/requirements/status-revocation.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-credential",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The credential core and credential-format support crates remain source-only behind the SSI facade unless a later package strategy explicitly publishes them. IETF SD-JWT VC is the only SD-JWT credential issuance format; generic SD-JWT envelope and VP presentation support remain separate concepts."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "reallyme-trust-x509",
+      "title": "X.509, QCStatements, and TSL trust primitives",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/trust/api/Cargo.toml",
+        "crates/trust/core/Cargo.toml",
+        "crates/trust/jades/Cargo.toml",
+        "crates/trust/openssl/Cargo.toml",
+        "crates/trust/tsl-core/Cargo.toml",
+        "crates/trust/tsl-openssl/Cargo.toml",
+        "crates/trust/tsl-xmlsec/Cargo.toml",
+        "crates/trust/tsl-xmlsec-sys/Cargo.toml",
+        "crates/trust/wasm/Cargo.toml",
+        "crates/trust/x509/Cargo.toml",
+        "crates/proto/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "identity_trust_jades",
+        "reallyme_trust_x509"
+      ],
+      "conformance_files": [
+        "conformance/requirements/x509.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-trust-x509",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. Trust API/core, JAdES, TSL, OpenSSL, wasm, xmlsec, and X.509 support crates remain source-only behind the SSI facade; native-only XMLDSig packaging must stay explicit if it is later published."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "oauth-substrate",
+      "title": "Shared OAuth substrate",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/oauth/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::oauth"
+      ],
+      "conformance_files": [
+        "conformance/requirements/oauth.json",
+        "conformance/requirements/jwk.json",
+        "conformance/requirements/jwt.json",
+        "conformance/requirements/identity-boundaries.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-openid-oauth",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The reusable OAuth substrate remains source-only behind the SSI facade; protocol orchestration stays in openid repositories."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "keys",
+      "title": "Identity key-set helpers",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/keys/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::keys"
+      ],
+      "conformance_files": [
+        "conformance/requirements/keys.json",
+        "conformance/requirements/did-data-integrity.json",
+        "conformance/requirements/jwk.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-keys",
+        "publish_ready": true,
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "did-core",
+      "title": "DID core API and validation engine",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/did/core/api/Cargo.toml",
+        "crates/did/core/common/Cargo.toml",
+        "crates/did/core/engine/Cargo.toml",
+        "crates/did/core/types/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::did::{api, core, types}"
+      ],
+      "conformance_files": [
+        "conformance/requirements/did-data-integrity.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "core_support_published",
+        "package": "reallyme-ssi-core + reallyme-did-types",
+        "publish_ready": true,
+        "notes": "The core-primitives and DID-types support packages are published for the reallyme-identity dependency graph. The DID engine, API, method, and validation crates remain source-only."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "did-methods",
+      "title": "DID method adapters",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/did/methods/cheqd/Cargo.toml",
+        "crates/did/methods/conformance/Cargo.toml",
+        "crates/did/methods/ebsi/Cargo.toml",
+        "crates/did/methods/ion/Cargo.toml",
+        "crates/did/methods/jwk/Cargo.toml",
+        "crates/did/methods/key/Cargo.toml",
+        "crates/did/methods/me/Cargo.toml",
+        "crates/did/methods/web/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::did::api"
+      ],
+      "conformance_files": [
+        "conformance/requirements/did-data-integrity.json",
+        "conformance/requirements/identity-boundaries.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-did-methods",
+        "publish_ready": true,
+        "notes": "DID method helper crates have method-specific identifier vector coverage for the supported syntax and generation boundaries and remain source-only behind the SSI facade."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "did-proto",
+      "title": "DID protobuf and JSON transport",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/proto/Cargo.toml",
+        "crates/proto-codec/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::did::proto",
+        "reallyme_ssi_proto",
+        "reallyme_ssi_proto_codec"
+      ],
+      "conformance_files": [
+        "conformance/requirements/did-data-integrity.json",
+        "conformance/requirements/identity-boundaries.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "core_support_published",
+        "package": "reallyme-ssi-proto",
+        "publish_ready": true,
+        "notes": "The canonical SSI protobuf package and bounded proto-codec package are published for reallyme-identity. Product operation transport, dispatch, and provider execution remain in reallyme/identity."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "vp-core",
+      "title": "Protocol-neutral VP models and transport",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/presentation/api/Cargo.toml",
+        "crates/presentation/core/Cargo.toml",
+        "crates/presentation/policy/Cargo.toml",
+        "crates/proto-codec/Cargo.toml",
+        "crates/presentation/sd-jwt/Cargo.toml",
+        "crates/presentation/validator/Cargo.toml",
+        "crates/proto/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_ssi::presentation::{api, core, proto}"
+      ],
+      "conformance_files": [
+        "conformance/requirements/vp.json",
+        "conformance/requirements/identity-boundaries.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "core_support_published",
+        "package": "reallyme-vp-core",
+        "publish_ready": true,
+        "notes": "The protocol-neutral VP core support package is published for the reallyme-identity codec graph. VP API, policy, SD-JWT presentation, and validator crates remain source-only; concrete ZK composition and OpenID4VP session behavior remain in reallyme/openid4vp."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "presentation-delivery",
+      "title": "Protocol-neutral presentation delivery helpers",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/delivery/core/Cargo.toml",
+        "crates/delivery/contact/api/Cargo.toml",
+        "crates/delivery/contact/core/Cargo.toml",
+        "crates/delivery/contact/validator/Cargo.toml",
+        "crates/delivery/siop/api/Cargo.toml",
+        "crates/delivery/siop/core/Cargo.toml",
+        "crates/delivery/siop/verifier/Cargo.toml",
+        "crates/delivery/web/core/Cargo.toml",
+        "crates/delivery/web/validator/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "crates/delivery/*"
+      ],
+      "conformance_files": [
+        "conformance/requirements/vp.json",
+        "conformance/requirements/identity-boundaries.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-identity-presentation-delivery",
+        "publish_ready": true,
+        "notes": "Delivery helpers own protocol-neutral contact, SIOP, and web presentation delivery validation primitives. OpenID4VP request/response state machines and HTTP sessions remain outside identity."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "etsi-eaa-conformance",
+      "title": "ETSI EAA credential, presentation, and issuance policy",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/eudi/etsi-eaa-conformance/Cargo.toml"
+      ],
+      "external_crates": [],
+      "public_api": [
+        "reallyme_etsi_eaa_conformance"
+      ],
+      "conformance_files": [
+        "conformance/requirements/etsi-eaa.json",
+        "conformance/requirements/envelope-profiles.json",
+        "conformance/requirements/status-revocation.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-etsi-eaa-conformance",
+        "publish_ready": true,
+        "notes": "The source-only policy crate pins and routes all 740 normative identifiers from ETSI TS 119 472 Parts 1 through 3 while keeping HTTP and OpenID state machines in their protocol repositories."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    },
+    {
+      "id": "eudi-rp-registration",
+      "title": "EUDI Wallet Relying Party registration and credential authentication",
+      "owner": "reallyme/ssi",
+      "local_crates": [
+        "crates/eudi/rp-registration/Cargo.toml"
+      ],
+      "external_crates": [
+        "reallyme-jose"
+      ],
+      "public_api": [
+        "reallyme_ssi::eudi::rp_registration"
+      ],
+      "conformance_files": [
+        "conformance/requirements/eudi-rp-registration.json",
+        "conformance/requirements/x509.json",
+        "conformance/requirements/resource-limits.json"
+      ],
+      "mapping_status": "section_by_section",
+      "publishing": {
+        "role": "unpublished_internal",
+        "package": "reallyme-eudi-rp-registration",
+        "publish_ready": true,
+        "notes": "The private reusable crate pins TS5 v1.5 and TS6 v1.2.2, authenticates explicit registrar shapes, retains the exact bounded leaf-first signer chain for one-time artifact handoff, parses TS 119 475 WRPRCs including the normative policy identity, seals WRPRC proof receipts behind proof-only JAdES or COSE_Sign1 verification against an exact expected leaf, validates TS 119 411-8 WRPAC leaf profiles, and keeps issuer/path trust in the separate trust service."
+      },
+      "release_blocker": false,
+      "next_actions": []
+    }
+  ]
+}

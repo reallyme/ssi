@@ -1,0 +1,55 @@
+{
+  "schema": "reallyme.identity.conformance.vectors.v1",
+  "suite": "jwk-thumbprint",
+  "cases": [
+    {
+      "id": "reallyme-jwk-thumbprint/ec-p256-extra-members",
+      "source": "RFC7638",
+      "format": "jwk-thumbprint",
+      "jwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "y": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8",
+        "kid": "ignored-by-rfc7638",
+        "alg": "ES256"
+      },
+      "expected_thumbprint": "0r62zgBj277RicA3LnaBKQ5_9RCDIomrlbpWjO0QTG0"
+    },
+    {
+      "id": "reallyme-jwk-thumbprint/okp-ed25519",
+      "source": "RFC7638",
+      "format": "jwk-thumbprint",
+      "jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "GawgguFyGrWKav7AX4VKUg",
+        "use": "sig"
+      },
+      "expected_thumbprint": "TeDuWnKyQYb5cMTNMFm7bFfepU82TngMXGqa39OzR2s"
+    },
+    {
+      "id": "reallyme-jwk-thumbprint/rsa",
+      "source": "RFC7638",
+      "format": "jwk-thumbprint",
+      "jwk": {
+        "kty": "RSA",
+        "e": "AQAB",
+        "n": "sXchDaQebHnPiGdKQ8F0Q1wG7oA0mEHVh8pX9sk1hH4",
+        "kid": "ignored-rsa-key-id"
+      },
+      "expected_thumbprint": "oWwIEtoO-BViJ7SuCu5ZB3MjBOD5rB9uAZjgVOFAxyM"
+    },
+    {
+      "id": "reallyme-jwk-thumbprint/ec-missing-y",
+      "source": "RFC7638",
+      "format": "jwk-thumbprint",
+      "jwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+      },
+      "expected_error": "InvalidDpopProof"
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "EUDI-RP-MUST-001",
+    "source": "EUDI-TS5-1.5",
+    "section": "Registrar API SignedWRP, SignedWRPArray, SignedIntendedUseCheckResult, and WalletRelyingPartyService schemas",
+    "keyword": "MUST",
+    "feature": "strict_versioned_registrar_shapes_and_jws_authentication",
+    "implementation": ["crates/eudi/rp-registration/src/model.rs", "crates/eudi/rp-registration/src/registry.rs"],
+    "positive_tests": ["current_envelope_preserves_profile_and_metadata", "current_array_preserves_pagination_and_current_intended_use_fields", "authentication_receipt_must_preserve_the_exact_jwks_chain", "accepts_standard_jwt_header_without_optional_typ", "verifies_jws_with_certificate_bound_jwks_key"],
+    "negative_tests": ["duplicate_member_is_rejected_before_semantic_parsing", "oversized_and_recursively_nested_json_are_rejected_before_model_allocation", "credential_format_cannot_be_substituted_across_metadata_profiles", "profile_shape_downgrade_is_rejected", "cross_origin_jwks_redirect_is_rejected", "incoherent_current_pagination_is_rejected", "authentication_receipt_must_preserve_the_exact_jwks_chain", "authentication_receipt_rejects_empty_and_oversized_chains", "jwks_rejects_same_algorithm_certificate_key_substitution", "rejects_jwk_certificate_public_key_mismatch", "rejects_non_verification_jwks_key_operation"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "EUDI-RP-MUST-002",
+    "source": "EUDI-TS6-1.2.2",
+    "section": "Common set of Wallet Relying Party information, rows 1 through 16",
+    "keyword": "SHALL",
+    "feature": "bounded_relying_party_service_intended_use_and_intermediary_models",
+    "implementation": ["crates/eudi/rp-registration/src/model.rs", "crates/eudi/rp-registration/src/document.rs"],
+    "positive_tests": ["legacy_encoder_is_exactly_one_element_and_has_no_secret_field", "service_requires_one_contact_channel_but_not_support_uri_specifically"],
+    "negative_tests": ["duplicate_member_is_rejected_before_semantic_parsing", "oversized_and_recursively_nested_json_are_rejected_before_model_allocation", "credential_format_cannot_be_substituted_across_metadata_profiles", "service_requires_one_contact_channel_but_not_support_uri_specifically", "entitlement_uris_and_attestation_provider_semantics_are_enforced"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "EUDI-RP-MUST-003",
+    "source": "ETSI-TS-119-475",
+    "section": "5.1, 5.2, and 6.1.3",
+    "keyword": "SHALL",
+    "feature": "wrprc_identity_intermediary_validity_status_and_representation_binding",
+    "implementation": ["crates/eudi/rp-registration/src/wrprc.rs"],
+    "positive_tests": ["wrprc_status_and_validity_are_parsed_strictly", "wrprc_receipt_binds_authenticated_representation_and_local_issuance_state"],
+    "negative_tests": ["duplicate_member_is_rejected_before_semantic_parsing", "wrprc_proof_rejects_non_certificate_signer_bytes", "wrprc_rejects_non_normative_entitlement_identifiers", "wrprc_requires_the_normative_policy_oid_and_https_cp_cps_location"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "EUDI-RP-MUST-004",
+    "source": "ETSI-TS-119-411-8",
+    "section": "5.3, 5.5, and 6.6.1",
+    "keyword": "SHALL",
+    "feature": "wrpac_profile_and_standardized_holder_association_projection",
+    "implementation": ["crates/eudi/rp-registration/src/wrpac.rs", "crates/trust/x509/src/presets.rs"],
+    "positive_tests": ["wrpac_preset_binds_natural_and_legal_policy_families_to_subject_and_qc", "wrpac_association_projects_standard_holder_and_exact_local_bindings"],
+    "negative_tests": ["wrpac_preset_rejects_ambiguous_policy_subject_qc_and_no_rev_avail", "wrpac_association_rejects_substituted_holder"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "EUDI-RP-MUST-005",
+    "source": "EUDI-TS5-1.5",
+    "section": "Registrar API signed response authentication and national registrar trust",
+    "keyword": "MUST",
+    "feature": "purpose_and_policy_scoped_ts5_registry_response_signer_trust",
+    "implementation": ["crates/trust/core/src/model.rs", "crates/trust/core/src/evaluate.rs", "crates/trust/api/src/dto.rs", "crates/proto/proto/identity/trust/v1/trust.proto"],
+    "positive_tests": ["ts5_registry_signing_direct_trust_vector_is_purpose_scoped", "ts5_registry_signing_pkix_vector_retains_exact_identity", "eudi_purpose_policy_pairs_round_trip_without_generic_fallback"],
+    "negative_tests": ["ts5_registry_signing_direct_trust_vector_is_purpose_scoped", "ts5_registry_signing_rejects_cross_purpose_policy_aliases", "ts5_registry_signing_proto_rejects_cross_identity_aliases"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "EUDI-RP-MUST-006",
+    "source": "ETSI-TS-119-475",
+    "section": "5.2.1 and 5.2.2, invoking ETSI TS 119 182-1 V1.2.1 clauses 5.1 and 5.2 for JAdES Baseline-B",
+    "keyword": "SHALL",
+    "feature": "proof_only_wrprc_jades_authentication_with_exact_expected_leaf",
+    "implementation": ["crates/trust/jades/src/validate.rs", "crates/eudi/rp-registration/src/wrprc/proof.rs"],
+    "positive_tests": ["authenticates_proof_only_against_the_exact_expected_leaf", "wrprc_receipt_binds_authenticated_representation_and_local_issuance_state"],
+    "negative_tests": ["authenticates_proof_only_against_the_exact_expected_leaf", "wrprc_proof_verifiers_reject_tampering_wrong_leaf_and_algorithm_substitution", "wrprc_proof_rejects_non_certificate_signer_bytes"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "EUDI-RP-MUST-007",
+    "source": "ETSI-TS-119-475",
+    "section": "5.2.1 and 5.2.3, using RFC 9052 sections 3.1, 4.2, and 4.4, RFC 9360 section 2, and RFC 9596 section 2",
+    "keyword": "SHALL",
+    "feature": "proof_only_wrprc_cose_sign1_authentication_with_exact_expected_leaf",
+    "implementation": ["crates/eudi/rp-registration/src/wrprc/proof.rs"],
+    "positive_tests": ["wrprc_receipt_binds_authenticated_representation_and_local_issuance_state"],
+    "negative_tests": ["wrprc_proof_verifiers_reject_tampering_wrong_leaf_and_algorithm_substitution"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

@@ -1,0 +1,102 @@
+[
+  {
+    "id": "VP-MUST-001",
+    "source": "COMPLIANCE-MAP",
+    "section": "Protocol-neutral verifiable presentation model",
+    "keyword": "MUST",
+    "feature": "vp_model_roundtrip_and_holder_binding_fields",
+    "implementation": ["crates/presentation/core/src/model.rs", "crates/presentation/core/src/binding.rs"],
+    "positive_tests": ["sd_jwt_presentation_is_redacted_and_zeroizes", "sd_jwt_presentation_round_trips_through_proto_bytes", "presentation_freshness_is_32_bytes"],
+    "negative_tests": [],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "VP-MUST-002",
+    "source": "COMPLIANCE-MAP",
+    "section": "Protocol-neutral disclosure modes",
+    "keyword": "MUST",
+    "feature": "vp_disclosure_mode_stability",
+    "implementation": ["crates/presentation/core/src/model.rs"],
+    "positive_tests": ["disclosure_mode_enum_is_stable"],
+    "negative_tests": [],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "VP-MUST-003",
+    "source": "COMPLIANCE-MAP",
+    "section": "Protocol-neutral policy validation API",
+    "keyword": "MUST",
+    "feature": "vp_truth_first_policy_report",
+    "implementation": ["crates/presentation/api/src/validate.rs", "crates/presentation/api/src/report.rs"],
+    "positive_tests": ["validate_vp_returns_truth_first_acceptance_report"],
+    "negative_tests": ["validate_vp_preserves_all_policy_rejection_classes"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "VP-MUST-004",
+    "source": "COMPLIANCE-MAP",
+    "section": "Protocol-neutral ZK presentation references",
+    "keyword": "MUST",
+    "feature": "vp_zk_reference_transport_without_prover_dependency",
+    "implementation": ["crates/presentation/core/src/model.rs", "crates/proto-codec/src/presentation/mapping.rs"],
+    "positive_tests": ["zk_presentation_is_redacted_and_zeroizes", "zk_presentation_round_trips_through_proto_json_and_brotli"],
+    "negative_tests": ["invalid_hash_length_is_rejected", "missing_suite_or_invalid_artifact_digest_fails_closed"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "VP-MUST-005",
+    "source": "COMPLIANCE-MAP",
+    "section": "Presentation protobuf and JSON transport",
+    "keyword": "MUST",
+    "feature": "vp_proto_json_brotli_roundtrip",
+    "implementation": ["crates/proto-codec/src/presentation/mapping.rs", "crates/proto/src/generated.rs"],
+    "positive_tests": [
+      "sd_jwt_presentation_round_trips_through_proto_bytes",
+      "zk_presentation_round_trips_through_proto_json_and_brotli",
+      "presentation_proto_round_trips_with_buffa"
+    ],
+    "negative_tests": ["invalid_hash_length_is_rejected", "missing_suite_or_invalid_artifact_digest_fails_closed"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "VP-MUST-006",
+    "source": "COMPLIANCE-MAP",
+    "section": "Protocol-neutral presentation request creation",
+    "keyword": "MUST",
+    "feature": "presentation_request_domain_command",
+    "implementation": ["crates/presentation/api/src/commands.rs"],
+    "positive_tests": ["create_presentation_request_validates_binding_and_claims"],
+    "negative_tests": ["create_presentation_request_rejects_invalid_disclosure"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "VP-MUST-007",
+    "source": "COMPLIANCE-MAP",
+    "section": "Protocol-neutral presentation submission",
+    "keyword": "MUST",
+    "feature": "presentation_submission_domain_command",
+    "implementation": ["crates/presentation/api/src/commands.rs"],
+    "positive_tests": ["present_records_valid_protocol_neutral_presentation"],
+    "negative_tests": ["present_rejects_duplicate_credential_and_claim_selections"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "VP-MUST-008",
+    "source": "COMPLIANCE-MAP",
+    "section": "Protocol-neutral aggregate presentation verification",
+    "keyword": "MUST",
+    "feature": "presentation_verification_domain_command",
+    "implementation": ["crates/presentation/api/src/commands.rs"],
+    "positive_tests": ["verify_presentation_allows_policy_satisfying_facts"],
+    "negative_tests": ["verify_presentation_is_indeterminate_for_requested_missing_evidence"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

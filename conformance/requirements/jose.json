@@ -1,0 +1,204 @@
+[
+  {
+    "id": "JWS-MUST-001",
+    "source": "RFC7515",
+    "section": "3.1 JWS Compact Serialization",
+    "keyword": "MUST",
+    "feature": "jws_compact_serialization",
+    "implementation": ["reallyme-jose/crates/src/jws/compact.rs", "reallyme-jose/crates/src/jws/sign.rs"],
+    "positive_tests": ["jws_es256_roundtrip", "jws_eddsa_roundtrip"],
+    "negative_tests": ["jws_es256_rejects_wrong_segment_count", "jws_es256_rejects_malformed_jws", "jws_es256_rejects_compact_input_over_size_limit"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWS-MUST-002",
+    "source": "RFC7515",
+    "section": "5.2 Message Signature or MAC Validation",
+    "keyword": "MUST",
+    "feature": "jws_payload_and_signature_integrity",
+    "implementation": ["reallyme-jose/crates/src/jws/verify.rs", "reallyme-jose/crates/src/jws/suites"],
+    "positive_tests": ["jws_es256_roundtrip", "jws_eddsa_roundtrip"],
+    "negative_tests": ["jws_es256_rejects_tampered_payload", "jws_eddsa_rejects_tampered_payload", "jws_es256_rejects_wrong_public_key", "jws_es256_rejects_invalid_signature_length", "jws_eddsa_rejects_invalid_signature_length"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWS-MUST-003",
+    "source": "RFC7515",
+    "section": "4.1.1 alg Header Parameter",
+    "keyword": "MUST",
+    "feature": "jws_algorithm_header_policy",
+    "implementation": ["reallyme-jose/crates/src/jws/header.rs", "reallyme-jose/crates/src/jws/verify.rs"],
+    "positive_tests": ["jws_es256_roundtrip", "jws_eddsa_roundtrip"],
+    "negative_tests": ["jws_es256_rejects_bad_header", "jws_eddsa_rejects_es256_header"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-001",
+    "source": "RFC7516",
+    "section": "7.1",
+    "keyword": "MUST",
+    "feature": "compact_serialization",
+    "implementation": ["reallyme_jose::jwe::decrypt_compact_jwe_bytes"],
+    "positive_tests": ["decrypts_compact_dir_a128gcm_json", "decrypts_compact_dir_a256gcm_bytes"],
+    "negative_tests": ["rejects_non_empty_encrypted_key_for_dir"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-002",
+    "source": "RFC7516",
+    "section": "5.1",
+    "keyword": "MUST",
+    "feature": "protected_header_integrity",
+    "implementation": ["reallyme-jose/crates/src/jwe/header.rs", "reallyme-jose/crates/src/jwe/decrypt.rs"],
+    "positive_tests": ["decrypts_compact_dir_a128gcm_json"],
+    "negative_tests": [
+      "rejects_duplicate_protected_header_parameter",
+      "rejects_modified_protected_header_aad",
+      "rejects_unsupported_compression_header"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-003",
+    "source": "RFC7518",
+    "section": "5.3",
+    "keyword": "MUST",
+    "feature": "aes_gcm_authentication",
+    "implementation": ["reallyme-jose/crates/src/jwe/decrypt.rs", "reallyme_crypto::aes"],
+    "positive_tests": ["decrypts_compact_dir_a128gcm_json", "decrypts_compact_dir_a256gcm_bytes"],
+    "negative_tests": [
+      "rejects_tampered_authentication_tag",
+      "rejects_modified_ciphertext",
+      "rejects_modified_iv",
+      "rejects_wrong_direct_key"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-004",
+    "source": "RFC7518",
+    "section": "4.6.2",
+    "keyword": "MUST",
+    "feature": "ecdh_es_concat_kdf",
+    "implementation": ["reallyme_jose::jwe::derive_ecdh_es_content_encryption_key"],
+    "positive_tests": ["derives_ecdh_es_a128gcm_cek_from_header_party_info"],
+    "negative_tests": ["rejects_key_management_algorithm_outside_policy"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-005",
+    "source": "RFC7516",
+    "section": "7.1 compact serialization",
+    "keyword": "MUST",
+    "feature": "compact_part_count_and_encoding",
+    "implementation": ["reallyme-jose/crates/src/jwe/compact.rs"],
+    "positive_tests": ["decrypts_compact_dir_a128gcm_json"],
+    "negative_tests": ["rejects_compact_jwe_over_size_limit", "rejects_invalid_compact_part_count"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-006",
+    "source": "RFC7516",
+    "section": "4 JOSE Header",
+    "keyword": "MUST",
+    "feature": "unsafe_header_parameter_rejection",
+    "implementation": ["reallyme-jose/crates/src/jwe/header.rs"],
+    "positive_tests": ["decrypts_compact_dir_a128gcm_json"],
+    "negative_tests": ["rejects_unsupported_critical_header", "rejects_remote_key_header", "rejects_embedded_jwk_header"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-007",
+    "source": "RFC7518",
+    "section": "4.6.1 ECDH-ES header parameters",
+    "keyword": "MUST",
+    "feature": "ecdh_es_party_info_policy",
+    "implementation": ["reallyme-jose/crates/src/jwe/header.rs", "reallyme-jose/crates/src/jwe/kdf.rs"],
+    "positive_tests": ["derives_ecdh_es_a128gcm_cek_from_header_party_info"],
+    "negative_tests": ["rejects_key_management_algorithm_outside_policy"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-008",
+    "source": "RFC7516",
+    "section": "5.2 Message Decryption and 7.1 Compact Serialization",
+    "keyword": "MUST",
+    "feature": "portable_compact_jwe_vectors",
+    "implementation": ["reallyme-jose/crates/src/jwe", "vectors/jwe-compact.json"],
+    "positive_tests": ["jwe_compact_vectors_decrypt_or_fail_closed", "jwe-compact"],
+    "negative_tests": ["jwe_compact_vectors_decrypt_or_fail_closed"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-009",
+    "source": "RFC7516",
+    "section": "5.1 Message Encryption and 7.1 Compact Serialization",
+    "keyword": "MUST",
+    "feature": "compact_jwe_encryption",
+    "implementation": ["reallyme-jose/crates/src/jwe/encrypt.rs", "reallyme-jose/crates/src/jwe/compact.rs"],
+    "positive_tests": [
+      "encrypts_compact_dir_a128gcm_json",
+      "decrypts_compact_dir_a192gcm_bytes",
+      "jwe-compact"
+    ],
+    "negative_tests": ["rejects_compact_jwe_over_size_limit"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWE-MUST-010",
+    "source": "RFC7518",
+    "section": "4.6 ECDH-ES",
+    "keyword": "MUST",
+    "feature": "nist_ecdh_es_encrypt_decrypt",
+    "implementation": ["reallyme-jose/crates/src/jwe/encrypt.rs", "reallyme-jose/crates/src/jwe/kdf.rs", "reallyme_crypto::p256", "reallyme_crypto::p384", "reallyme_crypto::p521"],
+    "positive_tests": [
+      "encrypts_and_decrypts_p256_ecdh_es_a128gcm_json",
+      "encrypts_and_decrypts_p384_ecdh_es_a192gcm_json",
+      "encrypts_and_decrypts_p521_ecdh_es_a256gcm_json",
+      "jwe_compact_vectors_decrypt_or_fail_closed"
+    ],
+    "negative_tests": ["ecdh_es_rejects_wrong_recipient_private_key", "rejects_key_management_algorithm_outside_policy"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWT-BCP-MUST-001",
+    "source": "RFC8725",
+    "section": "3.1",
+    "keyword": "MUST",
+    "feature": "algorithm_verification_policy",
+    "implementation": ["reallyme-jose/crates/src/jws", "reallyme-jose/crates/src/jwt"],
+    "positive_tests": ["jws_es256_roundtrip", "ed25519_signed_jwt_roundtrip"],
+    "negative_tests": [
+      "jws_eddsa_rejects_es256_header",
+      "reject_jwt_when_header_alg_differs_from_jwk_alg",
+      "reject_unsigned_with_alg_not_none"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "JWT-BCP-MUST-002",
+    "source": "RFC8725",
+    "section": "3.11 Use Explicit Typing and 3.12 Use Mutually Exclusive Validation Rules",
+    "keyword": "MUST",
+    "feature": "jwt_type_header_confusion_policy",
+    "implementation": ["reallyme-jose/crates/src/jwt/header.rs", "reallyme-jose/crates/src/jwt/unsigned.rs"],
+    "positive_tests": ["can_encode_and_decode_custom_typ_when_policy_allows_it"],
+    "negative_tests": ["standard_policy_rejects_non_jwt_typ", "can_require_typ_presence", "reject_unsigned_with_typ_not_jwt"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

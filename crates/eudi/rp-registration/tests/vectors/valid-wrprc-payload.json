@@ -1,0 +1,19 @@
+{
+  "name": "Example RP",
+  "sub": "NTRCH-123",
+  "country": "CH",
+  "registry_uri": "https://registry.example/entry/123",
+  "srv_description": [{"lang": "en", "content": "service"}],
+  "entitlements": ["https://uri.etsi.org/19475/Entitlement/Service_Provider"],
+  "privacy_policy": ["https://rp.example/privacy"],
+  "info_uri": ["https://rp.example"],
+  "support_uri": ["https://rp.example/support"],
+  "supervisory_authority": {"name": "Authority"},
+  "policy_id": ["0.4.0.19475.3.1"],
+  "certificate_policy": "https://registrar.example/certificate-policy",
+  "iat": 100,
+  "exp": 200,
+  "status": {"status_list": {"idx": 9, "uri": "https://status.example/list"}},
+  "purpose": [{"lang": "en", "content": "Verify age"}],
+  "credentials": [{"format": "dc+sd-jwt"}]
+}

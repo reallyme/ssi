@@ -1,0 +1,38 @@
+[
+  {
+    "id": "COMPRESSION-MUST-001",
+    "source": "CONTRACT",
+    "section": "Compression Boundary",
+    "keyword": "MUST",
+    "feature": "brotli_roundtrip_for_identity_payloads",
+    "implementation": ["crates/compression/brotli/src/compress.rs", "crates/compression/brotli/src/decompress.rs"],
+    "positive_tests": ["roundtrip_compression", "compression_reduces_size_for_repetitive_data"],
+    "negative_tests": [],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COMPRESSION-MUST-002",
+    "source": "CONTRACT",
+    "section": "Resource Limits",
+    "keyword": "MUST",
+    "feature": "bounded_brotli_decompression",
+    "implementation": ["crates/compression/brotli/src/decompress.rs", "reallyme_compression_brotli::DEFAULT_MAX_DECOMPRESSED_BYTES"],
+    "positive_tests": ["decompression_allows_output_at_explicit_limit"],
+    "negative_tests": ["decompression_rejects_output_past_explicit_limit"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "COMPRESSION-MUST-003",
+    "source": "CONTRACT",
+    "section": "Fail-Closed Parsing",
+    "keyword": "MUST",
+    "feature": "strict_brotli_decompression_rejects_malformed_input",
+    "implementation": ["crates/compression/brotli/src/decompress.rs", "crates/compression/brotli/src/error.rs"],
+    "positive_tests": ["roundtrip_compression"],
+    "negative_tests": ["strict_decompress_rejects_plain_data"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]

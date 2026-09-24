@@ -1,0 +1,85 @@
+[
+  {
+    "id": "PROFILE-MUST-001",
+    "source": "COMPLIANCE-MAP",
+    "section": "OpenID4VC credential envelope constraints",
+    "keyword": "MUST",
+    "feature": "openid4vc_supported_envelope_metadata",
+    "implementation": ["crates/envelopes/profiles/src/openid4vc.rs"],
+    "positive_tests": ["openid4vc_accepts_supported_sd_jwt_vc_metadata"],
+    "negative_tests": ["openid4vc_rejects_sd_jwt_without_vct"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "PROFILE-MUST-002",
+    "source": "EUDI-ARF",
+    "section": "PID/EAA envelope status, validity, format, and claimset constraints",
+    "keyword": "MUST",
+    "feature": "eu_pid_envelope_constraints",
+    "implementation": ["crates/envelopes/profiles/src/eu_pid.rs"],
+    "positive_tests": ["eu_pid_accepts_pid_with_status_metadata"],
+    "negative_tests": [
+      "eu_pid_rejects_missing_status_metadata",
+      "eu_pid_rejects_wrong_claimset",
+      "eu_pid_rejects_wrong_profile_family",
+      "eu_pid_rejects_unsupported_format",
+      "eu_pid_rejects_invalid_validity_window"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "PROFILE-MUST-003",
+    "source": "EUDI-ARF",
+    "section": "QEAA envelope compliance metadata constraints",
+    "keyword": "MUST",
+    "feature": "eu_qeaa_metadata_presence",
+    "implementation": ["crates/envelopes/profiles/src/eu_pid.rs"],
+    "positive_tests": ["eu_qeaa_accepts_qeaa_metadata"],
+    "negative_tests": ["eu_qeaa_requires_qeaa_metadata"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "PROFILE-MUST-004",
+    "source": "COMPLIANCE-MAP",
+    "section": "did:me envelope binding and Data Integrity cryptosuite",
+    "keyword": "MUST",
+    "feature": "did_me_envelope_binding_and_cryptosuite",
+    "implementation": ["crates/envelopes/profiles/src/did_me.rs"],
+    "positive_tests": ["did_me_accepts_data_integrity_profile"],
+    "negative_tests": ["did_me_rejects_non_did_me_binding", "did_me_rejects_wrong_cryptosuite"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "PROFILE-MUST-005",
+    "source": "COMPLIANCE-MAP",
+    "section": "Shared profile identity constants",
+    "keyword": "MUST",
+    "feature": "stable_profile_identity",
+    "implementation": ["crates/profiles/src/lib.rs"],
+    "positive_tests": ["haip_identity_is_stable_and_eidas_relevant", "eudi_pid_identity_is_eidas_relevant"],
+    "negative_tests": [],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "PROFILE-MUST-006",
+    "source": "COMPLIANCE-MAP",
+    "section": "Protocol-neutral credential canonical payload, signature, and status binding",
+    "keyword": "MUST",
+    "feature": "credential_canonical_payload_hash_signature_status_vectors",
+    "implementation": [
+      "crates/credential/src/canonical.rs",
+      "crates/credential/src/signature.rs",
+      "crates/credential/src/verify.rs",
+      "vectors/credential/canonical.json"
+    ],
+    "positive_tests": ["credential_canonical_positive_vectors_match"],
+    "negative_tests": ["credential_canonical_negative_vectors_fail_closed"],
+    "applicable": true,
+    "exclusion_reason": null
+  }
+]
