@@ -4,7 +4,7 @@
 
 //! Shared profile identity tests.
 
-use reallyme_profiles::{Profile, HAIP_PROFILE_NAME, HAIP_VERSION};
+use reallyme_openid4vc_profiles::{Profile, HAIP_PROFILE_NAME, HAIP_VERSION};
 
 #[test]
 fn haip_identity_is_stable_and_eidas_relevant() {

@@ -55,7 +55,7 @@ pub use reallyme_keys as keys;
 pub use reallyme_openid_oauth as oauth;
 
 /// Shared identity interoperability profile identifiers.
-pub use reallyme_profiles as profiles;
+pub use reallyme_openid4vc_profiles as profiles;
 
 /// Credential revocation and suspension policy helpers.
 pub use reallyme_revocation as revocation;

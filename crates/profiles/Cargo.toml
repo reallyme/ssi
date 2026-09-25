@@ -3,14 +3,25 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
 [package]
-name = "reallyme-profiles"
+name = "reallyme-openid4vc-profiles"
 version = "0.1.0"
-description = "Cross-protocol interoperability profile identity for HAIP and EUDI (issuance and presentation)."
+description = "Shared HAIP and EUDI profile identities for OpenID4VCI and OpenID4VP."
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-publish.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["openid4vc", "haip", "eudi", "identity", "credentials"]
+categories = ["authentication", "data-structures"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*.rs",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
 
 [features]
 default = ["native"]

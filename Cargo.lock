@@ -3175,7 +3175,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "reallyme-profiles"
+name = "reallyme-openid4vc-profiles"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -3262,7 +3262,7 @@ dependencies = [
  "reallyme-keys",
  "reallyme-mdoc",
  "reallyme-openid-oauth",
- "reallyme-profiles",
+ "reallyme-openid4vc-profiles",
  "reallyme-revocation",
  "reallyme-sd-jwt",
  "reallyme-single-use",
