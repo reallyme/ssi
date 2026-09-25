@@ -229,7 +229,7 @@
       "external_crates": [],
       "public_api": [
         "reallyme_ssi::envelopes::profiles",
-        "reallyme_profiles"
+        "reallyme_openid4vc_profiles"
       ],
       "conformance_files": [
         "conformance/requirements/envelope-profiles.json",

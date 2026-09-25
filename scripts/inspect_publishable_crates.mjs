@@ -25,6 +25,7 @@ const approvedPublicPackages = new Set([
   "reallyme-ssi-proto",
   "reallyme-vp-core",
   "reallyme-openid-oauth",
+  "reallyme-openid4vc-profiles",
   "reallyme-revocation",
   "reallyme-ssi-proto-codec",
   "reallyme-trust-x509",

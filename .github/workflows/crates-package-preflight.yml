@@ -166,6 +166,6 @@ jobs:
             echo
             echo "- Version: \`${RELEASE_VERSION}\`"
             echo "- Commit: \`${RELEASE_SHA}\`"
-            echo "- Publish set: seventeen SSI support crates in verified dependency order"
+            echo "- Publish set: eighteen SSI support crates in verified dependency order"
             echo "- Attestation run ID: \`${GITHUB_RUN_ID}\`"
           } >> "$GITHUB_STEP_SUMMARY"

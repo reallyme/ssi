@@ -201,6 +201,7 @@ const publicPackageManifests = [
   "crates/envelopes/sd_jwt/Cargo.toml",
   "crates/oauth/Cargo.toml",
   "crates/presentation/core/Cargo.toml",
+  "crates/profiles/Cargo.toml",
   "crates/proto/Cargo.toml",
   "crates/proto-codec/Cargo.toml",
   "crates/revocation/Cargo.toml",
@@ -250,6 +251,7 @@ const approvedPublicPackages = new Set([
   "reallyme-vp-core",
   "reallyme-jose",
   "reallyme-openid-oauth",
+  "reallyme-openid4vc-profiles",
   "reallyme-revocation",
   "reallyme-ssi-proto-codec",
   "reallyme-trust-x509",
@@ -1102,6 +1104,7 @@ assertExists("scripts/inspect_publishable_crates.mjs");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-compression-brotli");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-ssi-proto");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-openid-oauth");
+assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-openid4vc-profiles");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-disclosure-policy");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-credential-status");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-trust-x509");

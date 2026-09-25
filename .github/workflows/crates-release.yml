@@ -157,6 +157,7 @@ jobs:
             echo "- [reallyme-revocation ${RELEASE_VERSION}](https://crates.io/crates/reallyme-revocation/${RELEASE_VERSION})"
             echo "- [reallyme-trust-core ${RELEASE_VERSION}](https://crates.io/crates/reallyme-trust-core/${RELEASE_VERSION})"
             echo "- [reallyme-openid-oauth ${RELEASE_VERSION}](https://crates.io/crates/reallyme-openid-oauth/${RELEASE_VERSION})"
+            echo "- [reallyme-openid4vc-profiles ${RELEASE_VERSION}](https://crates.io/crates/reallyme-openid4vc-profiles/${RELEASE_VERSION})"
             echo "- [reallyme-disclosure-policy ${RELEASE_VERSION}](https://crates.io/crates/reallyme-disclosure-policy/${RELEASE_VERSION})"
             echo "- [reallyme-credential ${RELEASE_VERSION}](https://crates.io/crates/reallyme-credential/${RELEASE_VERSION})"
             echo "- [reallyme-mdoc ${RELEASE_VERSION}](https://crates.io/crates/reallyme-mdoc/${RELEASE_VERSION})"
