@@ -24,7 +24,7 @@ service projections.
 
 ```toml
 [dependencies]
-reallyme-trust-x509 = "0.1"
+reallyme-trust-x509 = "0.2.0"
 ```
 
 The default `native` feature enables native verification. Disable default
