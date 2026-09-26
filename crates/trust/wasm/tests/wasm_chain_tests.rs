@@ -18,7 +18,7 @@ use reallyme_trust_core::SignatureVerifier;
 use envelopes_x509::{parse_cert_der, X509Chain};
 
 use openssl::{
-    asn1::Asn1Time,
+    asn1::{Asn1Object, Asn1OctetString, Asn1Time},
     bn::BigNum,
     hash::MessageDigest,
     nid::Nid,
@@ -26,7 +26,7 @@ use openssl::{
     rsa::Rsa,
     x509::{
         extension::{AuthorityKeyIdentifier, BasicConstraints, KeyUsage, SubjectKeyIdentifier},
-        X509Builder, X509NameBuilder, X509,
+        X509Builder, X509Extension, X509NameBuilder, X509,
     },
 };
 
@@ -250,5 +250,64 @@ fn rejects_wrong_root() {
     assert!(matches!(
         err,
         reallyme_trust_core::SignatureVerifyError::InvalidSignature
+    ));
+}
+
+#[test]
+fn name_constrained_root_fails_closed_as_unsupported() {
+    // NameConstraints { permittedSubtrees { dNSName "example.com" } }.
+    const NAME_CONSTRAINTS_DER: &[u8] = &[
+        0x30, 0x11, 0xa0, 0x0f, 0x30, 0x0d, 0x82, 0x0b, b'e', b'x', b'a', b'm', b'p', b'l', b'e',
+        b'.', b'c', b'o', b'm',
+    ];
+    let key = gen_key();
+    let mut b = X509Builder::new().unwrap();
+    b.set_version(2).unwrap();
+    set_serial(&mut b, 9);
+    let name = make_name("Constrained Root");
+    b.set_subject_name(&name).unwrap();
+    b.set_issuer_name(&name).unwrap();
+    b.set_pubkey(&key).unwrap();
+    b.set_not_before(&Asn1Time::days_from_now(0).unwrap())
+        .unwrap();
+    b.set_not_after(&Asn1Time::days_from_now(365).unwrap())
+        .unwrap();
+    b.append_extension(BasicConstraints::new().critical().ca().build().unwrap())
+        .unwrap();
+    b.append_extension(
+        KeyUsage::new()
+            .critical()
+            .key_cert_sign()
+            .crl_sign()
+            .build()
+            .unwrap(),
+    )
+    .unwrap();
+    let skid = SubjectKeyIdentifier::new()
+        .build(&b.x509v3_context(None, None))
+        .unwrap();
+    b.append_extension(skid).unwrap();
+    let oid = Asn1Object::from_str("2.5.29.30").unwrap();
+    let value = Asn1OctetString::new_from_bytes(NAME_CONSTRAINTS_DER).unwrap();
+    b.append_extension(X509Extension::new_from_der(&oid, true, &value).unwrap())
+        .unwrap();
+    b.sign(&key, MessageDigest::sha256()).unwrap();
+    let root = b.build();
+    let leaf = build_leaf("CN=Leaf", &root, &key, 103);
+
+    let chain = X509Chain {
+        certs: vec![
+            parse_cert_der(&leaf.to_der().unwrap()).unwrap(),
+            parse_cert_der(&root.to_der().unwrap()).unwrap(),
+        ],
+    };
+
+    let err = WasmSignatureVerifier::new()
+        .verify_chain(&chain, OffsetDateTime::now_utc())
+        .unwrap_err();
+
+    assert!(matches!(
+        err,
+        reallyme_trust_core::SignatureVerifyError::UnsupportedAlgorithm
     ));
 }

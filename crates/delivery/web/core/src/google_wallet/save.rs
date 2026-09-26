@@ -6,7 +6,14 @@ use core::fmt;
 
 use crate::{WebDeliveryError, WebLimits};
 use identity_presentation_delivery_core::{DeliveryError, DeliveryPayload};
+use url::Url;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+
+/// Required scheme prefix for the Google Wallet save URL.
+const REQUIRED_SAVE_URL_PREFIX_SCHEME: &str = "https://";
+
+/// Number of dot-separated segments in a compact JWS.
+const COMPACT_JWS_SEGMENTS: usize = 3;
 
 /// Config for building Google Wallet "Save" URLs.
 #[derive(Debug, Clone)]
@@ -78,8 +85,10 @@ pub fn build_google_wallet_save_link(
     if json_bytes.len() > limits.max_url_bytes {
         return Err(DeliveryError::PayloadTooLarge.into());
     }
+    validate_save_url_prefix(&cfg.save_url_prefix, limits)?;
 
     let jwt = Zeroizing::new(signer.sign_jwt(json_bytes)?);
+    validate_compact_jws_charset(&jwt)?;
     let url_bytes = cfg
         .save_url_prefix
         .len()
@@ -93,4 +102,48 @@ pub fn build_google_wallet_save_link(
     value.push_str(&cfg.save_url_prefix);
     value.push_str(&jwt);
     Ok(GoogleWalletSaveLink { value })
+}
+
+/// The prefix is concatenated with the JWT verbatim, so it must be an HTTPS
+/// URL with a host, no userinfo, no query or fragment, and a trailing `/`.
+fn validate_save_url_prefix(prefix: &str, limits: &WebLimits) -> Result<(), WebDeliveryError> {
+    if prefix.len() > limits.max_url_bytes
+        || !prefix.starts_with(REQUIRED_SAVE_URL_PREFIX_SCHEME)
+        || !prefix.ends_with('/')
+    {
+        return Err(WebDeliveryError::InvalidUrl);
+    }
+    let url = Url::parse(prefix).map_err(|_| WebDeliveryError::InvalidUrl)?;
+    if url.scheme() != "https"
+        || url.host_str().is_none_or(str::is_empty)
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(WebDeliveryError::InvalidUrl);
+    }
+    Ok(())
+}
+
+/// Require the signer output to be a compact JWS of three non-empty
+/// base64url segments, so it cannot alter the URL structure.
+fn validate_compact_jws_charset(jwt: &str) -> Result<(), WebDeliveryError> {
+    let mut segments = 0_usize;
+    for segment in jwt.split('.') {
+        segments = segments
+            .checked_add(1)
+            .ok_or(WebDeliveryError::SigningFailed)?;
+        if segment.is_empty()
+            || !segment
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        {
+            return Err(WebDeliveryError::SigningFailed);
+        }
+    }
+    if segments != COMPACT_JWS_SEGMENTS {
+        return Err(WebDeliveryError::SigningFailed);
+    }
+    Ok(())
 }

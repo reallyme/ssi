@@ -68,6 +68,13 @@ impl VerifiedAttestationClientAuthentication {
         }
     }
 
+    /// OAuth client identifier authenticated by the Client Attestation `sub`
+    /// claim.
+    #[must_use]
+    pub fn client_id(&self) -> &str {
+        self.verified_attestation.attested_client_key.client_id()
+    }
+
     /// RFC 7638 SHA-256 thumbprint of the attested Client Instance Key.
     #[must_use]
     pub fn client_instance_key_thumbprint(&self) -> &str {

@@ -54,7 +54,6 @@ fn device_response_rejects_too_many_documents() {
         MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::TooManyDocuments)
     );
 }
-
 #[test]
 fn device_response_rejects_unsupported_version() {
     let (issuer_public_key, issuer_private_key) = issuer_keys();
@@ -190,4 +189,40 @@ fn device_response_rejects_empty_documents() {
         err,
         MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::MalformedDeviceResponse)
     );
+}
+
+struct VectorRandom(u64);
+impl reallyme_crypto::csprng::SecureRandom for VectorRandom {
+    fn fill_secure(&mut self, output: &mut [u8], _: reallyme_crypto::core::RngOutputKind) -> Result<(), reallyme_crypto::core::CryptoError> {
+        self.0 += 1;
+        output.copy_from_slice(&self.0.to_be_bytes());
+        Ok(())
+    }
+}
+
+#[test]
+fn issuance_is_order_independent_with_fixed_entropy() {
+    let (issuer_public_key, issuer_private_key) = issuer_keys();
+    let kid = b"issuer-kid-1".to_vec();
+    let signer = CoseIssuerAuthSigner {
+        alg: Algorithm::Ed25519,
+        private_key: issuer_private_key.as_slice(),
+        kid: Some(kid.as_slice()),
+    };
+    let mut reversed = sample_elements();
+    reversed.reverse();
+
+    let (first_document, first_mso) =
+        reallyme_mdoc::issue::build_mso_mdoc_with_random(&valid_config(), &sample_elements(), &signer, &mut VectorRandom(0)).unwrap();
+    let (second_document, second_mso) =
+        reallyme_mdoc::issue::build_mso_mdoc_with_random(&valid_config(), &reversed, &signer, &mut VectorRandom(0)).unwrap();
+
+    verify_issuer_signed_mdoc(
+        &first_document,
+        resolver_for_kid(kid.clone(), issuer_public_key),
+        1_700_000_001,
+    )
+    .unwrap();
+    assert_eq!(first_mso.value_digests, second_mso.value_digests);
+    assert!(first_document.issuer_signed.name_spaces == second_document.issuer_signed.name_spaces);
 }

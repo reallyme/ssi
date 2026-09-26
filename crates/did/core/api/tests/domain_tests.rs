@@ -71,7 +71,7 @@ fn dns_domain_verification_fails_on_mismatch() {
 }
 
 #[test]
-fn wellknown_domain_verification_succeeds() {
+fn unsigned_wellknown_document_is_not_domain_control_evidence() {
     let dv = DomainVerification {
         verification_type: "HttpsWellKnownVerification".into(),
         method: "wellknown".into(),
@@ -90,7 +90,13 @@ fn wellknown_domain_verification_succeeds() {
 
     let res = validate_single_domain_binding("did:me:test", &dv, &env);
 
-    assert!(res.ok);
+    assert!(!res.ok);
+    assert!(matches!(
+        res.error,
+        Some(SingleDomainValidationError::Verification(
+            DomainVerificationError::UnsupportedMethod
+        ))
+    ));
 }
 
 #[test]

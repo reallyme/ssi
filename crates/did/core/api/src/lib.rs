@@ -32,7 +32,6 @@ pub mod update;
 pub mod validate;
 
 pub use error::DidApiError;
-
 pub use reallyme_keys::KeySet;
 
 pub use commands::{
@@ -54,15 +53,13 @@ pub use commands::{
     SensitiveDidDeactivatedDocument, SensitiveDidRotatedDocument, SensitiveDidUpdatedDocument,
 };
 
-pub use profile::{build_profile, DidProfile};
-
 pub use create::{create_did, CreateConfig};
+pub use profile::{build_profile, DidProfile};
 
 pub use dereference::{
     dereference_did_url, select_did_url_resource, DereferencedResource, DidDereferenceError,
     DidDereferenceRequest, DidDereferenceResult, DidDereferenceSelection,
 };
-
 pub use parse::{parse_did, parse_did_value, DidParseError, DidParseRequest, DidParseResult};
 
 pub use resolve::{
@@ -72,6 +69,7 @@ pub use resolve::{
     DidDeactivationStatus, DidDocumentMetadata, DidProvider, DidProviderCapability,
     DidResolutionAssurance, DidResolutionErrorCode, DidResolutionFreshness, DidResolutionMetadata,
     DidResolutionResult, DidResolveRequest, DidWebProviderResolution, SensitiveDidResolutionResult,
+    MAX_DID_RESOLUTION_CLOCK_SKEW_SECONDS,
 };
 
 pub use update::{
@@ -85,15 +83,17 @@ pub use rotate::{
 };
 
 pub use messaging::{
-    designate_messaging_pre_keys, discover_messaging_pre_keys, rotate_messaging_pre_keys,
-    MessagingPreKeySnapshot,
+    designate_messaging_pre_keys, discover_messaging_pre_keys,
+    discover_messaging_pre_keys_from_chain, rotate_messaging_pre_keys, MessagingPreKeySnapshot,
 };
 
-pub use validate::{validate_did, validate_did_with_domain_evidence};
+pub use validate::{
+    validate_did, validate_did_chain, validate_did_consistency, validate_did_transition,
+    validate_did_with_domain_evidence, validate_did_with_history, MAX_DID_CHAIN_DOCUMENTS,
+};
 
 pub use domain::{
     validate_did_domain, validate_did_with_domain_verification, validate_domain_bindings,
     validate_single_domain_binding, SingleDomainValidationError,
 };
-
 pub use proto::{did_to_proto_brotli, proto_brotli_to_did};

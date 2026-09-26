@@ -3,28 +3,32 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{TslOpenSslError, VerifiedSignerMaterial};
+#[cfg(feature = "xmlsec-ffi")]
+use crate::error::TslTrustRootErrorReason;
 
 #[cfg(feature = "xmlsec-ffi")]
 pub(super) fn verify_tsl_xmldsig(
     xml: &str,
-    roots_path: &str,
+    trusted_roots_der: &[&[u8]],
     verification_time: time::OffsetDateTime,
-    exact_signer_der: Option<&[u8]>,
+    exact_signer_candidates_der: Option<&[&[u8]]>,
 ) -> Result<VerifiedSignerMaterial, TslOpenSslError> {
-    let verified = match exact_signer_der {
-        Some(expected_signer_der) => {
-            identity_trust_tsl_xmlsec::verify_tsl_xmldsig_xmlsec_with_exact_signer(
+    let verified = match exact_signer_candidates_der {
+        Some(expected_signers_der) => {
+            identity_trust_tsl_xmlsec::verify_tsl_xmldsig_xmlsec_with_exact_signers(
                 xml,
-                roots_path,
+                trusted_roots_der,
                 verification_time,
-                expected_signer_der,
+                expected_signers_der,
             )
             .map_err(map_exact_signer_error)?
         }
-        None => {
-            identity_trust_tsl_xmlsec::verify_tsl_xmldsig_xmlsec(xml, roots_path, verification_time)
-                .map_err(map_xmlsec_ffi_error)?
-        }
+        None => identity_trust_tsl_xmlsec::verify_tsl_xmldsig_xmlsec(
+            xml,
+            trusted_roots_der,
+            verification_time,
+        )
+        .map_err(map_xmlsec_ffi_error)?,
     };
     Ok(VerifiedSignerMaterial {
         signer_certificate_der: verified.signer_certificate_der().to_vec(),
@@ -89,16 +93,33 @@ fn map_xmlsec_ffi_error(error: identity_trust_tsl_xmlsec::XmlSecError) -> TslOpe
         identity_trust_tsl_xmlsec::XmlSecError::PolicyViolation(reason) => {
             TslOpenSslError::SignatureProfile(super::map_xmlsec_policy_reason(reason))
         }
+        identity_trust_tsl_xmlsec::XmlSecError::TrustRoots(reason) => {
+            TslOpenSslError::TrustRoots(map_trust_root_reason(reason))
+        }
         identity_trust_tsl_xmlsec::XmlSecError::Internal => TslOpenSslError::Internal,
+    }
+}
+
+#[cfg(feature = "xmlsec-ffi")]
+const fn map_trust_root_reason(
+    reason: identity_trust_tsl_xmlsec::XmlSecTrustRootErrorReason,
+) -> TslTrustRootErrorReason {
+    use identity_trust_tsl_xmlsec::XmlSecTrustRootErrorReason as XmlSecReason;
+
+    match reason {
+        XmlSecReason::Empty => TslTrustRootErrorReason::Empty,
+        XmlSecReason::TooManyTrustRoots => TslTrustRootErrorReason::TooManyTrustRoots,
+        XmlSecReason::CertificateDerTooLarge => TslTrustRootErrorReason::CertificateDerTooLarge,
+        XmlSecReason::InvalidCertificateDer => TslTrustRootErrorReason::InvalidCertificateDer,
     }
 }
 
 #[cfg(not(feature = "xmlsec-ffi"))]
 pub(super) fn verify_tsl_xmldsig(
     _xml: &str,
-    _roots_path: &str,
+    _trusted_roots_der: &[&[u8]],
     _verification_time: time::OffsetDateTime,
-    _exact_signer_der: Option<&[u8]>,
+    _exact_signer_candidates_der: Option<&[&[u8]]>,
 ) -> Result<VerifiedSignerMaterial, TslOpenSslError> {
     // Provider selection is explicit. Searching PATH for `xmlsec1` would make
     // verification depend on mutable ambient process state and could silently

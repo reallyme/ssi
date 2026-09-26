@@ -28,6 +28,14 @@ fn siop_verifier_errors_map_to_stable_proto_reasons() {
             SiopVerifierError::NonceMismatch,
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SIOP_VERIFIER_NONCE_MISMATCH,
         ),
+        (
+            SiopVerifierError::SubjectMismatch,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SIOP_VERIFIER_INVALID_SIGNATURE,
+        ),
+        (
+            SiopVerifierError::StateMismatch,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_INVALID_STATE,
+        ),
     ];
 
     for (error, expected) in cases {

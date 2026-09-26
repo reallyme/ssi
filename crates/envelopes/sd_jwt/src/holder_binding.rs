@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use reallyme_codec::base64url::bytes_to_base64url;
+use reallyme_codec::base64url::{base64url_to_bytes, bytes_to_base64url};
 use reallyme_crypto::core::HashAlgorithm;
 use reallyme_crypto::dispatch::hash_digest;
 use reallyme_crypto::jwk::Jwk;
@@ -16,7 +16,7 @@ use serde_json::json;
 use serde_json::Value;
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::{serialize_sd_jwt_compact, SdJwtEnvelopeError};
+use crate::{serialize_sd_jwt_compact, SdJwtEnvelopeError, SdJwtHashAlgorithm};
 
 const KEY_BINDING_TYP_VALUES: &[&str] = &["kb+jwt"];
 const SD_HASH_CLAIM_NAME: &str = "sd_hash";
@@ -26,6 +26,7 @@ const NONCE_CLAIM_NAME: &str = "nonce";
 // multi-day lifetime through accidental policy configuration.
 const MAX_KB_JWT_AGE_SECONDS: u64 = 86_400;
 const MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS: u64 = 300;
+const MAX_ISSUER_PAYLOAD_BYTES: usize = 262_144;
 
 #[derive(Debug, Clone, Copy)]
 pub struct KeyBindingVerificationOptions<'a> {
@@ -59,8 +60,9 @@ pub fn build_key_binding_jwt(
     }
 
     let compact_without_kb = serialize_sd_jwt_compact(issuer_signed_jwt, disclosures)?;
+    let hash_algorithm = hash_algorithm_from_issuer_jwt(issuer_signed_jwt)?;
     let sd_hash = bytes_to_base64url(&hash_digest(
-        HashAlgorithm::Sha2_256,
+        hash_algorithm.dispatch_algorithm(),
         compact_without_kb.as_bytes(),
     )?);
 
@@ -77,7 +79,7 @@ pub fn build_key_binding_jwt(
         options.holder_private_key,
         &JwtHeaderEncodeOptions::new(Some("kb+jwt".to_owned())),
     )
-    .map_err(SdJwtEnvelopeError::from)
+    .map_err(|_| SdJwtEnvelopeError::InvalidKeyBindingJwt)
 }
 
 pub(crate) fn verify_key_binding_jwt(
@@ -85,12 +87,9 @@ pub(crate) fn verify_key_binding_jwt(
     disclosures: &[String],
     key_binding_jwt: &str,
     options: &KeyBindingVerificationOptions<'_>,
+    hash_algorithm: SdJwtHashAlgorithm,
 ) -> Result<Value, SdJwtEnvelopeError> {
-    if options.now_unix == 0
-        || options.max_future_iat_skew_seconds > MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS
-    {
-        return Err(SdJwtEnvelopeError::InvalidKeyBindingJwt);
-    }
+    validate_key_binding_options(options)?;
     let temporal_policy = JwtTemporalValidationPolicy::new(
         false,
         false,
@@ -107,11 +106,9 @@ pub(crate) fn verify_key_binding_jwt(
         options.now_unix,
         claims_policy,
         &JwtHeaderValidationOptions::new(false, false, KEY_BINDING_TYP_VALUES),
-    )?;
+    )
+    .map_err(|_| SdJwtEnvelopeError::InvalidKeyBindingJwt)?;
 
-    if options.max_iat_age_seconds == 0 || options.max_iat_age_seconds > MAX_KB_JWT_AGE_SECONDS {
-        return Err(SdJwtEnvelopeError::InvalidKeyBindingJwt);
-    }
     let issued_at = payload
         .get("iat")
         .and_then(Value::as_u64)
@@ -125,7 +122,7 @@ pub(crate) fn verify_key_binding_jwt(
 
     let compact_without_kb = serialize_sd_jwt_compact(issuer_signed_jwt, disclosures)?;
     let expected_sd_hash = bytes_to_base64url(&hash_digest(
-        HashAlgorithm::Sha2_256,
+        hash_algorithm.dispatch_algorithm(),
         compact_without_kb.as_bytes(),
     )?);
 
@@ -150,6 +147,63 @@ pub(crate) fn verify_key_binding_jwt(
     }
 
     Ok(payload)
+}
+
+pub(crate) fn hash_algorithm_from_payload(
+    issuer_payload: &Value,
+) -> Result<SdJwtHashAlgorithm, SdJwtEnvelopeError> {
+    match issuer_payload.get("_sd_alg") {
+        Some(Value::String(value)) => SdJwtHashAlgorithm::parse(value),
+        None => Ok(SdJwtHashAlgorithm::default_for_sd_jwt()),
+        Some(_) => Err(SdJwtEnvelopeError::InvalidHashAlgorithmClaim),
+    }
+}
+
+fn hash_algorithm_from_issuer_jwt(
+    issuer_signed_jwt: &str,
+) -> Result<SdJwtHashAlgorithm, SdJwtEnvelopeError> {
+    let mut components = issuer_signed_jwt.split('.');
+    let _protected = components
+        .next()
+        .ok_or(SdJwtEnvelopeError::InvalidIssuerJwt)?;
+    let payload = components
+        .next()
+        .ok_or(SdJwtEnvelopeError::InvalidIssuerJwt)?;
+    let _signature = components
+        .next()
+        .ok_or(SdJwtEnvelopeError::InvalidIssuerJwt)?;
+    if components.next().is_some() || payload.len() > MAX_ISSUER_PAYLOAD_BYTES {
+        return Err(SdJwtEnvelopeError::InvalidIssuerJwt);
+    }
+    let payload = Zeroizing::new(
+        base64url_to_bytes(payload).map_err(|_| SdJwtEnvelopeError::InvalidIssuerJwt)?,
+    );
+    if payload.len() > MAX_ISSUER_PAYLOAD_BYTES {
+        return Err(SdJwtEnvelopeError::InvalidIssuerJwt);
+    }
+    let value: Value =
+        serde_json::from_slice(&payload).map_err(|_| SdJwtEnvelopeError::InvalidIssuerJwt)?;
+    hash_algorithm_from_payload(&value)
+}
+
+/// Validate verifier-supplied KB-JWT policy before any signature work.
+///
+/// Empty audience or nonce values would make the replay-protection
+/// comparisons vacuous, and out-of-range time bounds would silently widen the
+/// freshness window, so every such configuration fails closed.
+pub(crate) fn validate_key_binding_options(
+    options: &KeyBindingVerificationOptions<'_>,
+) -> Result<(), SdJwtEnvelopeError> {
+    if options.expected_audience.is_empty()
+        || options.expected_nonce.is_empty()
+        || options.now_unix == 0
+        || options.max_future_iat_skew_seconds > MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS
+        || options.max_iat_age_seconds == 0
+        || options.max_iat_age_seconds > MAX_KB_JWT_AGE_SECONDS
+    {
+        return Err(SdJwtEnvelopeError::InvalidKeyBindingJwt);
+    }
+    Ok(())
 }
 
 pub(crate) fn validate_key_binding_confirmation(

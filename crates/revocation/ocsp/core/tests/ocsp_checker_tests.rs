@@ -21,6 +21,8 @@ fn mock_cert(serial: Vec<u8>, issuer_key: Vec<u8>) -> X509Certificate {
         der: vec![],
         subject: "CN=Leaf".into(),
         issuer: "CN=Root".into(),
+        subject_der: b"CN=Leaf".to_vec(),
+        issuer_der: b"CN=Root".to_vec(),
         serial,
         not_before: OffsetDateTime::UNIX_EPOCH,
         not_after: OffsetDateTime::UNIX_EPOCH,
@@ -190,19 +192,33 @@ fn rejects_this_update_beyond_the_allowed_future_skew() {
 fn accepts_freshness_at_the_inclusive_skew_boundaries() {
     let issuer_key = vec![0x11];
     let cert = mock_cert(vec![5], issuer_key.clone());
-    let checker = OcspChecker::new(vec![response(
+    let policy = OcspPolicy {
+        allowed_skew_secs: 20,
+        ..OcspPolicy::default()
+    };
+    let future_this_update = OcspChecker::new(vec![response(
+        vec![0, 5],
+        issuer_key.clone(),
+        OcspCertStatus::Good,
+        1_020,
+        Some(1_100),
+    )])
+    .with_policy(policy);
+    let past_next_update = OcspChecker::new(vec![response(
         vec![0, 5],
         issuer_key,
         OcspCertStatus::Good,
-        1_020,
+        900,
         Some(980),
     )])
-    .with_policy(OcspPolicy {
-        allowed_skew_secs: 20,
-        ..OcspPolicy::default()
-    });
+    .with_policy(policy);
 
-    assert_eq!(checker.check(&cert, 1_000), Ok(()));
+    assert_eq!(future_this_update.check(&cert, 1_000), Ok(()));
+    assert_eq!(past_next_update.check(&cert, 1_000), Ok(()));
+    assert_eq!(
+        past_next_update.check(&cert, 1_001),
+        Err(StatusCheckError::Expired)
+    );
 }
 
 #[test]
@@ -260,4 +276,186 @@ fn unknown_status_is_not_reported_as_revocation() {
     )]);
 
     assert_eq!(checker.check(&cert, 1_000), Err(StatusCheckError::Unknown));
+}
+
+#[test]
+fn revoked_response_wins_regardless_of_response_order() {
+    let issuer_key = vec![0x20];
+    let cert = mock_cert(vec![0x21], issuer_key.clone());
+    let good = response(
+        vec![0x21],
+        issuer_key.clone(),
+        OcspCertStatus::Good,
+        999,
+        Some(1_100),
+    );
+    let revoked = response(
+        vec![0x21],
+        issuer_key.clone(),
+        OcspCertStatus::Revoked,
+        990,
+        Some(1_100),
+    );
+    let unknown = response(
+        vec![0x21],
+        issuer_key,
+        OcspCertStatus::Unknown,
+        995,
+        Some(1_100),
+    );
+
+    for order in [
+        vec![good.clone(), revoked.clone(), unknown.clone()],
+        vec![unknown.clone(), good.clone(), revoked.clone()],
+        vec![revoked.clone(), unknown.clone(), good.clone()],
+    ] {
+        assert_eq!(
+            OcspChecker::new(order).check(&cert, 1_000),
+            Err(StatusCheckError::Revoked)
+        );
+    }
+}
+
+#[test]
+fn stale_or_unverified_revocation_does_not_mask_fresh_good_response() {
+    let issuer_key = vec![0x22];
+    let cert = mock_cert(vec![0x23], issuer_key.clone());
+    let fresh_good = response(
+        vec![0x23],
+        issuer_key.clone(),
+        OcspCertStatus::Good,
+        999,
+        Some(1_100),
+    );
+    let stale_revoked = response(
+        vec![0x23],
+        issuer_key.clone(),
+        OcspCertStatus::Revoked,
+        100,
+        Some(200),
+    );
+    let mut unverified_revoked = response(
+        vec![0x23],
+        issuer_key,
+        OcspCertStatus::Revoked,
+        999,
+        Some(1_100),
+    );
+    unverified_revoked.responder_authorized = Some(false);
+
+    for order in [
+        vec![
+            stale_revoked.clone(),
+            unverified_revoked.clone(),
+            fresh_good.clone(),
+        ],
+        vec![
+            fresh_good.clone(),
+            stale_revoked.clone(),
+            unverified_revoked.clone(),
+        ],
+    ] {
+        assert_eq!(OcspChecker::new(order).check(&cert, 1_000), Ok(()));
+    }
+}
+
+#[test]
+fn good_response_wins_over_unknown_regardless_of_order() {
+    let issuer_key = vec![0x24];
+    let cert = mock_cert(vec![0x25], issuer_key.clone());
+    let good = response(
+        vec![0x25],
+        issuer_key.clone(),
+        OcspCertStatus::Good,
+        999,
+        Some(1_100),
+    );
+    let unknown = response(
+        vec![0x25],
+        issuer_key,
+        OcspCertStatus::Unknown,
+        999,
+        Some(1_100),
+    );
+
+    for order in [
+        vec![unknown.clone(), good.clone()],
+        vec![good.clone(), unknown.clone()],
+    ] {
+        assert_eq!(OcspChecker::new(order).check(&cert, 1_000), Ok(()));
+    }
+}
+
+#[test]
+fn unusable_responses_report_deterministic_error_regardless_of_order() {
+    let issuer_key = vec![0x26];
+    let cert = mock_cert(vec![0x27], issuer_key.clone());
+    let expired = response(
+        vec![0x27],
+        issuer_key.clone(),
+        OcspCertStatus::Good,
+        100,
+        Some(200),
+    );
+    let mut unverified = response(
+        vec![0x27],
+        issuer_key,
+        OcspCertStatus::Good,
+        999,
+        Some(1_100),
+    );
+    unverified.signature_valid = Some(false);
+
+    for order in [
+        vec![expired.clone(), unverified.clone()],
+        vec![unverified.clone(), expired.clone()],
+    ] {
+        assert_eq!(
+            OcspChecker::new(order).check(&cert, 1_000),
+            Err(StatusCheckError::InvalidSignature)
+        );
+    }
+}
+
+#[test]
+fn next_update_before_this_update_is_invalid() {
+    let issuer_key = vec![0x28];
+    let cert = mock_cert(vec![0x29], issuer_key.clone());
+    let checker = OcspChecker::new(vec![response(
+        vec![0x29],
+        issuer_key,
+        OcspCertStatus::Good,
+        999,
+        Some(998),
+    )]);
+
+    assert_eq!(
+        checker.check(&cert, 1_000),
+        Err(StatusCheckError::InvalidList)
+    );
+}
+
+#[test]
+fn composite_policy_ocsp_section_governs_checker() {
+    let issuer_key = vec![0x2A];
+    let cert = mock_cert(vec![0x2B], issuer_key.clone());
+    let responses = vec![response(
+        vec![0x2B],
+        issuer_key,
+        OcspCertStatus::Good,
+        1_000,
+        None,
+    )];
+    let mut policy = identity_revocation_core::hybrid_fallback(OffsetDateTime::UNIX_EPOCH)
+        .expect("Unix epoch is representable");
+    policy.ocsp.require_next_update = true;
+
+    assert_eq!(
+        OcspChecker::new(responses.clone()).check(&cert, 1_000),
+        Ok(())
+    );
+    assert_eq!(
+        OcspChecker::from_composite_policy(responses, &policy).check(&cert, 1_000),
+        Err(StatusCheckError::InvalidList)
+    );
 }

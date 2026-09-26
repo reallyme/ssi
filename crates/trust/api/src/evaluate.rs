@@ -7,15 +7,14 @@ use time::OffsetDateTime;
 
 use reallyme_trust_core::{
     evaluate_trust_decision as core_evaluate_trust, CertificatePosition as CoreCertificatePosition,
-    CertificateStatus as CoreCertificateStatus, ChainLinkPolicy, ChainLinkPolicyViolation,
-    SignatureVerifier, TrustAnchorKind as CoreTrustAnchorKind, TrustConfig,
-    TrustDecision as CoreTrustDecision, TrustError, TrustEvaluationContext, TrustFailureReason,
-    TrustOutcome as CoreTrustOutcome, TrustPolicyId as CoreTrustPolicyId,
-    TrustPurpose as CoreTrustPurpose,
+    CertificateStatus as CoreCertificateStatus, CertificateStatusPolicy, ChainLinkPolicy,
+    ChainLinkPolicyViolation, SignatureVerifier, StatusRequirement,
+    TrustAnchorKind as CoreTrustAnchorKind, TrustConfig, TrustDecision as CoreTrustDecision,
+    TrustError, TrustEvaluationContext, TrustFailureReason, TrustOutcome as CoreTrustOutcome,
+    TrustPolicyId as CoreTrustPolicyId, TrustPurpose as CoreTrustPurpose,
 };
 
 use identity_revocation_core::StatusChecker;
-use identity_trust_tsl_core::TrustedList;
 
 use crate::{
     AuthorizationPurpose, CertificatePosition, CertificateStatus, CertificateStatusEvidence,
@@ -24,7 +23,7 @@ use crate::{
     TrustPolicyId, TrustPurpose, TrustSourceEvidence,
 };
 
-use crate::authorize::authorize_issuer;
+use crate::authorize::{authorize_issuer, AuthenticatedTrustedList};
 
 fn baseline_rfc5280_policy() -> envelopes_x509::policy::X509Policy {
     envelopes_x509::policy::X509Policy {
@@ -85,9 +84,18 @@ fn core_context_for_authorization(purpose: AuthorizationPurpose) -> TrustEvaluat
             (CoreTrustPurpose::QsealSigner, CoreTrustPolicyId::EuQsealV1)
         }
     };
+    // EU qualified-service purposes require established revocation status
+    // for the leaf and every intermediate (EN 319 411-1/-2 status service
+    // obligations; TS 119 615 validation). The generic default leaves status
+    // optional, which would let a missing checker silently skip revocation.
     TrustEvaluationContext {
         purpose,
         policy_id,
+        status_policy: CertificateStatusPolicy {
+            leaf: StatusRequirement::Required,
+            intermediates: StatusRequirement::Required,
+            trust_anchor: StatusRequirement::Exempt,
+        },
         ..Default::default()
     }
 }
@@ -95,15 +103,26 @@ fn core_context_for_authorization(purpose: AuthorizationPurpose) -> TrustEvaluat
 /// ---------------------------------------------------------------------------
 /// Typed trust evaluation + optional TSL authorization
 /// ---------------------------------------------------------------------------
+///
+/// `tsl` and `purpose` must be supplied together: a trusted list without a
+/// purpose, or a purpose without a trusted list, is rejected with
+/// [`TrustApiError::InvalidInput`] instead of silently skipping authorization.
+/// Qualified-service purposes require certificate status for the leaf and
+/// intermediates, so a `status_checker` must be supplied with a purpose.
 pub fn verify_credential_trust_api(
     chain: Vec<X509Certificate>,
     trust_roots: Vec<X509Certificate>,
     sig_verifier: &dyn SignatureVerifier,
     status_checker: Option<&dyn StatusChecker>,
-    tsl: Option<&TrustedList>,
+    tsl: Option<&dyn AuthenticatedTrustedList>,
     purpose: Option<AuthorizationPurpose>,
     now: OffsetDateTime,
 ) -> TrustApiResult<TrustDecision> {
+    let authorization = match (tsl, purpose) {
+        (Some(tsl), Some(purpose)) => Some((tsl, purpose)),
+        (None, None) => None,
+        (Some(_), None) | (None, Some(_)) => return Err(TrustApiError::InvalidInput),
+    };
     let cfg = TrustConfig {
         trust_roots,
         now,
@@ -118,7 +137,7 @@ pub fn verify_credential_trust_api(
     let decision: CoreTrustDecision =
         core_evaluate_trust(&chain, &cfg, sig_verifier, status_checker).map_err(map_trust_error)?;
 
-    if let (Some(tsl), Some(purpose)) = (tsl, purpose) {
+    if let Some((tsl, purpose)) = authorization {
         authorize_issuer(&decision, tsl, purpose)?;
     }
 
@@ -319,3 +338,7 @@ fn map_core_status(status: CoreCertificateStatus) -> CertificateStatus {
         CoreCertificateStatus::Exempt => CertificateStatus::Exempt,
     }
 }
+
+#[cfg(test)]
+#[path = "evaluate_tests.rs"]
+mod tests;

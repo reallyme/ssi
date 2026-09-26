@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::{HashMap, HashSet};
+
 use reallyme_codec::cbor::CborValue;
 use reallyme_codec::multikey::parse_multikey;
 
@@ -68,31 +70,43 @@ pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionVal
     }
 
     // ---------------------------------------------------------------------
-    // 1. verificationMethod ↔ core.controllerKeys
+    // 1. verificationMethod ↔ core.controllerKeys (exact field equality)
     // ---------------------------------------------------------------------
+    // The JSON verification methods are an unsigned projection. Every field
+    // that consumers rely on must be bound to the signed core, not just the id.
     let core_vms = map_get_array(core, "controllerKeys");
-    let mut core_vm_ids = Vec::new();
-
-    for vm in core_vms {
-        if let Some(id) = map_get_string(vm, "id") {
-            core_vm_ids.push(id.to_string());
+    let mut core_vm_by_id: HashMap<&str, &CborValue> = HashMap::with_capacity(core_vms.len());
+    for vm in &core_vms {
+        match map_get_string(vm, "id") {
+            Some(id) => {
+                if core_vm_by_id.insert(id, vm).is_some() {
+                    errors.push(projection_issue(DidValidationLocation::VerificationMethod));
+                }
+            }
+            None => errors.push(projection_issue(DidValidationLocation::VerificationMethod)),
         }
     }
 
-    let doc_vm_ids: Vec<String> = doc
-        .verification_method
-        .iter()
-        .map(|v| v.id.clone())
-        .collect();
+    if core_vms.len() != doc.verification_method.len() {
+        errors.push(projection_issue(DidValidationLocation::VerificationMethod));
+    }
 
-    for id in &core_vm_ids {
-        if !doc_vm_ids.contains(id) {
+    let mut matched_doc_ids: HashSet<&str> = HashSet::with_capacity(doc.verification_method.len());
+    for vm in &doc.verification_method {
+        if !matched_doc_ids.insert(vm.id.as_str()) {
             errors.push(projection_issue(DidValidationLocation::VerificationMethod));
+            continue;
         }
-    }
-
-    for id in &doc_vm_ids {
-        if !core_vm_ids.contains(id) {
+        let Some(core_vm) = core_vm_by_id.get(vm.id.as_str()) else {
+            errors.push(projection_issue(DidValidationLocation::VerificationMethod));
+            continue;
+        };
+        if map_get_string(core_vm, "type") != Some(vm.vm_type.as_str())
+            || map_get_string(core_vm, "algorithm") != vm.algorithm.as_deref()
+            || map_get_string(core_vm, "publicKeyMultibase")
+                != Some(vm.public_key_multibase.as_str())
+            || vm.controller != doc.id
+        {
             errors.push(projection_issue(DidValidationLocation::VerificationMethod));
         }
     }
@@ -120,23 +134,28 @@ pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionVal
     // 2. services (existence symmetry)
     // ---------------------------------------------------------------------
     let core_services = map_get_array(core, "services");
-    let mut core_service_ids = Vec::new();
+    let core_service_ids: HashSet<&str> = core_services
+        .iter()
+        .filter_map(|service| map_get_string(service, "id"))
+        .collect();
+    let doc_service_by_id: HashMap<&str, &reallyme_did_types::Service> = doc
+        .service
+        .iter()
+        .map(|service| (service.id.as_str(), service))
+        .collect();
 
-    for s in &core_services {
-        if let Some(id) = map_get_string(s, "id") {
-            core_service_ids.push(id.to_string());
-        }
+    if core_service_ids.len() != core_services.len() || doc_service_by_id.len() != doc.service.len()
+    {
+        errors.push(projection_issue(DidValidationLocation::Service));
     }
 
-    let doc_service_ids: Vec<String> = doc.service.iter().map(|s| s.id.clone()).collect();
-
     for id in &core_service_ids {
-        if !doc_service_ids.contains(id) {
+        if !doc_service_by_id.contains_key(id) {
             errors.push(projection_issue(DidValidationLocation::Service));
         }
     }
 
-    for id in &doc_service_ids {
+    for id in doc_service_by_id.keys() {
         if !core_service_ids.contains(id) {
             errors.push(projection_issue(DidValidationLocation::Service));
         }
@@ -146,7 +165,7 @@ pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionVal
         let Some(core_id) = map_get_string(service_value, "id") else {
             continue;
         };
-        let Some(doc_service) = doc.service.iter().find(|service| service.id == core_id) else {
+        let Some(doc_service) = doc_service_by_id.get(core_id) else {
             continue;
         };
 
@@ -276,17 +295,11 @@ fn check_rel(
     errors: &mut Vec<DidValidationIssue>,
 ) {
     let c_list = map_get_string_array(core, core_field);
+    let core_set: HashSet<&str> = c_list.iter().map(String::as_str).collect();
+    let doc_set: HashSet<&str> = doc_list.iter().map(String::as_str).collect();
 
-    for vm in &c_list {
-        if !doc_list.contains(vm) {
-            errors.push(projection_issue(DidValidationLocation::Relationship));
-        }
-    }
-
-    for vm in doc_list {
-        if !c_list.contains(vm) {
-            errors.push(projection_issue(DidValidationLocation::Relationship));
-        }
+    if core_set.len() != c_list.len() || doc_set.len() != doc_list.len() || core_set != doc_set {
+        errors.push(projection_issue(DidValidationLocation::Relationship));
     }
 }
 fn map_get_u64(value: &CborValue, key: &str) -> Option<u64> {

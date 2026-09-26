@@ -2,25 +2,86 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SdJwtProcessingPolicy {
+    pub max_depth: usize,
+    pub max_nodes: usize,
+}
+
+impl SdJwtProcessingPolicy {
+    /// Clamp caller-supplied limits to the crate's hard processing ceilings.
+    pub(crate) fn clamped(self) -> Self {
+        SdJwtProcessingPolicy {
+            max_depth: self.max_depth.min(MAX_SD_JWT_PROCESSING_DEPTH),
+            max_nodes: self.max_nodes.min(MAX_SD_JWT_PROCESSING_NODES),
+        }
+    }
+}
+
+impl Default for SdJwtProcessingPolicy {
+    fn default() -> Self {
+        SdJwtProcessingPolicy {
+            max_depth: DEFAULT_MAX_DEPTH,
+            max_nodes: DEFAULT_MAX_NODES,
+        }
+    }
+}
+
+/// Resolve an issuer payload against its disclosures.
+///
+/// The owned payload is zeroized before returning because it can carry
+/// plaintext claims that the caller has handed over to this function.
 pub fn process_sd_jwt_payload(
-    payload: Value,
+    mut payload: Value,
     encoded_disclosures: &[String],
     policy: SdJwtProcessingPolicy,
 ) -> Result<Value, SdJwtEnvelopeError> {
+    let result = resolve_sd_jwt_payload(&payload, encoded_disclosures, policy);
+    zeroize_json_value(&mut payload);
+    result
+}
+
+pub(crate) fn resolve_sd_jwt_payload(
+    payload: &Value,
+    encoded_disclosures: &[String],
+    policy: SdJwtProcessingPolicy,
+) -> Result<Value, SdJwtEnvelopeError> {
+    let policy = policy.clamped();
     let root = payload
         .as_object()
         .ok_or(SdJwtEnvelopeError::PayloadNotObject)?;
     let hash_algorithm = resolve_hash_algorithm(root)?;
-    validate_payload_shape(&payload, policy)?;
 
-    let mut expected_digests = collect_payload_digests(&payload, policy)?;
+    let mut nodes = 0usize;
+    let mut expected_digests = HashSet::new();
+    validate_value(
+        payload,
+        ValuePosition::Root,
+        0,
+        policy,
+        &mut nodes,
+        &mut expected_digests,
+    )?;
     let disclosures = accept_disclosures(
         encoded_disclosures,
         hash_algorithm,
         &mut expected_digests,
         policy,
+        &mut nodes,
     )?;
-    resolve_value(&payload, &disclosures, policy)
+    resolve_value(payload, &disclosures, policy)
+}
+
+/// Structural position of a JSON value inside an SD-JWT payload.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ValuePosition {
+    /// The issuer payload root, the only place `_sd_alg` may appear.
+    Root,
+    /// A direct array element, the only place a `{"...": digest}` placeholder
+    /// may appear.
+    ArrayElement,
+    /// Any other nested position.
+    Nested,
 }
 
 fn resolve_hash_algorithm(
@@ -38,9 +99,10 @@ fn accept_disclosures(
     hash_algorithm: SdJwtHashAlgorithm,
     expected_digests: &mut HashSet<String>,
     policy: SdJwtProcessingPolicy,
+    nodes: &mut usize,
 ) -> Result<HashMap<String, DisclosureKind>, SdJwtEnvelopeError> {
-    let mut pending = Vec::new();
-    let mut seen = HashSet::new();
+    let mut pending = Vec::with_capacity(encoded_disclosures.len());
+    let mut seen = HashSet::with_capacity(encoded_disclosures.len());
     for encoded in encoded_disclosures {
         let disclosure = decode_disclosure(encoded)?;
         let digest = digest_disclosure(disclosure.encoded(), hash_algorithm)?;
@@ -50,15 +112,15 @@ fn accept_disclosures(
         pending.push((digest, disclosure.into_kind()));
     }
 
-    let mut accepted = HashMap::new();
+    let mut accepted = HashMap::with_capacity(pending.len());
     let mut progress = true;
     while progress {
         progress = false;
-        let mut next = Vec::new();
+        let mut next = Vec::with_capacity(pending.len());
 
         for (digest, disclosure) in pending {
             if expected_digests.contains(&digest) {
-                collect_disclosure_value_digests(&disclosure, expected_digests, policy)?;
+                collect_disclosure_value_digests(&disclosure, expected_digests, policy, nodes)?;
                 if accepted.insert(digest, disclosure).is_some() {
                     return Err(SdJwtEnvelopeError::DuplicateDisclosure);
                 }
@@ -78,17 +140,24 @@ fn accept_disclosures(
     Ok(accepted)
 }
 
+/// Shape-validate a disclosed value and register the digests it embeds.
+///
+/// Disclosed values obey the same structural rules as the issuer payload:
+/// `_sd_alg` is forbidden, `...` may appear only as an array placeholder, and
+/// every digest must be globally unique across the whole disclosure graph.
 fn collect_disclosure_value_digests(
     disclosure: &DisclosureKind,
     expected_digests: &mut HashSet<String>,
     policy: SdJwtProcessingPolicy,
+    nodes: &mut usize,
 ) -> Result<(), SdJwtEnvelopeError> {
     let value = match disclosure {
         DisclosureKind::ObjectProperty { claim_value, .. }
         | DisclosureKind::ArrayElement { claim_value } => claim_value,
     };
 
-    let nested = collect_payload_digests(value, policy)?;
+    let mut nested = HashSet::new();
+    validate_value(value, ValuePosition::Nested, 0, policy, nodes, &mut nested)?;
     for digest in nested {
         if !expected_digests.insert(digest) {
             return Err(SdJwtEnvelopeError::DuplicateDigest);
@@ -98,19 +167,10 @@ fn collect_disclosure_value_digests(
     Ok(())
 }
 
-fn validate_payload_shape(
-    value: &Value,
-    policy: SdJwtProcessingPolicy,
-) -> Result<(), SdJwtEnvelopeError> {
-    let mut seen = HashSet::new();
-    let mut nodes = 0usize;
-    validate_value(value, 0, true, policy, &mut nodes, &mut seen)
-}
-
 fn validate_value(
     value: &Value,
+    position: ValuePosition,
     depth: usize,
-    is_root: bool,
     policy: SdJwtProcessingPolicy,
     nodes: &mut usize,
     seen: &mut HashSet<String>,
@@ -118,10 +178,18 @@ fn validate_value(
     count_node(depth, policy, nodes)?;
 
     match value {
-        Value::Object(object) => validate_object(object, depth, is_root, policy, nodes, seen),
+        Value::Object(object) => validate_object(object, position, depth, policy, nodes, seen),
         Value::Array(array) => {
+            let child_depth = next_depth(depth)?;
             for item in array {
-                validate_value(item, depth + 1, false, policy, nodes, seen)?;
+                validate_value(
+                    item,
+                    ValuePosition::ArrayElement,
+                    child_depth,
+                    policy,
+                    nodes,
+                    seen,
+                )?;
             }
             Ok(())
         }
@@ -131,13 +199,16 @@ fn validate_value(
 
 fn validate_object(
     object: &Map<String, Value>,
+    position: ValuePosition,
     depth: usize,
-    is_root: bool,
     policy: SdJwtProcessingPolicy,
     nodes: &mut usize,
     seen: &mut HashSet<String>,
 ) -> Result<(), SdJwtEnvelopeError> {
     if is_array_digest_placeholder(object) {
+        if position != ValuePosition::ArrayElement {
+            return Err(SdJwtEnvelopeError::InvalidReservedClaimPlacement);
+        }
         let digest = object
             .get(ARRAY_DIGEST_CLAIM_NAME)
             .and_then(Value::as_str)
@@ -146,7 +217,7 @@ fn validate_object(
         return Ok(());
     }
 
-    if !is_root && object.contains_key(SD_ALG_CLAIM_NAME) {
+    if position != ValuePosition::Root && object.contains_key(SD_ALG_CLAIM_NAME) {
         return Err(SdJwtEnvelopeError::InvalidReservedClaimPlacement);
     }
 
@@ -162,71 +233,25 @@ fn validate_object(
         }
     }
 
+    let child_depth = next_depth(depth)?;
     for (key, nested) in object {
         if key == ARRAY_DIGEST_CLAIM_NAME {
             return Err(SdJwtEnvelopeError::InvalidReservedClaimPlacement);
         }
-        validate_value(nested, depth + 1, false, policy, nodes, seen)?;
+        if key == SD_CLAIM_NAME || key == SD_ALG_CLAIM_NAME {
+            continue;
+        }
+        validate_value(
+            nested,
+            ValuePosition::Nested,
+            child_depth,
+            policy,
+            nodes,
+            seen,
+        )?;
     }
 
     Ok(())
-}
-
-fn collect_payload_digests(
-    value: &Value,
-    policy: SdJwtProcessingPolicy,
-) -> Result<HashSet<String>, SdJwtEnvelopeError> {
-    let mut digests = HashSet::new();
-    let mut nodes = 0usize;
-    collect_digests(value, 0, policy, &mut nodes, &mut digests)?;
-    Ok(digests)
-}
-
-fn collect_digests(
-    value: &Value,
-    depth: usize,
-    policy: SdJwtProcessingPolicy,
-    nodes: &mut usize,
-    digests: &mut HashSet<String>,
-) -> Result<(), SdJwtEnvelopeError> {
-    count_node(depth, policy, nodes)?;
-
-    match value {
-        Value::Object(object) => {
-            if is_array_digest_placeholder(object) {
-                let digest = object
-                    .get(ARRAY_DIGEST_CLAIM_NAME)
-                    .and_then(Value::as_str)
-                    .ok_or(SdJwtEnvelopeError::InvalidDigestPlaceholder)?;
-                insert_digest(digests, digest)?;
-                return Ok(());
-            }
-
-            if let Some(sd_value) = object.get(SD_CLAIM_NAME) {
-                let sd_array = sd_value
-                    .as_array()
-                    .ok_or(SdJwtEnvelopeError::InvalidDigestPlaceholder)?;
-                for digest in sd_array {
-                    let digest = digest
-                        .as_str()
-                        .ok_or(SdJwtEnvelopeError::InvalidDigestPlaceholder)?;
-                    insert_digest(digests, digest)?;
-                }
-            }
-
-            for nested in object.values() {
-                collect_digests(nested, depth + 1, policy, nodes, digests)?;
-            }
-            Ok(())
-        }
-        Value::Array(array) => {
-            for item in array {
-                collect_digests(item, depth + 1, policy, nodes, digests)?;
-            }
-            Ok(())
-        }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => Ok(()),
-    }
 }
 
 fn resolve_value(
@@ -268,7 +293,7 @@ fn resolve_object(
         }
         resolved.insert(
             key.clone(),
-            resolve_value_inner(nested, disclosures, depth + 1, policy, nodes)?,
+            resolve_value_inner(nested, disclosures, next_depth(depth)?, policy, nodes)?,
         );
     }
 
@@ -287,19 +312,35 @@ fn resolve_object(
     };
 
     for digest in sd_digests {
-        if let Some(DisclosureKind::ObjectProperty {
-            claim_name,
-            claim_value,
-        }) = disclosures.get(&digest)
-        {
-            validate_object_claim_name(claim_name)?;
-            if resolved.contains_key(claim_name) {
-                return Err(SdJwtEnvelopeError::ConflictingDisclosureClaim);
+        match disclosures.get(&digest) {
+            Some(DisclosureKind::ObjectProperty {
+                claim_name,
+                claim_value,
+            }) => {
+                validate_object_claim_name(claim_name)?;
+                if depth == 0 && is_non_selectively_disclosable_claim(claim_name) {
+                    return Err(SdJwtEnvelopeError::NonSelectivelyDisclosableClaim);
+                }
+                if resolved.contains_key(claim_name) {
+                    return Err(SdJwtEnvelopeError::ConflictingDisclosureClaim);
+                }
+                resolved.insert(
+                    claim_name.clone(),
+                    resolve_value_inner(
+                        claim_value,
+                        disclosures,
+                        next_depth(depth)?,
+                        policy,
+                        nodes,
+                    )?,
+                );
             }
-            resolved.insert(
-                claim_name.clone(),
-                resolve_value_inner(claim_value, disclosures, depth + 1, policy, nodes)?,
-            );
+            // RFC 9901 §7.1: an array-element disclosure referenced from an
+            // object `_sd` array is malformed and must not be silently skipped.
+            Some(DisclosureKind::ArrayElement { .. }) => {
+                return Err(SdJwtEnvelopeError::InvalidDisclosureFormat);
+            }
+            None => {}
         }
     }
 
@@ -326,7 +367,7 @@ fn resolve_array(
                         resolved.push(resolve_value_inner(
                             claim_value,
                             disclosures,
-                            depth + 1,
+                            next_depth(depth)?,
                             policy,
                             nodes,
                         )?);
@@ -343,7 +384,7 @@ fn resolve_array(
         resolved.push(resolve_value_inner(
             item,
             disclosures,
-            depth + 1,
+            next_depth(depth)?,
             policy,
             nodes,
         )?);
@@ -361,6 +402,12 @@ fn insert_digest(seen: &mut HashSet<String>, digest: &str) -> Result<(), SdJwtEn
         return Err(SdJwtEnvelopeError::DuplicateDigest);
     }
     Ok(())
+}
+
+fn next_depth(depth: usize) -> Result<usize, SdJwtEnvelopeError> {
+    depth
+        .checked_add(1)
+        .ok_or(SdJwtEnvelopeError::ProcessingDepthExceeded)
 }
 
 fn count_node(

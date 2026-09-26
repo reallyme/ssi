@@ -118,6 +118,7 @@ pub fn ingest_eu_trusted_list(
     trust_anchors: &TrustedListAnchors,
     externally_authorized_signer: &envelopes_x509::X509Certificate,
     now: time::OffsetDateTime,
+    status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
     let xml = trust_list_xml_from_bytes(xml)?;
     verify_trust_list_xml_native_with_external_signer(
@@ -126,6 +127,7 @@ pub fn ingest_eu_trusted_list(
         externally_authorized_signer,
         now,
         envelopes_x509::policy::X509Policy::default(),
+        status_checker,
     )
 }
 
@@ -144,6 +146,7 @@ pub fn ingest_trusted_list_xml(
     xml: &[u8],
     trust_anchors: &TrustedListAnchors,
     now: time::OffsetDateTime,
+    status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
     let xml = trust_list_xml_from_bytes(xml)?;
     verify_trust_list_xml_native(
@@ -151,6 +154,7 @@ pub fn ingest_trusted_list_xml(
         trust_anchors.roots(),
         now,
         envelopes_x509::policy::X509Policy::default(),
+        status_checker,
     )
 }
 
@@ -170,9 +174,16 @@ pub fn verify_trust_list_xml_native(
     trust_roots: &[envelopes_x509::X509Certificate],
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
+    status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
-    identity_trust_tsl_openssl::verify_tsl_xml_openssl(xml, trust_roots, now, policy)
-        .map_err(map_tsl_openssl_error)
+    identity_trust_tsl_openssl::verify_tsl_xml_openssl(
+        xml,
+        trust_roots,
+        now,
+        policy,
+        status_checker,
+    )
+    .map_err(map_tsl_openssl_error)
 }
 
 /// Verify an EU LOTL against the exact signing certificate authenticated from
@@ -193,6 +204,7 @@ pub fn verify_trust_list_xml_native_with_external_signer(
     externally_authorized_signer: &envelopes_x509::X509Certificate,
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
+    status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
     identity_trust_tsl_openssl::verify_tsl_xml_openssl_with_external_signer(
         xml,
@@ -200,6 +212,7 @@ pub fn verify_trust_list_xml_native_with_external_signer(
         externally_authorized_signer,
         now,
         policy,
+        status_checker,
     )
     .map_err(map_tsl_openssl_error)
 }
@@ -356,6 +369,7 @@ pub fn verify_trust_list_xml_native_with_community_lists(
     community_lists: &[&VerifiedTrustedList],
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
+    status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
     identity_trust_tsl_openssl::verify_tsl_xml_openssl_with_community_lists(
         xml,
@@ -363,6 +377,7 @@ pub fn verify_trust_list_xml_native_with_community_lists(
         community_lists,
         now,
         policy,
+        status_checker,
     )
     .map_err(map_tsl_openssl_error)
 }

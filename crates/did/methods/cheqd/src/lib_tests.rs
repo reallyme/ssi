@@ -74,3 +74,14 @@ fn did_cheqd_rejects_malformed_uuid() {
         .map(|error| error.reason);
     assert_eq!(err, Some(DidCheqdErrorReason::InvalidUniqueIdentifier));
 }
+
+#[test]
+fn did_cheqd_rejects_non_canonical_uppercase_uuid() {
+    for did in [
+        "did:cheqd:mainnet:DE9786CD-EC53-458C-857C-9342CF264F80",
+        "did:cheqd:de9786cd-ec53-458c-857c-9342cf264F80",
+    ] {
+        let err = parse_did_cheqd(did).err().map(|error| error.reason);
+        assert_eq!(err, Some(DidCheqdErrorReason::InvalidUniqueIdentifier));
+    }
+}

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use identity_revocation_ocsp_core::{OcspError, ParsedOcspResponse};
+use identity_revocation_ocsp_core::{bind_response_to_certificates, OcspError, ParsedOcspResponse};
 use js_sys::{Array, JsString, Uint8Array};
 use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
 
@@ -55,5 +55,7 @@ pub fn parse_ocsp_response_der(
         return Err(OcspError::InvalidResponse);
     }
 
-    serde_json::from_str(&json).map_err(|_| OcspError::InvalidResponse)
+    let response: ParsedOcspResponse =
+        serde_json::from_str(&json).map_err(|_| OcspError::InvalidResponse)?;
+    bind_response_to_certificates(response, cert_der, issuer_der)
 }

@@ -32,7 +32,10 @@ pub mod selector;
 
 pub use claims::validate_policy_claims_against_registry;
 pub use error::{PolicyDecision, VpPolicyError};
-pub use evaluate::{evaluate, EvaluationContext, ExtractedDisclosure, QeaaContext, StatusContext};
+pub use evaluate::{
+    evaluate, EvaluationContext, ExtractedDisclosure, QeaaContext, StatusContext,
+    MAX_EVALUATED_DISCLOSURES, MAX_EVALUATED_REQUIRED_CLAIMS,
+};
 pub use model::{RequiredClaim, VpPolicy};
 pub use profiles::{
     eu_address_policy, eu_age_policy, eu_company_policy, eu_diploma_policy,

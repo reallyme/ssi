@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-mdoc"
-version = "0.1.0"
+version = "0.2.0"
 description = "ISO/IEC 18013-5 mdoc issuance, presentation, and verification primitives."
 edition.workspace = true
 rust-version.workspace = true
@@ -41,7 +41,8 @@ mdoc-crypto = [
 [dependencies]
 ciborium = { workspace = true }
 reallyme-cose = { workspace = true }
-reallyme-crypto = { workspace = true }
+reallyme-codec = { workspace = true }
+reallyme-crypto = { workspace = true, features = ["csprng"] }
 reallyme-ssi-proto = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -52,8 +53,7 @@ zeroize = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 envelopes-x509 = { workspace = true, features = ["native"] }
-reallyme-credential-claims = { path = "../../claims", version = "0.1.0" }
-reallyme-codec = { workspace = true, features = ["cbor"] }
+reallyme-credential-claims = { path = "../../claims", version = "0.2.0" }
 reallyme-ssi-proto = { workspace = true }
 reallyme-ssi-proto-codec = { workspace = true }
 

@@ -29,6 +29,10 @@ pub struct JwtVcPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp: Option<i64>,
 
+    /// Issued-at time as UTC seconds since the Unix epoch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iat: Option<i64>,
+
     /// JWT identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jti: Option<String>,
@@ -43,12 +47,33 @@ pub struct JwtVcPayload {
 }
 
 /// Validate JWT-VC claim semantics before signing or after verification.
+///
+/// This checks claim structure only. Verification against the current time is
+/// performed by [`crate::verify_jwt_vc`] with explicit verification options.
 pub fn validate_jwt_vc_claims(payload: &JwtVcPayload) -> Result<(), JwtVcEnvelopeError> {
+    decode_validated_credential_bytes(payload).map(|_| ())
+}
+
+/// Decoded credential bytes carried by a structurally valid JWT-VC payload.
+pub(crate) struct DecodedJwtVcCredential {
+    pub(crate) credential_cbor: Vec<u8>,
+    pub(crate) credential_proto: Option<Vec<u8>>,
+}
+
+/// Validate JWT-VC claim structure and return the decoded credential bytes so
+/// verification does not decode the base64url payload twice.
+pub(crate) fn decode_validated_credential_bytes(
+    payload: &JwtVcPayload,
+) -> Result<DecodedJwtVcCredential, JwtVcEnvelopeError> {
     if payload.iss.is_empty() || payload.sub.is_empty() || payload.credential_cbor.is_empty() {
         return Err(JwtVcEnvelopeError::InvalidPayload);
     }
 
-    if let (Some(not_before), Some(expires)) = (payload.nbf, payload.exp) {
+    let not_before = numeric_date(payload.nbf)?;
+    let expires = numeric_date(payload.exp)?;
+    numeric_date(payload.iat)?;
+
+    if let (Some(not_before), Some(expires)) = (not_before, expires) {
         if expires <= not_before {
             return Err(JwtVcEnvelopeError::InvalidPayload);
         }
@@ -59,12 +84,26 @@ pub fn validate_jwt_vc_claims(payload: &JwtVcPayload) -> Result<(), JwtVcEnvelop
         return Err(JwtVcEnvelopeError::InvalidPayload);
     }
 
-    if let Some(proto) = &payload.credential_proto {
-        let proto_bytes = base64url_to_bytes(proto)?;
-        if proto_bytes.is_empty() {
-            return Err(JwtVcEnvelopeError::InvalidPayload);
+    let credential_proto = match &payload.credential_proto {
+        Some(proto) => {
+            let proto_bytes = base64url_to_bytes(proto)?;
+            if proto_bytes.is_empty() {
+                return Err(JwtVcEnvelopeError::InvalidPayload);
+            }
+            Some(proto_bytes)
         }
-    }
+        None => None,
+    };
 
-    Ok(())
+    Ok(DecodedJwtVcCredential {
+        credential_cbor,
+        credential_proto,
+    })
+}
+
+/// Convert an optional JWT NumericDate claim into non-negative Unix seconds.
+pub(crate) fn numeric_date(value: Option<i64>) -> Result<Option<u64>, JwtVcEnvelopeError> {
+    value
+        .map(|seconds| u64::try_from(seconds).map_err(|_| JwtVcEnvelopeError::InvalidTemporalClaim))
+        .transpose()
 }

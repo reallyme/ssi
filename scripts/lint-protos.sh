@@ -8,7 +8,7 @@ set -eu
 # shellcheck source=scripts/proto-workspace.sh
 . "$(dirname "$0")/proto-workspace.sh"
 
-buf lint "${GITHUB_ROOT}" \
-  --config "${BUF_CONFIG_JSON}" \
-  --path crates/proto/proto/identity \
-  --path crates/proto/proto/reallyme
+stage_buf_workspace
+buf lint "${BUF_WORKSPACE}" \
+  --path "${BUF_WORKSPACE}/reallyme/ssi/crates/proto/proto/identity" \
+  --path "${BUF_WORKSPACE}/reallyme/ssi/crates/proto/proto/reallyme"

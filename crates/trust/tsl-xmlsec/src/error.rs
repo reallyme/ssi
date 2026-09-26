@@ -21,6 +21,11 @@ pub enum XmlSecError {
     #[error("invalid or missing XML signature")]
     InvalidSignature,
 
+    /// The caller-supplied DER trust roots violate the count or size budget,
+    /// or the native backend rejected one of them.
+    #[error("trusted-list XMLDSig trust roots are invalid")]
+    TrustRoots(XmlSecTrustRootErrorReason),
+
     /// The document failed the pinned ETSI TS 119 612 XSD.
     #[error("trusted-list XML schema validation failed")]
     SchemaValidationFailed,
@@ -28,6 +33,45 @@ pub enum XmlSecError {
     /// The verifier could not classify a parser, locking, or backend failure more narrowly.
     #[error("internal error")]
     Internal,
+}
+
+/// Reason a caller-supplied trust-root list was rejected.
+#[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
+pub enum XmlSecTrustRootErrorReason {
+    /// No trust root was supplied.
+    #[error("at least one trust root is required")]
+    Empty,
+
+    /// More trust roots were supplied than the verifier accepts.
+    #[error("too many trust roots")]
+    TooManyTrustRoots,
+
+    /// One trust root exceeds the per-certificate DER budget.
+    #[error("trust root DER exceeds the size budget")]
+    CertificateDerTooLarge,
+
+    /// One trust root is empty or was rejected by the backend certificate loader.
+    #[error("trust root is not a valid DER certificate")]
+    InvalidCertificateDer,
+}
+
+impl From<XmlSecTrustRootErrorReason> for IdentityCoreErrorReason {
+    fn from(reason: XmlSecTrustRootErrorReason) -> Self {
+        match reason {
+            XmlSecTrustRootErrorReason::Empty => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TRUST_API_INVALID_INPUT
+            }
+            XmlSecTrustRootErrorReason::TooManyTrustRoots => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TRUST_RESOURCE_TOO_MANY_ROOTS
+            }
+            XmlSecTrustRootErrorReason::CertificateDerTooLarge => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_RESOURCE_CERTIFICATE_DER_TOO_LARGE
+            }
+            XmlSecTrustRootErrorReason::InvalidCertificateDer => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_INVALID_DER
+            }
+        }
+    }
 }
 
 /// TSL-specific XMLDSig policy violation reason.
@@ -167,6 +211,7 @@ impl From<XmlSecError> for IdentityCoreErrorReason {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_XMLSEC_BACKEND_UNAVAILABLE
             }
             XmlSecError::PolicyViolation(reason) => reason.into(),
+            XmlSecError::TrustRoots(reason) => reason.into(),
             XmlSecError::InvalidSignature => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_XMLSEC_INVALID_SIGNATURE
             }

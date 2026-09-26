@@ -4,6 +4,21 @@
 
 #[cfg(feature = "proto")]
 use buffa::MessageField;
+use reallyme_credential::{
+    check_credential_envelope_status_command, credential_envelope_hash, credential_signing_payload,
+    validate_credential_envelope, validate_credential_envelope_command,
+    validate_credential_unsigned_envelope, validate_credential_with_bundle,
+    validate_credential_with_evidence, AssuranceLevel, CredentialCheckCode, CredentialCheckName,
+    CredentialCheckOutcome, CredentialDecision, CredentialEnvelope, CredentialError,
+    CredentialEvidenceValidationInput, CredentialInvalidReason, CredentialIssuerSigner,
+    CredentialIssuerVerifier, CredentialKind, CredentialRevocationVerificationInput,
+    CredentialSignatureReason, CredentialStatus, CredentialStatusListPolicyInput,
+    CredentialStatusListPolicyStatusInput, CredentialStatusReason, CredentialSubject,
+    CredentialValidateRequest, CredentialValidationPolicy, CredentialValidityReason,
+    CredentialVerificationContext, CredentialVerificationInput, HolderBinding, PartyReference,
+};
+#[cfg(feature = "proto")]
+use reallyme_credential::{credential_envelope_from_proto, credential_envelope_to_proto};
 use reallyme_credential_audit::{
     AuditInfo, IdentityProofing, IdentityProofingLevel, IssuerCredential, IssuerCredentialKind,
     KeyManagement, KeyProtection, QeaaCompliance, QeaaPolicies, QtspInfo, QtspRole,
@@ -21,25 +36,10 @@ use reallyme_credential_status::{
     CredentialStatusError, StatusList, StatusListAlgorithm, StatusListSignature,
     StatusListVerifier, StatusPurpose,
 };
-use reallyme_credential::{
-    check_credential_envelope_status_command, credential_envelope_hash, credential_signing_payload,
-    validate_credential_envelope, validate_credential_envelope_command,
-    validate_credential_unsigned_envelope, validate_credential_with_bundle,
-    validate_credential_with_evidence, AssuranceLevel, CredentialCheckCode, CredentialCheckName,
-    CredentialCheckOutcome, CredentialDecision, CredentialEnvelope, CredentialError,
-    CredentialEvidenceValidationInput, CredentialInvalidReason, CredentialIssuerSigner,
-    CredentialIssuerVerifier, CredentialKind, CredentialRevocationVerificationInput,
-    CredentialSignatureReason, CredentialStatus, CredentialStatusListPolicyInput,
-    CredentialStatusListPolicyStatusInput, CredentialStatusReason, CredentialSubject,
-    CredentialValidateRequest, CredentialValidationPolicy, CredentialVerificationContext,
-    CredentialVerificationInput, HolderBinding, PartyReference,
-};
-#[cfg(feature = "proto")]
-use reallyme_credential::{credential_envelope_from_proto, credential_envelope_to_proto};
 use reallyme_revocation::{hybrid_fallback, vc_statuslist, StatusCheckError, StatusChecker};
+use reallyme_trust_x509::{BasicConstraints, KeyUsage, QcStatements, X509Certificate};
 use std::collections::BTreeMap;
 use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time};
-use reallyme_trust_x509::{BasicConstraints, KeyUsage, QcStatements, X509Certificate};
 
 fn sample_envelope(kind: CredentialKind) -> CredentialEnvelope {
     CredentialEnvelope {
@@ -208,6 +208,8 @@ fn sample_certificate() -> X509Certificate {
         der: vec![0x30, 0x03, 0x01],
         subject: "CN=leaf".to_owned(),
         issuer: "CN=issuer".to_owned(),
+        subject_der: b"CN=leaf".to_vec(),
+        issuer_der: b"CN=issuer".to_vec(),
         serial: vec![1, 2, 3],
         not_before: instant(1),
         not_after: instant(31),
@@ -669,18 +671,17 @@ fn verify_credential_composes_signature_and_status() {
 #[test]
 fn credential_validate_command_is_indeterminate_without_required_evidence() {
     let (envelope, _bundle) = sample_envelope_and_bundle(CredentialKind::Pid);
-    let result =
-        reallyme_credential::validate_credential_command(CredentialValidateRequest {
-            credential: envelope,
-            subject_bundle: None,
-            verification_context: CredentialVerificationContext {
-                now_unix: 1_750_000_000,
-                audience: None,
-                nonce: None,
-            },
-            policy: CredentialValidationPolicy::default(),
-            checks: Vec::new(),
-        });
+    let result = reallyme_credential::validate_credential_command(CredentialValidateRequest {
+        credential: envelope,
+        subject_bundle: None,
+        verification_context: CredentialVerificationContext {
+            now_unix: 1_750_000_000,
+            audience: None,
+            nonce: None,
+        },
+        policy: CredentialValidationPolicy::default(),
+        checks: Vec::new(),
+    });
 
     assert!(!result.valid);
     assert_eq!(result.decision, CredentialDecision::Indeterminate);
@@ -720,9 +721,12 @@ fn credential_validate_command_is_indeterminate_without_required_evidence() {
         key_binding_result.decision,
         CredentialDecision::Indeterminate
     );
-    assert_eq!(key_binding_result.checks.len(), 1);
-    assert_eq!(
-        key_binding_result.checks[0].outcome,
-        CredentialCheckOutcome::Indeterminate
-    );
+    assert!(key_binding_result.checks.iter().any(|check| {
+        check.name == CredentialCheckName::KeyBinding
+            && check.outcome == CredentialCheckOutcome::Indeterminate
+    }));
+    assert!(key_binding_result
+        .checks
+        .iter()
+        .all(|check| check.name == CredentialCheckName::KeyBinding || check.mandatory));
 }

@@ -104,7 +104,7 @@ fn status_list_vectors_verify_or_fail_closed() {
     let suite: Value = serde_json::from_str(STATUS_LIST_VECTORS).unwrap();
     assert_eq!(
         suite["schema"].as_str().unwrap(),
-        "reallyme.identity.conformance.status_list.v1"
+        "reallyme.identity.conformance.status_list.v2"
     );
 
     for case in suite["cases"].as_array().unwrap() {
@@ -356,4 +356,37 @@ fn to_hex(bytes: &[u8]) -> String {
         out.push(char::from(HEX[usize::from(byte & 0x0f)]));
     }
     out
+}
+
+#[test]
+fn signing_payload_authenticates_algorithm_metadata() {
+    let mut status = list(StatusPurpose::Revocation, vec![0, 0]);
+    let original = status_list_signing_payload(&status).unwrap();
+    let verifier = PayloadVerifier(original);
+    verify_status(&status, 0, 1_700_000_001, &verifier).unwrap();
+    for algorithm in [StatusListAlgorithm::P256, StatusListAlgorithm::Secp256k1] {
+        status.signature.alg = algorithm;
+        assert_eq!(
+            verify_status(&status, 0, 1_700_000_001, &verifier),
+            Err(CredentialStatusError::InvalidSignature)
+        );
+    }
+}
+
+struct PayloadVerifier(Vec<u8>);
+
+impl StatusListVerifier for PayloadVerifier {
+    fn verify_status_list(
+        &self,
+        _: &str,
+        _: StatusListAlgorithm,
+        payload: &[u8],
+        _: &[u8],
+    ) -> Result<(), CredentialStatusError> {
+        if payload == self.0 {
+            Ok(())
+        } else {
+            Err(CredentialStatusError::InvalidSignature)
+        }
+    }
 }

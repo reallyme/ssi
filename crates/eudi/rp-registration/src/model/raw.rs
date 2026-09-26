@@ -5,14 +5,14 @@
 use std::collections::BTreeMap;
 
 use serde::Deserialize;
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use super::payload::{
-    ClaimPath, CredentialMetadata, LocalizedText, ProvidedAttestation, SupervisoryAuthority,
-};
+use super::payload::{LocalizedText, ProvidedAttestation, SupervisoryAuthority};
 use super::validation::{
-    texts, uri_text_owned, validate_certificate_history, validate_claim_path,
-    validate_entitlements, validate_items, validate_metadata, validate_policies, MAX_SERVICE_DEPTH,
+    texts, uri_text_owned, validate_certificate_history, validate_entitlements, validate_items,
+    validate_policies, MAX_SERVICE_DEPTH,
 };
 use super::{
     BoundedText, CredentialRequest, IntendedUse, WalletRelyingParty, WalletRelyingPartyService,
@@ -301,6 +301,22 @@ impl RawIntendedUse {
             .into_iter()
             .map(RawCredential::validate)
             .collect::<Result<Vec<_>, RegistrationError>>()?;
+        let created_time = self
+            .created_at
+            .as_deref()
+            .map(parse_registration_time)
+            .transpose()?;
+        let revoked_time = self
+            .revoked_at
+            .as_deref()
+            .map(parse_registration_time)
+            .transpose()?;
+        if matches!((created_time, revoked_time), (Some(created), Some(revoked)) if revoked < created)
+        {
+            return Err(RegistrationError::from_reason(
+                RegistrationErrorReason::InvalidValidityInterval,
+            ));
+        }
         Ok(IntendedUse {
             purpose,
             privacy_policy: validate_policies(core::mem::take(&mut self.privacy_policy))?,
@@ -320,6 +336,12 @@ impl RawIntendedUse {
             credentials,
         })
     }
+}
+
+fn parse_registration_time(value: &str) -> Result<OffsetDateTime, RegistrationError> {
+    OffsetDateTime::parse(value, &Rfc3339).map_err(|_error| {
+        RegistrationError::from_reason(RegistrationErrorReason::InvalidValidityInterval)
+    })
 }
 
 impl RawSupervisoryAuthority {
@@ -351,32 +373,13 @@ fn validate_localized_text(
 
 impl RawCredential {
     fn validate(mut self) -> Result<CredentialRequest, RegistrationError> {
-        validate_items(&self.claims, true)?;
-        let meta = validate_metadata(core::mem::take(&mut self.meta))?;
-        let format = BoundedText::try_from_owned(core::mem::take(&mut self.format))?;
-        let metadata_matches_format = matches!(
-            (format.expose(), &meta),
-            ("dc+sd-jwt", CredentialMetadata::DcSdJwt(_))
-                | ("mso_mdoc", CredentialMetadata::MsoMdoc(_))
-        );
-        if !metadata_matches_format {
-            return Err(RegistrationError::from_reason(
-                RegistrationErrorReason::SemanticBindingMismatch,
-            ));
-        }
-        let claims = core::mem::take(&mut self.claims)
-            .into_iter()
-            .map(|mut claim| {
-                validate_claim_path(&claim.path)?;
-                Ok(ClaimPath {
-                    path: BoundedText::try_from_owned(core::mem::take(&mut claim.path))?,
-                })
-            })
-            .collect::<Result<Vec<_>, RegistrationError>>()?;
-        Ok(CredentialRequest {
-            format,
-            meta,
-            claims,
-        })
+        CredentialRequest::try_new(
+            core::mem::take(&mut self.format),
+            core::mem::take(&mut self.meta),
+            core::mem::take(&mut self.claims)
+                .into_iter()
+                .map(|mut claim| core::mem::take(&mut claim.path))
+                .collect(),
+        )
     }
 }

@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-types"
-version = "0.1.0"
+version = "0.2.0"
 description = "DID document domain types for ReallyMe identity."
 edition.workspace = true
 rust-version.workspace = true

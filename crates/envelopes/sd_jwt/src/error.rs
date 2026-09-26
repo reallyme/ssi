@@ -114,6 +114,24 @@ pub enum SdJwtEnvelopeError {
 
     #[error("unexpected SD-JWT receipt key binding JWT")]
     UnexpectedReceiptKeyBindingJwt,
+
+    #[error("invalid SD-JWT verification policy")]
+    InvalidVerificationPolicy,
+
+    #[error("invalid SD-JWT temporal claim")]
+    InvalidTemporalClaim,
+
+    #[error("SD-JWT credential has expired")]
+    CredentialExpired,
+
+    #[error("SD-JWT credential is not yet valid")]
+    CredentialNotYetValid,
+
+    #[error("SD-JWT claim must not be selectively disclosable")]
+    NonSelectivelyDisclosableClaim,
+
+    #[error("SD-JWT credential status was not verified")]
+    CredentialStatusNotVerified,
 }
 
 impl From<Base64UrlError> for SdJwtEnvelopeError {
@@ -237,6 +255,20 @@ impl From<SdJwtEnvelopeError> for IdentityCoreErrorReason {
             | SdJwtEnvelopeError::ReceiptHolderBindingMismatch
             | SdJwtEnvelopeError::UnexpectedReceiptKeyBindingJwt => {
                 Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_HOLDER_BINDING_FAILED
+            }
+            SdJwtEnvelopeError::InvalidVerificationPolicy => {
+                Self::IDENTITY_CORE_ERROR_REASON_INVALID_INPUT
+            }
+            SdJwtEnvelopeError::InvalidTemporalClaim
+            | SdJwtEnvelopeError::CredentialExpired
+            | SdJwtEnvelopeError::CredentialNotYetValid => {
+                Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_VALIDITY_WINDOW
+            }
+            SdJwtEnvelopeError::NonSelectivelyDisclosableClaim => {
+                Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_INVALID_DISCLOSURE_CLAIM_NAME
+            }
+            SdJwtEnvelopeError::CredentialStatusNotVerified => {
+                Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_STATUS_CHECK_FAILED
             }
         }
     }

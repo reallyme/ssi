@@ -1,19 +1,21 @@
 // SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::identifier::core_signature_input;
+use crate::signing::attestation_crypto_algorithm;
 use reallyme_codec::base64url::base64url_to_bytes;
 use reallyme_codec::multikey::parse_multikey;
-use reallyme_crypto::core::Algorithm as CryptoAlgorithm;
 use reallyme_crypto::dispatch::verify;
 use reallyme_did_types::{Attestation, UpdatePolicy, VerificationMethod};
 
 use identity_core_primitives::algorithm_map::alg_str_to_alg;
-use identity_core_primitives::Algorithm;
 
 use crate::validate::diagnostic::{DidValidationCode, DidValidationIssue, DidValidationLocation};
+use crate::validate::limits::{
+    MAX_ATTESTATIONS, MAX_RELATIONSHIP_REFERENCES, MAX_VERIFICATION_METHODS,
+};
 
 /// Result of cryptographic attestation validation.
 #[derive(Debug)]
@@ -70,6 +72,18 @@ pub fn validate_attestation_policy(
 ) -> AttestationPolicyValidationResult {
     let mut errors = Vec::new();
 
+    if attestations.len() > MAX_ATTESTATIONS
+        || update_policy.allowed_verification_methods.len() > MAX_RELATIONSHIP_REFERENCES
+    {
+        return AttestationPolicyValidationResult {
+            ok: false,
+            errors: vec![DidValidationIssue::new(
+                DidValidationCode::ResourceLimitExceeded,
+                DidValidationLocation::Attestation,
+            )],
+        };
+    }
+
     let threshold = update_policy.threshold.unwrap_or(1);
     let threshold_usize = match usize::try_from(threshold) {
         Ok(v) => v,
@@ -94,7 +108,13 @@ pub fn validate_attestation_policy(
 
     for (index, att) in attestations.iter().enumerate() {
         if allowed.contains(att.vm.as_str()) {
-            satisfied.insert(att.vm.as_str());
+            // A signer may attest at most once; repeated entries never count twice.
+            if !satisfied.insert(att.vm.as_str()) {
+                errors.push(indexed_issue(
+                    DidValidationCode::AttestationPolicyNotSatisfied,
+                    index,
+                ));
+            }
         } else {
             errors.push(indexed_issue(
                 DidValidationCode::AttestationPolicyNotSatisfied,
@@ -115,7 +135,10 @@ pub fn validate_attestation_policy(
 
 /// Validate ALL attestations inside a DID Document.
 ///
-/// Mirrors TS validateAttestations exactly.
+/// `verification_methods` must be the controller keys committed in a signed
+/// canonical core (the document's own genesis core, or the previous core for an
+/// update), never the unsigned JSON `verificationMethod` projection. The
+/// full-document validators decode them from core bytes before calling this.
 pub fn validate_attestations(
     verification_methods: &[VerificationMethod],
     attestations: &[Attestation],
@@ -137,13 +160,41 @@ pub fn validate_attestations(
         }
     };
 
-    let signing_input = core_signature_input(&core_bytes);
+    if attestations.len() > MAX_ATTESTATIONS
+        || verification_methods.len() > MAX_VERIFICATION_METHODS
+    {
+        return AttestationValidationResult {
+            ok: false,
+            errors: vec![DidValidationIssue::new(
+                DidValidationCode::ResourceLimitExceeded,
+                DidValidationLocation::Attestation,
+            )],
+        };
+    }
+
+    let signing_input = match core_signature_input(&core_bytes) {
+        Ok(input) => input,
+        Err(_) => {
+            return AttestationValidationResult {
+                ok: false,
+                errors: vec![DidValidationIssue::new(
+                    DidValidationCode::ResourceLimitExceeded,
+                    DidValidationLocation::Core,
+                )],
+            };
+        }
+    };
+
+    let vm_by_id: HashMap<&str, &VerificationMethod> = verification_methods
+        .iter()
+        .map(|vm| (vm.id.as_str(), vm))
+        .collect();
 
     for (index, att) in attestations.iter().enumerate() {
         // ----------------------------------------------------
         // 1. Locate verification method
         // ----------------------------------------------------
-        let vm = match verification_methods.iter().find(|v| v.id == att.vm) {
+        let vm = match vm_by_id.get(att.vm.as_str()).copied() {
             Some(v) => v,
             None => {
                 errors.push(attestation_issue(index));
@@ -221,13 +272,9 @@ pub fn validate_attestations(
         // ----------------------------------------------------
         // 6. Map semantic Algorithm → reallyme_crypto::core::Algorithm
         // ----------------------------------------------------
-        let crypto_alg = match sem_alg {
-            Algorithm::Ed25519 => CryptoAlgorithm::Ed25519,
-            Algorithm::Secp256k1 => CryptoAlgorithm::Secp256k1,
-            Algorithm::MlDsa87 => CryptoAlgorithm::MlDsa87,
-
-            // Not signing algorithms
-            Algorithm::X25519 | Algorithm::P256 | Algorithm::MlKem768 | Algorithm::MlKem1024 => {
+        let crypto_alg = match attestation_crypto_algorithm(sem_alg) {
+            Some(alg) => alg,
+            None => {
                 errors.push(attestation_issue(index));
                 continue;
             }

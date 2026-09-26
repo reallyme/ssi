@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-method-ebsi"
-version = "0.1.0"
+version = "0.2.0"
 description = "did:ebsi versioned base58btc identifier helpers."
 edition.workspace = true
 rust-version.workspace = true
@@ -13,6 +13,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+identity-core-primitives = { workspace = true }
 reallyme-ssi-proto = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{XmlSecError, XmlSecPolicyViolationReason};
+use super::{XmlSecError, XmlSecPolicyViolationReason, XmlSecTrustRootErrorReason};
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
 
 #[test]
@@ -79,4 +79,34 @@ fn xmlsec_errors_delegate_or_map_to_stable_proto_reasons() {
         )),
         IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_XMLSEC_POLICY_MISSING_ROOT_ID
     );
+}
+
+#[test]
+fn xmlsec_trust_root_reasons_map_to_stable_proto_reasons() {
+    let cases = [
+        (
+            XmlSecTrustRootErrorReason::Empty,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TRUST_API_INVALID_INPUT,
+        ),
+        (
+            XmlSecTrustRootErrorReason::TooManyTrustRoots,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TRUST_RESOURCE_TOO_MANY_ROOTS,
+        ),
+        (
+            XmlSecTrustRootErrorReason::CertificateDerTooLarge,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_RESOURCE_CERTIFICATE_DER_TOO_LARGE,
+        ),
+        (
+            XmlSecTrustRootErrorReason::InvalidCertificateDer,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_INVALID_DER,
+        ),
+    ];
+
+    for (reason, expected) in cases {
+        assert_eq!(IdentityCoreErrorReason::from(reason), expected);
+        assert_eq!(
+            IdentityCoreErrorReason::from(XmlSecError::TrustRoots(reason)),
+            expected
+        );
+    }
 }

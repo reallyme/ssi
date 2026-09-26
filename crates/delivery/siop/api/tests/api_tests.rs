@@ -42,7 +42,7 @@ fn api_builds_and_verifies_flow() {
         envelopes_jwk::JwkOptions {
             alg: true,
             use_sig: true,
-            kid: Some("kid1".into()),
+            kid: Some("did:example:holder#key-1".into()),
             ..Default::default()
         },
     )
@@ -71,10 +71,11 @@ fn api_builds_and_verifies_flow() {
     let claims = identity_presentation_delivery_siop_core::SiopIdTokenClaims {
         iss: "did:example:holder".into(),
         sub: "did:example:holder".into(),
-        aud: vec![req.audience.clone()],
+        aud: vec![req.client_id.clone()],
         nonce: nonce_b64url,
         iat: 100,
         exp: 200,
+        sub_jwk: None,
     };
 
     let jwt = encode_signed_jwt(&claims, &jwk, &sk).unwrap();

@@ -24,7 +24,7 @@ test("release version is derived only when every publishable crate agrees", () =
     () =>
       resolveReleaseVersion({
         derivesVersion: true,
-        manifestVersions: ["0.1.0", "0.1.1"],
+        manifestVersions: ["0.1.0", "0.2.0"],
         requestedVersion: undefined,
       }),
     ReleaseSourceError,
@@ -40,7 +40,7 @@ test("explicit preflight version remains bound to every crate manifest", () => {
     }),
     "0.1.0",
   );
-  for (const requestedVersion of [undefined, "v0.1.0", "0.1.1"]) {
+  for (const requestedVersion of [undefined, "v0.1.0", "0.2.0"]) {
     assert.throws(
       () =>
         resolveReleaseVersion({

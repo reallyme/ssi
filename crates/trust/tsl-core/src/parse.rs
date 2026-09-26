@@ -65,6 +65,9 @@ const REQUIRED_HISTORICAL_INFORMATION_PERIOD_DAYS: u64 = 65_535;
 const REQUIRED_TSL_TAG: &str = "http://uri.etsi.org/19612/TSLTag";
 const MAX_UPDATE_INTERVAL_MONTHS: u16 = 6;
 const MAX_UPDATE_DST_SHIFT_SECONDS: i64 = 3_600;
+/// Maximum clock skew, in seconds, tolerated between a list's
+/// `ListIssueDateTime` and the caller's evaluation time.
+pub const MAX_TSL_ISSUE_DATE_TIME_CLOCK_SKEW_SECONDS: i64 = 300;
 const EU_GENERIC_TSL_TYPE: &str = "http://uri.etsi.org/TrstSvc/TrustedList/TSLType/EUgeneric";
 const EU_LIST_OF_TRUSTED_LISTS_TYPE: &str =
     "http://uri.etsi.org/TrstSvc/TrustedList/TSLType/EUlistofthelists";

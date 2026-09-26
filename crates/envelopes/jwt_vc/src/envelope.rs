@@ -12,13 +12,17 @@ pub mod claims;
 /// JWT-VC issuance entry points.
 #[path = "issue.rs"]
 pub mod issue;
+/// JWT-VC temporal claim validation against the verifier's clock.
+#[path = "validate_temporal.rs"]
+mod validate_temporal;
 /// JWT-VC verification entry points.
 #[path = "verify.rs"]
 pub mod verify;
 
 pub use claims::{validate_jwt_vc_claims, JwtVcPayload};
 pub use issue::{issue_jwt_vc, issue_jwt_vc_with_signer, JwtVcIssueInput};
-pub use verify::{verify_jwt_vc, VerifiedJwtVc};
+pub use validate_temporal::MAX_JWT_VC_CLOCK_SKEW_SECONDS;
+pub use verify::{verify_jwt_vc, JwtVcVerificationOptions, VerifiedJwtVc};
 
 /// Current implementation status for JWT-VC envelope support.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -46,15 +50,36 @@ pub enum JwtVcEnvelopeError {
     /// JOSE signing or verification failed.
     #[error("JWT-VC JOSE operation failed")]
     Jwt,
+
+    /// Verification options carried a zero or otherwise invalid current time,
+    /// or a clock skew above the supported maximum.
+    #[error("invalid JWT-VC verification time")]
+    InvalidVerificationTime,
+
+    /// A temporal claim is not a non-negative NumericDate or `iat` lies in
+    /// the future beyond the tolerated clock skew.
+    #[error("invalid JWT-VC temporal claim")]
+    InvalidTemporalClaim,
+
+    /// The credential `exp` claim is at or before the verification time.
+    #[error("JWT-VC credential expired")]
+    CredentialExpired,
+
+    /// The credential `nbf` claim is after the verification time.
+    #[error("JWT-VC credential not yet valid")]
+    CredentialNotYetValid,
 }
 
 impl From<JwtVcEnvelopeError> for IdentityCoreErrorReason {
     fn from(reason: JwtVcEnvelopeError) -> Self {
         match reason {
-            JwtVcEnvelopeError::InvalidInput => {
+            JwtVcEnvelopeError::InvalidInput | JwtVcEnvelopeError::InvalidVerificationTime => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_INVALID_INPUT
             }
-            JwtVcEnvelopeError::InvalidPayload => {
+            JwtVcEnvelopeError::InvalidPayload
+            | JwtVcEnvelopeError::InvalidTemporalClaim
+            | JwtVcEnvelopeError::CredentialExpired
+            | JwtVcEnvelopeError::CredentialNotYetValid => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_INVALID_PAYLOAD
             }
             JwtVcEnvelopeError::InvalidCredentialEncoding => {

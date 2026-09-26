@@ -4,7 +4,9 @@
 
 //! Shared OAuth validation helpers.
 
-use url::Url;
+use std::net::{Ipv4Addr, Ipv6Addr};
+
+use url::{Host, Url};
 
 use crate::error::{OauthError, OauthResult, Reason};
 
@@ -67,9 +69,16 @@ pub fn validate_compact_jwt(value: &str) -> OauthResult<()> {
 }
 
 /// Validates an HTTPS URL. Loopback HTTP is only for explicit local adapters.
+///
+/// URLs carrying userinfo (`user:password@`) are rejected: OAuth metadata,
+/// endpoint, and issuer URLs never legitimately embed credentials, and
+/// userinfo is a common vector for host confusion.
 pub fn validate_https_url(value: &str, allow_loopback_http: bool) -> OauthResult<()> {
     validate_token(value)?;
     let url = Url::parse(value).map_err(|_| OauthError::new(Reason::InvalidUrl))?;
+    if !url.username().is_empty() || url.password().is_some() || url.host().is_none() {
+        return Err(OauthError::new(Reason::InvalidUrl));
+    }
     match url.scheme() {
         "https" => Ok(()),
         "http" if allow_loopback_http && is_loopback(&url) => Ok(()),
@@ -123,8 +132,10 @@ pub fn normalize_uri_without_query_or_fragment(value: &str) -> OauthResult<Strin
 }
 
 fn is_loopback(url: &Url) -> bool {
-    matches!(
-        url.host_str(),
-        Some("localhost") | Some("127.0.0.1") | Some("::1")
-    )
+    match url.host() {
+        Some(Host::Domain(domain)) => domain.eq_ignore_ascii_case("localhost"),
+        Some(Host::Ipv4(address)) => address == Ipv4Addr::LOCALHOST,
+        Some(Host::Ipv6(address)) => address == Ipv6Addr::LOCALHOST,
+        None => false,
+    }
 }

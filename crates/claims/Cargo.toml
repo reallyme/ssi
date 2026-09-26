@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-credential-claims"
-version = "0.1.0"
+version = "0.2.0"
 description = "Protocol-neutral credential claim values, registries, paths, and disclosure validation."
 edition.workspace = true
 rust-version.workspace = true
@@ -41,7 +41,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true, features = ["parsing"] }
-reallyme-trust-x509 = { path = "../trust/x509", version = "0.1.0", default-features = false }
+reallyme-trust-x509 = { path = "../trust/x509", version = "0.2.0", default-features = false }
 zeroize = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

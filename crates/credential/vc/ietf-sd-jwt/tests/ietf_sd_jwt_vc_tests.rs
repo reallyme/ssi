@@ -20,11 +20,14 @@ use envelopes_jwk::{Jwk, OkpJwk};
 use identity_vc_ietf_sd_jwt::issue_ietf_sd_jwt_vc_deterministic;
 use identity_vc_ietf_sd_jwt::{
     extract_me_profile_merkle_binding, issue_ietf_sd_jwt_vc, verify_ietf_sd_jwt_vc,
-    verify_me_profile_merkle_binding, IetfSdJwtIssueInput, IetfSdJwtJwtType, IetfSdJwtVcError,
-    MeProfileMerkleBinding, ME_PROFILE_EXTENSION_CLAIM,
+    verify_me_profile_merkle_binding, IetfSdJwtIssueInput, IetfSdJwtJwtType,
+    IetfSdJwtTemporalPolicy, IetfSdJwtVcError, MeProfileMerkleBinding, ME_PROFILE_EXTENSION_CLAIM,
 };
 use serde_json::{json, Map, Value};
 use zeroize::Zeroize;
+
+/// Verifier clock inside every fixture credential's validity window.
+const VERIFY_TEMPORAL_POLICY: IetfSdJwtTemporalPolicy = IetfSdJwtTemporalPolicy::new(1_738_100_100);
 
 fn issuer_jwk_from_public_key(public_key: &[u8]) -> Jwk {
     Jwk::Okp(OkpJwk {
@@ -125,7 +128,9 @@ fn verify_accepts_valid_issued_sd_jwt_and_restores_claims() {
     let issued = issue_ietf_sd_jwt_vc(&input, &issuer_jwk, &issuer_priv).expect("issue");
     let compact = issued.to_compact().expect("compact serialization");
 
-    let verified = verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub).expect("verify");
+    let verified =
+        verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub, &VERIFY_TEMPORAL_POLICY)
+            .expect("verify");
 
     assert_eq!(verified.disclosures.len(), 2);
     assert_eq!(
@@ -172,7 +177,8 @@ fn verify_rejects_tampered_disclosure() {
     segments[1] = codec_base64url::bytes_to_base64url(&disclosure_bytes);
 
     let tampered = segments.join("~");
-    let err = verify_ietf_sd_jwt_vc(&tampered, &issuer_jwk, &issuer_pub).unwrap_err();
+    let err = verify_ietf_sd_jwt_vc(&tampered, &issuer_jwk, &issuer_pub, &VERIFY_TEMPORAL_POLICY)
+        .unwrap_err();
 
     assert!(matches!(err, IetfSdJwtVcError::InvalidDisclosure));
 }
@@ -192,7 +198,8 @@ fn verify_rejects_wrong_issuer_key() {
     let issued = issue_ietf_sd_jwt_vc(&input, &issuer_jwk, &issuer_priv).expect("issue");
     let compact = issued.to_compact().expect("compact serialization");
 
-    let err = verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &wrong_pub).unwrap_err();
+    let err = verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &wrong_pub, &VERIFY_TEMPORAL_POLICY)
+        .unwrap_err();
     assert!(matches!(err, IetfSdJwtVcError::Verification));
 }
 
@@ -225,7 +232,9 @@ fn verify_accepts_compact_without_disclosures() {
     let compact = issued.to_compact().expect("compact serialization");
     assert_eq!(compact.matches('~').count(), 1);
 
-    let verified = verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub).expect("verify");
+    let verified =
+        verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub, &VERIFY_TEMPORAL_POLICY)
+            .expect("verify");
     assert_eq!(
         verified
             .disclosed_claims
@@ -251,7 +260,9 @@ fn issue_and_verify_supports_me_profile_merkle_extension_claim() {
 
     let issued = issue_ietf_sd_jwt_vc(&input, &issuer_jwk, &issuer_priv).expect("issue");
     let compact = issued.to_compact().expect("compact serialization");
-    let verified = verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub).expect("verify");
+    let verified =
+        verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub, &VERIFY_TEMPORAL_POLICY)
+            .expect("verify");
 
     let payload_obj = verified.payload.as_object().expect("payload object");
     assert!(payload_obj.contains_key(ME_PROFILE_EXTENSION_CLAIM));

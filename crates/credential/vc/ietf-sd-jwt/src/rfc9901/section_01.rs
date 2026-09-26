@@ -5,7 +5,7 @@
 use core::fmt;
 use std::collections::BTreeSet;
 
-use codec_base64url::{base64url_to_bytes, bytes_to_base64url};
+use codec_base64url::bytes_to_base64url;
 use crypto_sha2_256::digest as sha2_256_digest;
 use envelopes_jwk::Jwk;
 use envelopes_jwt::jwt::{
@@ -19,6 +19,13 @@ use serde_json::{Map, Value};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::error::IetfSdJwtVcError;
+use crate::process_disclosures::process_sd_jwt_disclosures;
+use crate::registered_claims::{
+    is_issuer_owned_claim, is_non_selectively_disclosable_claim, SD_JWT_STRUCTURAL_CLAIMS,
+};
+use crate::validate_temporal_claims::{
+    validate_credential_temporal_claims, IetfSdJwtTemporalPolicy,
+};
 use crate::sensitive::{
     compact_capacity, json_value_within_limits, zeroize_json_value, zeroize_strings,
     MAX_COMPACT_SD_JWT_BYTES, MAX_SD_JWT_DISCLOSURES, MAX_SD_JWT_DISCLOSURE_BYTES,
@@ -397,7 +404,12 @@ impl fmt::Debug for KbJwtVerifyParams<'_> {
 
 #[derive(Serialize, Deserialize)]
 pub struct VerifiedRfc9901 {
+    /// Issuer-signed payload exactly as authenticated.
     pub payload: Value,
+    /// Payload with every provided disclosure applied and SD-JWT structural
+    /// members removed.
+    pub resolved_payload: Value,
+    /// Accepted disclosure arrays in original serialization order.
     pub provided_disclosures: Vec<Value>,
 }
 
@@ -410,6 +422,7 @@ impl fmt::Debug for VerifiedRfc9901 {
 impl Zeroize for VerifiedRfc9901 {
     fn zeroize(&mut self) {
         zeroize_json_value(&mut self.payload);
+        zeroize_json_value(&mut self.resolved_payload);
         for disclosure in &mut self.provided_disclosures {
             zeroize_json_value(disclosure);
         }

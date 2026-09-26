@@ -22,8 +22,9 @@ pub use payload::status_list_signing_payload;
 pub use proto::{status_list_from_proto, status_list_to_proto};
 pub use token_status_list::{
     build_token_status_list_payload, pack_token_status_values, token_status_value, TokenStatusBits,
-    TokenStatusListClaims, TokenStatusListError, TokenStatusListInvalidReason,
-    TokenStatusListPayload, TokenStatusListProfile, VerifiedTokenStatusList,
+    TokenStatusListClaims, TokenStatusListError, TokenStatusListFreshnessPolicy,
+    TokenStatusListInvalidReason, TokenStatusListPayload, TokenStatusListProfile,
+    VerifiedTokenStatusList, DEFAULT_TOKEN_STATUS_LIST_MAX_AGE_SECS,
     STATUS_LIST_CWT_CONTENT_FORMAT, STATUS_LIST_CWT_MEDIA_TYPE, STATUS_LIST_JWT_MEDIA_TYPE,
     STATUS_LIST_JWT_TYPE,
 };

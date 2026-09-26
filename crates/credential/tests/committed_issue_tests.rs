@@ -335,3 +335,52 @@ fn issued_credential_debug_is_privacy_safe_and_owned_material_can_be_zeroized() 
     assert!(res.subject_bundle.issuer_signature.raw_rs.is_empty());
     assert!(res.subject_bundle.claims.is_empty());
 }
+
+#[test]
+fn issuance_rejects_empty_validity_window() {
+    let (_issuer_public, issuer_private) = generate_keypair(CryptoAlgorithm::Ed25519).unwrap();
+    let mut claims = BTreeMap::new();
+    claims.insert("age".into(), serde_json::json!(42));
+    let mut input = base_input();
+    input.valid_until = input.valid_from;
+
+    let result = issue_credential(
+        input,
+        &claims,
+        CryptoAlgorithm::Ed25519,
+        &issuer_private,
+        &mut OsSaltRng,
+    );
+
+    assert!(matches!(
+        result,
+        Err(reallyme_credential::committed::error::VcError::InvalidCredential)
+    ));
+}
+
+#[test]
+fn issuance_builds_verifiable_trees_for_non_power_of_two_claim_counts() {
+    for claim_count in [1_usize, 3, 5, 6, 7] {
+        let (_issuer_public, issuer_private) = generate_keypair(CryptoAlgorithm::Ed25519).unwrap();
+        let mut claims = BTreeMap::new();
+        for index in 0..claim_count {
+            claims.insert(format!("claim{index}"), serde_json::json!(index));
+        }
+
+        let issued = issue_credential(
+            base_input(),
+            &claims,
+            CryptoAlgorithm::Ed25519,
+            &issuer_private,
+            &mut OsSaltRng,
+        )
+        .unwrap();
+
+        assert_eq!(issued.subject_bundle.claims.len(), claim_count);
+        reallyme_credential::committed::verify::verify_merkle_only(
+            &issued.envelope,
+            &issued.subject_bundle,
+        )
+        .unwrap();
+    }
+}

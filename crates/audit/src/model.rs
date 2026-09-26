@@ -98,7 +98,9 @@ pub enum StatusMethod {
     /// Boundary value for interop; never valid QEAA evidence.
     Unspecified,
 
-    /// W3C/EUDI-compatible status-list evidence.
+    /// Issuer-published status-list evidence. The concrete status-list format
+    /// and its signature are verified by the status layer before the result
+    /// is projected into this compliance record.
     StatusList,
 }
 

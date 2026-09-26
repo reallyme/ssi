@@ -19,6 +19,9 @@ pub fn eu_pid_policy() -> VpPolicy {
         require_status: true,
         max_status_age_seconds: Some(86_400), // 24h
 
+        // Only credentials of this claimset satisfy this profile.
+        allowed_claimsets: Some(vec!["eu.pid.v1".into()]),
+
         ..VpPolicy::default()
     }
 }

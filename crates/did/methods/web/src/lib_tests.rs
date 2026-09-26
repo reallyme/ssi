@@ -81,3 +81,31 @@ fn did_web_raw_colon_is_path_not_port() -> Result<(), Box<dyn std::error::Error>
     );
     Ok(())
 }
+
+#[test]
+fn did_web_rejects_encoded_path_separators() {
+    for did in ["did:web:example.com:a%2Fb", "did:web:example.com:a%5Cb"] {
+        let err = parse_did_web(did).err().map(|error| error.reason);
+        assert_eq!(err, Some(DidWebErrorReason::InvalidPath));
+    }
+}
+
+#[test]
+fn did_web_generates_and_parses_encoded_tilde_path_segment(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let did = generate_did_web(WebDidInput {
+        domain: "example.com",
+        port: None,
+        path_segments: &["~alice"],
+    })?;
+    assert_eq!(did, "did:web:example.com:%7Ealice");
+    assert_eq!(
+        parse_did_web(&did)?.path_segments(),
+        ["%7Ealice".to_owned()]
+    );
+    let err = parse_did_web("did:web:example.com:~alice")
+        .err()
+        .map(|error| error.reason);
+    assert_eq!(err, Some(DidWebErrorReason::InvalidPath));
+    Ok(())
+}

@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-etsi-eaa-conformance"
-version = "0.1.0"
+version = "0.2.0"
 description = "Typed ETSI TS 119 472 and EUDI PID conformance policy for ReallyMe SSI."
 edition.workspace = true
 rust-version.workspace = true

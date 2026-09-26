@@ -69,6 +69,10 @@ pub enum MdocInvalidInputReason {
     #[error("mdoc cbor input is too large")]
     CborInputTooLarge,
 
+    /// Serialized CBOR declares more data items than the bounded mdoc profile.
+    #[error("mdoc cbor input contains too many items")]
+    CborTooManyItems,
+
     /// A namespace is absent or empty.
     #[error("empty mdoc namespace")]
     EmptyNamespace,
@@ -105,6 +109,10 @@ pub enum MdocInvalidInputReason {
     /// Randomizer bytes for an issuer-signed item are absent.
     #[error("empty mdoc item randomizer")]
     EmptyRandom,
+
+    /// Randomizer bytes for an issuer-signed item are outside the accepted length range.
+    #[error("invalid mdoc item randomizer length")]
+    InvalidRandomLength,
 
     /// A numeric value cannot be represented by the supported canonical CBOR profile.
     #[error("mdoc integer is out of range")]
@@ -226,6 +234,10 @@ pub enum MdocInvalidInputReason {
     #[error("invalid mdoc device authentication")]
     InvalidDeviceAuthentication,
 
+    /// The DeviceAuth COSE algorithm does not match the MSO device key type and curve.
+    #[error("mdoc device key algorithm mismatch")]
+    DeviceKeyAlgorithmMismatch,
+
     /// SessionTranscript CBOR input was absent or malformed.
     #[error("invalid mdoc session transcript")]
     InvalidSessionTranscript,
@@ -249,6 +261,10 @@ pub enum MdocEnvelopeError {
     /// Issuer authentication signing failed.
     #[error("mdoc signing failed")]
     Signing,
+
+    /// Secure digest identifier generation failed or repeatedly collided.
+    #[error("mdoc randomness unavailable")]
+    RandomnessUnavailable,
 
     /// Issuer authentication signature verification failed.
     #[error("invalid mdoc issuer signature")]
@@ -308,6 +324,7 @@ impl From<MdocInvalidInputReason> for IdentityCoreErrorReason {
                 Self::IDENTITY_CORE_ERROR_REASON_MDOC_CBOR_ARRAY_TOO_LARGE
             }
             MdocInvalidInputReason::CborInputTooLarge
+            | MdocInvalidInputReason::CborTooManyItems
             | MdocInvalidInputReason::ElementValueTooLarge
             | MdocInvalidInputReason::TotalElementValuesTooLarge => {
                 Self::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED
@@ -330,6 +347,9 @@ impl From<MdocInvalidInputReason> for IdentityCoreErrorReason {
             }
             MdocInvalidInputReason::EmptyRandom => {
                 Self::IDENTITY_CORE_ERROR_REASON_MDOC_EMPTY_RANDOM
+            }
+            MdocInvalidInputReason::InvalidRandomLength => {
+                Self::IDENTITY_CORE_ERROR_REASON_MDOC_MALFORMED_ISSUER_SIGNED_ITEM
             }
             MdocInvalidInputReason::IntegerOutOfRange => {
                 Self::IDENTITY_CORE_ERROR_REASON_MDOC_INTEGER_OUT_OF_RANGE
@@ -385,6 +405,9 @@ impl From<MdocInvalidInputReason> for IdentityCoreErrorReason {
             MdocInvalidInputReason::InvalidDeviceAuthentication => {
                 Self::IDENTITY_CORE_ERROR_REASON_MDOC_INVALID_DEVICE_AUTHENTICATION
             }
+            MdocInvalidInputReason::DeviceKeyAlgorithmMismatch => {
+                Self::IDENTITY_CORE_ERROR_REASON_MDOC_INVALID_DEVICE_AUTH
+            }
             MdocInvalidInputReason::InvalidSessionTranscript => {
                 Self::IDENTITY_CORE_ERROR_REASON_MDOC_INVALID_SESSION_TRANSCRIPT
             }
@@ -411,6 +434,9 @@ impl From<MdocEnvelopeError> for IdentityCoreErrorReason {
                 Self::IDENTITY_CORE_ERROR_REASON_UNSUPPORTED_FORMAT
             }
             MdocEnvelopeError::Cbor => Self::IDENTITY_CORE_ERROR_REASON_INVALID_ENCODING,
+            MdocEnvelopeError::RandomnessUnavailable => {
+                Self::IDENTITY_CORE_ERROR_REASON_INVALID_STATE
+            }
             MdocEnvelopeError::Signing => Self::IDENTITY_CORE_ERROR_REASON_INVALID_SIGNATURE,
         }
     }

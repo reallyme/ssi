@@ -11,7 +11,10 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use crate::error::DidApiError;
 use crate::rotate::rotate_keys;
 use crate::update::{update_did, UpdateConfig};
-use crate::validate::{validate_did, DomainVerificationEnv};
+use crate::validate::{
+    validate_did, validate_did_chain, validate_did_consistency, validate_did_transition,
+    DomainVerificationEnv,
+};
 
 const MESSAGING_SERVICE_TYPE: &str = "MessagingService";
 const MESSAGING_SERVICE_URI_FIELD: &str = "uri";
@@ -64,28 +67,67 @@ impl Drop for MessagingPreKeySnapshot {
 
 impl ZeroizeOnDrop for MessagingPreKeySnapshot {}
 
-/// Discover validated MessagingService pre-key snapshots from a DID document.
+/// Discover validated MessagingService pre-key snapshots from a genesis DID document.
 ///
 /// The returned value deliberately carries DID, sequence, and current core CID
 /// alongside the pre-key references. Message senders need those fields in the
 /// encryption transcript so a relay cannot swap in a stale or cross-DID
 /// MessagingService endpoint without changing the bound snapshot.
+///
+/// Only a sequence-one document can be authenticated on its own. Documents with
+/// `sequence >= 2` fail closed here; use [`discover_messaging_pre_keys_from_chain`].
 pub fn discover_messaging_pre_keys(
     doc: &DIDDocument,
 ) -> Result<Vec<MessagingPreKeySnapshot>, DidApiError> {
-    if doc.id.is_empty() || doc.current_core.is_empty() {
+    let validation = validate_did(doc, no_domain_env());
+    if !validation.ok {
         return Err(DidApiError::MessagingPreKeyDiscoveryInvalid);
     }
+    extract_messaging_pre_keys(doc)
+}
 
-    if !validate_did(
-        doc,
-        DomainVerificationEnv {
-            resolve_txt: None,
-            fetch_url: None,
-        },
-    )
-    .ok
-    {
+/// Discover MessagingService pre-key snapshots from a verified did:me history.
+///
+/// `chain` runs from the genesis document to the head document whose services
+/// are returned. Every transition is authenticated before any pre-key is used.
+pub fn discover_messaging_pre_keys_from_chain(
+    chain: &[DIDDocument],
+) -> Result<Vec<MessagingPreKeySnapshot>, DidApiError> {
+    let head = chain
+        .last()
+        .ok_or(DidApiError::MessagingPreKeyDiscoveryInvalid)?;
+    let validation = validate_did_chain(chain, no_domain_env());
+    if !validation.ok {
+        return Err(DidApiError::MessagingPreKeyDiscoveryInvalid);
+    }
+    extract_messaging_pre_keys(head)
+}
+
+/// Read MessagingService pre-keys from controller-held local state.
+///
+/// The document is checked for self-consistency only; this is never a sender
+/// discovery path. Callers must authenticate the transition they produce from
+/// it with `validate_did_transition`.
+pub(crate) fn discover_controller_messaging_pre_keys(
+    doc: &DIDDocument,
+) -> Result<Vec<MessagingPreKeySnapshot>, DidApiError> {
+    if !validate_did_consistency(doc, no_domain_env()).ok {
+        return Err(DidApiError::MessagingPreKeyDiscoveryInvalid);
+    }
+    extract_messaging_pre_keys(doc)
+}
+
+fn no_domain_env() -> DomainVerificationEnv<'static> {
+    DomainVerificationEnv {
+        resolve_txt: None,
+        fetch_url: None,
+    }
+}
+
+fn extract_messaging_pre_keys(
+    doc: &DIDDocument,
+) -> Result<Vec<MessagingPreKeySnapshot>, DidApiError> {
+    if doc.id.is_empty() || doc.current_core.is_empty() {
         return Err(DidApiError::MessagingPreKeyDiscoveryInvalid);
     }
 
@@ -178,8 +220,11 @@ pub fn designate_messaging_pre_keys(
         },
     )?;
 
-    discover_messaging_pre_keys(&doc)
-        .map_err(|_| DidApiError::MessagingPreKeyDesignationInvalid)?;
+    // The new document is authenticated against the controller's current state.
+    if !validate_did_transition(old_doc, &doc, no_domain_env()).ok {
+        return Err(DidApiError::MessagingPreKeyDesignationInvalid);
+    }
+    extract_messaging_pre_keys(&doc).map_err(|_| DidApiError::MessagingPreKeyDesignationInvalid)?;
 
     Ok((doc, new_ks))
 }
@@ -195,12 +240,18 @@ pub fn rotate_messaging_pre_keys(
     service_id: &str,
     created: Option<String>,
 ) -> Result<(DIDDocument, KeySet), DidApiError> {
-    let snapshot = discover_messaging_pre_keys(old_doc)?
+    // The rotated result is authenticated as a transition from `old_doc`
+    // before it is returned.
+    let snapshot = discover_controller_messaging_pre_keys(old_doc)?
         .into_iter()
         .find(|snapshot| snapshot.service_id == service_id)
         .ok_or(DidApiError::MessagingPreKeyDiscoveryInvalid)?;
 
-    rotate_keys(old_doc, ks, &snapshot.pre_keys, created)
+    let (doc, new_ks) = rotate_keys(old_doc, ks, &snapshot.pre_keys, created)?;
+    if !validate_did_transition(old_doc, &doc, no_domain_env()).ok {
+        return Err(DidApiError::UpdateRejected);
+    }
+    Ok((doc, new_ks))
 }
 
 pub(crate) fn services_with_designated_pre_keys(

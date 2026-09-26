@@ -13,6 +13,15 @@ use identity_credential_status_core::{CredentialStatusError, StatusList, StatusL
 use identity_presentation_vp_core::model::Presentation;
 use reallyme_credential_audit::QeaaCompliance;
 
+/// Maximum number of presentation disclosures evaluated against policy.
+///
+/// Requirement matching is `required_claims x disclosures`; bounding the
+/// untrusted side keeps evaluation cost linear in the policy size.
+pub const MAX_POLICY_DISCLOSURES: usize = 4_096;
+
+/// Maximum number of required claims a verifier policy may declare.
+pub const MAX_POLICY_REQUIRED_CLAIMS: usize = 256;
+
 /// All inputs required to evaluate a presentation.
 ///
 /// This struct is intentionally explicit and closed over:
@@ -129,7 +138,7 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
     // ---------------------------------------------------------------------
     if let Some(allowed) = &policy.allowed_claimsets {
         if !allowed.iter().any(|c| c == ctx.claimset_id) {
-            errors.push(VpPolicyError::MissingClaim);
+            errors.push(VpPolicyError::ClaimsetNotAllowed);
         }
     }
 
@@ -139,14 +148,32 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
 
     // Extract what the holder actually disclosed (format-agnostic)
     let disclosed = match crate::disclosure::extract_disclosed_claims(ctx.presentation) {
-        Ok(v) => v,
-        Err(_) => {
+        Ok(v) if v.len() <= MAX_POLICY_DISCLOSURES => v,
+        Ok(_) | Err(_) => {
             errors.push(VpPolicyError::ProofInvalid);
             Vec::new()
         }
     };
 
-    for req in &policy.required_claims {
+    let required_claims = if policy.required_claims.len() > MAX_POLICY_REQUIRED_CLAIMS {
+        errors.push(VpPolicyError::PolicyMisconfiguration);
+        &[][..]
+    } else {
+        policy.required_claims.as_slice()
+    };
+
+    if !required_claims.is_empty() {
+        for disclosed_claim in &disclosed {
+            if !required_claims
+                .iter()
+                .any(|required| required.claim_path == disclosed_claim.claim_path)
+            {
+                errors.push(VpPolicyError::UnexpectedDisclosure);
+            }
+        }
+    }
+
+    for req in required_claims {
         // Find a disclosed claim matching this requirement
         let disclosed_claim = disclosed.iter().find(|d| d.claim_path == req.claim_path);
 
@@ -204,7 +231,11 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
                     ctx.now_unix,
                     sc.verifier,
                 ) {
-                    Ok(()) => {}
+                    Ok(()) => {
+                        if !status_age_within_policy(policy, sc, ctx.now_unix) {
+                            errors.push(VpPolicyError::StatusTooOld);
+                        }
+                    }
                     Err(CredentialStatusError::Revoked) => {
                         errors.push(VpPolicyError::CredentialRevoked);
                     }
@@ -256,5 +287,19 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
         PolicyDecision::Accept
     } else {
         PolicyDecision::Reject(errors)
+    }
+}
+
+/// Enforce `max_status_age_seconds` against the verified list's `issued_at`.
+///
+/// `verify_status` has already rejected lists issued in the future, so a
+/// failed subtraction can only mean inconsistent input and is treated as stale.
+fn status_age_within_policy(policy: &VpPolicy, status: &StatusContext<'_>, now_unix: u64) -> bool {
+    let Some(max_age) = policy.max_status_age_seconds else {
+        return true;
+    };
+    match now_unix.checked_sub(status.list.issued_at) {
+        Some(age) => age <= max_age,
+        None => false,
     }
 }

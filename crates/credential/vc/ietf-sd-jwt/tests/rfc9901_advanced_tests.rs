@@ -19,10 +19,13 @@ use envelopes_jwk::{Jwk, OkpJwk};
 use envelopes_jwt::jwt::{encode_signed_jwt_with_header_options, JwtHeaderEncodeOptions};
 use identity_vc_ietf_sd_jwt::{
     issue_rfc9901_sd_jwt, verify_ietf_sd_jwt_vc, verify_rfc9901_sd_jwt, DecoyPolicy,
-    IetfSdJwtVcError, KbJwtBuildParams, KbJwtVerifyParams, Rfc9901IssueInput, SdJwtArtifact,
-    SelectiveDisclosureStrategy,
+    IetfSdJwtTemporalPolicy, IetfSdJwtVcError, KbJwtBuildParams, KbJwtVerifyParams,
+    Rfc9901IssueInput, SdJwtArtifact, SelectiveDisclosureStrategy,
 };
 use serde_json::{json, Value};
+
+/// Verifier clock inside every fixture credential's validity window.
+const VERIFY_TEMPORAL_POLICY: IetfSdJwtTemporalPolicy = IetfSdJwtTemporalPolicy::new(1_738_100_100);
 
 fn issuer_jwk_from_public_key(public_key: &[u8]) -> Jwk {
     Jwk::Okp(OkpJwk {
@@ -83,12 +86,21 @@ fn credential_verifiers_reject_missing_and_generic_issuer_types() {
         };
 
         assert!(matches!(
-            verify_rfc9901_sd_jwt(&invalid, &issuer_jwk, &issuer_pub, None),
+            verify_rfc9901_sd_jwt(
+                &invalid,
+                &issuer_jwk,
+                &issuer_pub,
+                &VERIFY_TEMPORAL_POLICY,
+                None
+            ),
             Err(IetfSdJwtVcError::Verification)
         ));
 
         let compact = invalid.to_compact().expect("compact serialization");
-        assert!(verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub).is_err());
+        assert!(
+            verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub, &VERIFY_TEMPORAL_POLICY)
+                .is_err()
+        );
 
         invalid.disclosures.clear();
     }
@@ -152,8 +164,14 @@ fn recursive_all_levels_and_json_serialization_parity() {
     assert_eq!(from_json.issuer_signed_jwt, artifact.issuer_signed_jwt);
     assert_eq!(from_json.disclosures, artifact.disclosures);
 
-    let verified =
-        verify_rfc9901_sd_jwt(&artifact, &issuer_jwk, &issuer_pub, None).expect("verify");
+    let verified = verify_rfc9901_sd_jwt(
+        &artifact,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None,
+    )
+    .expect("verify");
     let payload = verified.payload.as_object().expect("payload obj");
     assert_eq!(
         payload.get("iss").and_then(Value::as_str),
@@ -253,9 +271,30 @@ fn top_level_vs_all_levels_vs_json_paths_strategy() {
     assert!(a_all.disclosures.len() > a_top.disclosures.len());
     assert!(a_custom.disclosures.len() < a_all.disclosures.len());
 
-    verify_rfc9901_sd_jwt(&a_top, &issuer_jwk, &issuer_pub, None).expect("verify top");
-    verify_rfc9901_sd_jwt(&a_all, &issuer_jwk, &issuer_pub, None).expect("verify all");
-    verify_rfc9901_sd_jwt(&a_custom, &issuer_jwk, &issuer_pub, None).expect("verify custom");
+    verify_rfc9901_sd_jwt(
+        &a_top,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None,
+    )
+    .expect("verify top");
+    verify_rfc9901_sd_jwt(
+        &a_all,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None,
+    )
+    .expect("verify all");
+    verify_rfc9901_sd_jwt(
+        &a_custom,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None,
+    )
+    .expect("verify custom");
 }
 
 #[test]
@@ -282,7 +321,14 @@ fn decoy_digests_are_added_and_do_not_break_verification() {
 
     assert!(sd_count > artifact.disclosures.len());
 
-    verify_rfc9901_sd_jwt(&artifact, &issuer_jwk, &issuer_pub, None).expect("verify");
+    verify_rfc9901_sd_jwt(
+        &artifact,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None,
+    )
+    .expect("verify");
 }
 
 #[test]
@@ -337,14 +383,20 @@ fn holder_presentation_api_and_kb_jwt_binding_work() {
     );
 
     let compact_presentation = presentation.to_compact().expect("compact presentation");
-    let legacy_error = verify_ietf_sd_jwt_vc(&compact_presentation, &issuer_jwk, &issuer_pub)
-        .expect_err("issuer-only verifier must reject holder-bound input");
+    let legacy_error = verify_ietf_sd_jwt_vc(
+        &compact_presentation,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+    )
+    .expect_err("issuer-only verifier must reject holder-bound input");
     assert!(matches!(legacy_error, IetfSdJwtVcError::MissingKeyBinding));
 
     verify_rfc9901_sd_jwt(
         &presentation,
         &issuer_jwk,
         &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
         Some(KbJwtVerifyParams {
             holder_jwk: &holder_jwk,
             holder_public_key: &holder_pub,
@@ -373,6 +425,7 @@ fn holder_presentation_api_and_kb_jwt_binding_work() {
         &future_iat,
         &issuer_jwk,
         &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
         Some(KbJwtVerifyParams {
             holder_jwk: &holder_jwk,
             holder_public_key: &holder_pub,
@@ -402,6 +455,7 @@ fn holder_presentation_api_and_kb_jwt_binding_work() {
         &stale_iat,
         &issuer_jwk,
         &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
         Some(KbJwtVerifyParams {
             holder_jwk: &holder_jwk,
             holder_public_key: &holder_pub,
@@ -424,8 +478,14 @@ fn holder_presentation_api_and_kb_jwt_binding_work() {
     let mut stripped =
         SdJwtArtifact::from_json_string(&presentation_json).expect("parse presentation copy");
     stripped.kb_jwt = None;
-    let error = verify_rfc9901_sd_jwt(&stripped, &issuer_jwk, &issuer_pub, None)
-        .expect_err("cnf-bound presentation requires a KB-JWT");
+    let error = verify_rfc9901_sd_jwt(
+        &stripped,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None,
+    )
+    .expect_err("cnf-bound presentation requires a KB-JWT");
     assert!(matches!(error, IetfSdJwtVcError::MissingKeyBinding));
 
     let unbound_input =
@@ -433,8 +493,14 @@ fn holder_presentation_api_and_kb_jwt_binding_work() {
     let mut unbound =
         issue_rfc9901_sd_jwt(&unbound_input, &issuer_jwk, &issuer_priv).expect("issue unbound");
     unbound.kb_jwt = presentation.kb_jwt.clone();
-    let error = verify_rfc9901_sd_jwt(&unbound, &issuer_jwk, &issuer_pub, None)
-        .expect_err("an unconfigured KB-JWT must not be ignored");
+    let error = verify_rfc9901_sd_jwt(
+        &unbound,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None,
+    )
+    .expect_err("an unconfigured KB-JWT must not be ignored");
     assert!(matches!(error, IetfSdJwtVcError::MissingKeyBinding));
 
     let (attacker_public_key, attacker_private_key) =
@@ -456,6 +522,7 @@ fn holder_presentation_api_and_kb_jwt_binding_work() {
         &substituted,
         &issuer_jwk,
         &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
         Some(KbJwtVerifyParams {
             holder_jwk: &attacker_jwk,
             holder_public_key: &attacker_public_key,
@@ -486,7 +553,14 @@ fn negative_rejects_malformed_disclosures_and_mismatched_sd() {
     // malformed disclosure (not base64url)
     let mut bad = SdJwtArtifact::from_json_string(&artifact_json).expect("parse artifact copy");
     bad.disclosures[0] = "!!!".to_string();
-    assert!(verify_rfc9901_sd_jwt(&bad, &issuer_jwk, &issuer_pub, None).is_err());
+    assert!(verify_rfc9901_sd_jwt(
+        &bad,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None
+    )
+    .is_err());
 
     // valid base64url but digest mismatch
     let mut mismatch =
@@ -497,5 +571,12 @@ fn negative_rejects_malformed_disclosures_and_mismatched_sd() {
         *first ^= 0x01;
     }
     mismatch.disclosures[0] = bytes_to_base64url(&tampered);
-    assert!(verify_rfc9901_sd_jwt(&mismatch, &issuer_jwk, &issuer_pub, None).is_err());
+    assert!(verify_rfc9901_sd_jwt(
+        &mismatch,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None
+    )
+    .is_err());
 }

@@ -219,7 +219,9 @@ pub fn classify_failures(errors: &[VpPolicyError]) -> BTreeSet<VpFailureClass> {
             | VpPolicyError::ClaimRegistryInvalid
             | VpPolicyError::RequiredClaimInvalid
             | VpPolicyError::MissingClaim => VpFailureClass::Claims,
-            VpPolicyError::DisclosureModeNotAllowed => VpFailureClass::Disclosure,
+            VpPolicyError::DisclosureModeNotAllowed | VpPolicyError::UnexpectedDisclosure => {
+                VpFailureClass::Disclosure
+            }
             VpPolicyError::PredicateNotSatisfied => VpFailureClass::Predicate,
             VpPolicyError::CredentialRevoked
             | VpPolicyError::CredentialSuspended

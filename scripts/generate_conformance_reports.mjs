@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -11,11 +12,32 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const reportsDir = resolve(root, "conformance/results");
+
+const fail = (reason) => {
+  process.stderr.write(`conformance report generation failed: ${reason}\n`);
+  process.exit(1);
+};
+
+const argumentsList = process.argv.slice(2);
+if (argumentsList.length !== 2 || argumentsList[0] !== "--output-dir") {
+  fail("expected --output-dir PATH");
+}
+
+const reportsDir = resolve(process.cwd(), argumentsList[1]);
+const outputRelativeToRoot = relative(root, reportsDir);
+if (
+  outputRelativeToRoot === "" ||
+  (!outputRelativeToRoot.startsWith("..") && outputRelativeToRoot !== "..")
+) {
+  fail("release evidence must be written outside the SSI source repository");
+}
+if (existsSync(reportsDir) && readdirSync(reportsDir).length !== 0) {
+  fail("output directory must be absent or empty");
+}
 
 const readJson = (relativePath) =>
   JSON.parse(readFileSync(resolve(root, relativePath), "utf8"));
@@ -28,15 +50,57 @@ const git = (cwd, args) => {
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
   } catch {
-    return null;
+    fail("required repository metadata is unavailable");
   }
 };
 
 const ssiCommit = git(root, ["rev-parse", "HEAD"]);
-const ssiStatus = git(root, ["status", "--short"]);
-const cryptoRoot = resolve(root, "../crypto");
-const cryptoCommit = git(cryptoRoot, ["rev-parse", "HEAD"]);
-const cryptoStatus = git(cryptoRoot, ["status", "--short"]);
+const ssiStatus = git(root, ["status", "--short", "--untracked-files=all"]);
+const dependencyLock = readJson("conformance/dependencies.lock.json");
+const cryptoDependency = dependencyLock?.dependencies?.["reallyme/crypto"];
+if (
+  dependencyLock?.schema !== "reallyme.identity.conformance.dependencies.v1" ||
+  cryptoDependency?.source !== "crates.io" ||
+  cryptoDependency?.package !== "reallyme-crypto" ||
+  !/^\d+\.\d+\.\d+$/u.test(cryptoDependency?.version ?? "")
+) {
+  fail("conformance dependency lock is invalid");
+}
+if (ssiStatus) {
+  fail("SSI source repository must be clean");
+}
+
+const metadata = JSON.parse(
+  execFileSync("cargo", ["metadata", "--locked", "--format-version", "1", "--quiet"], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "inherit"],
+  }),
+);
+const workspaceVersions = new Set(
+  metadata.packages
+    .filter((item) => metadata.workspace_members.includes(item.id))
+    .map((item) => item.version),
+);
+if (workspaceVersions.size !== 1) {
+  fail("workspace crates do not share one release version");
+}
+const [releaseVersion] = workspaceVersions;
+const resolvedCrypto = metadata.packages.filter(
+  (item) => item.name === cryptoDependency.package,
+);
+if (
+  resolvedCrypto.length !== 1 ||
+  resolvedCrypto[0].version !== cryptoDependency.version ||
+  !resolvedCrypto[0].source?.startsWith("registry+")
+) {
+  fail("Cargo.lock does not resolve the pinned published crypto package");
+}
+const cargoLockSha256 = createHash("sha256")
+  .update(readFileSync(resolve(root, "Cargo.lock")))
+  .digest("hex");
+const generatedAt = new Date().toISOString();
 const sources = readJson("conformance/upstream/sources.lock").sources;
 const upstream = readJson("conformance/upstream/tests.json").sources;
 const conceptInventory = readJson("conformance/concepts.json").concepts;
@@ -56,6 +120,11 @@ const fuzzTargets = [
     id: "fuzz_mdoc_device_response",
     path: "fuzz/fuzz_targets/fuzz_mdoc_device_response.rs",
     concepts: ["mdoc"],
+  },
+  {
+    id: "fuzz_sd_jwt_processing",
+    path: "fuzz/fuzz_targets/fuzz_sd_jwt_processing.rs",
+    concepts: ["sd-jwt"],
   },
   {
     id: "fuzz_status_list",
@@ -265,17 +334,22 @@ const buildReport = (definition) => {
     }));
 
   return {
-    schema: "reallyme.identity.conformance.report.v1",
-    generated_at: new Date().toISOString(),
+    schema: "reallyme.identity.conformance.report.v2",
+    generated_at: generatedAt,
+    release: {
+      version: releaseVersion,
+    },
     repository: {
       name: "reallyme/ssi",
       commit: ssiCommit,
-      dirty: Boolean(ssiStatus),
+      dirty: false,
     },
     dependencies: {
       "reallyme/crypto": {
-        commit: cryptoCommit,
-        dirty: Boolean(cryptoStatus),
+        source: cryptoDependency.source,
+        package: cryptoDependency.package,
+        version: cryptoDependency.version,
+        cargo_lock_sha256: cargoLockSha256,
       },
       "reallyme-jose": {
         source: "crates.io",
@@ -324,12 +398,48 @@ const buildReport = (definition) => {
 
 mkdirSync(reportsDir, { recursive: true });
 
+const reports = [];
 for (const definition of reportDefinitions) {
   const report = buildReport(definition);
+  const contents = `${JSON.stringify(report, null, 2)}\n`;
+  const filename = `${definition.name}.json`;
   writeFileSync(
-    resolve(reportsDir, `${definition.name}.json`),
-    `${JSON.stringify(report, null, 2)}\n`,
+    resolve(reportsDir, filename),
+    contents,
   );
+  reports.push({
+    path: filename,
+    sha256: createHash("sha256").update(contents).digest("hex"),
+  });
 }
 
-console.log(`generated ${reportDefinitions.length} conformance reports`);
+const bundle = {
+  schema: "reallyme.ssi.conformance.bundle.v1",
+  classification: "public",
+  contains_runtime_data: false,
+  generated_at: generatedAt,
+  release: {
+    version: releaseVersion,
+  },
+  repository: {
+    name: "reallyme/ssi",
+    url: "https://github.com/reallyme/ssi",
+    commit: ssiCommit,
+    dirty: false,
+  },
+  dependencies: {
+    "reallyme/crypto": {
+      source: cryptoDependency.source,
+      package: cryptoDependency.package,
+      version: cryptoDependency.version,
+      cargo_lock_sha256: cargoLockSha256,
+    },
+  },
+  reports,
+};
+writeFileSync(
+  resolve(reportsDir, "manifest.json"),
+  `${JSON.stringify(bundle, null, 2)}\n`,
+);
+
+console.log(`generated ${reports.length} conformance reports and one bundle manifest`);

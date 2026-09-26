@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-revocation-crl-openssl"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -18,11 +18,12 @@ thiserror = { workspace = true }
 time = "0.3"
 
 envelopes-x509 = { workspace = true }
-identity-revocation-crl-core = { version = "0.1.0", path = "../core" }
+identity-revocation-crl-core = { version = "0.2.0", path = "../core" }
 reallyme-ssi-proto = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 openssl = "0.10.81"
+x509-parser = { workspace = true }
 
 [dev-dependencies]
 identity-revocation-core = { workspace = true }

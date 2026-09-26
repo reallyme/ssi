@@ -16,6 +16,15 @@ pub const MAX_CONTACT_FRAMES: usize = 1_024;
 /// Required length of the transcript-derived contact session identifier.
 pub const CONTACT_SESSION_ID_BYTES: usize = 16;
 
+/// Number of digest bytes folded into the `u32` contact message identifier.
+pub const CONTACT_MESSAGE_ID_BYTES: usize = 4;
+
+/// Maximum accepted lifetime (`expires_at - created_at`) of a contact message.
+///
+/// Proximity handovers complete within seconds; an hour bounds replay
+/// exposure while tolerating slow manual flows.
+pub const MAX_CONTACT_MESSAGE_LIFETIME_SECONDS: u64 = 3_600;
+
 /// Limits for NFC/BLE contact delivery framing.
 ///
 /// These are intentionally conservative defaults.

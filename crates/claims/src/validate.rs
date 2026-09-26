@@ -7,7 +7,7 @@ use crate::{
     ClaimPath, ClaimType, ClaimValue, ClaimsError, ClaimsInvalidReason, ClaimsRegistry,
     DisclosureMode,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Maximum claim definitions in one registry.
 pub const MAX_CLAIMS_PER_REGISTRY: usize = 512;
@@ -43,6 +43,30 @@ pub fn validate_registry(registry: &ClaimsRegistry) -> Result<(), ClaimsError> {
     }
     validate_no_parent_child_conflicts(parsed_paths.as_slice())?;
 
+    Ok(())
+}
+
+/// Reject registries where one claim path is a strict ancestor of another.
+///
+/// Uses a set of canonical ancestor identifiers so the check scales with the
+/// total number of path segments instead of pairwise over every claim.
+fn validate_no_parent_child_conflicts(paths: &[ClaimPath]) -> Result<(), ClaimsError> {
+    let mut ancestors = BTreeSet::new();
+    for path in paths {
+        ancestors.extend(path.strict_ancestor_claim_ids());
+    }
+    for path in paths {
+        let Some(canonical_id) = path.claim_id() else {
+            return Err(ClaimsError::InvalidInput(
+                ClaimsInvalidReason::InvalidClaimPath,
+            ));
+        };
+        if ancestors.contains(&canonical_id) {
+            return Err(ClaimsError::InvalidInput(
+                ClaimsInvalidReason::ParentChildClaimPathConflict,
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -97,8 +121,8 @@ pub fn validate_claim_payload(
         ));
     };
 
-    let registry_paths = registry_path_index(registry)?;
-    validate_payload_object(registry, &registry_paths, "", object, 0)
+    let registry_ancestors = registry_ancestor_index(registry)?;
+    validate_payload_object(registry, &registry_ancestors, "", object, 0)
 }
 
 /// Validate whether a claim path may be disclosed with the requested mode.
@@ -138,7 +162,18 @@ pub fn validate_claim_value(
         }
         (ClaimType::Boolean, ClaimValue::Boolean(_)) => Ok(()),
         (ClaimType::Integer | ClaimType::SignedInteger, ClaimValue::Signed(_)) => Ok(()),
+        // JSON normalization maps every non-negative integer to `Unsigned`, so
+        // signed claim types accept it when it fits the signed range. The
+        // commitment layer re-encodes it as the declared signed variant.
+        (ClaimType::Integer | ClaimType::SignedInteger, ClaimValue::Unsigned(value)) => {
+            i64::try_from(*value)
+                .map(|_| ())
+                .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::ClaimValueTypeMismatch))
+        }
         (ClaimType::UnsignedInteger, ClaimValue::Unsigned(_)) => Ok(()),
+        (ClaimType::UnsignedInteger, ClaimValue::Signed(value)) => u64::try_from(*value)
+            .map(|_| ())
+            .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::ClaimValueTypeMismatch)),
         (ClaimType::Number | ClaimType::Decimal, ClaimValue::Decimal(value)) => {
             crate::values::validate_decimal(value.as_str())
         }
@@ -190,28 +225,17 @@ pub fn validate_claim_value(
     }
 }
 
-fn validate_no_parent_child_conflicts(paths: &[ClaimPath]) -> Result<(), ClaimsError> {
-    for (index, left) in paths.iter().enumerate() {
-        let next_index = index.checked_add(1).ok_or(ClaimsError::InvalidInput(
-            ClaimsInvalidReason::TooManyClaims,
-        ))?;
-        for right in &paths[next_index..] {
-            if left.is_strict_ancestor_of(right) || right.is_strict_ancestor_of(left) {
-                return Err(ClaimsError::InvalidInput(
-                    ClaimsInvalidReason::ParentChildClaimPathConflict,
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-fn registry_path_index(registry: &ClaimsRegistry) -> Result<Vec<ClaimPath>, ClaimsError> {
-    let mut paths = Vec::with_capacity(registry.claims.len());
+/// Canonical identifiers of every strict ancestor of a registered claim.
+///
+/// Built once per payload validation so each payload node is classified with a
+/// set lookup instead of a scan over every registry path.
+fn registry_ancestor_index(registry: &ClaimsRegistry) -> Result<BTreeSet<String>, ClaimsError> {
+    let mut ancestors = BTreeSet::new();
     for claim in registry.claims.values() {
-        paths.push(claim_path_for_id(claim.claim_id.as_str())?);
+        let path = claim_path_for_id(claim.claim_id.as_str())?;
+        ancestors.extend(path.strict_ancestor_claim_ids());
     }
-    Ok(paths)
+    Ok(ancestors)
 }
 
 fn claim_path_for_id(claim_id: &str) -> Result<ClaimPath, ClaimsError> {
@@ -230,7 +254,7 @@ fn claim_path_for_id(claim_id: &str) -> Result<ClaimPath, ClaimsError> {
 
 fn validate_payload_object(
     registry: &ClaimsRegistry,
-    registry_paths: &[ClaimPath],
+    registry_ancestors: &BTreeSet<String>,
     parent_id: &str,
     object: &BTreeMap<String, ClaimValue>,
     depth: usize,
@@ -254,7 +278,7 @@ fn validate_payload_object(
         let claim_id = append_claim_id(parent_id, escaped_key.as_str())?;
         validate_payload_value(
             registry,
-            registry_paths,
+            registry_ancestors,
             claim_id.as_str(),
             value,
             next_depth,
@@ -266,7 +290,7 @@ fn validate_payload_object(
 
 fn validate_payload_array(
     registry: &ClaimsRegistry,
-    registry_paths: &[ClaimPath],
+    registry_ancestors: &BTreeSet<String>,
     parent_id: &str,
     values: &[ClaimValue],
     depth: usize,
@@ -292,7 +316,7 @@ fn validate_payload_array(
         let claim_id = append_claim_id(parent_id, index_segment.as_str())?;
         validate_payload_value(
             registry,
-            registry_paths,
+            registry_ancestors,
             claim_id.as_str(),
             value,
             next_depth,
@@ -304,7 +328,7 @@ fn validate_payload_array(
 
 fn validate_payload_value(
     registry: &ClaimsRegistry,
-    registry_paths: &[ClaimPath],
+    registry_ancestors: &BTreeSet<String>,
     claim_id: &str,
     value: &ClaimValue,
     depth: usize,
@@ -315,19 +339,19 @@ fn validate_payload_value(
         return validate_claim_value(definition, value);
     }
 
-    if !registry_paths
-        .iter()
-        .any(|candidate| path.is_strict_ancestor_of(candidate))
-    {
+    let Some(canonical_id) = path.claim_id() else {
+        return Err(ClaimsError::UnknownClaim);
+    };
+    if !registry_ancestors.contains(&canonical_id) {
         return Err(ClaimsError::UnknownClaim);
     }
 
     match value {
         ClaimValue::Object(object) => {
-            validate_payload_object(registry, registry_paths, claim_id, object, depth)
+            validate_payload_object(registry, registry_ancestors, claim_id, object, depth)
         }
         ClaimValue::Array(values) => {
-            validate_payload_array(registry, registry_paths, claim_id, values, depth)
+            validate_payload_array(registry, registry_ancestors, claim_id, values, depth)
         }
         ClaimValue::Null
         | ClaimValue::Boolean(_)

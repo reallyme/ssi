@@ -22,6 +22,9 @@ pub fn eu_company_policy() -> VpPolicy {
         allow_sd_jwt: true,
         allow_zk: false,
 
+        // Only credentials of this claimset satisfy this profile.
+        allowed_claimsets: Some(vec!["eu.company.v1".into()]),
+
         ..VpPolicy::default()
     }
 }

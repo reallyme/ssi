@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use reallyme_codec::base64::base64_to_bytes;
+use zeroize::Zeroizing;
 
 use crate::{
     ExportedKeySet, KeySet, KeySetError, PrivateKeyMaterial, PublicKeyMultibase,
@@ -21,9 +22,11 @@ impl KeySet {
 
         for (id, private_key_base64) in core::mem::take(&mut exported.private) {
             let id = VerificationMethodId::new(id)?;
-            let private_key = base64_to_bytes(private_key_base64.as_str())
-                .map_err(|_| KeySetError::InvalidPrivateKeyEncoding)?;
-            let private_key = PrivateKeyMaterial::new(private_key)?;
+            let private_key = Zeroizing::new(
+                base64_to_bytes(private_key_base64.as_str())
+                    .map_err(|_| KeySetError::InvalidPrivateKeyEncoding)?,
+            );
+            let private_key = PrivateKeyMaterial::new_zeroizing(private_key)?;
 
             key_set.put_private_material(id, private_key);
         }

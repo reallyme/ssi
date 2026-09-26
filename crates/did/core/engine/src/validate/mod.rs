@@ -4,6 +4,9 @@
 /// Attestation validation for DID core signatures.
 pub mod attestation;
 
+/// Update authority decoded from signed canonical core state.
+mod authority;
+
 /// Canonical core CID and CBOR validation.
 pub mod core;
 
@@ -25,6 +28,9 @@ pub mod domain_response;
 /// Domain verification resolution hooks and entry validation.
 pub mod domain_verification;
 
+/// Resource limits applied to untrusted did:me documents.
+pub mod limits;
+
 /// JSON projection validation against canonical core content.
 pub mod projection;
 
@@ -33,6 +39,9 @@ pub mod service;
 
 /// Top-level did:me document structure validation.
 pub mod structure;
+
+/// did:me update transition validation against the previous core state.
+pub mod transition;
 
 /// Update-policy validation.
 pub mod update_policy;
@@ -69,7 +78,11 @@ pub use domain_binding::{validate_all_domain_bindings, validate_domain_binding};
 
 pub use domain_response::{validate_domain_response, DomainResponse};
 
-pub use did_document::{validate_did_document, FullValidationResult};
+pub use did_document::{
+    validate_did_document, validate_did_document_consistency, FullValidationResult,
+};
+
+pub use transition::validate_did_document_transition;
 
 pub use diagnostic::{
     DidValidationCode, DidValidationIssue, DidValidationLocation, DidValidationSeverity,

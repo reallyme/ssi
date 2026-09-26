@@ -21,12 +21,6 @@ impl MdocDataElementJson {
     pub const fn as_value(&self) -> &JsonValue {
         &self.0
     }
-
-    /// Move the value into another zeroizing identity-data owner.
-    #[must_use]
-    pub fn into_value(mut self) -> JsonValue {
-        core::mem::replace(&mut self.0, JsonValue::Null)
-    }
 }
 
 impl fmt::Debug for MdocDataElementJson {
@@ -52,8 +46,9 @@ impl ZeroizeOnDrop for MdocDataElementJson {}
 /// Decode one already-bounded mdoc element value into a JSON-compatible view.
 ///
 /// CBOR tags are semantic wrappers for values such as full-date and tdate, so
-/// the projection retains their wrapped value. Byte strings become arrays of
-/// unsigned byte numbers. Maps with non-text keys are rejected because DCQL
+/// the projection retains their wrapped value. Byte strings become base64url
+/// text, avoiding the large per-byte allocation cost of JSON number arrays.
+/// Maps with non-text keys are rejected because DCQL
 /// claim paths cannot address them without an ambiguous lossy conversion.
 pub fn decode_mdoc_data_element_json(
     element_value_cbor: &[u8],
@@ -78,11 +73,8 @@ fn cbor_to_json(value: &CborValue) -> Result<JsonValue, MdocEnvelopeError> {
             .map(JsonValue::Number)
             .ok_or_else(projection_error),
         CborValue::Text(value) => Ok(JsonValue::String(value.clone())),
-        CborValue::Bytes(value) => Ok(JsonValue::Array(
-            value
-                .iter()
-                .map(|byte| JsonValue::Number(JsonNumber::from(*byte)))
-                .collect(),
+        CborValue::Bytes(value) => Ok(JsonValue::String(
+            reallyme_codec::base64url::bytes_to_base64url(value),
         )),
         CborValue::Array(values) => values
             .iter()
@@ -120,7 +112,9 @@ fn zeroize_json_value(value: &mut JsonValue) {
                 zeroize_json_value(&mut value);
             }
         }
-        JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) => {}
+        JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) => {
+            *value = JsonValue::Null;
+        }
     }
 }
 

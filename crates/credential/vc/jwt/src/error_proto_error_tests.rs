@@ -28,6 +28,22 @@ fn vc_jwt_errors_map_to_stable_proto_reasons() {
             VcJwtError::MissingField,
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_JWT_MISSING_FIELD,
         ),
+        (
+            VcJwtError::InvalidVerificationTime,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_JWT_INVALID_PAYLOAD,
+        ),
+        (
+            VcJwtError::InvalidTemporalClaim,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_JWT_INVALID_PAYLOAD,
+        ),
+        (
+            VcJwtError::CredentialExpired,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_JWT_INVALID_PAYLOAD,
+        ),
+        (
+            VcJwtError::CredentialNotYetValid,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_JWT_INVALID_PAYLOAD,
+        ),
     ];
 
     for (error, expected) in cases {

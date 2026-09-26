@@ -21,8 +21,12 @@ use crypto_sha2_256::digest as sha2_256_digest;
 use envelopes_jwk::{Jwk, OkpJwk};
 use identity_vc_ietf_sd_jwt::{
     issue_ietf_sd_jwt_vc, verify_ietf_sd_jwt_vc, IetfSdJwtIssueInput, IetfSdJwtJwtType,
+    IetfSdJwtTemporalPolicy,
 };
 use serde_json::{Map, Value};
+
+/// Verifier clock inside every fixture credential's validity window.
+const VERIFY_TEMPORAL_POLICY: IetfSdJwtTemporalPolicy = IetfSdJwtTemporalPolicy::new(1_738_100_100);
 
 mod utils;
 
@@ -107,8 +111,9 @@ fn reference_fixtures_roundtrip_and_verify() {
             .unwrap_or_else(|e| panic!("{name}: issue failed: {e}"));
 
         let compact = issued.to_compact().expect("compact serialization");
-        let verified = verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub)
-            .unwrap_or_else(|e| panic!("{name}: verify failed: {e}"));
+        let verified =
+            verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub, &VERIFY_TEMPORAL_POLICY)
+                .unwrap_or_else(|e| panic!("{name}: verify failed: {e}"));
 
         let payload = decode_payload(&issued.issuer_signed_jwt);
         let payload_obj = payload

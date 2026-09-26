@@ -24,25 +24,28 @@ use identity_presentation_vp_core::model::{
     SdJwtVcPresentation, StatusPurpose as VpStatusPurpose, ZkPresentation, ZkProof,
 };
 use identity_presentation_vp_policy::StatusContext;
-use identity_presentation_vp_sd_jwt::ExpectedKbJwtBinding;
-use identity_presentation_vp_validator::{QeaaContext, VpValidationError};
+use identity_presentation_vp_policy::VpPolicyError;
+use identity_presentation_vp_sd_jwt::{
+    build_sd_jwt_presentation, build_sd_jwt_presentation_with_kb_binding, ExpectedKbJwtBinding,
+    KbJwtBindingInput,
+};
+use identity_presentation_vp_validator::VpValidationError;
 use reallyme_credential_audit::{IdentityProofingLevel, QeaaCompliance};
 
 use crypto_core::Algorithm;
 use crypto_dispatch::generate_keypair;
 use envelopes_jwk::{Jwk, OkpJwk};
-use envelopes_jwt::jwt::{
-    encode_signed_jwt, encode_signed_jwt_with_header_options, JwtHeaderEncodeOptions,
-};
+use envelopes_jwt::jwt::encode_signed_jwt;
+use reallyme_credential::committed::issue::{issue_credential, IssueInput, OsSaltRng};
 use reallyme_credential::committed::model::{
-    AssuranceLevel, ClaimsCommitment, CommitmentLimits, CredentialAlgorithm, CredentialEnvelope,
-    CredentialKind, CredentialStatus, CredentialSubject, DomainTags, HolderBinding, KeyAssurance,
-    KeyReference, PartyReference, PublicKeyRef, PublicKeyRepresentation, RawPublicKeySerialization,
-    Signature as VcSignature,
+    AssuranceLevel, CommitmentLimits, CredentialAlgorithm, CredentialEnvelope, CredentialKind,
+    CredentialStatus, CredentialSubject, DomainTags, HolderBinding, KeyAssurance, KeyReference,
+    PartyReference, PublicKeyRef, PublicKeyRepresentation, RawPublicKeySerialization,
 };
 use reallyme_crypto::sha2::digest as sha2_256_digest;
 
 use std::collections::BTreeMap;
+use zeroize::Zeroizing;
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -83,10 +86,31 @@ fn ed25519_key(did_url: &str, bytes: Vec<u8>) -> PublicKeyRef {
     }
 }
 
-fn real_sd_jwt_presentation_and_crypto_inputs(
+const STATUS_LIST_ID: [u8; 32] = [0x42; 32];
+const ISSUER_DID: &str = "did:test:issuer";
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FixtureHolderBinding {
+    Key,
+    Bearer,
+}
+
+struct CredentialFixture {
+    presentation: Presentation,
+    envelope: CredentialEnvelope,
+    issuer_public_key: Vec<u8>,
+    issuer_jwk: Jwk,
+    issuer_private_key: Zeroizing<Vec<u8>>,
+}
+
+fn issue_fixture(
     now_unix: u64,
-) -> (Presentation, CredentialEnvelope, Vec<u8>) {
-    let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
+    with_qeaa: bool,
+    holder_binding: FixtureHolderBinding,
+    issuer: Option<(Vec<u8>, Zeroizing<Vec<u8>>)>,
+) -> CredentialFixture {
+    let (issuer_pub, issuer_priv) =
+        issuer.unwrap_or_else(|| generate_keypair(Algorithm::Ed25519).unwrap());
     let issuer_jwk = Jwk::Okp(OkpJwk {
         kty: "OKP".into(),
         crv: "Ed25519".into(),
@@ -106,86 +130,129 @@ fn real_sd_jwt_presentation_and_crypto_inputs(
         use_: Some("sig".into()),
     });
 
-    let sd_hash = [7u8; 32];
-    let sd_payload = serde_json::json!({
-        "nbf": 1,
-        "exp": 9_999_999_999u64,
-        "sd_hash": codec_base64url::bytes_to_base64url(sd_hash.as_slice()),
-    });
-    let sd_jwt = encode_signed_jwt(&sd_payload, &issuer_jwk, &issuer_priv).unwrap();
-    let kb_payload = serde_json::json!({
-        "sd_hash": codec_base64url::bytes_to_base64url(sd_hash.as_slice()),
-        "aud": "verifier.example",
-        "nonce": "nonce-123",
-        "iat": now_unix,
-        "exp": now_unix + 300,
-        "cnf": { "jwk": holder_jwk },
-    });
-    let kb_jwt = encode_signed_jwt_with_header_options(
-        &kb_payload,
-        &holder_jwk,
-        &holder_priv,
-        &JwtHeaderEncodeOptions::new(Some("kb+jwt".to_owned())),
-    )
-    .unwrap();
-
-    let status_list_encoded = vec![0u8];
-    let status_list_id = sha2_256_digest(&status_list_encoded).into_bytes();
-
-    let env = CredentialEnvelope {
-        kind: CredentialKind::Pid,
+    let valid_from = i64::try_from(now_unix).unwrap() - 3_600;
+    let valid_until = i64::try_from(now_unix).unwrap() + 3_600;
+    let input = IssueInput {
+        kind: if with_qeaa {
+            CredentialKind::Qeaa
+        } else {
+            CredentialKind::Pid
+        },
         profile_id: "eu.pid.v1".into(),
         assurance: AssuranceLevel::High,
-        issuer_reference: PartyReference::Did("did:test:issuer".into()),
+        issuer_reference: PartyReference::Did(ISSUER_DID.into()),
+        issuer_verification_key: ed25519_key("did:test:issuer#key-1", issuer_pub.clone()),
         issuer_country: "EU".into(),
-        valid_from: now_unix as i64 - 60,
-        valid_until: now_unix as i64 + 3600,
+        valid_from,
+        valid_until,
         status: CredentialStatus {
             status_list_url: "https://example.com/status".into(),
-            status_list_id,
+            status_list_id: STATUS_LIST_ID,
             status_list_index: 0,
             purpose: reallyme_credential::committed::model::StatusPurpose::Revocation,
         },
         subject: CredentialSubject {
             subject_reference: PartyReference::OpaqueIdentifier("subject".into()),
-            holder_binding: HolderBinding::CryptographicKey(ed25519_key(
-                "did:test:subject#key-1",
-                holder_pub,
-            )),
-        },
-        claims_commitment: ClaimsCommitment {
-            merkle_root: vec![9u8; 32],
-            claimset_id: "eu.pid.v1".into(),
-            hash_alg: "sha-256".into(),
-            value_encoding: "RM-CV-JCS-V1".into(),
-            domain_tags: DomainTags {
-                clm: "clm".into(),
-                leaf: "leaf".into(),
-                node: "node".into(),
-            },
-            limits: CommitmentLimits {
-                max_value_len: 2048,
-                salt_len: 16,
+            holder_binding: match holder_binding {
+                FixtureHolderBinding::Key => HolderBinding::CryptographicKey(ed25519_key(
+                    "did:test:subject#key-1",
+                    holder_pub.clone(),
+                )),
+                FixtureHolderBinding::Bearer => HolderBinding::BearerWithoutBinding,
             },
         },
-        qeaa_compliance: None,
-        issuer_signature: VcSignature {
-            verification_key: ed25519_key("did:test:issuer#key-1", issuer_pub.clone()),
-            raw_rs: vec![0u8; 64],
+        claimset_id: "eu.pid.v1".into(),
+        domain_tags: DomainTags {
+            clm: "clm".into(),
+            leaf: "leaf".into(),
+            node: "node".into(),
         },
+        limits: CommitmentLimits {
+            max_value_len: 2048,
+            salt_len: 16,
+        },
+        qeaa_compliance: with_qeaa.then(valid_qeaa),
     };
 
-    (
-        Presentation::SdJwtVc(Box::new(SdJwtVcPresentation {
-            sd_jwt,
-            disclosures: vec![],
-            kb_jwt: Some(kb_jwt),
-            vct: None,
-            envelope_hash: Some(sd_hash),
-        })),
-        env,
-        issuer_pub,
+    let mut claims = BTreeMap::new();
+    claims.insert("age".into(), serde_json::json!(42));
+    let issued = issue_credential(
+        input,
+        &claims,
+        Algorithm::Ed25519,
+        &issuer_priv,
+        &mut OsSaltRng,
     )
+    .unwrap();
+
+    let sd_jwt = issuer_sd_jwt(
+        &issued.subject_bundle.envelope_hash,
+        &issuer_jwk,
+        &issuer_priv,
+    );
+    let presentation = match holder_binding {
+        FixtureHolderBinding::Key => build_sd_jwt_presentation_with_kb_binding(
+            &issued.subject_bundle,
+            sd_jwt,
+            &["/claims/age".into()],
+            &holder_jwk,
+            &holder_priv,
+            KbJwtBindingInput {
+                nonce: "nonce-123",
+                aud: "verifier.example",
+                iat_unix: now_unix,
+            },
+        )
+        .unwrap(),
+        FixtureHolderBinding::Bearer => {
+            build_sd_jwt_presentation(&issued.subject_bundle, sd_jwt, &["/claims/age".into()])
+                .unwrap()
+        }
+    };
+
+    CredentialFixture {
+        presentation: Presentation::SdJwtVc(Box::new(presentation)),
+        envelope: issued.envelope,
+        issuer_public_key: issuer_pub,
+        issuer_jwk,
+        issuer_private_key: issuer_priv,
+    }
+}
+
+fn issuer_sd_jwt(envelope_hash: &[u8], issuer_jwk: &Jwk, issuer_priv: &[u8]) -> String {
+    let sd_payload = serde_json::json!({
+        "nbf": 1,
+        "exp": 9_999_999_999u64,
+        "sd_hash": codec_base64url::bytes_to_base64url(envelope_hash),
+    });
+    encode_signed_jwt(&sd_payload, issuer_jwk, issuer_priv).unwrap()
+}
+
+fn real_sd_jwt_presentation_and_crypto_inputs(
+    now_unix: u64,
+) -> (Presentation, CredentialEnvelope, Vec<u8>) {
+    let fixture = issue_fixture(now_unix, true, FixtureHolderBinding::Key, None);
+    (
+        fixture.presentation,
+        fixture.envelope,
+        fixture.issuer_public_key,
+    )
+}
+
+fn bound_status_list() -> StatusList {
+    StatusList {
+        issuer: ISSUER_DID.to_string(),
+        purpose: StatusPurpose::Revocation,
+        issued_at: 1_719_990_000,
+        next_update: 1_800_000_000,
+        encoded_list: vec![0],
+        length: 1,
+        list_id: Some(STATUS_LIST_ID),
+        signature: StatusListSignature {
+            alg: StatusListAlgorithm::Ed25519,
+            sig_bytes: vec![1, 2, 3],
+        },
+    }
 }
 
 fn expected_sd_jwt_binding(now_unix: u64) -> ExpectedKbJwtBinding<'static> {
@@ -304,21 +371,8 @@ fn web_accepts_valid_pid() {
     let now = 1_720_000_000u64;
     let (pres, envelope, issuer_pk) = real_sd_jwt_presentation_and_crypto_inputs(now);
     let reg = empty_registry("eu.pid.v1");
-    let qeaa = valid_qeaa();
 
-    let status_list = StatusList {
-        issuer: "did:test:issuer".to_string(),
-        purpose: StatusPurpose::Revocation,
-        issued_at: 1_700_000_000,
-        next_update: 1_800_000_000,
-        encoded_list: vec![0],
-        length: 1,
-        list_id: None,
-        signature: StatusListSignature {
-            alg: StatusListAlgorithm::Ed25519,
-            sig_bytes: vec![1, 2, 3],
-        },
-    };
+    let status_list = bound_status_list();
 
     let verifier = AcceptAllStatusVerifier;
 
@@ -333,9 +387,6 @@ fn web_accepts_valid_pid() {
         claims_registry: &reg,
         claimset_id: "eu.pid.v1",
         status: Some(status_ctx),
-        qeaa: QeaaContext {
-            qeaa_from_vc: Some(&qeaa),
-        },
         credential_envelope: Some(&envelope),
         sd_jwt_issuer_public_key: Some(issuer_pk.as_slice()),
         sd_jwt_binding: Some(expected_sd_jwt_binding(now)),
@@ -358,7 +409,6 @@ fn web_rejects_holder_bound_sd_jwt_without_relying_party_binding() {
         claims_registry: &registry,
         claimset_id: "eu.pid.v1",
         status: None,
-        qeaa: QeaaContext { qeaa_from_vc: None },
         credential_envelope: Some(&envelope),
         sd_jwt_issuer_public_key: Some(issuer_public_key.as_slice()),
         sd_jwt_binding: None,
@@ -387,7 +437,6 @@ fn web_rejects_holder_binding_for_a_different_audience() {
         claims_registry: &registry,
         claimset_id: "eu.pid.v1",
         status: None,
-        qeaa: QeaaContext { qeaa_from_vc: None },
         credential_envelope: Some(&envelope),
         sd_jwt_issuer_public_key: Some(issuer_public_key.as_slice()),
         sd_jwt_binding: Some(binding),
@@ -405,22 +454,17 @@ fn web_rejects_holder_binding_for_a_different_audience() {
 #[test]
 fn web_rejects_missing_qeaa() {
     let now = 1_720_000_000u64;
-    let (pres, envelope, issuer_pk) = real_sd_jwt_presentation_and_crypto_inputs(now);
+    // A PID envelope without issuer-signed QEAA evidence; callers can no
+    // longer inject QEAA evidence alongside it.
+    let fixture = issue_fixture(now, false, FixtureHolderBinding::Key, None);
+    let (pres, envelope, issuer_pk) = (
+        fixture.presentation,
+        fixture.envelope,
+        fixture.issuer_public_key,
+    );
     let reg = empty_registry("eu.pid.v1");
 
-    let status_list = StatusList {
-        issuer: "did:test:issuer".to_string(),
-        purpose: StatusPurpose::Revocation,
-        issued_at: 1_700_000_000,
-        next_update: 1_800_000_000,
-        encoded_list: vec![0],
-        length: 1,
-        list_id: None,
-        signature: StatusListSignature {
-            alg: StatusListAlgorithm::Ed25519,
-            sig_bytes: vec![1, 2, 3],
-        },
-    };
+    let status_list = bound_status_list();
 
     let verifier = AcceptAllStatusVerifier;
 
@@ -435,7 +479,6 @@ fn web_rejects_missing_qeaa() {
         claims_registry: &reg,
         claimset_id: "eu.pid.v1",
         status: Some(status_ctx),
-        qeaa: QeaaContext { qeaa_from_vc: None },
         credential_envelope: Some(&envelope),
         sd_jwt_issuer_public_key: Some(issuer_pk.as_slice()),
         sd_jwt_binding: Some(expected_sd_jwt_binding(now)),
@@ -461,7 +504,6 @@ fn web_rejects_unknown_claimset() {
         claims_registry: &reg,
         claimset_id: "unknown.claimset",
         status: None,
-        qeaa: QeaaContext { qeaa_from_vc: None },
         credential_envelope: Some(&envelope),
         sd_jwt_issuer_public_key: Some(issuer_pk.as_slice()),
         sd_jwt_binding: Some(expected_sd_jwt_binding(now)),
@@ -469,7 +511,12 @@ fn web_rejects_unknown_claimset() {
     })
     .unwrap_err();
 
-    assert!(matches!(err, VpValidationError::UnsupportedClaimset));
+    // The envelope is signed for `eu.pid.v1`, so a caller-selected claimset
+    // that differs from it is rejected before policy selection.
+    assert!(matches!(
+        err,
+        VpValidationError::PolicyRejected(errs) if errs == vec![VpPolicyError::ClaimsetNotAllowed]
+    ));
 }
 
 #[test]
@@ -483,7 +530,6 @@ fn web_rejects_dummy_sd_jwt_presentation_crypto_failure() {
         claims_registry: &reg,
         claimset_id: "eu.pid.v1",
         status: None,
-        qeaa: QeaaContext { qeaa_from_vc: None },
         credential_envelope: Some(&envelope),
         sd_jwt_issuer_public_key: Some(issuer_pk.as_slice()),
         sd_jwt_binding: Some(expected_sd_jwt_binding(now)),
@@ -508,7 +554,6 @@ fn web_rejects_dummy_zk_presentation_crypto_failure() {
         claims_registry: &reg,
         claimset_id: "eu.age.v1",
         status: None,
-        qeaa: QeaaContext { qeaa_from_vc: None },
         credential_envelope: None,
         sd_jwt_issuer_public_key: None,
         sd_jwt_binding: None,
@@ -521,4 +566,185 @@ fn web_rejects_dummy_zk_presentation_crypto_failure() {
         VpValidationError::PolicyRejected(errs)
             if errs.iter().any(|e| matches!(e, identity_presentation_vp_policy::VpPolicyError::PresentationFormatNotAllowed))
     ));
+}
+
+fn validate_fixture_with(
+    presentation: &Presentation,
+    envelope: &CredentialEnvelope,
+    issuer_public_key: &[u8],
+    claimset_id: &str,
+    status: Option<StatusContext<'_>>,
+    binding: Option<ExpectedKbJwtBinding<'static>>,
+    now: u64,
+) -> Result<WebValidationResult, VpValidationError> {
+    let registry = empty_registry(claimset_id);
+    validate_web_presentation(WebValidationInput {
+        presentation,
+        claims_registry: &registry,
+        claimset_id,
+        status,
+        credential_envelope: Some(envelope),
+        sd_jwt_issuer_public_key: Some(issuer_public_key),
+        sd_jwt_binding: binding,
+        now_unix: now,
+    })
+}
+
+fn is_rejected_with(
+    result: Result<WebValidationResult, VpValidationError>,
+    expected: VpPolicyError,
+) -> bool {
+    matches!(
+        result,
+        Err(VpValidationError::PolicyRejected(errors)) if errors.contains(&expected)
+    )
+}
+
+#[test]
+fn web_rejects_valid_sd_jwt_paired_with_swapped_envelope() {
+    let now = 1_720_000_000u64;
+    let presented = issue_fixture(now, true, FixtureHolderBinding::Key, None);
+    // Same issuer, genuinely signed, but not the envelope committed by the
+    // presented issuer SD-JWT.
+    let swapped = issue_fixture(
+        now,
+        true,
+        FixtureHolderBinding::Key,
+        Some((
+            presented.issuer_public_key.clone(),
+            presented.issuer_private_key.clone(),
+        )),
+    );
+
+    let result = validate_fixture_with(
+        &presented.presentation,
+        &swapped.envelope,
+        &presented.issuer_public_key,
+        "eu.pid.v1",
+        None,
+        Some(expected_sd_jwt_binding(now)),
+        now,
+    );
+    assert!(is_rejected_with(result, VpPolicyError::ProofInvalid));
+}
+
+#[test]
+fn web_rejects_envelope_signed_for_a_different_claimset() {
+    let now = 1_720_000_000u64;
+    let fixture = issue_fixture(now, true, FixtureHolderBinding::Key, None);
+    let status_list = bound_status_list();
+    let verifier = AcceptAllStatusVerifier;
+
+    let result = validate_fixture_with(
+        &fixture.presentation,
+        &fixture.envelope,
+        &fixture.issuer_public_key,
+        "eu.pid.baseline.v1",
+        Some(StatusContext {
+            list: &status_list,
+            index: 0,
+            verifier: &verifier,
+        }),
+        Some(expected_sd_jwt_binding(now)),
+        now,
+    );
+    assert!(is_rejected_with(result, VpPolicyError::ClaimsetNotAllowed));
+}
+
+#[test]
+fn web_rejects_status_list_not_referenced_by_envelope() {
+    let now = 1_720_000_000u64;
+    let fixture = issue_fixture(now, true, FixtureHolderBinding::Key, None);
+    let verifier = AcceptAllStatusVerifier;
+
+    let mut wrong_list_id = bound_status_list();
+    wrong_list_id.list_id = Some([0x24; 32]);
+    let mut missing_list_id = bound_status_list();
+    missing_list_id.list_id = None;
+    let mut wrong_issuer = bound_status_list();
+    wrong_issuer.issuer = "did:test:other-issuer".into();
+
+    for list in [&wrong_list_id, &missing_list_id, &wrong_issuer] {
+        let result = validate_fixture_with(
+            &fixture.presentation,
+            &fixture.envelope,
+            &fixture.issuer_public_key,
+            "eu.pid.v1",
+            Some(StatusContext {
+                list,
+                index: 0,
+                verifier: &verifier,
+            }),
+            Some(expected_sd_jwt_binding(now)),
+            now,
+        );
+        assert!(matches!(result, Err(VpValidationError::StatusCheckFailed)));
+    }
+}
+
+#[test]
+fn web_rejects_bearer_credential_without_verified_holder_binding() {
+    let now = 1_720_000_000u64;
+    let fixture = issue_fixture(now, true, FixtureHolderBinding::Bearer, None);
+
+    let result = validate_fixture_with(
+        &fixture.presentation,
+        &fixture.envelope,
+        &fixture.issuer_public_key,
+        "eu.pid.v1",
+        None,
+        None,
+        now,
+    );
+    assert!(matches!(result, Err(VpValidationError::InvalidBinding)));
+}
+
+#[test]
+fn web_rejects_binding_evaluated_at_a_different_time() {
+    let now = 1_720_000_000u64;
+    let fixture = issue_fixture(now, true, FixtureHolderBinding::Key, None);
+    let status_list = bound_status_list();
+    let verifier = AcceptAllStatusVerifier;
+
+    let result = validate_fixture_with(
+        &fixture.presentation,
+        &fixture.envelope,
+        &fixture.issuer_public_key,
+        "eu.pid.v1",
+        Some(StatusContext {
+            list: &status_list,
+            index: 0,
+            verifier: &verifier,
+        }),
+        Some(expected_sd_jwt_binding(now + 1)),
+        now,
+    );
+    assert!(is_rejected_with(result, VpPolicyError::ProofInvalid));
+}
+
+#[test]
+fn web_rejects_issuer_sd_jwt_that_does_not_commit_to_envelope() {
+    let now = 1_720_000_000u64;
+    let fixture = issue_fixture(now, true, FixtureHolderBinding::Key, None);
+    // An issuer SD-JWT whose sd_hash does not commit to the envelope.
+    let unrelated_sd_jwt =
+        issuer_sd_jwt(&[7u8; 32], &fixture.issuer_jwk, &fixture.issuer_private_key);
+    let Presentation::SdJwtVc(original) = &fixture.presentation else {
+        panic!("fixture must be SD-JWT");
+    };
+    let mut tampered = original.as_ref().clone();
+    tampered.sd_jwt = unrelated_sd_jwt;
+    tampered.envelope_hash = None;
+    let tampered = Presentation::SdJwtVc(Box::new(tampered));
+
+    let result = validate_fixture_with(
+        &tampered,
+        &fixture.envelope,
+        &fixture.issuer_public_key,
+        "eu.pid.v1",
+        None,
+        Some(expected_sd_jwt_binding(now)),
+        now,
+    );
+    assert!(is_rejected_with(result, VpPolicyError::ProofInvalid));
 }

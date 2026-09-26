@@ -104,19 +104,25 @@ impl AuthenticatedDidWebHostingProvider for MockHostingProvider {
 #[test]
 fn identifier_canonicalization_and_url_derivation_are_strict() {
     assert_eq!(
-        canonicalize_did_web("did:web:EXAMPLE.com%3a3000:user:%2farchive"),
-        Ok("did:web:example.com%3A3000:user:%2Farchive".to_owned())
+        canonicalize_did_web("did:web:EXAMPLE.com%3a3000:user:%7earchive"),
+        Ok("did:web:example.com%3A3000:user:%7Earchive".to_owned())
     );
     assert_eq!(
-        did_web_document_url("did:web:example.com%3A3000:user:%2Farchive"),
-        Ok("https://example.com:3000/user/%2Farchive/did.json".to_owned())
+        did_web_document_url("did:web:example.com%3A3000:user:%7Earchive"),
+        Ok("https://example.com:3000/user/%7Earchive/did.json".to_owned())
+    );
+    // An encoded path separator would split into two segments once decoded.
+    assert_eq!(
+        canonicalize_did_web("did:web:EXAMPLE.com%3a3000:user:%2farchive")
+            .map_err(|error| error.reason),
+        Err(DidWebErrorReason::InvalidPath)
     );
     assert_eq!(
         parse_did_web("did:web:example.com%3a3000").map_err(|error| error.reason),
         Err(DidWebErrorReason::InvalidPort)
     );
     assert_eq!(
-        parse_did_web("did:web:example.com:user:%2farchive").map_err(|error| error.reason),
+        parse_did_web("did:web:example.com:user:%7earchive").map_err(|error| error.reason),
         Err(DidWebErrorReason::InvalidPercentEncoding)
     );
     assert_eq!(
@@ -569,6 +575,104 @@ fn hosting_fails_closed_without_authenticated_provider() {
     assert_eq!(provider.calls.get(), 0);
 }
 
+#[test]
+fn document_validation_rejects_methods_and_services_owned_by_other_dids(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let requested = parse_did_web(DID)?;
+    let foreign_method = format!(
+        r#"{{"id":"{DID}","verificationMethod":[{{"id":"did:web:attacker.example#key-1","type":"Multikey","controller":"{DID}","publicKeyMultibase":"z6MknExample"}}],"authentication":["did:web:attacker.example#key-1"]}}"#
+    );
+    let foreign_service = format!(
+        r#"{{"id":"{DID}","service":[{{"id":"did:web:attacker.example#inbox","type":"MessagingService","serviceEndpoint":"https://attacker.example/inbox"}}]}}"#
+    );
+    let foreign_embedded = format!(
+        r#"{{"id":"{DID}","authentication":[{{"id":"did:web:attacker.example#key-2","type":"Multikey","controller":"{DID}","publicKeyMultibase":"z6MknExample"}}]}}"#
+    );
+    for body in [foreign_method, foreign_service, foreign_embedded] {
+        assert_eq!(
+            parse_and_validate_did_web_document(
+                &requested,
+                body.as_bytes(),
+                DidWebDocumentLimits::default()
+            )
+            .err()
+            .map(|error| error.reason),
+            Some(DidWebErrorReason::DocumentIdentifierMismatch),
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn document_validation_accepts_public_jwk_key_ops() -> Result<(), Box<dyn std::error::Error>> {
+    let requested = parse_did_web(DID)?;
+    let body = format!(
+        r#"{{"id":"{DID}","verificationMethod":[{{"id":"{DID}#key-1","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"OKP","crv":"Ed25519","x":"public","key_ops":["verify"]}}}}]}}"#
+    );
+    parse_and_validate_did_web_document(
+        &requested,
+        body.as_bytes(),
+        DidWebDocumentLimits::default(),
+    )?;
+    Ok(())
+}
+
+#[test]
+fn resolver_rejects_ipv6_transition_prefixes_embedding_private_ipv4(
+) -> Result<(), Box<dyn std::error::Error>> {
+    for address in [
+        // 6to4 for 127.0.0.1
+        "2002:7f00:1::1",
+        // Teredo
+        "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+        // Benchmarking and ORCHIDv2
+        "2001:2::1",
+        "2001:20::1",
+    ] {
+        let address: IpAddr = address.parse()?;
+        let network = MockNetwork::new(
+            vec![vec![address]],
+            vec![success_response(document_json(DID), address)],
+        );
+        assert_resolution_reason(
+            &network,
+            &NeverCancelled,
+            DidWebErrorReason::DestinationDenied,
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn resolver_parses_media_type_case_insensitively() -> Result<(), Box<dyn std::error::Error>> {
+    for content_type in [
+        "Application/DID+JSON",
+        "application/did+json; Charset=UTF-8",
+        "application/did+json ; charset=\"utf-8\"",
+    ] {
+        let mut response = success_response(document_json(DID), PUBLIC_ADDRESS);
+        response.content_type = Some(content_type.to_owned());
+        let network = MockNetwork::new(vec![vec![PUBLIC_ADDRESS]], vec![response]);
+        resolve_did_web_document(
+            &network,
+            &PublicInternetDestinationPolicy,
+            &NeverCancelled,
+            DID,
+            DidWebResolutionPolicy::default(),
+        )?;
+    }
+
+    let mut response = success_response(document_json(DID), PUBLIC_ADDRESS);
+    response.content_type = Some("application/did+json; charset=iso-8859-1".to_owned());
+    let network = MockNetwork::new(vec![vec![PUBLIC_ADDRESS]], vec![response]);
+    assert_resolution_reason(
+        &network,
+        &NeverCancelled,
+        DidWebErrorReason::UnsupportedMediaType,
+    );
+    Ok(())
+}
+
 fn assert_resolution_reason(
     network: &MockNetwork,
     cancellation: &dyn DidWebCancellation,
@@ -616,4 +720,17 @@ fn document_json_with_private_jwk(did: &str) -> Vec<u8> {
         r#"{{"id":"{did}","verificationMethod":[{{"id":"{did}#key-1","type":"JsonWebKey2020","controller":"{did}","publicKeyJwk":{{"kty":"OKP","crv":"Ed25519","x":"public","d":"private"}}}}]}}"#
     )
     .into_bytes()
+}
+
+#[test]
+fn rejects_duplicate_document_members() -> Result<(), Box<dyn std::error::Error>> {
+    let identifier = parse_did_web(DID)?;
+    let bytes = br#"{"id":"did:web:attacker.example","id":"did:web:example.com"}"#;
+    assert_eq!(
+        parse_and_validate_did_web_document(&identifier, bytes, DidWebDocumentLimits::default())
+            .err()
+            .map(|error| error.reason),
+        Some(DidWebErrorReason::InvalidDocument)
+    );
+    Ok(())
 }

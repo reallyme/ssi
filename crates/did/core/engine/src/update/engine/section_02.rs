@@ -247,7 +247,7 @@ pub fn update_engine(
         if let Some(vm_id) = p256_vmid {
             let created = opts.created.as_deref().ok_or(UpdateError::InvalidState)?;
 
-            if let Some(privkey) = current_priv_lookup(&vm_id) {
+            if let Some(privkey) = current_priv_lookup(&vm_id).map(zeroize::Zeroizing::new) {
                 let proof =
                     envelopes_data_integrity::suites::es256_jws_cid_2025::sign_es256_jws_cid_2025(
                         &core_cid, &privkey, &vm_id, created,
@@ -261,7 +261,7 @@ pub fn update_engine(
     }
     // Case 2 (optional): no proof before, but caller explicitly requested one
     else if let (Some(vm_id), Some(created)) = (p256_vmid, opts.created.as_deref()) {
-        if let Some(privkey) = current_priv_lookup(&vm_id) {
+        if let Some(privkey) = current_priv_lookup(&vm_id).map(zeroize::Zeroizing::new) {
             let proof =
                 envelopes_data_integrity::suites::es256_jws_cid_2025::sign_es256_jws_cid_2025(
                     &core_cid, &privkey, &vm_id, created,

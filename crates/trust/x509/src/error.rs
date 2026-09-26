@@ -159,6 +159,14 @@ pub enum X509SignatureFailure {
     BackendFailure,
     #[error("XMLDSig verification is unavailable in this trust lane")]
     XmlDsigUnavailable,
+    /// RFC 5280 Section 4.1.1.2: `tbsCertificate.signature` differs from
+    /// the outer `signatureAlgorithm`.
+    #[error("certificate signature algorithm identifiers do not match")]
+    AlgorithmIdentifierMismatch,
+    /// The certificate carries a path constraint (NameConstraints,
+    /// PolicyConstraints, or InhibitAnyPolicy) this trust lane does not process.
+    #[error("certificate path constraint is unsupported in this trust lane")]
+    UnsupportedPathConstraint,
 }
 
 #[derive(Debug, Clone, Copy, Eq, Error, PartialEq)]
@@ -357,6 +365,17 @@ impl From<X509SignatureFailure> for IdentityCoreErrorReason {
             }
             X509SignatureFailure::XmlDsigUnavailable => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_XMLDSIG_UNAVAILABLE
+            }
+            // A mismatched inner/outer identifier means the signed structure is
+            // not the one the signature value covers under the declared
+            // algorithm; it is reported as an invalid signature.
+            X509SignatureFailure::AlgorithmIdentifierMismatch => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_INVALID_SIGNATURE
+            }
+            // The lane lacks the capability to process the constraint, which
+            // is the same fail-closed class as an unsupported algorithm.
+            X509SignatureFailure::UnsupportedPathConstraint => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_UNSUPPORTED_ALGORITHM
             }
         }
     }

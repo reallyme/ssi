@@ -62,8 +62,12 @@ impl PrivateKeyMaterial {
     }
 }
 
-impl Clone for PrivateKeyMaterial {
-    fn clone(&self) -> Self {
+impl PrivateKeyMaterial {
+    /// Produce an independent zeroizing copy.
+    ///
+    /// Deliberately not exposed as `Clone`: duplicating secret material is
+    /// confined to explicit, crate-internal snapshot operations.
+    pub(crate) fn duplicate(&self) -> Self {
         Self {
             bytes: SecretBox::new(Box::new(Zeroizing::new(
                 self.bytes.expose_secret().to_vec(),

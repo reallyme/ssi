@@ -29,6 +29,7 @@ struct CandidatePath {
 }
 
 struct PathSearch<'a> {
+    leaf: &'a X509Certificate,
     intermediates: Vec<&'a X509Certificate>,
     root: &'a X509Certificate,
     root_index: u16,
@@ -43,8 +44,9 @@ struct PathSearch<'a> {
 /// unordered, attacker-controlled candidate set. Paths are built
 /// deterministically and every candidate failure remains local to that path.
 /// The selected leaf-to-anchor order follows the RFC 5280 §6 certification
-/// path model; policy-screening and backend signature validation remain
-/// separate explicit stages.
+/// path model; policy-screening, backend signature validation, and status
+/// checking remain separate explicit stages, applied in that order so status
+/// is only consulted for a cryptographically authenticated path.
 pub fn evaluate_trust_decision(
     presented: &[X509Certificate],
     cfg: &TrustConfig,
@@ -124,6 +126,26 @@ pub fn evaluate_trust_decision(
             continue;
         }
 
+        // Authenticate the path before consulting status. Revocation and
+        // status evidence describe certificates the path cryptographically
+        // binds; querying it for an unauthenticated path would let a forged
+        // chain surface status results (or status-source traffic) that belong
+        // to a different, genuine path.
+        match sig_verifier.verify_chain(&candidate.chain, cfg.now) {
+            Ok(()) => {}
+            Err(SignatureVerifyError::InvalidSignature) => {
+                push_failure(&mut failures, TrustFailureReason::Signature);
+                continue;
+            }
+            Err(
+                SignatureVerifyError::UnsupportedAlgorithm | SignatureVerifyError::BackendFailure,
+            ) => {
+                saw_indeterminate = true;
+                push_failure(&mut failures, TrustFailureReason::SignatureIndeterminate);
+                continue;
+            }
+        }
+
         let status = evaluate_status(&candidate.chain, cfg, status_checker)?;
         if retained_status.is_empty() || status.outcome == TrustOutcome::Indeterminate {
             retained_status.clone_from(&status.evidence);
@@ -132,16 +154,7 @@ pub fn evaluate_trust_decision(
             push_failure(&mut failures, *failure);
         }
         match status.outcome {
-            TrustOutcome::Trusted => {}
-            TrustOutcome::Rejected => continue,
-            TrustOutcome::Indeterminate => {
-                saw_indeterminate = true;
-                continue;
-            }
-        }
-
-        match sig_verifier.verify_chain(&candidate.chain, cfg.now) {
-            Ok(()) => {
+            TrustOutcome::Trusted => {
                 return Ok(decision(
                     TrustOutcome::Trusted,
                     Some(candidate.chain),
@@ -154,14 +167,9 @@ pub fn evaluate_trust_decision(
                     Vec::new(),
                 ));
             }
-            Err(SignatureVerifyError::InvalidSignature) => {
-                push_failure(&mut failures, TrustFailureReason::Signature);
-            }
-            Err(
-                SignatureVerifyError::UnsupportedAlgorithm | SignatureVerifyError::BackendFailure,
-            ) => {
+            TrustOutcome::Rejected => {}
+            TrustOutcome::Indeterminate => {
                 saw_indeterminate = true;
-                push_failure(&mut failures, TrustFailureReason::SignatureIndeterminate);
             }
         }
     }

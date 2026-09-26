@@ -7,19 +7,27 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use identity_trust_tsl_xmlsec::{
-    verify_tsl_xmldsig_xmlsec, verify_tsl_xmldsig_xmlsec_with_exact_signer,
-    TslXmlSignatureAlgorithm, XmlSecError, XmlSecPolicyViolationReason,
+    verify_tsl_xmldsig_xmlsec, verify_tsl_xmldsig_xmlsec_with_exact_signers,
+    TslXmlSignatureAlgorithm, XmlSecError, XmlSecPolicyViolationReason, XmlSecTrustRootErrorReason,
 };
 
-use std::io::Write;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::process::Command;
-use tempfile::NamedTempFile;
 
 const SIGNED_TSL_XML: &str = include_str!("../../tsl-openssl/tests/fixtures/signed_tsl.xml");
 const WRONG_CERTIFICATE_DIGEST_XML: &str =
     include_str!("../../tsl-openssl/tests/fixtures/signed_wrong_signing_cert_digest.xml");
-const TRUST_ROOT_PEM: &[u8] = include_bytes!("../../tsl-openssl/tests/fixtures/cert.pem");
+const TRUST_ROOT_PEM: &str = include_str!("../../tsl-openssl/tests/fixtures/cert.pem");
+/// A valid CA certificate that did not issue the fixture signer.
+const UNRELATED_ROOT_DER: &[u8] = include_bytes!("fixtures/unrelated_root.der");
+
+fn fixture_root_der() -> Vec<u8> {
+    let body: String = TRUST_ROOT_PEM
+        .lines()
+        .filter(|line| !line.starts_with("-----"))
+        .collect();
+    codec_base64::base64_to_bytes(&body).expect("fixture PEM must carry base64 DER")
+}
 
 fn verification_time() -> time::OffsetDateTime {
     time::OffsetDateTime::from_unix_timestamp(1_800_000_000).unwrap()
@@ -74,16 +82,11 @@ fn resident_set_kibibytes() -> u64 {
 
 #[test]
 fn ffi_verifies_signed_fixture() {
-    let mut pem = NamedTempFile::new().unwrap();
-    pem.write_all(TRUST_ROOT_PEM).unwrap();
-    pem.flush().unwrap();
+    let root = fixture_root_der();
 
-    let verified = verify_tsl_xmldsig_xmlsec(
-        SIGNED_TSL_XML,
-        pem.path().to_str().unwrap(),
-        verification_time(),
-    )
-    .expect("xmlsec ffi must verify signed fixture");
+    let verified =
+        verify_tsl_xmldsig_xmlsec(SIGNED_TSL_XML, &[root.as_slice()], verification_time())
+            .expect("xmlsec ffi must verify signed fixture");
     assert!(!verified.signer_certificate_der().is_empty());
     assert!(verified
         .key_info_certificates_der()
@@ -95,29 +98,33 @@ fn ffi_verifies_signed_fixture() {
     );
 }
 
-#[test]
-fn exact_signer_entry_point_rejects_a_different_certificate() {
-    let mut pem = NamedTempFile::new().unwrap();
-    pem.write_all(TRUST_ROOT_PEM).unwrap();
-    pem.flush().unwrap();
+fn fixture_signer_der() -> Vec<u8> {
+    let root = fixture_root_der();
+    verify_tsl_xmldsig_xmlsec(SIGNED_TSL_XML, &[root.as_slice()], verification_time())
+        .expect("fixture signer must be available for exact-binding regressions")
+        .signer_certificate_der()
+        .to_vec()
+}
 
-    let verified = verify_tsl_xmldsig_xmlsec(
-        SIGNED_TSL_XML,
-        pem.path().to_str().unwrap(),
-        verification_time(),
-    )
-    .expect("fixture signer must be available for exact-binding regression");
-    let mut different_signer = verified.signer_certificate_der().to_vec();
-    let first = different_signer
+fn different_certificate(certificate: &[u8]) -> Vec<u8> {
+    let mut different = certificate.to_vec();
+    let first = different
         .first_mut()
         .expect("fixture signer DER must not be empty");
     *first ^= 1;
+    different
+}
 
-    let error = verify_tsl_xmldsig_xmlsec_with_exact_signer(
+#[test]
+fn exact_signers_entry_point_rejects_a_different_certificate() {
+    let root = fixture_root_der();
+    let different_signer = different_certificate(&fixture_signer_der());
+
+    let error = verify_tsl_xmldsig_xmlsec_with_exact_signers(
         SIGNED_TSL_XML,
-        pem.path().to_str().unwrap(),
+        &[root.as_slice()],
         verification_time(),
-        &different_signer,
+        &[different_signer.as_slice()],
     )
     .expect_err("a different externally authenticated certificate must fail closed");
     assert!(matches!(
@@ -127,35 +134,164 @@ fn exact_signer_entry_point_rejects_a_different_certificate() {
 }
 
 #[test]
+fn exact_signers_entry_point_rejects_an_empty_candidate_list() {
+    let root = fixture_root_der();
+
+    let error = verify_tsl_xmldsig_xmlsec_with_exact_signers(
+        SIGNED_TSL_XML,
+        &[root.as_slice()],
+        verification_time(),
+        &[],
+    )
+    .expect_err("an empty signer candidate list must fail closed");
+    assert!(matches!(
+        error,
+        XmlSecError::PolicyViolation(XmlSecPolicyViolationReason::SignerBindingMismatch)
+    ));
+}
+
+#[test]
+fn exact_signers_entry_point_accepts_any_listed_rollover_candidate() {
+    let root = fixture_root_der();
+    let signer = fixture_signer_der();
+    let different_signer = different_certificate(&signer);
+
+    // Rollover: the actual signer is the second candidate. A single native
+    // verification must bind to whichever candidate matches.
+    let verified = verify_tsl_xmldsig_xmlsec_with_exact_signers(
+        SIGNED_TSL_XML,
+        &[root.as_slice()],
+        verification_time(),
+        &[different_signer.as_slice(), signer.as_slice()],
+    )
+    .expect("the listed actual signer must verify");
+    assert_eq!(verified.signer_certificate_der(), signer.as_slice());
+}
+
+#[test]
+fn exact_signers_entry_point_does_not_require_the_signer_as_a_path_root() {
+    let signer = fixture_signer_der();
+
+    // Exact-leaf mode binds trust to the byte-identical signer rather than to
+    // an XMLSec certificate path, so an unrelated anchor does not block it.
+    let verified = verify_tsl_xmldsig_xmlsec_with_exact_signers(
+        SIGNED_TSL_XML,
+        &[UNRELATED_ROOT_DER],
+        verification_time(),
+        &[signer.as_slice()],
+    )
+    .expect("an exactly pinned signer must verify without a path root");
+    assert_eq!(verified.signer_certificate_der(), signer.as_slice());
+}
+
+#[test]
+fn ffi_trusts_a_signer_anchored_by_the_second_of_two_roots() {
+    // Regression: roots used to be concatenated into one PEM file of which the
+    // backend read only the first certificate, silently dropping later roots.
+    let root = fixture_root_der();
+
+    let verified = verify_tsl_xmldsig_xmlsec(
+        SIGNED_TSL_XML,
+        &[UNRELATED_ROOT_DER, root.as_slice()],
+        verification_time(),
+    )
+    .expect("a signer anchored by the second trusted root must verify");
+    assert_eq!(
+        verified.signature_algorithm(),
+        TslXmlSignatureAlgorithm::RsaSha256
+    );
+}
+
+#[test]
+fn ffi_trusts_a_signer_anchored_by_the_first_of_two_roots() {
+    let root = fixture_root_der();
+
+    verify_tsl_xmldsig_xmlsec(
+        SIGNED_TSL_XML,
+        &[root.as_slice(), UNRELATED_ROOT_DER],
+        verification_time(),
+    )
+    .expect("a signer anchored by the first trusted root must verify");
+}
+
+#[test]
+fn ffi_rejects_a_signer_without_a_trusted_root() {
+    let error =
+        verify_tsl_xmldsig_xmlsec(SIGNED_TSL_XML, &[UNRELATED_ROOT_DER], verification_time())
+            .expect_err("an unanchored signer must fail closed");
+    assert!(matches!(error, XmlSecError::InvalidSignature));
+}
+
+#[test]
+fn ffi_rejects_malformed_trust_root_der() {
+    let malformed: &[u8] = &[0x30, 0x03, 0x02, 0x01];
+    let root = fixture_root_der();
+
+    let error = verify_tsl_xmldsig_xmlsec(
+        SIGNED_TSL_XML,
+        &[root.as_slice(), malformed],
+        verification_time(),
+    )
+    .expect_err("a malformed trust root must fail closed");
+    assert!(matches!(
+        error,
+        XmlSecError::TrustRoots(XmlSecTrustRootErrorReason::InvalidCertificateDer)
+    ));
+}
+
+#[test]
+fn concurrent_verification_is_serialized_and_deterministic() {
+    const THREADS: usize = 8;
+    let root = fixture_root_der();
+    let tampered = tampered_signature_xml();
+
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..THREADS)
+            .map(|index| {
+                let root = root.as_slice();
+                let tampered = tampered.as_str();
+                scope.spawn(move || {
+                    if index % 2 == 0 {
+                        verify_tsl_xmldsig_xmlsec(SIGNED_TSL_XML, &[root], verification_time())
+                            .map(|_| ())
+                    } else {
+                        match verify_tsl_xmldsig_xmlsec(tampered, &[root], verification_time()) {
+                            Err(XmlSecError::InvalidSignature) => Ok(()),
+                            Err(error) => Err(error),
+                            Ok(_) => Err(XmlSecError::Internal),
+                        }
+                    }
+                })
+            })
+            .collect();
+        for worker in workers {
+            assert!(worker.join().expect("worker must not panic").is_ok());
+        }
+    });
+}
+
+#[test]
 fn ffi_uses_the_caller_selected_certificate_validation_time() {
-    let mut pem = NamedTempFile::new().unwrap();
-    pem.write_all(TRUST_ROOT_PEM).unwrap();
-    pem.flush().unwrap();
+    let root = fixture_root_der();
 
     // The fixture certificate expires in 2031. A later evaluation must fail
     // even when the machine clock is inside the certificate validity window.
     let after_certificate_expiry =
         time::OffsetDateTime::from_unix_timestamp(2_000_000_000).unwrap();
-    let error = verify_tsl_xmldsig_xmlsec(
-        SIGNED_TSL_XML,
-        pem.path().to_str().unwrap(),
-        after_certificate_expiry,
-    )
-    .unwrap_err();
+    let error =
+        verify_tsl_xmldsig_xmlsec(SIGNED_TSL_XML, &[root.as_slice()], after_certificate_expiry)
+            .unwrap_err();
 
     assert!(matches!(error, XmlSecError::InvalidSignature));
 }
 
 #[test]
 fn ffi_rejects_tampered_fixture() {
-    let mut pem = NamedTempFile::new().unwrap();
-    pem.write_all(TRUST_ROOT_PEM).unwrap();
-    pem.flush().unwrap();
+    let root = fixture_root_der();
 
     let tampered = SIGNED_TSL_XML.replace("TrustServiceStatusList", "TrustServiceStatusListX");
     let err =
-        verify_tsl_xmldsig_xmlsec(&tampered, pem.path().to_str().unwrap(), verification_time())
-            .unwrap_err();
+        verify_tsl_xmldsig_xmlsec(&tampered, &[root.as_slice()], verification_time()).unwrap_err();
 
     // Exact error may vary; any error is acceptable here.
     let _ = err;
@@ -171,19 +307,17 @@ fn repeated_positive_and_tampered_verification_has_stable_resources() {
     // 64 MiB ceiling tolerates allocator noise while still catching that leak.
     const MAX_RESIDENT_GROWTH_KIB: u64 = 64 * 1024;
 
-    let mut pem = NamedTempFile::new().unwrap();
-    pem.write_all(TRUST_ROOT_PEM).unwrap();
-    pem.flush().unwrap();
-    let trusted_pem_path = pem.path().to_str().unwrap();
+    let root = fixture_root_der();
+    let trusted_roots: &[&[u8]] = &[root.as_slice()];
     let tampered = tampered_signature_xml();
 
     let exercise_both_paths = || {
         let verified =
-            verify_tsl_xmldsig_xmlsec(SIGNED_TSL_XML, trusted_pem_path, verification_time())
+            verify_tsl_xmldsig_xmlsec(SIGNED_TSL_XML, trusted_roots, verification_time())
                 .expect("signed fixture must verify repeatedly");
         drop(verified);
         assert!(matches!(
-            verify_tsl_xmldsig_xmlsec(&tampered, trusted_pem_path, verification_time()),
+            verify_tsl_xmldsig_xmlsec(&tampered, trusted_roots, verification_time()),
             Err(XmlSecError::InvalidSignature)
         ));
     };
@@ -205,13 +339,11 @@ fn repeated_positive_and_tampered_verification_has_stable_resources() {
 
 #[test]
 fn ffi_rejects_valid_signature_with_substituted_signing_certificate_reference() {
-    let mut pem = NamedTempFile::new().unwrap();
-    pem.write_all(TRUST_ROOT_PEM).unwrap();
-    pem.flush().unwrap();
+    let root = fixture_root_der();
 
     let error = verify_tsl_xmldsig_xmlsec(
         WRONG_CERTIFICATE_DIGEST_XML,
-        pem.path().to_str().unwrap(),
+        &[root.as_slice()],
         verification_time(),
     )
     .unwrap_err();
@@ -223,9 +355,7 @@ fn ffi_rejects_valid_signature_with_substituted_signing_certificate_reference() 
 
 #[test]
 fn ffi_rejects_document_that_violates_pinned_etsi_schema() {
-    let mut pem = NamedTempFile::new().unwrap();
-    pem.write_all(TRUST_ROOT_PEM).unwrap();
-    pem.flush().unwrap();
+    let root = fixture_root_der();
 
     // Removing the address violates both the pinned TS 119 612 v2.4.1 schema
     // and the portable semantic projection. The native verifier must still
@@ -238,7 +368,7 @@ fn ffi_rejects_document_that_violates_pinned_etsi_schema() {
 
     let error = verify_tsl_xmldsig_xmlsec(
         schema_invalid.as_str(),
-        pem.path().to_str().unwrap(),
+        &[root.as_slice()],
         verification_time(),
     )
     .unwrap_err();

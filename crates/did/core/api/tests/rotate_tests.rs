@@ -16,7 +16,10 @@ use reallyme_did_api::{
         RekeyRelationship,
     },
     update::{update_did, UpdateConfig},
-    validate::{validate_did, DomainVerificationEnv},
+    validate::{
+        validate_did, validate_did_chain, validate_did_transition, DidValidationCode,
+        DomainVerificationEnv,
+    },
     CreateConfig,
 };
 
@@ -71,7 +74,22 @@ fn rotate_single_key_changes_public_key_without_di_proof() {
     assert_eq!(doc2.prev, Some(doc1.current_core.clone()));
     assert!(doc2.data_integrity_proof.is_none());
 
-    let validation = validate_did(
+    // Standalone validation of a non-genesis document fails closed.
+    let standalone = validate_did(
+        &doc2,
+        DomainVerificationEnv {
+            resolve_txt: None,
+            fetch_url: None,
+        },
+    );
+    assert!(!standalone.ok);
+    assert!(standalone
+        .errors
+        .iter()
+        .any(|issue| issue.code == DidValidationCode::TransitionAuthorityUnverified));
+
+    let validation = validate_did_transition(
+        &doc1,
         &doc2,
         DomainVerificationEnv {
             resolve_txt: None,
@@ -230,6 +248,20 @@ fn rotate_all_keys_rekeys_every_verification_method() {
     for (id, old_public) in before {
         assert_ne!(ks2.get_public(&id).unwrap(), old_public, "{id} must rekey");
     }
+
+    // Every update key was replaced, so the new core must be attested by the
+    // previous keys and verified against the previous state.
+    let validation = validate_did_transition(&doc1, &doc2, no_domain_env());
+    assert!(validation.ok, "{:?}", validation.errors);
+    let chain = validate_did_chain(&[doc1, doc2], no_domain_env());
+    assert!(chain.ok, "{:?}", chain.errors);
+}
+
+fn no_domain_env() -> DomainVerificationEnv<'static> {
+    DomainVerificationEnv {
+        resolve_txt: None,
+        fetch_url: None,
+    }
 }
 
 #[test]
@@ -368,6 +400,9 @@ fn replace_compromised_keys_uses_remaining_update_authority() {
         .attestations
         .iter()
         .any(|attestation| attestation.vm == "#ed25519"));
+
+    let chain = validate_did_chain(&[doc1, doc2, doc3], no_domain_env());
+    assert!(chain.ok, "{:?}", chain.errors);
 }
 
 #[test]

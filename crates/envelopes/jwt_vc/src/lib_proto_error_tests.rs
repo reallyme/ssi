@@ -23,6 +23,22 @@ fn jwt_vc_envelope_errors_map_to_stable_proto_reasons() {
                 JwtVcEnvelopeError::Jwt,
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_JWT,
             ),
+            (
+                JwtVcEnvelopeError::InvalidVerificationTime,
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_INVALID_INPUT,
+            ),
+            (
+                JwtVcEnvelopeError::InvalidTemporalClaim,
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_INVALID_PAYLOAD,
+            ),
+            (
+                JwtVcEnvelopeError::CredentialExpired,
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_INVALID_PAYLOAD,
+            ),
+            (
+                JwtVcEnvelopeError::CredentialNotYetValid,
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_INVALID_PAYLOAD,
+            ),
         ];
 
     for (error, expected) in cases {

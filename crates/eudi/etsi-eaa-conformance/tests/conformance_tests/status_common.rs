@@ -38,6 +38,7 @@ fn validates_eu_mdoc_status_list_token_and_unique_reference() {
             index: 17,
         },
         content_type: "application/statuslist+cwt",
+        issued_at: 1_799_999_000,
         expires_at: 1_900_000_000,
         verified_at: 1_800_000_000,
         time_to_live: Some(3_600),
@@ -66,6 +67,7 @@ fn rejects_correlatable_eu_mdoc_status_reference() {
             identifier: &[0x01, 0x02],
         },
         content_type: "application/identifierlist+cwt",
+        issued_at: 1_799_999_000,
         expires_at: 1_900_000_000,
         verified_at: 1_800_000_000,
         time_to_live: None,
@@ -93,6 +95,7 @@ fn rejects_identifier_list_that_contains_status_list_claim() {
             identifier: &[0x03, 0x04],
         },
         content_type: "application/identifierlist+cwt",
+        issued_at: 1_799_999_000,
         expires_at: 1_900_000_000,
         verified_at: 1_800_000_000,
         time_to_live: None,
@@ -110,6 +113,75 @@ fn rejects_identifier_list_that_contains_status_list_claim() {
         validate_eu_mdoc_status(&facts, &[]),
         Err(ConformanceError::InvalidEuMdocStatusProfile)
     );
+}
+
+fn status_list_facts(uri: &str, index: u64) -> EuMdocStatusTokenFacts<'_> {
+    EuMdocStatusTokenFacts {
+        reference: MdocStatusCorrelationKey::StatusList { uri, index },
+        content_type: "application/statuslist+cwt",
+        issued_at: 1_799_999_000,
+        expires_at: 1_900_000_000,
+        verified_at: 1_800_000_000,
+        time_to_live: Some(3_600),
+        algorithm: EuMdocStatusAlgorithm::Es256,
+        protected_x5chain_present: true,
+        signature_and_certificate_binding_valid: true,
+        bits_per_status: Some(1),
+        status_list_claim_present: true,
+        identifier_list_claim_65530_present: false,
+        binary_revocation_only: true,
+        irreversible_revocation: true,
+    }
+}
+
+#[test]
+fn rejects_correlatable_eu_mdoc_status_reference_after_uri_normalization() {
+    let facts = status_list_facts("https://status.example/lists/42", 17);
+    for prior_uri in [
+        "https://STATUS.example/lists/42",
+        "https://status.example:443/lists/42",
+        "HTTPS://status.example/lists/./42",
+    ] {
+        let prior = [MdocStatusCorrelationKey::StatusList {
+            uri: prior_uri,
+            index: 17,
+        }];
+        assert_eq!(
+            validate_eu_mdoc_status(&facts, &prior),
+            Err(ConformanceError::CorrelatableMdocStatusReference)
+        );
+    }
+
+    let distinct = [MdocStatusCorrelationKey::StatusList {
+        uri: "https://status.example/lists/43",
+        index: 17,
+    }];
+    assert_eq!(validate_eu_mdoc_status(&facts, &distinct), Ok(()));
+}
+
+#[test]
+fn rejects_eu_mdoc_status_token_with_invalid_issued_at_or_stale_ttl() {
+    let future_issued = EuMdocStatusTokenFacts {
+        issued_at: 1_800_000_001,
+        ..status_list_facts("https://status.example/lists/42", 17)
+    };
+    let stale = EuMdocStatusTokenFacts {
+        issued_at: 1_799_996_400,
+        ..status_list_facts("https://status.example/lists/42", 17)
+    };
+
+    for facts in [future_issued, stale] {
+        assert_eq!(
+            validate_eu_mdoc_status(&facts, &[]),
+            Err(ConformanceError::InvalidEuMdocStatusProfile)
+        );
+    }
+
+    let saturating_ttl = EuMdocStatusTokenFacts {
+        time_to_live: Some(u64::MAX),
+        ..status_list_facts("https://status.example/lists/42", 17)
+    };
+    assert_eq!(validate_eu_mdoc_status(&saturating_ttl, &[]), Ok(()));
 }
 
 #[test]

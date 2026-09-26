@@ -6,12 +6,18 @@
 #![cfg(all(feature = "xmlsec-ffi", not(target_os = "macos")))]
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use identity_trust_tsl_xmlsec::verify_tsl_xmldsig_xmlsec;
-use std::io::Write;
-use tempfile::NamedTempFile;
+use identity_trust_tsl_xmlsec::{verify_tsl_xmldsig_xmlsec, XmlSecError};
 
 const SIGNED_TSL_XML: &str = include_str!("../../tsl-openssl/tests/fixtures/signed_tsl.xml");
-const TRUST_ROOT_PEM: &[u8] = include_bytes!("../../tsl-openssl/tests/fixtures/cert.pem");
+const TRUST_ROOT_PEM: &str = include_str!("../../tsl-openssl/tests/fixtures/cert.pem");
+
+fn fixture_root_der() -> Vec<u8> {
+    let body: String = TRUST_ROOT_PEM
+        .lines()
+        .filter(|line| !line.starts_with("-----"))
+        .collect();
+    codec_base64::base64_to_bytes(&body).unwrap()
+}
 
 fn verification_time() -> time::OffsetDateTime {
     time::OffsetDateTime::from_unix_timestamp(1_800_000_000).unwrap()
@@ -19,9 +25,7 @@ fn verification_time() -> time::OffsetDateTime {
 
 #[test]
 fn ffi_rejects_modified_signature_value() {
-    let mut pem = NamedTempFile::new().unwrap();
-    pem.write_all(TRUST_ROOT_PEM).unwrap();
-    pem.flush().unwrap();
+    let root = fixture_root_der();
 
     let start = SIGNED_TSL_XML
         .find("<ds:SignatureValue>")
@@ -47,7 +51,7 @@ fn ffi_rejects_modified_signature_value() {
         &SIGNED_TSL_XML[end..]
     );
 
-    let _err =
-        verify_tsl_xmldsig_xmlsec(&mutated, pem.path().to_str().unwrap(), verification_time())
-            .unwrap_err();
+    let error =
+        verify_tsl_xmldsig_xmlsec(&mutated, &[root.as_slice()], verification_time()).unwrap_err();
+    assert!(matches!(error, XmlSecError::InvalidSignature));
 }

@@ -16,7 +16,7 @@ across the ReallyMe stack. It defines protocol-neutral models and operations
 for credentials, presentations, claims, DIDs, trust, status, and selective
 disclosure.
 
-Credential formats including SD-JWT, mdoc, JWT-VC, and W3C Data Integrity are
+Credential formats including SD-JWT, mdoc, and JWT-VC are
 implemented here independently of issuance and presentation protocols.
 OpenID4VCI and OpenID4VP build on these capabilities without duplicating
 credential, trust, or disclosure logic.
@@ -123,8 +123,9 @@ into application-facing artifacts rather than loading independent runtimes.
 | Standard or profile | SSI responsibility |
 | --- | --- |
 | RFC 9901 — Selective Disclosure for JWTs (SD-JWT) | Disclosure construction, parsing, key binding, presentation, and validation policy |
-| ISO/IEC 18013-5 mdoc and mDL | Issuer-signed documents, DeviceResponse construction, issuer authentication, and DeviceAuth verification |
-| W3C Verifiable Credentials Data Model 2.0 | Protocol-neutral credential and presentation semantics plus Data Integrity dispatch |
+| ISO/IEC 18013-5:2021 mdoc and mDL | Issuer-signed documents, DeviceResponse construction, issuer authentication, and DeviceAuth verification |
+| W3C Verifiable Credentials Data Model 2.0 | Protocol-neutral credential and presentation semantics |
+| ReallyMe `did:me` proof | Dispatch and validation for the ReallyMe-defined `es256-jws-cid-2025` proof suite; this is not presented as a general W3C Data Integrity cryptosuite implementation |
 | W3C Decentralized Identifiers (DIDs) v1.0 | Method-neutral DID document types, resolution boundaries, and pluggable DID methods |
 | IETF Token Status List draft-21 | JWT and CWT status-evidence validation with bounded inputs |
 | ETSI EAA and EU PID profiles | Typed conformance policy and requirement evidence used by eIDAS-aligned applications |

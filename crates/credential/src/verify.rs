@@ -4,7 +4,8 @@
 
 use crate::{
     validate_credential_envelope, verify_credential_issuer_signature, CredentialEnvelope,
-    CredentialError, CredentialIssuerVerifier, CredentialStatusReason,
+    CredentialError, CredentialInvalidReason, CredentialIssuerVerifier, CredentialStatusReason,
+    CredentialValidityReason,
 };
 use reallyme_credential_status::{
     verify_status, CredentialStatusError, CredentialStatusInvalidReason, StatusList,
@@ -103,8 +104,12 @@ pub struct CredentialStatusListPolicyStatusInput<'a> {
 }
 
 /// Verify issuer signature and status-list evidence for one credential.
+///
+/// The credential's own validity window is enforced against `now_unix` after
+/// the issuer signature verifies, so the checked timestamps are authenticated.
 pub fn verify_credential(input: &CredentialVerificationInput<'_>) -> Result<(), CredentialError> {
     verify_credential_issuer_signature(input.envelope, input.issuer_verifier)?;
+    verify_credential_validity_window(input.envelope, input.now_unix)?;
     verify_credential_status(
         input.envelope,
         input.status_list,
@@ -114,10 +119,14 @@ pub fn verify_credential(input: &CredentialVerificationInput<'_>) -> Result<(), 
 }
 
 /// Verify issuer signature and composed revocation evidence for one credential.
+///
+/// The credential's own validity window is enforced against `now_unix` after
+/// the issuer signature verifies.
 pub fn verify_credential_with_revocation(
     input: &CredentialRevocationVerificationInput<'_>,
 ) -> Result<(), CredentialError> {
     verify_credential_issuer_signature(input.envelope, input.issuer_verifier)?;
+    verify_credential_validity_window(input.envelope, input.now_unix)?;
     verify_credential_revocation_status(
         input.envelope,
         input.status_checker,
@@ -127,10 +136,14 @@ pub fn verify_credential_with_revocation(
 }
 
 /// Verify issuer signature and a status-list source inside a composite revocation policy.
+///
+/// The credential's own validity window is enforced against the policy's
+/// `now_unix` after the issuer signature verifies.
 pub fn verify_credential_with_statuslist_policy(
     input: &CredentialStatusListPolicyInput<'_>,
 ) -> Result<(), CredentialError> {
     verify_credential_issuer_signature(input.envelope, input.issuer_verifier)?;
+    verify_credential_validity_window(input.envelope, input.policy.now_unix)?;
     verify_credential_status_with_policy(&CredentialStatusListPolicyStatusInput {
         envelope: input.envelope,
         policy: input.policy.clone(),
@@ -197,6 +210,33 @@ pub fn verify_credential_status_with_policy(
     checker
         .check(input.certificate, checker.policy.now_unix)
         .map_err(map_revocation_status_error)
+}
+
+/// Reject a credential outside its inclusive-start, exclusive-end validity window.
+fn verify_credential_validity_window(
+    envelope: &CredentialEnvelope,
+    now_unix: u64,
+) -> Result<(), CredentialError> {
+    let valid_from = u64::try_from(envelope.valid_from).map_err(|_| {
+        CredentialError::InvalidInput(CredentialInvalidReason::InvalidValidityWindow)
+    })?;
+    let valid_until = u64::try_from(envelope.valid_until).map_err(|_| {
+        CredentialError::InvalidInput(CredentialInvalidReason::InvalidValidityWindow)
+    })?;
+    if valid_until <= valid_from {
+        return Err(CredentialError::InvalidInput(
+            CredentialInvalidReason::InvalidValidityWindow,
+        ));
+    }
+    if now_unix < valid_from {
+        return Err(CredentialError::Validity(
+            CredentialValidityReason::NotYetValid,
+        ));
+    }
+    if now_unix >= valid_until {
+        return Err(CredentialError::Validity(CredentialValidityReason::Expired));
+    }
+    Ok(())
 }
 
 fn validate_status_pointer(

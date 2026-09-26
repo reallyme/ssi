@@ -22,9 +22,10 @@ pub use reallyme_credential::{
     CredentialIssuerVerifier, CredentialKind, CredentialProtoField, CredentialProtoReason,
     CredentialRevocationVerificationInput, CredentialSignatureReason, CredentialStatus,
     CredentialStatusListPolicyInput, CredentialStatusListPolicyStatusInput, CredentialStatusReason,
-    CredentialSubject, CredentialVerificationInput, DispatchCredentialIssuerSigner,
-    DispatchCredentialIssuerVerifier, UnixSeconds, MAX_CREDENTIAL_COUNTRY_BYTES,
-    MAX_CREDENTIAL_TEXT_BYTES, MAX_PUBLIC_KEY_BYTES, MAX_STATUS_LIST_URL_BYTES,
+    CredentialSubject, CredentialValidityReason, CredentialVerificationInput,
+    DispatchCredentialIssuerSigner, DispatchCredentialIssuerVerifier, UnixSeconds,
+    MAX_CREDENTIAL_COUNTRY_BYTES, MAX_CREDENTIAL_TEXT_BYTES, MAX_PUBLIC_KEY_BYTES,
+    MAX_STATUS_LIST_URL_BYTES,
 };
 
 #[cfg(feature = "credential-proto")]

@@ -28,9 +28,13 @@ fn build_merkle(mut leaves: Vec<Hash32>, node_tag: &[u8]) -> Result<MerkleBuild,
         let cur = levels.last().ok_or(VcError::InvalidCredential)?;
         let mut nxt = Vec::with_capacity(cur.len().div_ceil(2));
 
-        for i in (0..cur.len()).step_by(2) {
-            let l = &cur[i];
-            let r = &cur[i + 1];
+        // Levels are padded to a power of two, so every node has a right
+        // sibling. A remainder would indicate a construction invariant breach.
+        let (pairs, remainder) = cur.as_chunks::<2>();
+        if !remainder.is_empty() {
+            return Err(VcError::InvalidCredential);
+        }
+        for [l, r] in pairs {
             nxt.push(node_digest(node_tag, l, r)?);
         }
 
@@ -51,11 +55,11 @@ fn build_merkle(mut leaves: Vec<Hash32>, node_tag: &[u8]) -> Result<MerkleBuild,
         let mut i = idx;
 
         for lvl in levels.iter().take(depth) {
-            let sib = if (i ^ 1) < lvl.len() {
-                lvl[i ^ 1]
-            } else {
-                lvl[i]
-            };
+            let sib = lvl
+                .get(i ^ 1)
+                .or_else(|| lvl.get(i))
+                .copied()
+                .ok_or(VcError::InvalidCredential)?;
             path.push(sib);
             i >>= 1;
         }
@@ -176,8 +180,11 @@ impl SaltRng for DeterministicRng {
     }
 }
 
-fn generate_nonzero_salt<R: SaltRng + ?Sized>(rng: &mut R, len: usize) -> Result<Vec<u8>, VcError> {
-    let mut salt = vec![0u8; len];
+fn generate_nonzero_salt<R: SaltRng + ?Sized>(
+    rng: &mut R,
+    len: usize,
+) -> Result<Zeroizing<Vec<u8>>, VcError> {
+    let mut salt = Zeroizing::new(vec![0u8; len]);
     for _ in 0..8 {
         rng.fill_bytes(&mut salt)?;
         if salt.iter().any(|b| *b != 0) {

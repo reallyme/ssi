@@ -267,7 +267,7 @@ pub fn update_did_with_provider_owned<P: DidProvider + ?Sized>(
 
 fn validate_update_request(request: &DidUpdateRequest) -> Result<(), DidApiError> {
     let document = &request.document;
-    let validation = validate_did(
+    let validation = validate_did_consistency(
         document,
         DomainVerificationEnv {
             resolve_txt: None,

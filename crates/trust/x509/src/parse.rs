@@ -114,8 +114,12 @@ pub fn parse_chain_pem(bundle: &[u8]) -> Result<Vec<X509Certificate>, X509Error>
 }
 
 fn project_cert(der: Vec<u8>, cert: &ParsedCert<'_>) -> Result<X509Certificate, X509Error> {
+    // The rendered strings are lossy display projections. Chaining and
+    // identity decisions use the exact DER Name encodings retained below.
     let subject = cert.subject().to_string();
     let issuer = cert.issuer().to_string();
+    let subject_der = cert.subject().as_raw().to_vec();
+    let issuer_der = cert.issuer().as_raw().to_vec();
     let encoded_serial = cert.raw_serial();
     let Some(first) = encoded_serial.first().copied() else {
         return Err(X509Error::InvalidSerialNumber);
@@ -339,6 +343,8 @@ fn project_cert(der: Vec<u8>, cert: &ParsedCert<'_>) -> Result<X509Certificate, 
         der,
         subject,
         issuer,
+        subject_der,
+        issuer_der,
         serial,
         not_before,
         not_after,

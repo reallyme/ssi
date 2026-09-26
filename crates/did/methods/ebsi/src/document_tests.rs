@@ -105,3 +105,14 @@ fn rejects_oversized_and_excessively_nested_registry_documents() {
         Some(DidEbsiErrorReason::DocumentLimitExceeded)
     );
 }
+
+#[test]
+fn rejects_duplicate_registry_document_members() {
+    let bytes = document(DID, &format!("{DID}#key-1"), r#", "x":"AA""#, "P-256");
+    assert_eq!(
+        parse_and_validate_did_ebsi_document(DID, &bytes, DidEbsiDocumentLimits::default())
+            .err()
+            .map(|error| error.reason),
+        Some(DidEbsiErrorReason::InvalidDocument)
+    );
+}

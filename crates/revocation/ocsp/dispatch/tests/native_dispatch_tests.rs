@@ -11,15 +11,7 @@
 )]
 //! Tests for native OCSP dispatch selection.
 
-#[cfg(all(
-    feature = "native",
-    not(all(feature = "wasm", target_arch = "wasm32")),
-    not(all(
-        feature = "apple-platform",
-        any(target_os = "ios", target_os = "macos")
-    )),
-    not(all(feature = "android-platform", target_os = "android"))
-))]
+#[cfg(all(feature = "native", not(all(feature = "wasm", target_arch = "wasm32"))))]
 mod native {
     use identity_revocation_ocsp_core::OcspCertStatus;
     use identity_revocation_ocsp_dispatch::parse_ocsp_response_der;
@@ -38,8 +30,15 @@ mod native {
         let issuer_der = read_fixture("issuer.der");
         let root_der = read_fixture("root.der");
 
-        let parsed = parse_ocsp_response_der(&ocsp_der, &leaf_der, &issuer_der, &[root_der], 0)
-            .expect("fixture must verify");
+        // 2026-01-06T00:00:00Z, inside the fixture validity window.
+        let parsed = parse_ocsp_response_der(
+            &ocsp_der,
+            &leaf_der,
+            &issuer_der,
+            &[root_der],
+            1_767_657_600,
+        )
+        .expect("fixture must verify");
 
         assert!(matches!(parsed.status, OcspCertStatus::Good));
         assert_eq!(parsed.signature_valid, Some(true));

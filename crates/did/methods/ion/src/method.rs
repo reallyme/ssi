@@ -6,6 +6,7 @@ use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityC
 use thiserror::Error;
 
 const DID_ION_PREFIX: &str = "did:ion:";
+const MAX_DID_BYTES: usize = 24_000;
 const TESTNET3_NETWORK: &str = "testnet3";
 
 /// ION network segment.
@@ -32,6 +33,14 @@ pub enum DidIonErrorReason {
     InvalidLongFormSuffixData,
     /// The DID had too many colon-separated method-specific segments.
     UnexpectedSegment,
+    /// The identifier exceeds the resource budget.
+    TooLarge,
+    /// The initial-state JSON is malformed, ambiguous, or noncanonical.
+    InvalidInitialState,
+    /// The canonical suffix data does not hash to the DID suffix.
+    SuffixMismatch,
+    /// The canonical delta does not hash to the committed delta hash.
+    DeltaHashMismatch,
 }
 
 /// Typed did:ion method error.
@@ -43,7 +52,7 @@ pub struct DidIonError {
 }
 
 impl DidIonError {
-    const fn new(reason: DidIonErrorReason) -> Self {
+    pub(crate) const fn new(reason: DidIonErrorReason) -> Self {
         Self { reason }
     }
 }
@@ -58,6 +67,12 @@ impl From<DidIonErrorReason> for IdentityCoreErrorReason {
             }
             DidIonErrorReason::InvalidSuffix | DidIonErrorReason::InvalidLongFormSuffixData => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_BASE64URL
+            }
+            DidIonErrorReason::TooLarge
+            | DidIonErrorReason::InvalidInitialState
+            | DidIonErrorReason::SuffixMismatch
+            | DidIonErrorReason::DeltaHashMismatch => {
+                Self::IDENTITY_CORE_ERROR_REASON_INVALID_ENCODING
             }
             DidIonErrorReason::UnexpectedSegment => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_UNEXPECTED_SEGMENT
@@ -89,7 +104,7 @@ pub struct IonDidIdentifier<'a> {
 
 /// Generate a short-form did:ion identifier.
 pub fn generate_did_ion(network: IonNetwork, did_suffix: &str) -> Result<String, DidIonError> {
-    validate_base64url_segment(did_suffix, DidIonErrorReason::InvalidSuffix)?;
+    crate::validate_initial_state::validate_suffix(did_suffix)?;
 
     match network {
         IonNetwork::Mainnet => Ok(format!("{DID_ION_PREFIX}{did_suffix}")),
@@ -103,11 +118,8 @@ pub fn generate_long_form_did_ion(
     did_suffix: &str,
     long_form_suffix_data: &str,
 ) -> Result<String, DidIonError> {
-    validate_base64url_segment(did_suffix, DidIonErrorReason::InvalidSuffix)?;
-    validate_base64url_segment(
-        long_form_suffix_data,
-        DidIonErrorReason::InvalidLongFormSuffixData,
-    )?;
+    crate::validate_initial_state::validate_suffix(did_suffix)?;
+    crate::validate_initial_state::validate_initial_state(did_suffix, long_form_suffix_data)?;
 
     match network {
         IonNetwork::Mainnet => Ok(format!(
@@ -127,10 +139,13 @@ pub fn short_form_did_ion(did: &str) -> Result<String, DidIonError> {
 
 /// Validate and decode a did:ion identifier.
 pub fn parse_did_ion(did: &str) -> Result<IonDidIdentifier<'_>, DidIonError> {
+    if did.len() > MAX_DID_BYTES {
+        return Err(DidIonError::new(DidIonErrorReason::TooLarge));
+    }
     let method_specific = did
         .strip_prefix(DID_ION_PREFIX)
         .ok_or(DidIonError::new(DidIonErrorReason::InvalidPrefix))?;
-    let parts: Vec<&str> = method_specific.split(':').collect();
+    let parts: Vec<&str> = method_specific.splitn(5, ':').collect();
 
     match parts.as_slice() {
         [suffix] => parse_mainnet_short(suffix),
@@ -159,7 +174,7 @@ pub fn is_valid_did_ion(did: &str) -> bool {
 }
 
 fn parse_mainnet_short(suffix: &str) -> Result<IonDidIdentifier<'_>, DidIonError> {
-    validate_base64url_segment(suffix, DidIonErrorReason::InvalidSuffix)?;
+    crate::validate_initial_state::validate_suffix(suffix)?;
     Ok(IonDidIdentifier {
         network: IonNetwork::Mainnet,
         did_suffix: suffix,
@@ -168,7 +183,7 @@ fn parse_mainnet_short(suffix: &str) -> Result<IonDidIdentifier<'_>, DidIonError
 }
 
 fn parse_network_short(suffix: &str) -> Result<IonDidIdentifier<'_>, DidIonError> {
-    validate_base64url_segment(suffix, DidIonErrorReason::InvalidSuffix)?;
+    crate::validate_initial_state::validate_suffix(suffix)?;
     Ok(IonDidIdentifier {
         network: IonNetwork::Testnet3,
         did_suffix: suffix,
@@ -180,11 +195,8 @@ fn parse_mainnet_long<'a>(
     suffix: &'a str,
     long_form_suffix_data: &'a str,
 ) -> Result<IonDidIdentifier<'a>, DidIonError> {
-    validate_base64url_segment(suffix, DidIonErrorReason::InvalidSuffix)?;
-    validate_base64url_segment(
-        long_form_suffix_data,
-        DidIonErrorReason::InvalidLongFormSuffixData,
-    )?;
+    crate::validate_initial_state::validate_suffix(suffix)?;
+    crate::validate_initial_state::validate_initial_state(suffix, long_form_suffix_data)?;
     Ok(IonDidIdentifier {
         network: IonNetwork::Mainnet,
         did_suffix: suffix,
@@ -196,11 +208,8 @@ fn parse_network_long<'a>(
     suffix: &'a str,
     long_form_suffix_data: &'a str,
 ) -> Result<IonDidIdentifier<'a>, DidIonError> {
-    validate_base64url_segment(suffix, DidIonErrorReason::InvalidSuffix)?;
-    validate_base64url_segment(
-        long_form_suffix_data,
-        DidIonErrorReason::InvalidLongFormSuffixData,
-    )?;
+    crate::validate_initial_state::validate_suffix(suffix)?;
+    crate::validate_initial_state::validate_initial_state(suffix, long_form_suffix_data)?;
     Ok(IonDidIdentifier {
         network: IonNetwork::Testnet3,
         did_suffix: suffix,
@@ -208,24 +217,10 @@ fn parse_network_long<'a>(
     })
 }
 
-fn validate_base64url_segment(segment: &str, reason: DidIonErrorReason) -> Result<(), DidIonError> {
-    if segment.is_empty() {
-        return Err(DidIonError::new(DidIonErrorReason::EmptySuffix));
-    }
-    if !segment.bytes().all(is_base64url_byte) {
-        return Err(DidIonError::new(reason));
-    }
-    Ok(())
-}
-
 fn is_network_like(segment: &str) -> bool {
     segment.bytes().all(|byte| {
         byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
     })
-}
-
-fn is_base64url_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'
 }
 
 #[cfg(test)]

@@ -117,6 +117,8 @@ fn certificate() -> X509Certificate {
         der: Vec::new(),
         subject: "O=Example".to_owned(),
         issuer: "O=Example".to_owned(),
+        subject_der: b"O=Example".to_vec(),
+        issuer_der: b"O=Example".to_vec(),
         serial: vec![1],
         not_before: OffsetDateTime::UNIX_EPOCH,
         not_after: OffsetDateTime::UNIX_EPOCH,

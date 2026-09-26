@@ -143,7 +143,7 @@ fn portable_mdoc_issuer_signed_vector_matches_value_digests() {
         device_cose_key(&device_public_key),
     );
 
-    let (document, mobile_security_object) = build_mso_mdoc(&cfg, &elements, &signer).unwrap();
+    let (document, mobile_security_object) = reallyme_mdoc::issue::build_mso_mdoc_with_random(&cfg, &elements, &signer, &mut VectorRandom(0)).unwrap();
     verify_issuer_signed_mdoc(
         &document,
         resolver_for_kid(kid, issuer_public_key),
@@ -415,33 +415,6 @@ fn issues_and_verifies_issuer_signed_mdoc() {
 }
 
 #[test]
-fn issuance_is_deterministic_for_ordered_content() {
-    let (issuer_public_key, issuer_private_key) = issuer_keys();
-    let kid = b"issuer-kid-1".to_vec();
-    let signer = CoseIssuerAuthSigner {
-        alg: Algorithm::Ed25519,
-        private_key: issuer_private_key.as_slice(),
-        kid: Some(kid.as_slice()),
-    };
-    let mut reversed = sample_elements();
-    reversed.reverse();
-
-    let (first_document, first_mso) =
-        build_mso_mdoc(&valid_config(), &sample_elements(), &signer).unwrap();
-    let (second_document, second_mso) =
-        build_mso_mdoc(&valid_config(), &reversed, &signer).unwrap();
-
-    verify_issuer_signed_mdoc(
-        &first_document,
-        resolver_for_kid(kid.clone(), issuer_public_key),
-        1_700_000_001,
-    )
-    .unwrap();
-    assert_eq!(first_mso.value_digests, second_mso.value_digests);
-    assert!(first_document.issuer_signed.name_spaces == second_document.issuer_signed.name_spaces);
-}
-
-#[test]
 fn verification_rejects_tampered_issuer_signed_item() {
     let (issuer_public_key, issuer_private_key) = issuer_keys();
     let kid = b"issuer-kid-1".to_vec();
@@ -694,8 +667,8 @@ fn issuance_rejects_oversized_single_and_aggregate_element_values() {
         MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::ElementValueTooLarge)
     );
 
-    let per_element = MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES / 2;
-    let aggregate = (0..3)
+    let per_element = MAX_MDOC_ELEMENT_VALUE_BYTES;
+    let aggregate = (0..5)
         .map(|index| {
             let mut element =
                 element_for_namespace("org.iso.18013.5.1".to_owned(), format!("large_{index}"));

@@ -13,13 +13,15 @@
 #![cfg(feature = "native")]
 
 use identity_credential_trust_api::{
-    ingest_eu_trusted_list, verify_trust_list_xml_native, TrustApiError,
-    TrustApiResourceLimitReason, TrustedListAnchors,
+    ingest_eu_trusted_list as ingest_eu_trusted_list_with_status,
+    verify_trust_list_xml_native as verify_trust_list_xml_native_with_status, TrustApiError,
+    TrustApiResourceLimitReason, TrustedListAnchors, VerifiedTrustedList,
 };
 #[cfg(feature = "xmlsec-ffi")]
 use identity_credential_trust_api::{
     TrustedListPolicyErrorReason, TrustedListSignatureProfileErrorReason,
 };
+use identity_revocation_core::{StatusCheckError, StatusChecker};
 use identity_trust_tsl_openssl::{MAX_TSL_TRUST_ROOTS, MAX_TSL_TRUST_ROOT_DER_BYTES};
 
 use envelopes_x509::policy::X509Policy;
@@ -29,6 +31,38 @@ use time::OffsetDateTime;
 
 const SIGNED_TSL_XML: &str = include_str!("../../tsl-openssl/tests/fixtures/signed_tsl.xml");
 const SIGNER_CERT_PEM: &[u8] = include_bytes!("../../tsl-openssl/tests/fixtures/cert.pem");
+
+struct GoodStatus;
+
+impl StatusChecker for GoodStatus {
+    fn check(&self, _cert: &X509Certificate, _now_unix: u64) -> Result<(), StatusCheckError> {
+        Ok(())
+    }
+}
+
+fn verify_trust_list_xml_native(
+    xml: &str,
+    trust_roots: &[X509Certificate],
+    now: OffsetDateTime,
+    policy: X509Policy,
+) -> Result<VerifiedTrustedList, TrustApiError> {
+    verify_trust_list_xml_native_with_status(xml, trust_roots, now, policy, &GoodStatus)
+}
+
+fn ingest_eu_trusted_list(
+    xml: &[u8],
+    trust_anchors: &TrustedListAnchors,
+    externally_authorized_signer: &X509Certificate,
+    now: OffsetDateTime,
+) -> Result<VerifiedTrustedList, TrustApiError> {
+    ingest_eu_trusted_list_with_status(
+        xml,
+        trust_anchors,
+        externally_authorized_signer,
+        now,
+        &GoodStatus,
+    )
+}
 
 fn signer_cert() -> X509Certificate {
     parse_cert_pem(SIGNER_CERT_PEM).expect("invalid signer cert PEM")
@@ -210,4 +244,27 @@ fn api_preserves_xades_property_failure_reasons() {
             ) if reason == expected
         ));
     }
+}
+
+#[test]
+#[cfg(feature = "xmlsec-ffi")]
+fn trusted_list_without_a_purpose_is_invalid_input() {
+    let verified = verify_trust_list_xml_native(
+        SIGNED_TSL_XML,
+        &[signer_cert()],
+        verification_time(),
+        X509Policy::default(),
+    )
+    .expect("API must verify signed TSL via native backend");
+    let verifier = identity_credential_trust_api::default_signature_verifier();
+    let result = identity_credential_trust_api::verify_credential_trust_api(
+        vec![signer_cert()],
+        vec![signer_cert()],
+        verifier.as_ref(),
+        None,
+        Some(&verified),
+        None,
+        verification_time(),
+    );
+    assert!(matches!(result, Err(TrustApiError::InvalidInput)));
 }

@@ -15,5 +15,9 @@
   "exp": 200,
   "status": {"status_list": {"idx": 9, "uri": "https://status.example/list"}},
   "purpose": [{"lang": "en", "content": "Verify age"}],
-  "credentials": [{"format": "dc+sd-jwt"}]
+  "credentials": [{
+    "format": "dc+sd-jwt",
+    "meta": {"vct_values": ["urn:example:pid"]},
+    "claims": [{"path": "[\"age_over_18\"]"}]
+  }]
 }

@@ -13,6 +13,7 @@ use crate::error::DidApiError;
 use crate::profile::{build_profile, DidProfile};
 use reallyme_keys::KeySet;
 
+use reallyme_did_core::signing::is_attestation_algorithm;
 use reallyme_did_core::{
     create_engine,
     keys::{generate_keypair_for_algorithm, public_key_to_multikey_for_algorithm},
@@ -275,11 +276,19 @@ pub fn build_create_options(
         });
     }
 
-    // Manual mode: if caller didn’t provide update_policy.allowed, default to allow all VMs
+    // Manual mode: if caller didn’t provide update_policy.allowed, default to
+    // every verification method that can sign core attestations. Key-agreement
+    // and P-256 keys can never satisfy an update policy.
     if opts.allowed_verification_methods.is_empty() {
         opts.allowed_verification_methods = opts
             .controller_keys
             .iter()
+            .filter(|vm| {
+                vm.algorithm
+                    .as_deref()
+                    .and_then(|alg| alg_str_to_alg(alg).ok())
+                    .is_some_and(is_attestation_algorithm)
+            })
             .map(|vm| vm.id.clone())
             .collect();
     }

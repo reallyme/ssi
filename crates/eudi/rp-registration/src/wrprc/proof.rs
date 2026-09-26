@@ -11,17 +11,24 @@ use identity_trust_jades::{
 };
 use time::OffsetDateTime;
 
+use super::parse::parse_registration_certificate_claims;
 use super::{
-    RegistrationCertificateFormat, RegistrationCertificateProof, MAX_REPRESENTATION_BYTES,
-    MAX_SIGNER_CERTIFICATE_BYTES,
+    parse_registration_certificate, ParsedRegistrationCertificate, RegistrationCertificateFormat,
+    RegistrationCertificateProof, MAX_REPRESENTATION_BYTES, MAX_SIGNER_CERTIFICATE_BYTES,
 };
 use crate::json::MAX_JSON_BYTES;
-use crate::{ArtifactDigest, RegistrationError, RegistrationErrorReason};
+use crate::{RegistrationError, RegistrationErrorReason};
 
 pub use identity_trust_jades::JadesPolicy as RegistrationCertificateJadesPolicy;
 
+mod cbor;
 mod cose;
+mod cwt;
 mod jades_profile;
+
+/// Tolerated forward clock skew between the WRPRC issuer and the evaluator
+/// when judging a signed `iat`, in seconds. Expiry is enforced without skew.
+const WRPRC_CLOCK_SKEW_SECONDS: u64 = 60;
 
 /// Exact COSE signature algorithms admitted for a WRPRC representation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,9 +45,8 @@ pub struct RegistrationCertificateJadesAuthenticationInput<'a> {
     pub compact_jws: &'a [u8],
     /// Exact leaf certificate expected to authenticate the signature.
     pub expected_signer_certificate_der: &'a [u8],
-    /// Local issuance binding retained in the resulting proof receipt.
-    pub binding_digest: ArtifactDigest,
-    /// Trusted evaluation time used for JAdES claimed-signing-time policy.
+    /// Trusted evaluation time used for JAdES claimed-signing-time policy and
+    /// for the signed WRPRC `iat`/`exp` validity period.
     pub evaluation_time: OffsetDateTime,
     /// Explicit versioned JAdES algorithm and time policy.
     pub policy: &'a RegistrationCertificateJadesPolicy,
@@ -52,8 +58,8 @@ pub struct RegistrationCertificateCoseAuthenticationInput<'a> {
     pub cose_sign1: &'a [u8],
     /// Exact leaf certificate whose public key must verify the signature.
     pub expected_signer_certificate_der: &'a [u8],
-    /// Local issuance binding retained in the resulting proof receipt.
-    pub binding_digest: ArtifactDigest,
+    /// Trusted evaluation time for the signed CWT `iat`/`exp` validity period.
+    pub evaluation_time: OffsetDateTime,
     /// Non-empty exact COSE algorithm allowlist for this authority profile.
     pub allowed_algorithms: &'a [RegistrationCertificateCoseAlgorithm],
 }
@@ -85,12 +91,13 @@ pub fn authenticate_wrprc_jades(
     )
     .map_err(map_jades_error)?;
     validate_authenticated_payload(authenticated.payload())?;
+    let parsed = parse_registration_certificate(authenticated.payload())?;
+    validate_validity_period(&parsed, input.evaluation_time)?;
     RegistrationCertificateProof::from_verified(
         RegistrationCertificateFormat::JadesJwt,
         input.compact_jws,
-        authenticated.payload(),
+        parsed,
         input.expected_signer_certificate_der,
-        input.binding_digest,
     )
 }
 
@@ -109,12 +116,16 @@ pub fn authenticate_wrprc_cose_sign1(
         input.allowed_algorithms,
     )?;
     validate_authenticated_payload(authenticated_payload)?;
+    // ETSI TS 119 475 `rc-wrp+cwt` payloads are RFC 8392 CWT claims sets:
+    // a CBOR map, never JSON.
+    let claims = cwt::decode_cwt_claims(authenticated_payload)?;
+    let parsed = parse_registration_certificate_claims(&claims, authenticated_payload)?;
+    validate_validity_period(&parsed, input.evaluation_time)?;
     RegistrationCertificateProof::from_verified(
         RegistrationCertificateFormat::CoseCwt,
         input.cose_sign1,
-        authenticated_payload,
+        parsed,
         input.expected_signer_certificate_der,
-        input.binding_digest,
     )
 }
 
@@ -148,6 +159,25 @@ fn validate_algorithm_allowlist(
     {
         return Err(RegistrationError::from_reason(
             RegistrationErrorReason::UnsupportedProfile,
+        ));
+    }
+    Ok(())
+}
+
+/// Enforces `iat <= now + skew` and `now < exp` at the trusted evaluation time.
+fn validate_validity_period(
+    parsed: &ParsedRegistrationCertificate,
+    evaluation_time: OffsetDateTime,
+) -> Result<(), RegistrationError> {
+    let now = u64::try_from(evaluation_time.unix_timestamp()).map_err(|_error| {
+        RegistrationError::from_reason(RegistrationErrorReason::OutsideValidityPeriod)
+    })?;
+    let latest_issue = now.checked_add(WRPRC_CLOCK_SKEW_SECONDS).ok_or_else(|| {
+        RegistrationError::from_reason(RegistrationErrorReason::OutsideValidityPeriod)
+    })?;
+    if parsed.issued_at() > latest_issue || now >= parsed.expires_at() {
+        return Err(RegistrationError::from_reason(
+            RegistrationErrorReason::OutsideValidityPeriod,
         ));
     }
     Ok(())

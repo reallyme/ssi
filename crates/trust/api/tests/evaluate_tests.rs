@@ -33,6 +33,8 @@ fn certificate(subject: &str, issuer: &str, is_ca: bool) -> X509Certificate {
         der: subject.as_bytes().to_vec(),
         subject: subject.to_owned(),
         issuer: issuer.to_owned(),
+        subject_der: subject.as_bytes().to_vec(),
+        issuer_der: issuer.as_bytes().to_vec(),
         serial: vec![1],
         not_before: OffsetDateTime::UNIX_EPOCH,
         not_after: OffsetDateTime::UNIX_EPOCH + time::Duration::days(1),

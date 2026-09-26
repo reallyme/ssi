@@ -139,3 +139,55 @@ fn genesis_identifier_verification_rejects_unsorted_controller_keys(
     assert_eq!(err, Some(DidMeErrorReason::InvalidControllerKeys));
     Ok(())
 }
+
+#[test]
+fn genesis_identifier_verification_rejects_duplicate_controller_key_ids(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let nonce = [0xA5u8; 16];
+    let controller_keys = vec![sample_key(), sample_key()];
+    let update_policy = sample_policy();
+    let did = generate_did_me(&nonce, &update_policy, &controller_keys)?;
+    let core = DidCore {
+        id: did.clone(),
+        sequence: 1,
+        nonce: Some(nonce.to_vec()),
+        controller: vec![did],
+        controller_keys,
+        authentication: vec!["#ed25519".to_owned()],
+        assertion: vec![],
+        key_agreement: vec![],
+        services: vec![],
+        update_policy,
+        prev: None,
+    };
+    let core_cbor = core.canonical_cbor()?;
+    let core_value = reallyme_codec::cbor::decode_dag_cbor(&core_cbor)?;
+
+    let err = verify_genesis_core_identifier(&core.id, &core_value)
+        .err()
+        .map(|error| error.reason);
+    assert_eq!(err, Some(DidMeErrorReason::InvalidControllerKeys));
+    Ok(())
+}
+
+#[test]
+fn generate_did_me_rejects_unsatisfiable_threshold() {
+    let nonce = [0xA5u8; 16];
+    for threshold in [0u64, 2] {
+        let policy = UpdatePolicy {
+            allowed_verification_methods: vec!["#ed25519".to_owned()],
+            threshold: Some(threshold),
+        };
+        let err = generate_did_me(&nonce, &policy, &[sample_key()])
+            .err()
+            .map(|error| error.reason);
+        assert_eq!(err, Some(DidMeErrorReason::InvalidUpdatePolicy));
+    }
+}
+
+#[test]
+fn did_me_rejects_oversized_identifier_before_decoding() {
+    let oversized = format!("did:me:me1{}", "q".repeat(200));
+    let err = parse_did_me(&oversized).err().map(|error| error.reason);
+    assert_eq!(err, Some(DidMeErrorReason::IdentifierTooLong));
+}

@@ -146,11 +146,7 @@ pub fn iso23220_relationship_element(
     value: Iso23220RelationshipValue,
     random: Vec<u8>,
 ) -> Result<MdocElement, MdocEnvelopeError> {
-    if random.is_empty() {
-        return Err(MdocEnvelopeError::InvalidInput(
-            MdocInvalidInputReason::EmptyRandom,
-        ));
-    }
+    crate::validate_item_random::validate_issuance_item_random(&random)?;
 
     Ok(MdocElement {
         namespace: ISO_23220_NAMESPACE.to_owned(),

@@ -11,17 +11,38 @@ use std::os::raw::{c_char, c_int, c_uchar};
 extern "C" {
     /// Verify an ETSI TSL/LOTL XML document with the generated libxmlsec C shim.
     ///
-    /// The caller must provide a non-null pointer to `xml_len` bytes of XML and
-    /// a non-null, NUL-terminated trusted certificate PEM path. The signed
-    /// 64-bit Unix time is used for RFC 5280 certificate validation. The function
-    /// `signer_der` must point to `signer_der_capacity` writable bytes and
-    /// `signer_der_len` must be writable. On success, the function copies the
-    /// exact certificate selected by xmlsec into that buffer and reports its
-    /// length. It does not retain any pointer after returning.
+    /// Pointer and length contract (the shim re-validates each item and returns
+    /// [`crate::MEID_XMLSEC_STATUS_INVALID_ARGUMENT`] on violation):
+    ///
+    /// - `xml` points to `xml_len` readable bytes, with
+    ///   `1 <= xml_len <= MEID_XMLSEC_MAX_XML_BYTES`.
+    /// - `trusted_roots_der` and `trusted_roots_der_lens` each point to
+    ///   `trusted_roots_count` readable elements, with
+    ///   `1 <= trusted_roots_count <= MEID_XMLSEC_MAX_TRUSTED_ROOTS`. Element
+    ///   `i` of `trusted_roots_der` points to `trusted_roots_der_lens[i]`
+    ///   readable bytes of one DER certificate, with
+    ///   `1 <= len <= MEID_XMLSEC_MAX_TRUSTED_ROOT_DER_BYTES`.
+    /// - `signer_der` points to `signer_der_capacity` writable bytes, with
+    ///   `1 <= signer_der_capacity <= MEID_XMLSEC_MAX_SIGNER_DER_BYTES`, and
+    ///   must not overlap any input buffer or `signer_der_len`.
+    /// - `signer_der_len` points to one writable `usize`.
+    ///
+    /// All input buffers are borrowed for the duration of the call only and
+    /// are never written, retained, or freed by the shim. The signed 64-bit
+    /// Unix time is used for RFC 5280 certificate validation. On success, the
+    /// function copies the exact certificate selected by xmlsec into
+    /// `signer_der` and stores its length in `signer_der_len`.
+    ///
+    /// Process-wide library initialization runs exactly once, guarded by
+    /// `pthread_once`; its status is recorded and returned unchanged to every
+    /// later call.
+    #[allow(clippy::too_many_arguments)]
     pub fn meid_xmlsec_verify_tsl(
         xml: *const c_char,
         xml_len: usize,
-        trusted_pem_path: *const c_char,
+        trusted_roots_der: *const *const c_uchar,
+        trusted_roots_der_lens: *const usize,
+        trusted_roots_count: usize,
         verification_time_unix: i64,
         allow_trusted_leaf: c_int,
         signer_der: *mut c_uchar,

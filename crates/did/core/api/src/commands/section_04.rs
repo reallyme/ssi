@@ -271,7 +271,7 @@ pub fn rotate_messaging_pre_keys_with_provider<P: DidProvider + ?Sized>(
         return Err(invalid);
     }
     let verification_method_ids = Zeroizing::new(
-        crate::messaging::discover_messaging_pre_keys(&request.document)
+        crate::messaging::discover_controller_messaging_pre_keys(&request.document)
             .map_err(|_| invalid)?
             .into_iter()
             .find(|snapshot| snapshot.service_id == request.service_id)

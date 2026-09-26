@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-trust-tsl-xmlsec"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -13,7 +13,8 @@ license = "MIT OR Apache-2.0"
 default = []
 # The workspace frequently runs `--features native`; keep an empty feature for compatibility.
 native = []
-# Enable the libxmlsec FFI backend. Requires system libxmlsec + libxml2 + OpenSSL + pkg-config.
+# Enable the libxmlsec FFI backend. Requires xmlsec1-openssl >= 1.3.0,
+# libxml2, libxslt, OpenSSL, and pkg-config.
 xmlsec-ffi = ["identity-trust-tsl-xmlsec-sys"]
 
 [dependencies]
@@ -25,11 +26,7 @@ codec-base64 = { package = "reallyme-codec-base64", version = "=0.2.3" }
 zeroize = { workspace = true, features = ["derive"] }
 time = { workspace = true, features = ["parsing"] }
 
-identity-trust-tsl-xmlsec-sys = { version = "0.1.0", path = "../tsl-xmlsec-sys", optional = true, features = ["xmlsec-ffi"] }
-
-[dev-dependencies]
-# For fixtures only.
-tempfile = "3"
+identity-trust-tsl-xmlsec-sys = { version = "0.2.0", path = "../tsl-xmlsec-sys", optional = true, features = ["xmlsec-ffi"] }
 
 [lints]
 workspace = true

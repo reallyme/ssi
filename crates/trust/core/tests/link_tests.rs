@@ -13,7 +13,9 @@
 
 use envelopes_x509::model::X509Certificate;
 use envelopes_x509::X509Chain;
-use reallyme_trust_core::{validate_chain_links, ChainLinkPolicy, TrustError};
+use reallyme_trust_core::{
+    validate_chain_links, ChainLinkPolicy, ChainLinkPolicyViolation, TrustError,
+};
 use time::OffsetDateTime;
 
 fn mk_cert(
@@ -26,6 +28,8 @@ fn mk_cert(
         der: vec![],
         subject: subject.to_string(),
         issuer: issuer.to_string(),
+        subject_der: subject.as_bytes().to_vec(),
+        issuer_der: issuer.as_bytes().to_vec(),
         serial: vec![1],
         not_before: OffsetDateTime::UNIX_EPOCH,
         not_after: OffsetDateTime::UNIX_EPOCH + time::Duration::days(365),
@@ -96,4 +100,38 @@ fn allows_missing_aki_ski_if_configured() {
     };
 
     validate_chain_links(&chain, &policy).unwrap();
+}
+
+#[test]
+fn rejects_names_whose_display_strings_collide_but_der_differs() {
+    // `CN=Issuer` encoded as PrintableString and as UTF8String renders to the
+    // same display string. Chaining compares the exact DER Name encodings, so
+    // the rendered collision must not link the certificates.
+    let printable_name = [
+        0x30, 0x11, 0x31, 0x0f, 0x30, 0x0d, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x06, b'I', b's',
+        b's', b'u', b'e', b'r',
+    ];
+    let utf8_name = [
+        0x30, 0x11, 0x31, 0x0f, 0x30, 0x0d, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0c, 0x06, b'I', b's',
+        b's', b'u', b'e', b'r',
+    ];
+    let mut leaf = mk_cert("CN=Leaf", "CN=Issuer", None, None);
+    leaf.issuer_der = utf8_name.to_vec();
+    let mut issuer = mk_cert("CN=Issuer", "CN=Issuer", None, None);
+    issuer.subject_der = printable_name.to_vec();
+    issuer.issuer_der = printable_name.to_vec();
+    assert_eq!(leaf.issuer, issuer.subject);
+
+    let chain = X509Chain {
+        certs: vec![leaf, issuer],
+    };
+    let policy = ChainLinkPolicy {
+        require_dn_continuity: true,
+        require_aki_ski_when_present: false,
+    };
+    let err = validate_chain_links(&chain, &policy).unwrap_err();
+    assert_eq!(
+        err,
+        TrustError::ChainLinkPolicy(ChainLinkPolicyViolation::IssuerDistinguishedNameMismatch)
+    );
 }

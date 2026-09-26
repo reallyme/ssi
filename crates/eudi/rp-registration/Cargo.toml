@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-eudi-rp-registration"
-version = "0.1.0"
+version = "0.2.0"
 description = "Strict EUDI Wallet Relying Party registration and credential profiles."
 edition.workspace = true
 rust-version.workspace = true
@@ -28,15 +28,15 @@ wasm = [
 ]
 
 [dependencies]
-identity-trust-jades = { path = "../../trust/jades", version = "0.1.0", optional = true }
+identity-trust-jades = { path = "../../trust/jades", version = "0.2.0", optional = true }
 reallyme-codec = { workspace = true, features = ["base64", "base64url", "jcs"] }
 reallyme-crypto = { workspace = true, features = ["ed25519", "sha2"] }
 reallyme-jose = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-time = { workspace = true }
-reallyme-trust-x509 = { path = "../../trust/x509", version = "0.1.0", default-features = false }
+time = { workspace = true, features = ["parsing"] }
+reallyme-trust-x509 = { path = "../../trust/x509", version = "0.2.0", default-features = false }
 url = { workspace = true }
 zeroize = { workspace = true, features = ["derive"] }
 

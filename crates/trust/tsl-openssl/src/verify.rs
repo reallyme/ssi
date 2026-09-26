@@ -15,8 +15,6 @@ use crate::signer_profile::validate_tlso_signer_profile;
 use crate::signer_profile::{TslSignatureAlgorithm, TslSignerProfileEvidence};
 #[cfg(feature = "native")]
 use crate::trust_roots::validate_trust_root_budget;
-#[cfg(feature = "native")]
-use crate::trust_roots::MAX_TSL_TRUST_ROOT_PEM_BUNDLE_BYTES;
 
 #[cfg(feature = "native")]
 mod xmlsec_backend;
@@ -70,8 +68,7 @@ impl VerifiedTrustedList {
         self.signer_authorization
     }
 
-    /// Returns the TLSO profile evidence when TS 119 612 clause 5.7.1 was the
-    /// selected authorization policy.
+    /// Returns the TLSO profile evidence when TS 119 612 clause 5.7.1 was selected.
     #[must_use]
     pub const fn signer_profile(&self) -> Option<TslSignerProfileEvidence> {
         match self.signer_authorization {
@@ -85,6 +82,24 @@ impl VerifiedTrustedList {
     #[must_use]
     pub const fn signature_algorithm(&self) -> TslSignatureAlgorithm {
         self.signature_algorithm
+    }
+
+    /// Reject this list when it is older than the last list the caller
+    /// accepted for the same location (TS 119 612 clause 5.3.2).
+    ///
+    /// Signature verification alone cannot detect replay of an authentic but
+    /// superseded list. Callers that persist the last accepted
+    /// `TSLSequenceNumber` per list location should call this before
+    /// replacing their stored list.
+    pub fn validate_sequence_number(
+        &self,
+        last_accepted_sequence_number: u64,
+    ) -> Result<(), TslOpenSslError> {
+        identity_trust_tsl_core::validate_tsl_sequence_number(
+            &self.list,
+            last_accepted_sequence_number,
+        )
+        .map_err(TslOpenSslError::TrustedList)
     }
 }
 
@@ -126,11 +141,13 @@ struct VerifiedSignerMaterial {
 /// PLATFORM:
 /// - Native only (Linux / macOS)
 /// - NOT available on WASM / mobile
+///
 pub fn verify_tsl_xml_openssl(
     xml: &str,
     trust_roots: &[X509Certificate],
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
+    status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> Result<VerifiedTrustedList, TslOpenSslError> {
     verify_tsl_xml_openssl_impl(
         xml,
@@ -139,6 +156,7 @@ pub fn verify_tsl_xml_openssl(
         TslSignerAuthorization::Community,
         now,
         policy,
+        status_checker,
     )
 }
 
@@ -160,6 +178,7 @@ pub fn verify_tsl_xml_openssl_with_external_signer(
     externally_authorized_signer: &X509Certificate,
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
+    status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> Result<VerifiedTrustedList, TslOpenSslError> {
     verify_tsl_xml_openssl_impl(
         xml,
@@ -168,6 +187,7 @@ pub fn verify_tsl_xml_openssl_with_external_signer(
         TslSignerAuthorization::ExactExternalCertificate(externally_authorized_signer),
         now,
         policy,
+        status_checker,
     )
 }
 
@@ -185,35 +205,31 @@ pub fn verify_tsl_xml_openssl_with_community_lists(
     community_lists: &[&VerifiedTrustedList],
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
+    status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> Result<VerifiedTrustedList, TslOpenSslError> {
     // A LOTL pointer authenticates TLSO leaf certificates, not CA roots.
-    // XMLSec must therefore be allowed to use each authenticated leaf as its
-    // terminal verification key. Only an exact KeyInfo mismatch advances to
-    // the next rollover certificate; every signature or policy failure is
-    // final. Exact pointer authorization replaces the separate TLSO
-    // certificate-chain profile; XMLDSig verification and the purpose-bound
-    // SSI direct-trust evaluation still run below.
-    for authorized_signer in trust_roots {
-        match verify_tsl_xml_openssl_impl(
-            xml,
-            trust_roots,
-            community_lists,
-            TslSignerAuthorization::AuthenticatedPointerCertificate(authorized_signer),
-            now,
-            policy.clone(),
-        ) {
-            Ok(verified) => return Ok(verified),
-            Err(TslOpenSslError::ExternalSignerCertificateMismatch) => {}
-            Err(error) => return Err(error),
-        }
-    }
-    Err(TslOpenSslError::ExternalSignerCertificateMismatch)
+    // XMLSec is therefore allowed to use an authenticated leaf as its
+    // terminal verification key. The signature profile pre-pass and the
+    // XMLDSig verification each run once; the backend-selected signer must
+    // then equal exactly one authenticated rollover certificate. Exact pointer
+    // authorization replaces the separate TLSO certificate-chain profile;
+    // XMLDSig verification and the purpose-bound SSI direct-trust evaluation
+    // still run below.
+    verify_tsl_xml_openssl_impl(
+        xml,
+        trust_roots,
+        community_lists,
+        TslSignerAuthorization::AuthenticatedPointerCertificates(trust_roots),
+        now,
+        policy,
+        status_checker,
+    )
 }
 
 #[derive(Clone, Copy)]
 enum TslSignerAuthorization<'a> {
     Community,
-    AuthenticatedPointerCertificate(&'a X509Certificate),
+    AuthenticatedPointerCertificates(&'a [X509Certificate]),
     ExactExternalCertificate(&'a X509Certificate),
 }
 
@@ -225,96 +241,85 @@ fn verify_tsl_xml_openssl_impl(
     signer_authorization: TslSignerAuthorization<'_>,
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
+    status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> Result<VerifiedTrustedList, TslOpenSslError> {
     use envelopes_x509::parse_cert_der;
     use identity_trust_openssl::OpenSslSignatureVerifier;
     use identity_trust_tsl_core::parse_tsl_xml;
     use reallyme_trust_core::{evaluate_trust_decision, TrustConfig, TrustOutcome};
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
     // Root count and byte budgets are checked before XML parsing, OpenSSL DER
-    // parsing, or PEM allocation. This keeps configuration input from moving
-    // work ahead of the trust core's fixed MAX_TRUST_ROOTS invariant.
-    let root_budget = validate_trust_root_budget(trust_roots)?;
+    // parsing, or backend allocation. This keeps configuration input from
+    // moving work ahead of the trust core's fixed MAX_TRUST_ROOTS invariant.
+    validate_trust_root_budget(trust_roots)?;
 
     // 1) Parse semantics after the cheaper configuration boundary.
-    let mut tsl = parse_tsl_xml(xml).map_err(map_tsl_core_error)?;
+    let tsl = parse_tsl_xml(xml).map_err(map_tsl_core_error)?;
 
-    // 2) Write trust roots to a private temporary PEM bundle for XMLSec. The
-    // input document itself stays in memory. NamedTempFile creates the file
-    // with owner-only permissions on supported native platforms and removes it
-    //
+    // 2) Every configured root must be a well-formed certificate. Each root
+    // is handed to XMLSec as its own DER certificate so that every configured
+    // anchor is trusted, not only the first entry of a concatenated bundle.
     // XMLSec validates the X.509 chain before it will accept the key material
     // from KeyInfo. We *also* validate trust below; this is purely to allow
     // XMLSec to do the XMLDSig math.
-    let mut roots_pem = zeroize::Zeroizing::new(Vec::<u8>::new());
-    roots_pem
-        .try_reserve_exact(root_budget)
+    let mut trusted_roots_der: Vec<&[u8]> = Vec::new();
+    trusted_roots_der
+        .try_reserve_exact(trust_roots.len())
         .map_err(|_| TslOpenSslError::TrustRoots(TslTrustRootErrorReason::AllocationFailed))?;
     for root in trust_roots {
-        let x = openssl::x509::X509::from_der(&root.der).map_err(|_| {
+        openssl::x509::X509::from_der(&root.der).map_err(|_| {
             TslOpenSslError::TrustRoots(TslTrustRootErrorReason::InvalidCertificateDer)
         })?;
-        let pem = zeroize::Zeroizing::new(x.to_pem().map_err(|_| TslOpenSslError::Internal)?);
-        let next_length =
-            roots_pem
-                .len()
-                .checked_add(pem.len())
-                .ok_or(TslOpenSslError::TrustRoots(
-                    TslTrustRootErrorReason::PemBundleTooLarge,
-                ))?;
-        if next_length > MAX_TSL_TRUST_ROOT_PEM_BUNDLE_BYTES {
-            return Err(TslOpenSslError::TrustRoots(
-                TslTrustRootErrorReason::PemBundleTooLarge,
-            ));
-        }
-        let remaining_capacity = roots_pem.capacity().checked_sub(roots_pem.len()).ok_or(
-            TslOpenSslError::TrustRoots(TslTrustRootErrorReason::AllocationFailed),
-        )?;
-        if pem.len() > remaining_capacity {
-            return Err(TslOpenSslError::TrustRoots(
-                TslTrustRootErrorReason::AllocationFailed,
-            ));
-        }
-        roots_pem.extend_from_slice(&pem);
+        trusted_roots_der.push(root.der.as_slice());
     }
-
-    let mut roots_file = NamedTempFile::new().map_err(|_| TslOpenSslError::Internal)?;
-    roots_file
-        .write_all(&roots_pem)
-        .map_err(|_| TslOpenSslError::Internal)?;
-    roots_file.flush().map_err(|_| TslOpenSslError::Internal)?;
 
     // 3) Verify XMLDSig and receive the exact backend-selected signer. The
     // returned receipt is already checked against this signature's KeyInfo, so
     // certificate selection cannot drift into an independent XML scan.
-    let roots_path = roots_file
-        .path()
-        .to_str()
-        .ok_or(TslOpenSslError::Internal)?;
-
-    let exact_signer_der = match signer_authorization {
-        TslSignerAuthorization::AuthenticatedPointerCertificate(authorized)
-        | TslSignerAuthorization::ExactExternalCertificate(authorized) => {
-            Some(authorized.der.as_slice())
+    let exact_signer_candidates: Option<Vec<&[u8]>> = match signer_authorization {
+        TslSignerAuthorization::AuthenticatedPointerCertificates(authorized) => Some(
+            authorized
+                .iter()
+                .map(|certificate| certificate.der.as_slice())
+                .collect(),
+        ),
+        TslSignerAuthorization::ExactExternalCertificate(authorized) => {
+            Some(vec![authorized.der.as_slice()])
         }
         TslSignerAuthorization::Community => None,
     };
-    let verified_signature = verify_tsl_xmldsig(xml, roots_path, now, exact_signer_der)?;
+    let verified_signature = verify_tsl_xmldsig(
+        xml,
+        &trusted_roots_der,
+        now,
+        exact_signer_candidates.as_deref(),
+    )?;
 
     // ETSI TS 119 612 v2.4.1 clause 5.3.15 requires applications to discard
     // an expired TL. Apply caller-selected time only after XMLDSig has
     // authenticated the deadline, so unauthenticated XML cannot produce a
     // successful-looking freshness decision.
-    identity_trust_tsl_core::validate_tsl_freshness(&tsl, now)
-        .map_err(|_| TslOpenSslError::ExpiredTrustedList)?;
+    identity_trust_tsl_core::validate_tsl_freshness(&tsl, now).map_err(|error| match error {
+        identity_trust_tsl_core::TslError::Expired => TslOpenSslError::ExpiredTrustedList,
+        other => TslOpenSslError::TrustedList(other),
+    })?;
 
     let signer_der = verified_signature.signer_certificate_der.as_slice();
     let signer = parse_cert_der(signer_der).map_err(|_| TslOpenSslError::InvalidSigner)?;
     let directly_authorized_signer = match signer_authorization {
-        TslSignerAuthorization::AuthenticatedPointerCertificate(authorized)
-        | TslSignerAuthorization::ExactExternalCertificate(authorized) => Some(authorized.clone()),
+        TslSignerAuthorization::AuthenticatedPointerCertificates(authorized) => Some(
+            authorized
+                .iter()
+                .find(|certificate| certificate.der == signer.der)
+                .ok_or(TslOpenSslError::ExternalSignerCertificateMismatch)?
+                .clone(),
+        ),
+        TslSignerAuthorization::ExactExternalCertificate(authorized) => {
+            if signer.der != authorized.der {
+                return Err(TslOpenSslError::ExternalSignerCertificateMismatch);
+            }
+            Some(authorized.clone())
+        }
         TslSignerAuthorization::Community => None,
     };
     let signer_authorization = match signer_authorization {
@@ -329,16 +334,10 @@ fn verify_tsl_xml_openssl_impl(
                 )?,
             )
         }
-        TslSignerAuthorization::AuthenticatedPointerCertificate(authorized) => {
-            if signer.der != authorized.der {
-                return Err(TslOpenSslError::ExternalSignerCertificateMismatch);
-            }
+        TslSignerAuthorization::AuthenticatedPointerCertificates(_) => {
             TslSignerAuthorizationEvidence::ExactAuthenticatedPointerCertificate
         }
-        TslSignerAuthorization::ExactExternalCertificate(authorized) => {
-            if signer.der != authorized.der {
-                return Err(TslOpenSslError::ExternalSignerCertificateMismatch);
-            }
+        TslSignerAuthorization::ExactExternalCertificate(_) => {
             TslSignerAuthorizationEvidence::ExactExternalCertificate
         }
     };
@@ -376,13 +375,22 @@ fn verify_tsl_xml_openssl_impl(
             purpose: reallyme_trust_core::TrustPurpose::TrustedListSigner,
             policy_id: reallyme_trust_core::TrustPolicyId::EuTrustedListSignerV1,
             source: Some(source),
-            ..Default::default()
+            status_policy: reallyme_trust_core::CertificateStatusPolicy {
+                leaf: reallyme_trust_core::StatusRequirement::Required,
+                intermediates: reallyme_trust_core::StatusRequirement::Required,
+                trust_anchor: reallyme_trust_core::StatusRequirement::Exempt,
+            },
         },
         direct_trust,
     };
 
-    let decision = evaluate_trust_decision(&presented, &cfg, &OpenSslSignatureVerifier, None)
-        .map_err(|error| TslOpenSslError::TrustFailure(map_trust_failure(error)))?;
+    let decision = evaluate_trust_decision(
+        &presented,
+        &cfg,
+        &OpenSslSignatureVerifier,
+        Some(status_checker),
+    )
+    .map_err(|error| TslOpenSslError::TrustFailure(map_trust_failure(error)))?;
     match decision.outcome {
         TrustOutcome::Trusted => {}
         TrustOutcome::Rejected => {
@@ -404,12 +412,10 @@ fn verify_tsl_xml_openssl_impl(
         .map(|certificate| sha256(certificate))
         .collect();
 
-    // StatusStartingTime can legitimately describe a pre-published future
-    // transition. Project only after the document, signer, and freshness have
-    // all authenticated successfully, so downstream consumers receive the
-    // state effective at their trusted evaluation time.
-    identity_trust_tsl_core::select_effective_service_states(&mut tsl, now);
-
+    // The list is returned without any time projection. Service states,
+    // including pre-published future transitions and full service history,
+    // remain intact; authorization selects the state effective at its own
+    // trusted evaluation time and re-checks list freshness at that time.
     Ok(VerifiedTrustedList {
         list: tsl,
         signer_trust: decision,
@@ -478,12 +484,14 @@ fn verify_tsl_xml_openssl_impl(
     signer_authorization: TslSignerAuthorization<'_>,
     _now: time::OffsetDateTime,
     _policy: envelopes_x509::policy::X509Policy,
+    _status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> Result<VerifiedTrustedList, TslOpenSslError> {
-    // Keep the exact external certificate part of the typed API in portable
-    // builds even though verification is unavailable in this lane.
+    // Retain the exact external certificate in the portable typed API despite no verifier.
     match signer_authorization {
-        TslSignerAuthorization::AuthenticatedPointerCertificate(certificate)
-        | TslSignerAuthorization::ExactExternalCertificate(certificate) => {
+        TslSignerAuthorization::AuthenticatedPointerCertificates(certificates) => {
+            let _ = certificates.len();
+        }
+        TslSignerAuthorization::ExactExternalCertificate(certificate) => {
             let _ = certificate.der.len();
         }
         TslSignerAuthorization::Community => {}

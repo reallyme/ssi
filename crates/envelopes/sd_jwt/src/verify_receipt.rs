@@ -15,66 +15,18 @@ use serde_json::Value;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::sensitive::{zeroize_json_value, zeroize_strings};
+use crate::verify_receipt_policy::{
+    BoundCredentialVerificationPolicy, MAX_RECEIPT_AGE_SECONDS, MAX_RECEIPT_CLOCK_SKEW_SECONDS,
+};
 use crate::{
-    parse_sd_jwt_or_kb_compact, process_sd_jwt_payload, SdJwtEnvelopeError, SdJwtOrKbCompact,
-    SdJwtProcessingPolicy,
+    parse_sd_jwt_or_kb_compact, process_sd_jwt_payload, SdJwtCredentialVerificationPolicy,
+    SdJwtEnvelopeError, SdJwtOrKbCompact, SdJwtReceiptVerificationPolicy,
+    MAX_SD_JWT_EXPECTED_CLAIM_BYTES,
 };
 
-/// Maximum exact issuer or credential-type claim length accepted by receipt policy.
-pub const MAX_SD_JWT_EXPECTED_CLAIM_BYTES: usize = 2_048;
-const MAX_RECEIPT_CLOCK_SKEW_SECONDS: u64 = 300;
-const MAX_RECEIPT_AGE_SECONDS: u64 = 86_400;
-const DEFAULT_ISSUER_TYP_VALUES: &[&str] = &["dc+sd-jwt", "vc+sd-jwt"];
 const MAX_PROTECTED_HEADER_BYTES: usize = 16 * 1024;
 const MAX_X5C_CERTIFICATES: usize = 10;
 const MAX_X5C_CERTIFICATE_BYTES: usize = 256 * 1024;
-
-/// Caller-owned policy for validating a just-issued SD-JWT credential.
-#[derive(Debug, Clone, Copy)]
-pub struct SdJwtReceiptVerificationPolicy<'a> {
-    pub expected_issuer: &'a str,
-    pub expected_vct: &'a str,
-    pub expected_holder_jwk: &'a Jwk,
-    pub expected_holder_public_key: &'a [u8],
-    pub now_unix: u64,
-    pub maximum_age_seconds: u64,
-    pub clock_skew_seconds: u64,
-    pub issuer_allow_missing_typ: bool,
-    /// Permit a certificate chain in the issuer JWS protected header.
-    ///
-    /// Callers must not set this without also resolving and validating the
-    /// exact authenticated `x5c` chain. Prefer [`verify_sd_jwt_receipt_with_x5c`].
-    pub issuer_allow_embedded_key_header: bool,
-    pub issuer_accepted_typ_values: &'a [&'a str],
-    pub processing_policy: SdJwtProcessingPolicy,
-}
-
-impl<'a> SdJwtReceiptVerificationPolicy<'a> {
-    /// Construct the bounded default receipt policy for a known issuance session.
-    #[must_use]
-    pub fn new(
-        expected_issuer: &'a str,
-        expected_vct: &'a str,
-        expected_holder_jwk: &'a Jwk,
-        expected_holder_public_key: &'a [u8],
-        now_unix: u64,
-        maximum_age_seconds: u64,
-    ) -> Self {
-        Self {
-            expected_issuer,
-            expected_vct,
-            expected_holder_jwk,
-            expected_holder_public_key,
-            now_unix,
-            maximum_age_seconds,
-            clock_skew_seconds: 60,
-            issuer_allow_missing_typ: false,
-            issuer_allow_embedded_key_header: false,
-            issuer_accepted_typ_values: DEFAULT_ISSUER_TYP_VALUES,
-            processing_policy: SdJwtProcessingPolicy::default(),
-        }
-    }
-}
 
 /// Holder binding authenticated from the issuer-signed `cnf.jwk` claim.
 pub struct ValidatedSdJwtHolderBinding {
@@ -95,9 +47,9 @@ impl fmt::Debug for ValidatedSdJwtHolderBinding {
     }
 }
 
-/// A credential receipt whose issuer signature, disclosures, claims, and
-/// issuance-session holder binding have all been validated.
-pub struct VerifiedSdJwtReceipt {
+/// A holder-bound credential whose issuer signature, disclosures, claims, and
+/// wallet-held key binding have all been validated.
+pub struct VerifiedSdJwtCredential {
     issuer_signed_jwt: String,
     issuer_payload: Value,
     resolved_payload: Value,
@@ -105,7 +57,7 @@ pub struct VerifiedSdJwtReceipt {
     holder_binding: ValidatedSdJwtHolderBinding,
 }
 
-impl VerifiedSdJwtReceipt {
+impl VerifiedSdJwtCredential {
     #[must_use]
     pub fn issuer_signed_jwt(&self) -> &str {
         self.issuer_signed_jwt.as_str()
@@ -132,13 +84,13 @@ impl VerifiedSdJwtReceipt {
     }
 }
 
-impl fmt::Debug for VerifiedSdJwtReceipt {
+impl fmt::Debug for VerifiedSdJwtCredential {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("VerifiedSdJwtReceipt([REDACTED])")
+        formatter.write_str("VerifiedSdJwtCredential([REDACTED])")
     }
 }
 
-impl Zeroize for VerifiedSdJwtReceipt {
+impl Zeroize for VerifiedSdJwtCredential {
     fn zeroize(&mut self) {
         self.issuer_signed_jwt.zeroize();
         zeroize_json_value(&mut self.issuer_payload);
@@ -148,13 +100,16 @@ impl Zeroize for VerifiedSdJwtReceipt {
     }
 }
 
-impl Drop for VerifiedSdJwtReceipt {
+impl Drop for VerifiedSdJwtCredential {
     fn drop(&mut self) {
         self.zeroize();
     }
 }
 
-impl ZeroizeOnDrop for VerifiedSdJwtReceipt {}
+impl ZeroizeOnDrop for VerifiedSdJwtCredential {}
+
+/// Backwards-compatible name for a credential validated at issuance receipt.
+pub type VerifiedSdJwtReceipt = VerifiedSdJwtCredential;
 
 /// Verify a holder-bound SD-JWT credential at wallet import time.
 ///
@@ -168,6 +123,37 @@ pub fn verify_sd_jwt_receipt(
     issuer_public_key: &[u8],
     policy: &SdJwtReceiptVerificationPolicy<'_>,
 ) -> Result<VerifiedSdJwtReceipt, SdJwtEnvelopeError> {
+    let policy = BoundCredentialVerificationPolicy::from(policy);
+    verify_bound_sd_jwt_credential(compact, issuer_jwk, issuer_public_key, &policy)
+}
+
+/// Verify a stored holder-bound SD-JWT credential at presentation time.
+///
+/// This entry point validates the issuer signature, credential temporal
+/// claims, disclosures, type, issuer, and wallet-held confirmation key. It
+/// rejects an appended KB-JWT because presentation construction must generate
+/// a fresh verifier-bound KB-JWT after selective disclosure is chosen.
+pub fn verify_sd_jwt_credential(
+    compact: &str,
+    issuer_jwk: &Jwk,
+    issuer_public_key: &[u8],
+    policy: &SdJwtCredentialVerificationPolicy<'_>,
+) -> Result<VerifiedSdJwtCredential, SdJwtEnvelopeError> {
+    let mut policy = BoundCredentialVerificationPolicy::from(policy);
+    // An absent `iss` is admissible only when an authenticated x5c leaf
+    // certificate conveys the issuer identity. A caller-supplied raw key does
+    // not establish that certificate identity, so the generic entry point
+    // always retains the stricter issuer-claim requirement.
+    policy.x5c_allow_missing_issuer_claim = false;
+    verify_bound_sd_jwt_credential(compact, issuer_jwk, issuer_public_key, &policy)
+}
+
+fn verify_bound_sd_jwt_credential(
+    compact: &str,
+    issuer_jwk: &Jwk,
+    issuer_public_key: &[u8],
+    policy: &BoundCredentialVerificationPolicy<'_>,
+) -> Result<VerifiedSdJwtCredential, SdJwtEnvelopeError> {
     validate_policy(policy)?;
     let parsed = parse_sd_jwt_or_kb_compact(compact)?;
     let mut compact = match parsed {
@@ -187,16 +173,17 @@ pub fn verify_sd_jwt_receipt(
             policy.issuer_allow_embedded_key_header,
             policy.issuer_accepted_typ_values,
         ),
-    )?;
-    validate_receipt_claims(&issuer_payload, policy)?;
+    )
+    .map_err(|_| SdJwtEnvelopeError::InvalidIssuerJwt)?;
     let holder_binding = validate_holder_binding(&issuer_payload, policy)?;
     let resolved_payload = process_sd_jwt_payload(
         issuer_payload.clone(),
         &disclosures,
         policy.processing_policy,
     )?;
+    validate_credential_claims(&issuer_payload, &resolved_payload, policy)?;
 
-    Ok(VerifiedSdJwtReceipt {
+    Ok(VerifiedSdJwtCredential {
         issuer_signed_jwt,
         issuer_payload,
         resolved_payload,
@@ -209,13 +196,43 @@ pub fn verify_sd_jwt_receipt(
 /// `x5c` protected-header chain.
 ///
 /// The resolver must perform full X.509 path/profile/time validation against
-/// deployment-controlled trust anchors before returning the leaf P-256 SEC1
-/// public key. The presented chain is never treated as a trust source.
+/// deployment-controlled trust anchors, including binding the end-entity
+/// certificate identity to `policy.expected_issuer`, before returning the leaf
+/// P-256 SEC1 public key. The presented chain is never treated as a trust
+/// source. The issuer-signed payload must also carry the exact expected `iss`.
 pub fn verify_sd_jwt_receipt_with_x5c(
     compact: &str,
     policy: &SdJwtReceiptVerificationPolicy<'_>,
     certificate_path_resolver: impl FnOnce(&[Vec<u8>]) -> Option<Vec<u8>>,
 ) -> Result<VerifiedSdJwtReceipt, SdJwtEnvelopeError> {
+    let policy = BoundCredentialVerificationPolicy::from(policy);
+    verify_bound_sd_jwt_credential_with_x5c(compact, policy, certificate_path_resolver)
+}
+
+/// Verify a stored SD-JWT credential using its authenticated `x5c` chain.
+///
+/// The resolver must perform complete X.509 path, profile, and time validation
+/// against deployment-controlled trust anchors, including binding the
+/// end-entity certificate identity to `policy.expected_issuer`, before
+/// returning the leaf P-256 SEC1 public key. By default, the issuer-signed
+/// payload must also carry the exact expected `iss`. Draft SD-JWT VC permits
+/// callers to opt into an absent `iss` when the authenticated leaf certificate
+/// conveys the issuer identity; a present `iss` always remains exact-match.
+pub fn verify_sd_jwt_credential_with_x5c(
+    compact: &str,
+    policy: &SdJwtCredentialVerificationPolicy<'_>,
+    certificate_path_resolver: impl FnOnce(&[Vec<u8>]) -> Option<Vec<u8>>,
+) -> Result<VerifiedSdJwtCredential, SdJwtEnvelopeError> {
+    let policy = BoundCredentialVerificationPolicy::from(policy);
+    verify_bound_sd_jwt_credential_with_x5c(compact, policy, certificate_path_resolver)
+}
+
+fn verify_bound_sd_jwt_credential_with_x5c(
+    compact: &str,
+    mut policy: BoundCredentialVerificationPolicy<'_>,
+    certificate_path_resolver: impl FnOnce(&[Vec<u8>]) -> Option<Vec<u8>>,
+) -> Result<VerifiedSdJwtCredential, SdJwtEnvelopeError> {
+    validate_policy(&policy)?;
     let certificate_chain = parse_sd_jwt_issuer_x5c(compact)?;
     let issuer_public_key = certificate_path_resolver(&certificate_chain)
         .ok_or(SdJwtEnvelopeError::InvalidIssuerJwt)?;
@@ -241,14 +258,8 @@ pub fn verify_sd_jwt_receipt_with_x5c(
             .public_key_bytes()
             .map_err(|_| SdJwtEnvelopeError::InvalidIssuerJwt)?,
     );
-    let mut x5c_policy = *policy;
-    x5c_policy.issuer_allow_embedded_key_header = true;
-    verify_sd_jwt_receipt(
-        compact,
-        &issuer_jwk,
-        &canonical_issuer_public_key,
-        &x5c_policy,
-    )
+    policy.issuer_allow_embedded_key_header = true;
+    verify_bound_sd_jwt_credential(compact, &issuer_jwk, &canonical_issuer_public_key, &policy)
 }
 
 /// Parse the bounded leaf-first `x5c` chain from an SD-JWT issuer JWS.
@@ -307,41 +318,61 @@ pub fn parse_sd_jwt_issuer_x5c(compact: &str) -> Result<Vec<Vec<u8>>, SdJwtEnvel
     Ok(chain)
 }
 
-fn validate_policy(policy: &SdJwtReceiptVerificationPolicy<'_>) -> Result<(), SdJwtEnvelopeError> {
+fn validate_policy(
+    policy: &BoundCredentialVerificationPolicy<'_>,
+) -> Result<(), SdJwtEnvelopeError> {
     if policy.expected_issuer.trim().is_empty()
         || policy.expected_issuer.len() > MAX_SD_JWT_EXPECTED_CLAIM_BYTES
         || policy.expected_vct.trim().is_empty()
         || policy.expected_vct.len() > MAX_SD_JWT_EXPECTED_CLAIM_BYTES
         || policy.now_unix == 0
-        || policy.maximum_age_seconds == 0
-        || policy.maximum_age_seconds > MAX_RECEIPT_AGE_SECONDS
+        || policy
+            .maximum_age_seconds
+            .is_some_and(|value| value == 0 || value > MAX_RECEIPT_AGE_SECONDS)
         || policy.clock_skew_seconds > MAX_RECEIPT_CLOCK_SKEW_SECONDS
         || policy.issuer_accepted_typ_values.is_empty()
+        || (policy.require_status && policy.status_verifier.is_none())
     {
         return Err(SdJwtEnvelopeError::InvalidReceiptPolicy);
     }
     Ok(())
 }
 
-fn validate_receipt_claims(
-    payload: &Value,
-    policy: &SdJwtReceiptVerificationPolicy<'_>,
+fn validate_credential_claims(
+    issuer_payload: &Value,
+    resolved_payload: &Value,
+    policy: &BoundCredentialVerificationPolicy<'_>,
 ) -> Result<(), SdJwtEnvelopeError> {
-    let object = payload
+    let issuer_object = issuer_payload
         .as_object()
         .ok_or(SdJwtEnvelopeError::InvalidIssuerJwt)?;
-    if object.get("iss").and_then(Value::as_str) != Some(policy.expected_issuer)
-        || object.get("vct").and_then(Value::as_str) != Some(policy.expected_vct)
+    let resolved_object = resolved_payload
+        .as_object()
+        .ok_or(SdJwtEnvelopeError::InvalidIssuerJwt)?;
+    let issuer_matches = match issuer_object.get("iss") {
+        Some(value) => value.as_str() == Some(policy.expected_issuer),
+        None => policy.x5c_allow_missing_issuer_claim,
+    };
+    if !issuer_matches
+        || issuer_object.get("vct").and_then(Value::as_str) != Some(policy.expected_vct)
     {
         return Err(SdJwtEnvelopeError::ReceiptClaimMismatch);
     }
-    let issued_at = object
-        .get("iat")
-        .and_then(Value::as_u64)
-        .ok_or(SdJwtEnvelopeError::InvalidReceiptTemporalClaim)?;
-    let not_before = optional_numeric_date(object.get("nbf"))?;
-    let expires_at = optional_numeric_date(object.get("exp"))?;
-    if expires_at.is_some_and(|value| value <= issued_at)
+    match (issuer_object.get("status"), policy.status_verifier) {
+        (Some(status), Some(verifier)) => verifier.verify_status(status, policy.now_unix)?,
+        (Some(_), None) | (None, _) if policy.require_status => {
+            return Err(SdJwtEnvelopeError::CredentialStatusNotVerified);
+        }
+        (Some(_), None) => return Err(SdJwtEnvelopeError::CredentialStatusNotVerified),
+        (None, _) => {}
+    }
+    // SD-JWT VC permits `iat` to be selectively disclosed. Validate the
+    // authenticated resolved value, while the remaining registered profile
+    // claims are required by that profile to stay in the issuer payload.
+    let issued_at = optional_numeric_date(resolved_object.get("iat"))?;
+    let not_before = optional_numeric_date(issuer_object.get("nbf"))?;
+    let expires_at = optional_numeric_date(issuer_object.get("exp"))?;
+    if matches!((issued_at, expires_at), (Some(start), Some(end)) if end <= start)
         || matches!((not_before, expires_at), (Some(start), Some(end)) if start >= end)
     {
         return Err(SdJwtEnvelopeError::InvalidReceiptTemporalClaim);
@@ -350,16 +381,27 @@ fn validate_receipt_claims(
         .now_unix
         .checked_add(policy.clock_skew_seconds)
         .ok_or(SdJwtEnvelopeError::InvalidReceiptTemporalClaim)?;
-    let stale_after = issued_at
-        .checked_add(policy.maximum_age_seconds)
-        .and_then(|value| value.checked_add(policy.clock_skew_seconds))
-        .ok_or(SdJwtEnvelopeError::InvalidReceiptTemporalClaim)?;
-    if issued_at > latest_issued_at || stale_after < policy.now_unix {
-        return Err(SdJwtEnvelopeError::InvalidReceiptTemporalClaim);
+    match (issued_at, policy.maximum_age_seconds) {
+        (Some(value), _) if value > latest_issued_at => {
+            return Err(SdJwtEnvelopeError::InvalidReceiptTemporalClaim);
+        }
+        (Some(value), Some(maximum_age_seconds)) => {
+            let stale_after = value
+                .checked_add(maximum_age_seconds)
+                .and_then(|candidate| candidate.checked_add(policy.clock_skew_seconds))
+                .ok_or(SdJwtEnvelopeError::InvalidReceiptTemporalClaim)?;
+            if stale_after < policy.now_unix {
+                return Err(SdJwtEnvelopeError::InvalidReceiptTemporalClaim);
+            }
+        }
+        (None, Some(_)) => return Err(SdJwtEnvelopeError::InvalidReceiptTemporalClaim),
+        (Some(_), None) | (None, None) => {}
     }
-    if not_before.is_some_and(|value| value > latest_issued_at)
-        || expires_at
-            .is_some_and(|value| policy.now_unix.saturating_sub(policy.clock_skew_seconds) >= value)
+    if not_before.is_some_and(|value| value > latest_issued_at) {
+        return Err(SdJwtEnvelopeError::CredentialNotYetValid);
+    }
+    if expires_at
+        .is_some_and(|value| policy.now_unix.saturating_sub(policy.clock_skew_seconds) >= value)
     {
         return Err(SdJwtEnvelopeError::ReceiptExpired);
     }
@@ -378,7 +420,7 @@ fn optional_numeric_date(value: Option<&Value>) -> Result<Option<u64>, SdJwtEnve
 
 fn validate_holder_binding(
     payload: &Value,
-    policy: &SdJwtReceiptVerificationPolicy<'_>,
+    policy: &BoundCredentialVerificationPolicy<'_>,
 ) -> Result<ValidatedSdJwtHolderBinding, SdJwtEnvelopeError> {
     let confirmation = payload
         .get("cnf")

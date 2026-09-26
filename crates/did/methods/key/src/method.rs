@@ -2,13 +2,17 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use reallyme_codec::base64url::{base64url_to_bytes, bytes_to_base64url};
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
 use thiserror::Error;
 
 const DID_KEY_PREFIX: &str = "did:key:";
 const BASE58BTC_MULTIBASE_PREFIX: char = 'z';
-const BASE64URL_MULTIBASE_PREFIX: char = 'u';
+/// Maximum encoded method-specific identifier length accepted before Base58 decoding.
+///
+/// The largest supported key (compressed P-384, 49 bytes plus a two-byte
+/// multicodec header) encodes to at most 70 Base58 characters; the cap bounds
+/// the quadratic Base58 decoder on hostile input.
+const MAX_METHOD_SPECIFIC_ID_LEN: usize = 128;
 const BASE58_ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 /// Public-key multicodecs supported by the did:key specification profile here.
@@ -58,12 +62,13 @@ impl DidKeyMulticodec {
 }
 
 /// Multibase encodings allowed by the did:key ABNF.
+///
+/// The did:key ABNF permits only Base58 BTC (`z`). Accepting further encodings
+/// would give one key several distinct DIDs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DidKeyMultibase {
     /// Multibase Base58 BTC, `z` prefix.
     Base58Btc,
-    /// Multibase unpadded base64url, `u` prefix.
-    Base64Url,
 }
 
 /// Audit-safe did:key failure reasons.
@@ -87,6 +92,8 @@ pub enum DidKeyErrorReason {
     InvalidPublicKeyLength,
     /// Checked arithmetic failed while converting between bases.
     ArithmeticOverflow,
+    /// The method-specific identifier exceeded the supported length.
+    IdentifierTooLong,
 }
 
 /// Typed did:key method error.
@@ -126,6 +133,9 @@ impl From<DidKeyErrorReason> for IdentityCoreErrorReason {
             }
             DidKeyErrorReason::InvalidPublicKeyLength => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_PUBLIC_KEY_LENGTH
+            }
+            DidKeyErrorReason::IdentifierTooLong => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_METHOD_IDENTIFIER
             }
         }
     }
@@ -175,9 +185,6 @@ pub fn generate_did_key(
         DidKeyMultibase::Base58Btc => {
             format!("{BASE58BTC_MULTIBASE_PREFIX}{}", base58_encode(&bytes)?)
         }
-        DidKeyMultibase::Base64Url => {
-            format!("{BASE64URL_MULTIBASE_PREFIX}{}", bytes_to_base64url(&bytes))
-        }
     };
 
     Ok(format!("{DID_KEY_PREFIX}{encoded}"))
@@ -200,6 +207,9 @@ pub fn parse_did_key(did: &str) -> Result<DidKeyIdentifier, DidKeyError> {
     if method_specific.is_empty() {
         return Err(DidKeyError::new(DidKeyErrorReason::EmptyIdentifier));
     }
+    if method_specific.len() > MAX_METHOD_SPECIFIC_ID_LEN {
+        return Err(DidKeyError::new(DidKeyErrorReason::IdentifierTooLong));
+    }
 
     let mut chars = method_specific.chars();
     let prefix = chars
@@ -212,14 +222,6 @@ pub fn parse_did_key(did: &str) -> Result<DidKeyIdentifier, DidKeyError> {
 
     let (multibase, decoded) = match prefix {
         BASE58BTC_MULTIBASE_PREFIX => (DidKeyMultibase::Base58Btc, base58_decode(encoded)?),
-        BASE64URL_MULTIBASE_PREFIX => {
-            if !encoded.bytes().all(is_base64url_byte) {
-                return Err(DidKeyError::new(DidKeyErrorReason::InvalidBase64Url));
-            }
-            let bytes = base64url_to_bytes(encoded)
-                .map_err(|_| DidKeyError::new(DidKeyErrorReason::InvalidBase64Url))?;
-            (DidKeyMultibase::Base64Url, bytes)
-        }
         _ => return Err(DidKeyError::new(DidKeyErrorReason::UnsupportedMultibase)),
     };
 
@@ -270,6 +272,11 @@ fn decode_varint(bytes: &[u8]) -> Result<(u64, usize), DidKeyError> {
             .checked_add(part)
             .ok_or(DidKeyError::new(DidKeyErrorReason::ArithmeticOverflow))?;
         if byte & 0x80 == 0 {
+            // Unsigned-varint requires minimal encoding: a final zero byte after
+            // continuation bytes would give one multicodec several encodings.
+            if index > 0 && *byte == 0 {
+                return Err(DidKeyError::new(DidKeyErrorReason::InvalidVarint));
+            }
             let consumed = index
                 .checked_add(1)
                 .ok_or(DidKeyError::new(DidKeyErrorReason::ArithmeticOverflow))?;
@@ -382,10 +389,6 @@ fn base58_value(byte: u8) -> Option<u8> {
         index = index.checked_add(1)?;
     }
     None
-}
-
-fn is_base64url_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'
 }
 
 #[cfg(test)]

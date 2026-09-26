@@ -24,7 +24,7 @@
         "role": "unpublished_internal",
         "package": "reallyme-ssi",
         "publish_ready": true,
-        "notes": "The reallyme-ssi facade remains source-only and publish = false. The smaller support-crate closure consumed by the public reallyme-identity package is released separately at version 0.1.0."
+        "notes": "The reallyme-ssi facade remains source-only and publish = false. The smaller support-crate closure consumed by the public reallyme-identity package is released separately at version 0.2.0."
       },
       "release_blocker": false,
       "next_actions": []
@@ -115,7 +115,7 @@
     },
     {
       "id": "sd-jwt",
-      "title": "RFC 9901 SD-JWT envelope semantics",
+      "title": "RFC 9901 SD-JWT and SD-JWT VC envelope semantics",
       "owner": "reallyme/ssi",
       "local_crates": [
         "crates/envelopes/sd_jwt/Cargo.toml"
@@ -135,7 +135,7 @@
         "role": "unpublished_internal",
         "package": "reallyme-sd-jwt",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+        "notes": "Section-by-section coverage is complete for the supported RFC 9901 and SD-JWT VC draft-19 identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
       },
       "release_blocker": false,
       "next_actions": []

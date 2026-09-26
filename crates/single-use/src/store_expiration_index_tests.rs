@@ -17,7 +17,7 @@ fn repeated_put_replaces_one_bounded_expiration_record() {
     let store = store.unwrap_or_default();
 
     for offset in 1..=1_024 {
-        assert_eq!(store.put("reusable-identifier", NOW + offset), Ok(()));
+        assert_eq!(store.put("reusable-identifier", NOW, NOW + offset), Ok(()));
     }
 
     let counts = store.lock().map(|state| {

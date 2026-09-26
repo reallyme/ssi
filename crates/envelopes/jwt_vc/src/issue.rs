@@ -92,6 +92,7 @@ fn build_payload(input: &JwtVcIssueInput<'_>) -> Result<JwtVcPayload, JwtVcEnvel
         sub: input.subject.to_owned(),
         nbf: input.not_before_unix,
         exp: input.expires_at_unix,
+        iat: None,
         jti: input.jwt_id.map(str::to_owned),
         credential_cbor: bytes_to_base64url(input.credential_cbor),
         credential_proto: input.credential_proto.map(bytes_to_base64url),

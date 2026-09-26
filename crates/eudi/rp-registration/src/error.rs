@@ -47,6 +47,14 @@ pub enum RegistrationErrorReason {
     SemanticBindingMismatch,
     /// A validity interval was empty, inverted, or too long.
     InvalidValidityInterval,
+    /// The evaluation time was outside the authenticated validity period.
+    OutsideValidityPeriod,
+    /// An authenticated response was older than the caller's freshness bound
+    /// or was issued in the future beyond the permitted clock skew.
+    ResponseNotFresh,
+    /// A legacy response carried an answer without authenticated issuer,
+    /// issue time, or query binding and cannot be relied upon.
+    UnboundLegacyAnswer,
     /// Deterministic serialization failed.
     SerializationFailed,
     /// Memory capacity could not be reserved safely.

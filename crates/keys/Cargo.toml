@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-keys"
-version = "0.1.0"
+version = "0.2.0"
 description = "Keyset helpers for ReallyMe identity workflows."
 edition.workspace = true
 rust-version.workspace = true

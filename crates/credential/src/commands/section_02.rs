@@ -87,11 +87,9 @@ pub fn validate_credential_with_evidence(
         input.policy.require_trust_chain,
     ));
     checks.push(skipped(CredentialCheckName::TrustList, false));
-    checks.push(pass(CredentialCheckName::AssuranceLevel, false));
-    checks.push(pass(CredentialCheckName::CredentialType, false));
+    push_unevaluated_policy_checks(&mut checks);
     checks.push(skipped(CredentialCheckName::Audience, false));
     checks.push(skipped(CredentialCheckName::Nonce, false));
-    checks.push(pass(CredentialCheckName::Algorithm, false));
     checks.push(skipped(CredentialCheckName::CertificateChain, false));
     checks.push(skipped_or_indeterminate(
         CredentialCheckName::Policy,
@@ -158,7 +156,21 @@ fn apply_requested_checks(
             check.mandatory = true;
         }
     }
-    checks.retain(|check| requested.contains(&check.name));
+    // Requested checks narrow the reported optional checks only. Mandatory
+    // checks always remain so a failed or indeterminate mandatory check can
+    // never be filtered out before the decision is derived.
+    checks.retain(|check| check.mandatory || requested.contains(&check.name));
+}
+
+/// Record assurance, credential-type, and algorithm policy checks as skipped.
+///
+/// Local validation has no caller-supplied acceptance policy for these
+/// dimensions, so reporting them as passed would claim an evaluation that did
+/// not happen.
+fn push_unevaluated_policy_checks(checks: &mut Vec<CredentialCheckResult>) {
+    checks.push(skipped(CredentialCheckName::AssuranceLevel, false));
+    checks.push(skipped(CredentialCheckName::CredentialType, false));
+    checks.push(skipped(CredentialCheckName::Algorithm, false));
 }
 
 fn complete_local_validation(
@@ -195,11 +207,9 @@ fn complete_local_validation(
         policy.require_trust_chain,
     ));
     checks.push(skipped(CredentialCheckName::TrustList, false));
-    checks.push(pass(CredentialCheckName::AssuranceLevel, false));
-    checks.push(pass(CredentialCheckName::CredentialType, false));
+    push_unevaluated_policy_checks(&mut checks);
     checks.push(skipped(CredentialCheckName::Audience, false));
     checks.push(skipped(CredentialCheckName::Nonce, false));
-    checks.push(pass(CredentialCheckName::Algorithm, false));
     checks.push(skipped(CredentialCheckName::CertificateChain, false));
     checks.push(skipped_or_indeterminate(
         CredentialCheckName::Policy,
@@ -262,7 +272,10 @@ fn status_from_error(error: &CredentialError) -> CredentialStatusValue {
         CredentialError::Status(CredentialStatusReason::Suspended) => {
             CredentialStatusValue::Suspended
         }
-        CredentialError::Status(CredentialStatusReason::Expired) => CredentialStatusValue::Expired,
+        CredentialError::Status(CredentialStatusReason::Expired)
+        | CredentialError::Validity(crate::CredentialValidityReason::Expired) => {
+            CredentialStatusValue::Expired
+        }
         _ => CredentialStatusValue::Unknown,
     }
 }
@@ -370,6 +383,12 @@ fn code_from_error(error: &CredentialError) -> CredentialCheckCode {
         }
         CredentialError::Status(CredentialStatusReason::Expired) => CredentialCheckCode::Expired,
         CredentialError::Status(_) => CredentialCheckCode::InvalidStatusEvidence,
+        CredentialError::Validity(crate::CredentialValidityReason::NotYetValid) => {
+            CredentialCheckCode::NotYetValid
+        }
+        CredentialError::Validity(crate::CredentialValidityReason::Expired) => {
+            CredentialCheckCode::Expired
+        }
         CredentialError::InvalidInput(crate::CredentialInvalidReason::InvalidValidityWindow) => {
             CredentialCheckCode::Expired
         }

@@ -12,22 +12,32 @@ use identity_core_primitives::Algorithm as IdentityAlgorithm;
 use reallyme_codec::base64url::bytes_to_base64url;
 use reallyme_crypto::core::Algorithm as CryptoAlgorithm;
 use reallyme_crypto::dispatch::sign;
+use zeroize::Zeroizing;
 
-/// Map identity-level algorithm → crypto execution algorithm.
+/// Map an identity-level algorithm to the crypto algorithm used for core attestations.
 ///
-/// Returns None for non-signing algorithms.
-fn map_identity_alg_to_crypto_alg(alg: IdentityAlgorithm) -> Option<CryptoAlgorithm> {
+/// Returns `None` for algorithms that are not core attestation algorithms. The
+/// set must stay identical to the attestation verifier in
+/// `validate::attestation`: P-256 is used for ES256 Data Integrity proofs and
+/// relationship keys, but it is not a did:me update-authority algorithm.
+pub(crate) fn attestation_crypto_algorithm(alg: IdentityAlgorithm) -> Option<CryptoAlgorithm> {
     match alg {
         IdentityAlgorithm::Ed25519 => Some(CryptoAlgorithm::Ed25519),
-        IdentityAlgorithm::P256 => Some(CryptoAlgorithm::P256),
         IdentityAlgorithm::Secp256k1 => Some(CryptoAlgorithm::Secp256k1),
         IdentityAlgorithm::MlDsa87 => Some(CryptoAlgorithm::MlDsa87),
 
-        // Not signing algorithms
+        // Not core attestation algorithms
+        IdentityAlgorithm::P256 => None,
         IdentityAlgorithm::X25519 => None,
         IdentityAlgorithm::MlKem768 => None,
         IdentityAlgorithm::MlKem1024 => None,
     }
+}
+
+/// Return true when `alg` may authorize did:me core updates (sign attestations).
+#[must_use]
+pub fn is_attestation_algorithm(alg: IdentityAlgorithm) -> bool {
+    attestation_crypto_algorithm(alg).is_some()
 }
 
 /// Produce core attestations over the canonical DID core.
@@ -70,8 +80,17 @@ pub fn sign_core_with_policy(
         return Err(DidCoreError::PolicyViolation);
     }
 
+    // Every allowed reference must name a controller key with an attestation
+    // algorithm; otherwise the policy could never be verified.
+    for id in allowed {
+        match controller_keys.iter().find(|vm| &vm.id == id) {
+            Some(vm) if attestation_crypto_algorithm(vm.algorithm).is_some() => {}
+            _ => return Err(DidCoreError::PolicyViolation),
+        }
+    }
+
     let bytes = core.canonical_cbor()?;
-    let signing_input = core_signature_input(&bytes);
+    let signing_input = core_signature_input(&bytes)?;
     let mut out = Vec::new();
 
     for vm in controller_keys {
@@ -83,14 +102,14 @@ pub fn sign_core_with_policy(
         // 2. Identity algorithm is already typed
         let identity_alg = vm.algorithm;
 
-        // 3. Map to crypto algorithm (skip non-signing)
-        let crypto_alg = match map_identity_alg_to_crypto_alg(identity_alg) {
+        // 3. Map to crypto algorithm (rejected above for allowed keys)
+        let crypto_alg = match attestation_crypto_algorithm(identity_alg) {
             Some(a) => a,
-            None => continue,
+            None => return Err(DidCoreError::PolicyViolation),
         };
 
-        // 4. Lookup private key
-        let Some(secret) = key_lookup(&vm.id) else {
+        // 4. Lookup private key; the engine-owned copy is cleared on drop.
+        let Some(secret) = key_lookup(&vm.id).map(Zeroizing::new) else {
             continue;
         };
 

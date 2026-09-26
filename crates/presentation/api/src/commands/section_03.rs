@@ -6,15 +6,10 @@ fn add_expected_checks(
     request: &PresentationVerifyRequest,
     checks: &mut Vec<PresentationCheckResult>,
 ) {
-    checks.push(optional_presence_check(
+    checks.push(expected_text_binding_check(
         PresentationCheckName::State,
-        request
-            .expected
-            .state
-            .as_ref()
-            .map(|value| !value.trim().is_empty()),
-        false,
-        PresentationCheckCode::BindingMismatch,
+        request.expected.state.as_deref(),
+        request.facts.state_ok,
     ));
     checks.push(expected_nonce_check(
         &request.presentation,
@@ -24,15 +19,10 @@ fn add_expected_checks(
         &request.presentation,
         request.expected.audience_hash,
     ));
-    checks.push(optional_presence_check(
+    checks.push(expected_text_binding_check(
         PresentationCheckName::ResponseUri,
-        request
-            .expected
-            .response_uri
-            .as_ref()
-            .map(|value| !value.trim().is_empty()),
-        false,
-        PresentationCheckCode::BindingMismatch,
+        request.expected.response_uri.as_deref(),
+        request.facts.response_uri_ok,
     ));
     checks.push(skipped(PresentationCheckName::OriginBinding, false));
 }
@@ -77,21 +67,29 @@ fn validate_presentation_shape(
     }
 }
 
+/// Maximum disclosure facts or disclosure requests accepted by one command.
+///
+/// Matches the VP policy engine's disclosure ceiling so the command layer
+/// never accepts more input than the evaluator it forwards to.
+const MAX_PRESENTATION_DISCLOSURES: usize = 4_096;
+
+/// Maximum credential identifiers selected in one presentation record.
+const MAX_SELECTED_CREDENTIALS: usize = 256;
+
 fn validate_disclosures(disclosures: &[PresentationDisclosureFact]) -> Result<(), VpApiError> {
-    for (index, disclosure) in disclosures.iter().enumerate() {
+    if disclosures.len() > MAX_PRESENTATION_DISCLOSURES {
+        return Err(VpApiError::InvalidCommand(
+            PresentationCommandReason::InvalidDisclosure,
+        ));
+    }
+    let mut seen = BTreeSet::new();
+    for disclosure in disclosures {
         if disclosure.claim_path.trim().is_empty()
             || matches!(
                 disclosure.mode,
                 DisclosureMode::Unspecified | DisclosureMode::Hidden
             )
-            || index
-                .checked_add(1)
-                .and_then(|start| disclosures.get(start..))
-                .is_some_and(|remaining| {
-                    remaining
-                        .iter()
-                        .any(|other| other.claim_path == disclosure.claim_path)
-                })
+            || !seen.insert(disclosure.claim_path.as_str())
         {
             return Err(VpApiError::InvalidCommand(
                 PresentationCommandReason::InvalidDisclosure,
@@ -101,13 +99,69 @@ fn validate_disclosures(disclosures: &[PresentationDisclosureFact]) -> Result<()
     Ok(())
 }
 
+fn validate_selected_claims(
+    presentation: &Presentation,
+    selected: &[PresentationDisclosureFact],
+) -> Result<(), VpApiError> {
+    if matches!(presentation, Presentation::Mdoc(_)) {
+        return if selected.is_empty() {
+            Ok(())
+        } else {
+            Err(VpApiError::InvalidCommand(
+                PresentationCommandReason::InvalidDisclosure,
+            ))
+        };
+    }
+
+    let actual = identity_presentation_vp_policy::extract_disclosed_claims(presentation).map_err(
+        |_| VpApiError::InvalidCommand(PresentationCommandReason::InvalidDisclosure),
+    )?;
+    if actual.len() != selected.len() {
+        return Err(VpApiError::InvalidCommand(
+            PresentationCommandReason::InvalidDisclosure,
+        ));
+    }
+
+    for selected_claim in selected {
+        let matched = actual.iter().any(|actual_claim| {
+            actual_claim.claim_path == selected_claim.claim_path
+                && disclosure_modes_match(selected_claim.mode, actual_claim.mode)
+        });
+        if !matched {
+            return Err(VpApiError::InvalidCommand(
+                PresentationCommandReason::InvalidDisclosure,
+            ));
+        }
+    }
+    Ok(())
+}
+
+const fn disclosure_modes_match(
+    selected: DisclosureMode,
+    actual: identity_credential_claims_core::DisclosureMode,
+) -> bool {
+    use identity_credential_claims_core::DisclosureMode as Actual;
+
+    matches!(
+        (selected, actual),
+        (DisclosureMode::Unspecified, Actual::Unspecified)
+            | (DisclosureMode::Hidden, Actual::Hidden)
+            | (DisclosureMode::Reveal, Actual::Reveal)
+            | (DisclosureMode::Eq, Actual::Eq)
+            | (DisclosureMode::Gte, Actual::Gte)
+            | (DisclosureMode::Lte, Actual::Lte)
+            | (DisclosureMode::Range, Actual::Range)
+            | (DisclosureMode::MemberOfSet, Actual::MemberOfSet)
+    )
+}
+
+/// Returns true when the identifiers exceed the selection ceiling or repeat.
 fn has_duplicate_text(values: &[String]) -> bool {
-    values.iter().enumerate().any(|(index, value)| {
-        index
-            .checked_add(1)
-            .and_then(|start| values.get(start..))
-            .is_some_and(|remaining| remaining.iter().any(|other| other == value))
-    })
+    if values.len() > MAX_SELECTED_CREDENTIALS {
+        return true;
+    }
+    let mut seen = BTreeSet::new();
+    values.iter().any(|value| !seen.insert(value.as_str()))
 }
 
 fn zeroize_disclosure_facts(disclosures: &mut Vec<PresentationDisclosureFact>) {
@@ -134,6 +188,11 @@ fn zeroize_policy(policy: &mut VpPolicy) {
 }
 
 fn validate_core_disclosures(disclosures: &[ClaimDisclosure]) -> Result<(), VpApiError> {
+    if disclosures.len() > MAX_PRESENTATION_DISCLOSURES {
+        return Err(VpApiError::InvalidCommand(
+            PresentationCommandReason::InvalidDisclosure,
+        ));
+    }
     for disclosure in disclosures {
         if disclosure.claim_path.trim().is_empty()
             || matches!(
@@ -212,6 +271,12 @@ fn expected_audience_check(
 fn disclosure_check(disclosures: &[PresentationDisclosureFact]) -> PresentationCheckResult {
     if disclosures.is_empty() {
         indeterminate(PresentationCheckName::Disclosures, true)
+    } else if disclosures.len() > MAX_PRESENTATION_DISCLOSURES {
+        fail(
+            PresentationCheckName::Disclosures,
+            PresentationCheckCode::InvalidDisclosure,
+            true,
+        )
     } else {
         pass(PresentationCheckName::Disclosures, true)
     }
@@ -248,13 +313,29 @@ fn optional_bool_check(
     }
 }
 
-fn optional_presence_check(
+/// Evaluates a text binding the caller expects the response to carry.
+///
+/// An expected value only establishes that a comparison is required; the
+/// observed comparison result must come from the protocol layer. A present
+/// expectation therefore makes the check mandatory, and a missing comparison
+/// result is indeterminate rather than a pass.
+fn expected_text_binding_check(
     name: PresentationCheckName,
-    value: Option<bool>,
-    mandatory: bool,
-    code: PresentationCheckCode,
+    expected: Option<&str>,
+    observed_match: Option<bool>,
 ) -> PresentationCheckResult {
-    optional_bool_check(name, value, mandatory, code)
+    match expected {
+        None => skipped(name, false),
+        Some(value) if value.trim().is_empty() => {
+            fail(name, PresentationCheckCode::BindingMismatch, true)
+        }
+        Some(_) => optional_bool_check(
+            name,
+            observed_match,
+            true,
+            PresentationCheckCode::BindingMismatch,
+        ),
+    }
 }
 
 fn bool_check(
@@ -284,7 +365,9 @@ fn apply_requested_checks(
             check.mandatory = true;
         }
     }
-    checks.retain(|check| requested.contains(&check.name));
+    // Requested checks narrow the report, never the decision: mandatory
+    // checks always stay in the set the aggregate decision is computed from.
+    checks.retain(|check| check.mandatory || requested.contains(&check.name));
 }
 
 fn decision_from_checks(checks: &[PresentationCheckResult]) -> PresentationDecision {

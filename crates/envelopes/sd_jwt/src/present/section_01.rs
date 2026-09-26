@@ -5,19 +5,20 @@
 use core::fmt;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use reallyme_codec::base64url::bytes_to_base64url;
+use reallyme_codec::base64url::{base64url_to_bytes, bytes_to_base64url};
 use reallyme_crypto::core::{HashAlgorithm, RngOutputKind};
 use reallyme_crypto::csprng::{generate_bytes, OsSecureRandom};
 use reallyme_crypto::dispatch::hash_digest;
 use reallyme_crypto::jwk::Jwk;
 use reallyme_jose::jwt::{encode_signed_jwt_with_header_options, JwtHeaderEncodeOptions};
 use serde_json::{Map, Value};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::disclose::{
     create_array_element_disclosure, create_object_property_disclosure, decode_disclosure,
     validate_object_claim_name, DisclosureKind, ARRAY_DIGEST_CLAIM_NAME, SD_CLAIM_NAME,
 };
+use crate::registered_claims::is_non_selectively_disclosable_claim;
 use crate::sensitive::{zeroize_json_value, zeroize_strings};
 use crate::{digest_disclosure, serialize_sd_jwt_compact, SdJwtEnvelopeError, SdJwtHashAlgorithm};
 
@@ -29,6 +30,11 @@ const VC_ISSUER_TYP: &str = "vc+sd-jwt";
 const JWT_TYP: &str = "JWT";
 const DEFAULT_MAX_DEPTH: usize = 64;
 const DEFAULT_MAX_NODES: usize = 16_384;
+/// Hard ceiling applied to caller-supplied processing depth. Recursive
+/// processing is bounded by this value regardless of policy configuration.
+pub const MAX_SD_JWT_PROCESSING_DEPTH: usize = 128;
+/// Hard ceiling applied to caller-supplied processing node budgets.
+pub const MAX_SD_JWT_PROCESSING_NODES: usize = 131_072;
 
 pub trait SdJwtSaltSource {
     fn next_salt(&mut self) -> Result<String, SdJwtEnvelopeError>;
@@ -219,6 +225,7 @@ pub fn issue_sd_jwt(
         return Err(SdJwtEnvelopeError::InvalidIssuanceInput);
     }
 
+    validate_disclosure_strategy(&input.policy.disclosure_strategy)?;
     let mut records = Vec::new();
     let issuer_payload = transform_value(
         &input.claims,
@@ -283,6 +290,12 @@ fn transform_object(
         }
 
         let child_path = object_child_path(path, key);
+        if is_root && is_non_selectively_disclosable_claim(key) {
+            // Registered SD-JWT VC claims stay verbatim in the issuer payload;
+            // neither the claim nor any nested member becomes disclosable.
+            output.insert(key.clone(), value.clone());
+            continue;
+        }
         let transformed_child =
             transform_value(value, &child_path, false, policy, salt_source, records)?;
         if should_disclose(&child_path, &policy.disclosure_strategy) {
@@ -374,9 +387,60 @@ fn add_array_decoys(
 ) -> Result<(), SdJwtEnvelopeError> {
     for _ in 0..policy.decoys.array_decoys {
         let digest = salt_source.next_decoy_digest()?;
-        output.push(array_placeholder(&digest));
+        // RFC 9901 §4.2.5: decoys appended at a fixed position would be
+        // trivially distinguishable from real element placeholders.
+        let position = random_insert_position(salt_source, output.len())?;
+        output.insert(position, array_placeholder(&digest));
     }
 
+    Ok(())
+}
+
+/// Draw an insertion index in `0..=len` from fresh, unpublished salt-source
+/// entropy so decoy placement is independent of any published digest.
+fn random_insert_position(
+    salt_source: &mut impl SdJwtSaltSource,
+    len: usize,
+) -> Result<usize, SdJwtEnvelopeError> {
+    const POSITION_ENTROPY_BYTES: usize = 8;
+    let entropy = salt_source.next_decoy_digest()?;
+    let decoded = Zeroizing::new(
+        base64url_to_bytes(&entropy).map_err(|_| SdJwtEnvelopeError::InvalidIssuanceInput)?,
+    );
+    let sample_bytes = decoded
+        .len()
+        .checked_sub(POSITION_ENTROPY_BYTES)
+        .and_then(|start| decoded.get(start..))
+        .and_then(|tail| <[u8; POSITION_ENTROPY_BYTES]>::try_from(tail).ok())
+        .ok_or(SdJwtEnvelopeError::InvalidIssuanceInput)?;
+    let bound = len
+        .checked_add(1)
+        .and_then(|value| u64::try_from(value).ok())
+        .ok_or(SdJwtEnvelopeError::InvalidIssuanceInput)?;
+    // The modulo bias is below bound / 2^64 for any bounded payload array.
+    usize::try_from(u64::from_be_bytes(sample_bytes) % bound)
+        .map_err(|_| SdJwtEnvelopeError::InvalidIssuanceInput)
+}
+
+/// Reject explicit JSON paths that would make a registered claim, or any
+/// member nested under it, selectively disclosable.
+fn validate_disclosure_strategy(
+    strategy: &SdJwtDisclosureStrategy,
+) -> Result<(), SdJwtEnvelopeError> {
+    let SdJwtDisclosureStrategy::JsonPaths(paths) = strategy else {
+        return Ok(());
+    };
+    for path in paths {
+        let Some(rest) = path.strip_prefix("$.") else {
+            continue;
+        };
+        let top_level_name = rest
+            .find(['.', '['])
+            .map_or(rest, |end| rest.get(..end).unwrap_or(rest));
+        if is_non_selectively_disclosable_claim(top_level_name) {
+            return Err(SdJwtEnvelopeError::NonSelectivelyDisclosableClaim);
+        }
+    }
     Ok(())
 }
 
@@ -413,19 +477,4 @@ fn array_placeholder(digest: &str) -> Value {
         Value::String(digest.to_owned()),
     );
     Value::Object(object)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SdJwtProcessingPolicy {
-    pub max_depth: usize,
-    pub max_nodes: usize,
-}
-
-impl Default for SdJwtProcessingPolicy {
-    fn default() -> Self {
-        SdJwtProcessingPolicy {
-            max_depth: DEFAULT_MAX_DEPTH,
-            max_nodes: DEFAULT_MAX_NODES,
-        }
-    }
 }

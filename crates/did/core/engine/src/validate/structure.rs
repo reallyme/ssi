@@ -7,6 +7,11 @@ use reallyme_codec::base64url::base64url_to_bytes;
 use reallyme_did_types::{Controller, DIDDocument};
 
 use crate::validate::diagnostic::{DidValidationCode, DidValidationIssue, DidValidationLocation};
+use crate::validate::limits::{
+    MAX_ALSO_KNOWN_AS, MAX_ATTESTATIONS, MAX_CONTEXT_ENTRIES, MAX_CONTROLLERS,
+    MAX_CORE_CBOR_ENCODED_BYTES, MAX_DOMAIN_VERIFICATIONS, MAX_KEY_HISTORY_ENTRIES,
+    MAX_RELATIONSHIP_REFERENCES, MAX_SERVICES, MAX_VERIFICATION_METHODS,
+};
 
 /// Result of top-level did:me DID Document structure validation.
 #[derive(Debug, Clone)]
@@ -42,6 +47,16 @@ fn is_did_me(s: &str) -> bool {
 
 /// Validate top-level did:me DID Document structure before deeper semantic checks.
 pub fn validate_did_me_structure(doc: &DIDDocument) -> StructureValidationResult {
+    if exceeds_resource_limits(doc) {
+        return StructureValidationResult {
+            ok: false,
+            errors: vec![issue(
+                DidValidationCode::ResourceLimitExceeded,
+                DidValidationLocation::Document,
+            )],
+        };
+    }
+
     let mut errors = Vec::new();
     let terminal = is_terminal_deactivation_shape(doc);
 
@@ -352,6 +367,18 @@ pub fn validate_did_me_structure(doc: &DIDDocument) -> StructureValidationResult
                 DidValidationLocation::UpdatePolicy,
             ));
         }
+        // Update-policy references use the same fragment-relative form as
+        // verification method and attestation ids, so no normalization is needed.
+        if !up
+            .allowed_verification_methods
+            .iter()
+            .all(|id| id.len() > 1 && id.starts_with('#'))
+        {
+            errors.push(issue(
+                DidValidationCode::UpdatePolicyInvalid,
+                DidValidationLocation::UpdatePolicy,
+            ));
+        }
         if has_duplicates(&up.allowed_verification_methods) {
             errors.push(issue(
                 DidValidationCode::UpdatePolicyInvalid,
@@ -406,6 +433,32 @@ pub fn validate_did_me_structure(doc: &DIDDocument) -> StructureValidationResult
         ok: errors.is_empty(),
         errors,
     }
+}
+
+fn exceeds_resource_limits(doc: &DIDDocument) -> bool {
+    let controller_count = match &doc.controller {
+        Controller::Single(_) => 1,
+        Controller::Multiple(values) => values.len(),
+    };
+    let allowed_count = doc
+        .update_policy
+        .as_ref()
+        .map_or(0, |policy| policy.allowed_verification_methods.len());
+
+    doc.context.len() > MAX_CONTEXT_ENTRIES
+        || controller_count > MAX_CONTROLLERS
+        || doc.also_known_as.len() > MAX_ALSO_KNOWN_AS
+        || doc.verification_method.len() > MAX_VERIFICATION_METHODS
+        || doc.authentication.len() > MAX_RELATIONSHIP_REFERENCES
+        || doc.assertion_method.len() > MAX_RELATIONSHIP_REFERENCES
+        || doc.capability_invocation.len() > MAX_RELATIONSHIP_REFERENCES
+        || doc.key_agreement.len() > MAX_RELATIONSHIP_REFERENCES
+        || allowed_count > MAX_RELATIONSHIP_REFERENCES
+        || doc.service.len() > MAX_SERVICES
+        || doc.attestations.len() > MAX_ATTESTATIONS
+        || doc.domain_verification.len() > MAX_DOMAIN_VERIFICATIONS
+        || doc.key_history.len() > MAX_KEY_HISTORY_ENTRIES
+        || doc.core_cbor.len() > MAX_CORE_CBOR_ENCODED_BYTES
 }
 
 fn has_duplicates(values: &[String]) -> bool {

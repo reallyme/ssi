@@ -238,6 +238,14 @@ fn x509_signature_failures_map_to_stable_proto_reasons() {
                 X509SignatureFailure::XmlDsigUnavailable,
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_XMLDSIG_UNAVAILABLE,
             ),
+            (
+                X509SignatureFailure::AlgorithmIdentifierMismatch,
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_INVALID_SIGNATURE,
+            ),
+            (
+                X509SignatureFailure::UnsupportedPathConstraint,
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_UNSUPPORTED_ALGORITHM,
+            ),
         ];
 
     for (reason, expected) in cases {

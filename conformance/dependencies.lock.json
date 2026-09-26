@@ -1,0 +1,10 @@
+{
+  "schema": "reallyme.identity.conformance.dependencies.v1",
+  "dependencies": {
+    "reallyme/crypto": {
+      "source": "crates.io",
+      "package": "reallyme-crypto",
+      "version": "0.3.9"
+    }
+  }
+}

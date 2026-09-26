@@ -17,7 +17,7 @@ use reallyme_trust_core::SignatureVerifier;
 use envelopes_x509::{parse_cert_der, X509Chain};
 
 use openssl::{
-    asn1::Asn1Time,
+    asn1::{Asn1Time, Asn1Type},
     bn::BigNum,
     hash::MessageDigest,
     nid::Nid,
@@ -355,4 +355,60 @@ fn verifies_historical_chain_at_supplied_historical_time() {
     OpenSslSignatureVerifier::new()
         .verify_chain(&chain, evaluation_time)
         .unwrap();
+}
+
+#[test]
+fn rejects_issuer_name_that_only_matches_by_display_string() {
+    let (root, root_key) = build_root("Colliding Root");
+    // Encode the leaf's issuer CN with the other string type than the root's
+    // subject: the rendered display strings collide while the DER differs.
+    let root_der = root.to_der().unwrap();
+    let common_name = b"Colliding Root";
+    let common_name_offset = root_der
+        .windows(common_name.len())
+        .position(|window| window == common_name)
+        .unwrap();
+    let alternate_type = if root_der[common_name_offset - 2] == 0x0c {
+        Asn1Type::PRINTABLESTRING
+    } else {
+        Asn1Type::UTF8STRING
+    };
+    let mut alternate_name = X509NameBuilder::new().unwrap();
+    alternate_name
+        .append_entry_by_nid_with_type(Nid::COMMONNAME, "Colliding Root", alternate_type)
+        .unwrap();
+    let alternate_name = alternate_name.build();
+
+    let key = gen_key();
+    let mut b = X509Builder::new().unwrap();
+    b.set_version(2).unwrap();
+    set_serial(&mut b, 107);
+    b.set_subject_name(&make_name("Leaf")).unwrap();
+    b.set_issuer_name(&alternate_name).unwrap();
+    b.set_pubkey(&key).unwrap();
+    let now = OffsetDateTime::now_utc().unix_timestamp();
+    b.set_not_before(&Asn1Time::from_unix(now - 60).unwrap())
+        .unwrap();
+    b.set_not_after(&Asn1Time::from_unix(now + 86_400).unwrap())
+        .unwrap();
+    b.sign(&root_key, MessageDigest::sha256()).unwrap();
+    let leaf = b.build();
+
+    let chain = X509Chain {
+        certs: vec![
+            parse_cert_der(&leaf.to_der().unwrap()).unwrap(),
+            parse_cert_der(&root_der).unwrap(),
+        ],
+    };
+    assert_eq!(chain.certs[0].issuer, chain.certs[1].subject);
+    assert_ne!(chain.certs[0].issuer_der, chain.certs[1].subject_der);
+
+    let error = OpenSslSignatureVerifier::new()
+        .verify_chain(&chain, OffsetDateTime::now_utc())
+        .expect_err("display-string-only issuer match must not chain");
+
+    assert!(matches!(
+        error,
+        reallyme_trust_core::SignatureVerifyError::InvalidSignature
+    ));
 }

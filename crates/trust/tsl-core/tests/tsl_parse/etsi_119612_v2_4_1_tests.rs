@@ -171,7 +171,12 @@ fn normalizes_xades_object_identifier_forms_and_rejects_non_oid_policies() {
 fn handles_unusable_history_and_opaque_non_pki_identifier_forms() {
     let service = r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>https://example.test/service/nothavingPKIid</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><Other>https://example.test/current</Other></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceInformation><ServiceHistory><ServiceHistoryInstance><ServiceTypeIdentifier>https://example.test/service/nothavingPKIid</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Historical service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><Other>https://example.test/historical</Other></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn</ServiceStatus><StatusStartingTime>2024-01-01T00:00:00Z</StatusStartingTime></ServiceHistoryInstance></ServiceHistory></TSPService>"#.to_owned();
     let parsed = parse_tsl_xml(&document(&provider(&service))).unwrap();
-    assert!(parsed.providers[0].services[0].history.is_empty());
+    // The unidentifiable row cannot authorize, but it is kept as a barrier
+    // that closes the interval of any older row.
+    assert_eq!(parsed.providers[0].services[0].history.len(), 1);
+    assert!(parsed.providers[0].services[0].history[0]
+        .digital_identity
+        .is_none());
 
     let complex_other = document(&provider(&service.replace(
         "<Other>https://example.test/current</Other>",

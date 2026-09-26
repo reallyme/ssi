@@ -108,23 +108,23 @@ reallyme-cose = { version = "=0.2.5", default-features = false }
 reallyme-crypto = { version = "=0.3.9", default-features = false }
 reallyme-crypto-proto = { version = "=0.3.9", default-features = false }
 reallyme-jose = { version = "=0.4.0", default-features = false }
-reallyme-compression-brotli = { path = "crates/compression/brotli", version = "0.1.0" }
-reallyme-credential-audit = { path = "crates/audit", version = "0.1.0", default-features = false }
-reallyme-credential = { path = "crates/credential", version = "0.1.0", default-features = false }
-identity-credential-claims-core = { package = "reallyme-credential-claims", path = "crates/claims", version = "0.1.0", default-features = false }
-identity-core-primitives = { package = "reallyme-ssi-core", path = "crates/did/core/common", version = "0.1.0" }
-reallyme-ssi-proto = { path = "crates/proto", version = "0.1.0", features = ["generated"] }
-reallyme-ssi-proto-codec = { path = "crates/proto-codec", version = "0.1.0" }
-reallyme-did-api = { path = "crates/did/core/api", version = "0.1.0", default-features = false }
-reallyme-did-method-web = { path = "crates/did/methods/web", version = "0.1.0" }
-reallyme-did-method-ebsi = { path = "crates/did/methods/ebsi", version = "0.1.0" }
-reallyme-did-types = { path = "crates/did/core/types", version = "0.1.0" }
-identity-credential-status-core = { package = "reallyme-credential-status", path = "crates/status", version = "0.1.0", default-features = false }
-identity-revocation-core = { package = "reallyme-revocation", path = "crates/revocation", version = "0.1.0", default-features = false }
-identity-trust-jades = { path = "crates/trust/jades", version = "0.1.0", default-features = false }
-reallyme-eudi-rp-registration = { path = "crates/eudi/rp-registration", version = "0.1.0", default-features = false }
-identity-presentation-vp-core = { package = "reallyme-vp-core", path = "crates/presentation/core", version = "0.1.0", default-features = false }
-envelopes-x509 = { package = "reallyme-trust-x509", path = "crates/trust/x509", version = "0.1.0" }
+reallyme-compression-brotli = { path = "crates/compression/brotli", version = "0.2.0" }
+reallyme-credential-audit = { path = "crates/audit", version = "0.2.0", default-features = false }
+reallyme-credential = { path = "crates/credential", version = "0.2.0", default-features = false }
+identity-credential-claims-core = { package = "reallyme-credential-claims", path = "crates/claims", version = "0.2.0", default-features = false }
+identity-core-primitives = { package = "reallyme-ssi-core", path = "crates/did/core/common", version = "0.2.0" }
+reallyme-ssi-proto = { path = "crates/proto", version = "0.2.0", features = ["generated"] }
+reallyme-ssi-proto-codec = { path = "crates/proto-codec", version = "0.2.0" }
+reallyme-did-api = { path = "crates/did/core/api", version = "0.2.0", default-features = false }
+reallyme-did-method-web = { path = "crates/did/methods/web", version = "0.2.0" }
+reallyme-did-method-ebsi = { path = "crates/did/methods/ebsi", version = "0.2.0" }
+reallyme-did-types = { path = "crates/did/core/types", version = "0.2.0" }
+identity-credential-status-core = { package = "reallyme-credential-status", path = "crates/status", version = "0.2.0", default-features = false }
+identity-revocation-core = { package = "reallyme-revocation", path = "crates/revocation", version = "0.2.0", default-features = false }
+identity-trust-jades = { path = "crates/trust/jades", version = "0.2.0", default-features = false }
+reallyme-eudi-rp-registration = { path = "crates/eudi/rp-registration", version = "0.2.0", default-features = false }
+identity-presentation-vp-core = { package = "reallyme-vp-core", path = "crates/presentation/core", version = "0.2.0", default-features = false }
+envelopes-x509 = { package = "reallyme-trust-x509", path = "crates/trust/x509", version = "0.2.0" }
 envelopes-jwt = { package = "reallyme-jose", version = "=0.4.0", default-features = false }
 
 [profile.release]

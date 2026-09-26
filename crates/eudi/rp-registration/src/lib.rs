@@ -29,7 +29,7 @@ pub use model::{
 pub use registry::{
     authenticate_registry_record, AuthenticatedJws, AuthenticatedRegistryRecord,
     JoseRegistryJwsVerifier, RegistrarCertificateChain, RegistryAuthenticationInput,
-    RegistryJwsVerifier, RegistryMetadata, ValidatedJwks,
+    RegistryIntendedUseQuery, RegistryJwsVerifier, RegistryMetadata, ValidatedJwks,
 };
 pub use wrpac::{
     authenticate_access_certificate_association, AccessCertificateBinding,
@@ -38,8 +38,8 @@ pub use wrpac::{
 pub use wrprc::{
     authenticate_registration_certificate, parse_registration_certificate,
     AuthenticatedRegistrationCertificate, AuthenticatedRepresentation,
-    ParsedRegistrationCertificate, RegistrationCertificateBinding, RegistrationCertificateFormat,
-    RegistrationCertificatePolicy, RegistrationCertificateProof,
+    ParsedRegistrationCertificate, RegisteredCredentialFormat, RegistrationCertificateBinding,
+    RegistrationCertificateFormat, RegistrationCertificatePolicy, RegistrationCertificateProof,
 };
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub use wrprc::{

@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-revocation-ocsp-dispatch"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -19,19 +19,16 @@ default = []
 # Native uses the OpenSSL backend.
 native = ["dep:identity-revocation-ocsp-openssl", "dep:openssl"]
 
-# Platform backends mirror the published crypto facade lane patterns.
 wasm = ["dep:js-sys", "dep:wasm-bindgen"]
-apple-platform = []
-android-platform = []
 
 [dependencies]
-identity-revocation-ocsp-core = { version = "0.1.0", path = "../core" }
+identity-revocation-ocsp-core = { version = "0.2.0", path = "../core" }
 
 serde_json = "1.0"
 codec-base64url = { package = "reallyme-codec-base64url", version = "=0.2.3" }
 
 # Native backend deps
-identity-revocation-ocsp-openssl = { version = "0.1.0", path = "../openssl", default-features = false, optional = true }
+identity-revocation-ocsp-openssl = { version = "0.2.0", path = "../openssl", default-features = false, optional = true }
 openssl = { version = "0.10", features = ["vendored"], optional = true }
 
 # WASM backend deps

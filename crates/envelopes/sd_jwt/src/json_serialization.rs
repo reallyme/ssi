@@ -4,7 +4,9 @@
 
 use core::fmt;
 
+use reallyme_codec::jcs::canonicalize_json_text;
 use serde_json::Value;
+use zeroize::Zeroizing;
 
 use crate::compact::{validate_disclosure, validate_disclosure_count};
 use crate::{
@@ -91,8 +93,14 @@ pub fn parse_sd_jwt_json_serialization(
     if input.len() > MAX_SD_JWT_JSON_BYTES {
         return Err(SdJwtEnvelopeError::InputTooLarge);
     }
+    // RFC 8259 leaves duplicate member handling implementation-defined and
+    // `serde_json::Value` keeps the last one. Canonicalizing first rejects
+    // duplicates so two parsers can never disagree on which member was signed.
+    let canonical = Zeroizing::new(
+        canonicalize_json_text(input).map_err(|_| SdJwtEnvelopeError::InvalidJsonSerialization)?,
+    );
     let value: Value =
-        serde_json::from_str(input).map_err(|_| SdJwtEnvelopeError::Serialization)?;
+        serde_json::from_str(&canonical).map_err(|_| SdJwtEnvelopeError::Serialization)?;
     let object = value
         .as_object()
         .ok_or(SdJwtEnvelopeError::InvalidJsonSerialization)?;
@@ -211,17 +219,13 @@ fn parse_key_binding_jwt(header: Option<&Value>) -> Result<Option<String>, SdJwt
 }
 
 fn clean_compact_string(value: &str) -> Result<String, SdJwtEnvelopeError> {
-    if value.is_empty() || !value.is_ascii() {
+    // JWS JSON members carry base64url text only. Whitespace is not part of
+    // that alphabet, and silently stripping it would let distinct inputs
+    // collapse onto the same signed or hashed value.
+    if value.is_empty() || !value.is_ascii() || value.bytes().any(|byte| byte.is_ascii_whitespace())
+    {
         return Err(SdJwtEnvelopeError::InvalidJsonSerialization);
     }
 
-    let cleaned: String = value
-        .chars()
-        .filter(|character| !character.is_ascii_whitespace())
-        .collect();
-    if cleaned.is_empty() {
-        return Err(SdJwtEnvelopeError::InvalidJsonSerialization);
-    }
-
-    Ok(cleaned)
+    Ok(value.to_owned())
 }

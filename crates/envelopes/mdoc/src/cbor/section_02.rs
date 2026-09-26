@@ -8,6 +8,9 @@ pub(crate) fn cbor_bytes_to_value(bytes: &[u8]) -> Result<ZeroizingCborValue, Md
             MdocInvalidInputReason::CborInputTooLarge,
         ));
     }
+    // Enforce depth, container, item-count, and declared-length limits before
+    // the tree decoder allocates any values for untrusted input.
+    scan_cbor_limits::scan_cbor_limits(bytes)?;
     let expected_len = u64::try_from(bytes.len())
         .map_err(|_| MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::IntegerOutOfRange))?;
     let mut reader = Cursor::new(bytes);

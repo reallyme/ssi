@@ -19,11 +19,12 @@
 //! `SiopKeyResolver` to keep resolver policy outside the protocol verifier.
 
 mod error;
+mod subject_binding;
 mod verifier;
 
 pub use error::SiopVerifierError;
 pub use verifier::{
-    verify_siop_authentication_response, verify_siop_id_token_jwt, SiopKeyResolver,
-    VerifiedSiopIdToken, MAX_SIOP_AUDIENCES, MAX_SIOP_ID_TOKEN_BYTES, MAX_SIOP_KEY_ID_BYTES,
-    MAX_SIOP_PROTECTED_HEADER_BYTES,
+    verify_siop_authentication_response, verify_siop_authentication_response_with_state,
+    verify_siop_id_token_jwt, SiopKeyResolver, VerifiedSiopIdToken, MAX_SIOP_AUDIENCES,
+    MAX_SIOP_ID_TOKEN_BYTES, MAX_SIOP_KEY_ID_BYTES, MAX_SIOP_PROTECTED_HEADER_BYTES,
 };

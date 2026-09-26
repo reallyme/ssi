@@ -31,6 +31,10 @@ pub enum VpPolicyError {
     #[error("required claim missing")]
     MissingClaim,
 
+    /// The presentation disclosed a claim outside the policy allow-list.
+    #[error("unexpected claim disclosure")]
+    UnexpectedDisclosure,
+
     /// The configured verifier policy is internally inconsistent.
     #[error("policy misconfiguration")]
     PolicyMisconfiguration,
@@ -74,6 +78,14 @@ pub enum VpPolicyError {
     /// Required ZK derivation cannot be produced by registered capabilities.
     #[error("zk derivation unavailable")]
     ZkDerivationUnavailable,
+
+    /// The credential claimset is outside the verifier policy allow-list.
+    #[error("claimset not allowed")]
+    ClaimsetNotAllowed,
+
+    /// Status material is older than the policy's maximum accepted age.
+    #[error("status information too old")]
+    StatusTooOld,
 }
 
 /// Policy evaluation outcome.
@@ -99,8 +111,10 @@ impl From<&VpPolicyError> for IdentityCoreErrorReason {
                 Self::IDENTITY_CORE_ERROR_REASON_UNSUPPORTED_FORMAT
             }
             VpPolicyError::MissingClaim
+            | VpPolicyError::UnexpectedDisclosure
             | VpPolicyError::DisclosureNotAllowed
-            | VpPolicyError::PredicateNotSatisfied => {
+            | VpPolicyError::PredicateNotSatisfied
+            | VpPolicyError::ClaimsetNotAllowed => {
                 Self::IDENTITY_CORE_ERROR_REASON_PRESENTATION_POLICY_NOT_SATISFIED
             }
             VpPolicyError::PolicyMisconfiguration => {
@@ -112,7 +126,7 @@ impl From<&VpPolicyError> for IdentityCoreErrorReason {
             VpPolicyError::CredentialSuspended => {
                 Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_STATUS_SUSPENDED
             }
-            VpPolicyError::StatusCheckFailed => {
+            VpPolicyError::StatusCheckFailed | VpPolicyError::StatusTooOld => {
                 Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_STATUS_CHECK_FAILED
             }
             VpPolicyError::QeaaLevelInsufficient

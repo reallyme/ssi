@@ -12,12 +12,18 @@ use serde_json::Value;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::holder_binding::{
-    validate_key_binding_confirmation, verify_key_binding_jwt, KeyBindingVerificationOptions,
+    hash_algorithm_from_payload, validate_key_binding_confirmation, validate_key_binding_options,
+    verify_key_binding_jwt, KeyBindingVerificationOptions,
 };
+use crate::present::resolve_sd_jwt_payload;
 use crate::sensitive::{zeroize_json_value, zeroize_strings};
+use crate::validate_temporal_claims::{
+    validate_credential_temporal_claims, DEFAULT_SD_JWT_CLOCK_SKEW_SECONDS,
+    MAX_SD_JWT_CLOCK_SKEW_SECONDS,
+};
 use crate::{
-    parse_sd_jwt_json_serialization, parse_sd_jwt_or_kb_compact, process_sd_jwt_payload,
-    SdJwtEnvelopeError, SdJwtOrKbCompact, SdJwtProcessingPolicy,
+    parse_sd_jwt_json_serialization, parse_sd_jwt_or_kb_compact, SdJwtEnvelopeError,
+    SdJwtOrKbCompact, SdJwtProcessingPolicy,
 };
 
 const DEFAULT_ISSUER_TYP_VALUES: &[&str] = &["dc+sd-jwt"];
@@ -32,10 +38,18 @@ pub struct SdJwtVerificationOptions<'a> {
     pub processing_policy: SdJwtProcessingPolicy,
     pub require_key_binding: bool,
     pub key_binding: Option<KeyBindingVerificationOptions<'a>>,
+    /// Verifier clock as Unix seconds. Required; zero is rejected so an
+    /// unset clock can never disable `exp`, `nbf`, or `iat` validation.
+    pub now_unix: u64,
+    /// Symmetric leeway for credential temporal claims, bounded by
+    /// [`MAX_SD_JWT_CLOCK_SKEW_SECONDS`].
+    pub clock_skew_seconds: u64,
 }
 
-impl Default for SdJwtVerificationOptions<'_> {
-    fn default() -> Self {
+impl SdJwtVerificationOptions<'_> {
+    /// Construct strict verification options evaluated at `now_unix`.
+    #[must_use]
+    pub fn new(now_unix: u64) -> Self {
         SdJwtVerificationOptions {
             issuer_allow_missing_typ: false,
             issuer_allow_embedded_key_header: false,
@@ -43,7 +57,22 @@ impl Default for SdJwtVerificationOptions<'_> {
             processing_policy: SdJwtProcessingPolicy::default(),
             require_key_binding: false,
             key_binding: None,
+            now_unix,
+            clock_skew_seconds: DEFAULT_SD_JWT_CLOCK_SKEW_SECONDS,
         }
+    }
+
+    fn validate(&self) -> Result<(), SdJwtEnvelopeError> {
+        if self.now_unix == 0
+            || self.clock_skew_seconds > MAX_SD_JWT_CLOCK_SKEW_SECONDS
+            || self.issuer_accepted_typ_values.is_empty()
+        {
+            return Err(SdJwtEnvelopeError::InvalidVerificationPolicy);
+        }
+        if let Some(key_binding) = &self.key_binding {
+            validate_key_binding_options(key_binding)?;
+        }
+        Ok(())
     }
 }
 
@@ -94,6 +123,7 @@ pub fn verify_sd_jwt(
     issuer_public_key: &[u8],
     options: &SdJwtVerificationOptions<'_>,
 ) -> Result<VerifiedSdJwt, SdJwtEnvelopeError> {
+    options.validate()?;
     let parsed = parse_sd_jwt_or_kb_compact(compact)?;
     let (issuer_signed_jwt, disclosures, key_binding_jwt) = match parsed {
         SdJwtOrKbCompact::SdJwt(mut sd_jwt) => (
@@ -121,7 +151,9 @@ pub fn verify_sd_jwt(
             options.issuer_allow_embedded_key_header,
             options.issuer_accepted_typ_values,
         ),
-    )?;
+    )
+    .map_err(|_| SdJwtEnvelopeError::InvalidIssuerJwt)?;
+    let hash_algorithm = hash_algorithm_from_payload(&issuer_payload)?;
 
     let issuer_requires_key_binding = issuer_payload.get("cnf").is_some();
     if issuer_requires_key_binding
@@ -135,22 +167,28 @@ pub fn verify_sd_jwt(
         return Err(SdJwtEnvelopeError::InvalidKeyBindingJwt);
     }
 
-    let resolved_payload = process_sd_jwt_payload(
-        issuer_payload.clone(),
-        &disclosures,
-        options.processing_policy,
+    let resolved_payload =
+        resolve_sd_jwt_payload(&issuer_payload, &disclosures, options.processing_policy)?;
+    validate_credential_temporal_claims(
+        &issuer_payload,
+        &resolved_payload,
+        options.now_unix,
+        options.clock_skew_seconds,
     )?;
 
     let key_binding_payload = match (&key_binding_jwt, options.key_binding) {
         (Some(kb_jwt), Some(kb_options)) => {
-            if issuer_requires_key_binding {
-                validate_key_binding_confirmation(&issuer_payload, &kb_options)?;
-            }
+            // A KB-JWT is meaningful only when the issuer authenticated the
+            // confirmation key. Accepting a caller-selected key without
+            // `cnf` would let a presenter manufacture holder binding for a
+            // bearer credential.
+            validate_key_binding_confirmation(&issuer_payload, &kb_options)?;
             Some(verify_key_binding_jwt(
                 &issuer_signed_jwt,
                 &disclosures,
                 kb_jwt,
                 &kb_options,
+                hash_algorithm,
             )?)
         }
         (Some(_), None) => {
@@ -175,6 +213,7 @@ pub fn verify_sd_jwt_json_serialization(
     issuer_public_key: &[u8],
     options: &SdJwtVerificationOptions<'_>,
 ) -> Result<Vec<VerifiedSdJwt>, SdJwtEnvelopeError> {
+    options.validate()?;
     let parsed = parse_sd_jwt_json_serialization(input)?;
     let mut verified = Vec::with_capacity(parsed.entries.len());
     for entry in parsed.entries {

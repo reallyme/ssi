@@ -59,7 +59,14 @@ const narrowlyOwnedDependencies = new Map([
   ["foreign-types", new Set(["crates/revocation/ocsp/openssl/Cargo.toml"])],
   ["oid-registry", new Set(["Cargo.toml", "crates/trust/x509/Cargo.toml"])],
   ["pem", new Set(["Cargo.toml", "crates/trust/x509/Cargo.toml"])],
-  ["x509-parser", new Set(["Cargo.toml", "crates/trust/x509/Cargo.toml"])],
+  [
+    "x509-parser",
+    new Set([
+      "Cargo.toml",
+      "crates/trust/x509/Cargo.toml",
+      "crates/revocation/crl/openssl/Cargo.toml",
+    ]),
+  ],
 ]);
 
 // These ownership rules are the durable policy. Transitive version selection

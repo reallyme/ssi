@@ -48,7 +48,7 @@ fn signature_verifies_against_domain_separated_core() {
     verify(
         CryptoAlgorithm::Ed25519,
         &public,
-        &core_signature_input(&core.canonical_cbor().unwrap()),
+        &core_signature_input(&core.canonical_cbor().unwrap()).unwrap(),
         &sig,
     )
     .unwrap();
@@ -87,7 +87,7 @@ fn signature_fails_if_core_is_modified() {
     assert!(verify(
         CryptoAlgorithm::Ed25519,
         &public,
-        &core_signature_input(&core.canonical_cbor().unwrap()),
+        &core_signature_input(&core.canonical_cbor().unwrap()).unwrap(),
         &sig,
     )
     .is_err());
@@ -124,7 +124,7 @@ fn tampered_signature_fails_verification() {
     assert!(verify(
         CryptoAlgorithm::Ed25519,
         &public,
-        &core_signature_input(&core.canonical_cbor().unwrap()),
+        &core_signature_input(&core.canonical_cbor().unwrap()).unwrap(),
         &sig,
     )
     .is_err());

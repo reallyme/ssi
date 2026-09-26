@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-delivery-contact-api"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -13,8 +13,8 @@ license = "MIT OR Apache-2.0"
 default = []
 
 [dependencies]
-identity-presentation-delivery-contact-core = { version = "0.1.0", path = "../core" }
-identity-presentation-delivery-contact-validator = { version = "0.1.0", path = "../validator" }
+identity-presentation-delivery-contact-core = { version = "0.2.0", path = "../core" }
+identity-presentation-delivery-contact-validator = { version = "0.2.0", path = "../validator" }
 reallyme-ssi-proto = { workspace = true }
 thiserror = { workspace = true }
 zeroize = { workspace = true, features = ["derive"] }

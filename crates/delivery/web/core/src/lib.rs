@@ -37,7 +37,7 @@ pub use qr::{build_qr_payload, QrPayload};
 
 /// Deep-link construction helpers.
 pub mod links;
-pub use links::build_deep_link;
+pub use links::{build_deep_link, ALLOWED_DEEP_LINK_SCHEMES};
 
 /// Google Wallet save-link helpers.
 pub mod google_wallet;

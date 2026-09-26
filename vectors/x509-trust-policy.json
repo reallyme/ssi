@@ -152,7 +152,8 @@
       "id": "tsl-granted-bound-service",
       "leaf": {
         "der_hex": "300301",
-        "subject_key_identifier_hex": "090909"
+        "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9"
       },
       "service": {
         "territory": "DE",
@@ -160,7 +161,7 @@
         "status": "Granted",
         "status_start_time_unix": 1767225600,
         "certificate_bindings": [
-          { "certificate_der_hex": null, "subject_key_identifier_hex": "090909" }
+          { "certificate_der_hex": null, "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9" }
         ]
       },
       "policy": {
@@ -177,7 +178,8 @@
       "id": "tsl-wrong-territory",
       "leaf": {
         "der_hex": "300301",
-        "subject_key_identifier_hex": "090909"
+        "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9"
       },
       "service": {
         "territory": "DE",
@@ -185,7 +187,7 @@
         "status": "Granted",
         "status_start_time_unix": 1767225600,
         "certificate_bindings": [
-          { "certificate_der_hex": null, "subject_key_identifier_hex": "090909" }
+          { "certificate_der_hex": null, "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9" }
         ]
       },
       "policy": {
@@ -202,7 +204,8 @@
       "id": "tsl-stale-status",
       "leaf": {
         "der_hex": "300301",
-        "subject_key_identifier_hex": "090909"
+        "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9"
       },
       "service": {
         "territory": "DE",
@@ -210,7 +213,7 @@
         "status": "Granted",
         "status_start_time_unix": 1767225600,
         "certificate_bindings": [
-          { "certificate_der_hex": null, "subject_key_identifier_hex": "090909" }
+          { "certificate_der_hex": null, "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9" }
         ]
       },
       "policy": {
@@ -227,7 +230,8 @@
       "id": "tsl-binding-mismatch",
       "leaf": {
         "der_hex": "300301",
-        "subject_key_identifier_hex": "090909"
+        "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9"
       },
       "service": {
         "territory": "DE",
@@ -236,6 +240,32 @@
         "status_start_time_unix": 1767225600,
         "certificate_bindings": [
           { "certificate_der_hex": null, "subject_key_identifier_hex": "070707" }
+        ]
+      },
+      "policy": {
+        "required_territory": "DE",
+        "required_service_type": "CaQc",
+        "require_granted_status": true,
+        "require_leaf_binding": true,
+        "validation_time_unix": 1767312000,
+        "max_status_age_seconds": null
+      },
+      "expected": { "result": "TslCertificateBindingMismatch" }
+    },
+    {
+      "id": "tsl-forged-subject-key-identifier-extension",
+      "leaf": {
+        "der_hex": "300301",
+        "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "subject_key_identifier_hex": "0909090909090909090909090909090909090909"
+      },
+      "service": {
+        "territory": "DE",
+        "service_type": "CaQc",
+        "status": "Granted",
+        "status_start_time_unix": 1767225600,
+        "certificate_bindings": [
+          { "certificate_der_hex": null, "subject_key_identifier_hex": "0909090909090909090909090909090909090909" }
         ]
       },
       "policy": {

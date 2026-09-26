@@ -65,6 +65,14 @@ pub enum DidValidationCode {
     DomainVerificationUnavailable,
     /// An internal invariant expected by the validator was violated.
     InternalInvariantViolation,
+    /// A non-genesis document was validated without the previous core state, so
+    /// its attestations could not be authorized against the prior update policy.
+    TransitionAuthorityUnverified,
+    /// The supplied previous document is invalid, deactivated, or does not
+    /// directly precede the document under validation.
+    TransitionInvalid,
+    /// A collection or encoded field exceeds the validator's resource limits.
+    ResourceLimitExceeded,
 }
 
 /// Stable location category for a DID validation issue.

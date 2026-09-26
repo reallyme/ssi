@@ -211,3 +211,149 @@ fn did_me_rejects_wrong_cryptosuite() {
         ))
     );
 }
+
+fn did_me_input() -> EnvelopeProfileInput<'static> {
+    EnvelopeProfileInput {
+        format: EnvelopeFormat::DataIntegrity,
+        credential_profile: CredentialProfile::DidMe,
+        claimset_id: "did.me.v1",
+        proof_cryptosuite: Some("es256-jws-cid-2025"),
+        ..valid_input()
+    }
+}
+
+fn did_me_error(reason: EnvelopeProfileInvalidReason) -> Result<(), EnvelopeProfileError> {
+    Err(EnvelopeProfileError::InvalidInput(reason))
+}
+
+#[test]
+fn did_me_rejects_identifiers_that_only_share_the_method_prefix() {
+    for (issuer, subject) in [
+        ("did:meevil:issuer", "did:me:subject"),
+        ("did:me:issuer", "did:meevil:subject"),
+        ("did:me", "did:me:subject"),
+        ("did:me:", "did:me:subject"),
+        ("did:me:issuer", "did:me:"),
+    ] {
+        let input = EnvelopeProfileInput {
+            issuer,
+            subject,
+            ..did_me_input()
+        };
+
+        assert_eq!(
+            enforce_did_me_profile(&input),
+            did_me_error(EnvelopeProfileInvalidReason::InvalidDidMeBinding),
+            "issuer {issuer:?} subject {subject:?} must be rejected"
+        );
+    }
+}
+
+#[test]
+fn did_me_rejects_missing_did_method() {
+    let input = EnvelopeProfileInput {
+        did_method: None,
+        ..did_me_input()
+    };
+
+    assert_eq!(
+        enforce_did_me_profile(&input),
+        did_me_error(EnvelopeProfileInvalidReason::MissingDidMethod)
+    );
+}
+
+#[test]
+fn did_me_rejects_wrong_did_method() {
+    let input = EnvelopeProfileInput {
+        did_method: Some("did:meevil"),
+        ..did_me_input()
+    };
+
+    assert_eq!(
+        enforce_did_me_profile(&input),
+        did_me_error(EnvelopeProfileInvalidReason::InvalidDidMeBinding)
+    );
+}
+
+#[test]
+fn did_me_rejects_data_integrity_without_cryptosuite() {
+    let input = EnvelopeProfileInput {
+        proof_cryptosuite: None,
+        ..did_me_input()
+    };
+
+    assert_eq!(
+        enforce_did_me_profile(&input),
+        did_me_error(EnvelopeProfileInvalidReason::MissingDidMeCryptosuite)
+    );
+}
+
+#[test]
+fn did_me_accepts_jwt_envelope_without_data_integrity_cryptosuite() {
+    let input = EnvelopeProfileInput {
+        format: EnvelopeFormat::JwtVcJson,
+        proof_cryptosuite: None,
+        ..did_me_input()
+    };
+
+    assert!(enforce_did_me_profile(&input).is_ok());
+}
+
+#[test]
+fn did_me_rejects_jwt_envelope_with_wrong_cryptosuite() {
+    let input = EnvelopeProfileInput {
+        format: EnvelopeFormat::JwtVcJson,
+        proof_cryptosuite: Some("other-suite"),
+        ..did_me_input()
+    };
+
+    assert_eq!(
+        enforce_did_me_profile(&input),
+        did_me_error(EnvelopeProfileInvalidReason::UnsupportedDidMeCryptosuite)
+    );
+}
+
+#[test]
+fn eu_dedicated_profiles_reject_mismatched_claimset() {
+    for (credential_profile, claimset_id) in [
+        (CredentialProfile::EuPid, "eu.age.v1"),
+        (CredentialProfile::EuPid, "eu.tax.v1"),
+        (CredentialProfile::EuAge, "eu.pid.v1"),
+        (CredentialProfile::EuPassport, "eu.pid.v1"),
+    ] {
+        let input = EnvelopeProfileInput {
+            credential_profile,
+            claimset_id,
+            ..valid_input()
+        };
+
+        assert_eq!(
+            enforce_eu_pid_profile(&input),
+            Err(EnvelopeProfileError::InvalidInput(
+                EnvelopeProfileInvalidReason::UnsupportedClaimset
+            )),
+            "{credential_profile:?} with {claimset_id} must be rejected"
+        );
+    }
+}
+
+#[test]
+fn eu_dedicated_profiles_accept_matching_claimset() {
+    for (credential_profile, claimset_id) in [
+        (CredentialProfile::EuPid, "eu.pid.v1"),
+        (CredentialProfile::EuAge, "eu.age.v1"),
+        (CredentialProfile::EuPassport, "eu.passport.v1"),
+        (CredentialProfile::EuEaa, "eu.tax.v1"),
+    ] {
+        let input = EnvelopeProfileInput {
+            credential_profile,
+            claimset_id,
+            ..valid_input()
+        };
+
+        assert!(
+            enforce_eu_pid_profile(&input).is_ok(),
+            "{credential_profile:?} with {claimset_id} must be accepted"
+        );
+    }
+}

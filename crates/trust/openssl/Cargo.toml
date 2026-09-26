@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-trust-openssl"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -17,7 +17,7 @@ native = []
 time = "0.3"
 
 # Core trust traits + errors
-reallyme-trust-core = { version = "0.1.0", path = "../core" }
+reallyme-trust-core = { version = "0.2.0", path = "../core" }
 
 # Portable X.509 model used across the system
 envelopes-x509 = { workspace = true }

@@ -2,10 +2,15 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use identity_credential_claims_core::DisclosureMode;
+use identity_credential_claims_core::{DisclosureMode, MAX_CLAIM_PATH_BYTES};
 use identity_presentation_vp_core::model::SdJwtVcPresentation;
+use reallyme_credential::committed::issue::MAX_COMMITMENT_CLAIMS;
 
 use crate::error::SdJwtVpError;
+
+// Mirrors the verifier's per-disclosure cap so policy extraction cannot be
+// driven into unbounded decoding work before cryptographic verification.
+const MAX_ENCODED_POLICY_DISCLOSURE_BYTES: usize = 2_000_000;
 
 /// Semantic representation of a disclosed claim for policy evaluation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,9 +33,17 @@ pub struct DisclosedClaim {
 pub fn extract_disclosed_claims(
     vp: &SdJwtVcPresentation,
 ) -> Result<Vec<DisclosedClaim>, SdJwtVpError> {
+    if vp.disclosures.len() > MAX_COMMITMENT_CLAIMS {
+        return Err(SdJwtVpError::InvalidDisclosure);
+    }
     let mut out = Vec::new();
+    out.try_reserve(vp.disclosures.len())
+        .map_err(|_| SdJwtVpError::InvalidDisclosure)?;
 
     for encoded in &vp.disclosures {
+        if encoded.len() > MAX_ENCODED_POLICY_DISCLOSURE_BYTES {
+            return Err(SdJwtVpError::InvalidDisclosure);
+        }
         let bytes = codec_base64url::base64url_to_bytes(encoded)
             .map_err(|_| SdJwtVpError::Serialization)?;
 
@@ -45,6 +58,9 @@ pub fn extract_disclosed_claims(
             .get(1)
             .and_then(|v| v.as_str())
             .ok_or(SdJwtVpError::Serialization)?;
+        if claim_path.len() > MAX_CLAIM_PATH_BYTES {
+            return Err(SdJwtVpError::InvalidDisclosure);
+        }
 
         // SD-JWT implies explicit reveal
         out.push(DisclosedClaim {

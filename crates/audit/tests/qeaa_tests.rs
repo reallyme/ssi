@@ -211,3 +211,31 @@ fn qeaa_diagnostics_are_redacted_and_owned_material_zeroizes() {
     assert!(qeaa.identity_proofing.evidence_ref.is_empty());
     assert!(qeaa.audit.audit_report_ref.is_empty());
 }
+
+#[test]
+fn qeaa_rejects_control_and_bidi_characters_in_text_fields() {
+    let mut newline = sample_qeaa();
+    newline.qtsp.tsp_name = "Test QTSP\nforged: approved".to_owned();
+    assert_eq!(
+        validate_qeaa_compliance(&newline, 1_750_000_000).unwrap_err(),
+        QeaaComplianceError::InvalidInput(QeaaInvalidReason::InvalidField(QeaaField::QtspName))
+    );
+
+    let mut bidi = sample_qeaa();
+    bidi.audit.audit_report_ref = "urn:reallyme:audit:\u{202E}1:troper".to_owned();
+    assert_eq!(
+        validate_qeaa_compliance(&bidi, 1_750_000_000).unwrap_err(),
+        QeaaComplianceError::InvalidInput(QeaaInvalidReason::InvalidField(
+            QeaaField::AuditReportRef
+        ))
+    );
+
+    let mut standard = sample_qeaa();
+    standard.policies.standards = vec!["ETSI EN 319 411-2\u{0}".to_owned()];
+    assert_eq!(
+        validate_qeaa_compliance(&standard, 1_750_000_000).unwrap_err(),
+        QeaaComplianceError::InvalidInput(QeaaInvalidReason::InvalidField(
+            QeaaField::PolicyStandards
+        ))
+    );
+}

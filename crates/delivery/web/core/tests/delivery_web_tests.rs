@@ -23,8 +23,11 @@ struct DummyJwtSigner;
 
 impl GoogleWalletJwtSigner for DummyJwtSigner {
     fn sign_jwt(&self, payload_json: &[u8]) -> Result<String, WebDeliveryError> {
-        // Fake JWT: base64url(payload)
-        Ok(codec_base64url::bytes_to_base64url(payload_json))
+        // Compact-JWS-shaped test token; the signature segment is not verified here.
+        Ok(format!(
+            "eyJhbGciOiJFZERTQSJ9.{}.c2lnbmF0dXJl",
+            codec_base64url::bytes_to_base64url(payload_json)
+        ))
     }
 }
 
@@ -101,4 +104,110 @@ fn expired_envelope_fails() {
         err,
         WebDeliveryError::Delivery(DeliveryError::Expired)
     ));
+}
+
+struct FixedJwtSigner(&'static str);
+
+impl GoogleWalletJwtSigner for FixedJwtSigner {
+    fn sign_jwt(&self, _payload_json: &[u8]) -> Result<String, WebDeliveryError> {
+        Ok(self.0.to_owned())
+    }
+}
+
+#[test]
+fn deep_link_accepts_wallet_invocation_schemes() {
+    let limits = WebLimits::default();
+    for base in [
+        "openid4vp://authorize",
+        "haip://",
+        "openid-credential-offer://",
+        "eudi-openid4vp://",
+    ] {
+        build_deep_link(base, &[("request_uri", "https://rp.example/r/1")], &limits)
+            .unwrap_or_else(|_| panic!("{base} must be accepted"));
+    }
+}
+
+#[test]
+fn deep_link_rejects_disallowed_schemes_and_userinfo() {
+    let limits = WebLimits::default();
+    for base in [
+        "javascript:alert(1)",
+        "data:text/html,hi",
+        "http://wallet.example/import",
+        "file:///etc/passwd",
+        "intent://scan#Intent;end",
+        "https://user:secret@wallet.example/import",
+        "openid4vp://user@authorize",
+    ] {
+        let err = build_deep_link(base, &[("payload", "abc")], &limits).unwrap_err();
+        assert_eq!(err, WebDeliveryError::InvalidUrl, "{base}");
+    }
+}
+
+#[test]
+fn deep_link_rejects_oversized_inputs_before_parsing() {
+    let limits = WebLimits::default();
+    let oversized_base = format!(
+        "https://wallet.example/{}",
+        "a".repeat(limits.max_url_bytes)
+    );
+    let err = build_deep_link(&oversized_base, &[], &limits).unwrap_err();
+    assert_eq!(
+        err,
+        WebDeliveryError::Delivery(DeliveryError::PayloadTooLarge)
+    );
+
+    let oversized_value = "v".repeat(limits.max_url_bytes);
+    let err = build_deep_link(
+        "https://wallet.example/import",
+        &[("payload", oversized_value.as_str())],
+        &limits,
+    )
+    .unwrap_err();
+    assert_eq!(
+        err,
+        WebDeliveryError::Delivery(DeliveryError::PayloadTooLarge)
+    );
+}
+
+#[test]
+fn google_wallet_save_link_rejects_non_https_or_ambiguous_prefix() {
+    let limits = WebLimits::default();
+    let payload = DeliveryPayload::Text(r#"{"id":"issuer/object"}"#.into());
+    for prefix in [
+        "http://pay.google.com/gp/v/save/",
+        "https://pay.google.com/gp/v/save",
+        "https://user@pay.google.com/gp/v/save/",
+        "https://pay.google.com/gp/v/save/?x=",
+        "javascript:alert(1)//",
+    ] {
+        let cfg = GoogleWalletSaveConfig {
+            save_url_prefix: prefix.into(),
+        };
+        let err =
+            build_google_wallet_save_link(&payload, &DummyJwtSigner, &cfg, &limits).unwrap_err();
+        assert_eq!(err, WebDeliveryError::InvalidUrl, "{prefix}");
+    }
+}
+
+#[test]
+fn google_wallet_save_link_rejects_malformed_signer_output() {
+    let limits = WebLimits::default();
+    let cfg = GoogleWalletSaveConfig::default();
+    let payload = DeliveryPayload::Text(r#"{"id":"issuer/object"}"#.into());
+    for token in [
+        "only-one-segment",
+        "a.b",
+        "a.b.c.d",
+        "a..c",
+        "a.b.c?redirect=https://evil.example",
+        "a.b.c#fragment",
+        "a.b/../c.d",
+        "a.b.c=",
+    ] {
+        let err = build_google_wallet_save_link(&payload, &FixedJwtSigner(token), &cfg, &limits)
+            .unwrap_err();
+        assert_eq!(err, WebDeliveryError::SigningFailed, "{token}");
+    }
 }

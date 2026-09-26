@@ -36,10 +36,12 @@ use reallyme_credential::committed::{
     },
 };
 
+use identity_credential_vc_api::VcApiError;
 use identity_vc_ietf_sd_jwt::{
     verify_ietf_sd_jwt_vc, verify_me_profile_merkle_binding, IetfSdJwtJwtType,
+    IetfSdJwtTemporalPolicy, IetfSdJwtVcError,
 };
-use identity_vc_jwt::decode_verify_vc_jwt;
+use identity_vc_jwt::{decode_verify_vc_jwt, VcJwtVerificationOptions};
 
 use codec_base64url::bytes_to_base64url;
 use envelopes_jwk::{Jwk, OkpJwk};
@@ -275,44 +277,63 @@ fn issues_merkle_credential_and_encodes_standardized_formats() {
 
     let jwt_str = core::str::from_utf8(&jwt_out.public_bytes).unwrap();
 
-    let (_payload, vc_bytes) = decode_verify_vc_jwt(jwt_str, &issuer_jwk, &issuer_pub).unwrap();
+    let (_payload, vc_bytes) = decode_verify_vc_jwt(
+        jwt_str,
+        &issuer_jwk,
+        &issuer_pub,
+        &VcJwtVerificationOptions {
+            now_unix: now,
+            clock_skew_seconds: 60,
+        },
+    )
+    .unwrap();
 
     assert!(!vc_bytes.is_empty());
 
     // ---------------------------------------------------------------------
     // 3) IETF SD-JWT VC
     // ---------------------------------------------------------------------
+    let ietf_config = identity_credential_vc_api::IetfSdJwtIssuerConfig {
+        issuer_jwk: issuer_jwk.clone(),
+        jwt_type: IetfSdJwtJwtType::DcSdJwt,
+        include_me_profile_merkle_binding: true,
+        salt_len: 16,
+    };
     let ietf_sd_jwt_out = issue_and_encode_with_rng(
-        sample_issue_request(issuer_pub.clone(), subject_pub),
+        sample_issue_request(issuer_pub.clone(), subject_pub.clone()),
         &signing,
         &mut rng,
         now,
         PublicFormat::IetfSdJwtVc,
-        PublicEncoderConfigs {
-            jwt: None,
-            ietf_sd_jwt: Some(&identity_credential_vc_api::IetfSdJwtIssuerConfig {
-                issuer_jwk: issuer_jwk.clone(),
-                jwt_type: IetfSdJwtJwtType::DcSdJwt,
-                include_me_profile_merkle_binding: true,
-                salt_len: 16,
-            }),
-        },
+        ietf_encoder_configs(&ietf_config),
     )
     .unwrap();
 
     let ietf_sd_jwt_str = core::str::from_utf8(&ietf_sd_jwt_out.public_bytes).unwrap();
     assert!(ietf_sd_jwt_str.contains('~'));
 
-    let verified = verify_ietf_sd_jwt_vc(ietf_sd_jwt_str, &issuer_jwk, &issuer_pub).unwrap();
-    assert_eq!(verified.disclosed_claims["age"], serde_json::json!(42));
+    // A key-bound subject must yield an issuer-signed `cnf.jwk`; the
+    // bearer-only legacy verifier therefore refuses to accept it.
+    let payload = decode_issuer_payload(ietf_sd_jwt_str);
     assert_eq!(
-        verified.disclosed_claims["family_name"],
-        serde_json::json!("Doe")
+        payload["cnf"]["jwk"],
+        serde_json::json!({
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": bytes_to_base64url(&subject_pub),
+        })
     );
-
-    let payload = verified.payload.as_object().unwrap();
+    assert!(matches!(
+        verify_ietf_sd_jwt_vc(
+            ietf_sd_jwt_str,
+            &issuer_jwk,
+            &issuer_pub,
+            &IetfSdJwtTemporalPolicy::new(now),
+        ),
+        Err(IetfSdJwtVcError::MissingKeyBinding)
+    ));
     let binding = verify_me_profile_merkle_binding(
-        payload,
+        payload.as_object().unwrap(),
         ietf_sd_jwt_out
             .envelope
             .claims_commitment
@@ -331,4 +352,91 @@ fn issues_merkle_credential_and_encodes_standardized_formats() {
                 .as_slice()
         )
     );
+
+    // A bearer subject produces no `cnf` and verifies end to end.
+    let mut bearer_request = sample_issue_request(issuer_pub.clone(), subject_pub);
+    bearer_request.subject.holder_binding = HolderBinding::BearerWithoutBinding;
+    let bearer_out = issue_and_encode_with_rng(
+        bearer_request,
+        &signing,
+        &mut rng,
+        now,
+        PublicFormat::IetfSdJwtVc,
+        ietf_encoder_configs(&ietf_config),
+    )
+    .unwrap();
+    let bearer_str = core::str::from_utf8(&bearer_out.public_bytes).unwrap();
+    let verified = verify_ietf_sd_jwt_vc(
+        bearer_str,
+        &issuer_jwk,
+        &issuer_pub,
+        &IetfSdJwtTemporalPolicy::new(now),
+    )
+    .unwrap();
+    assert!(verified.payload.get("cnf").is_none());
+    assert_eq!(verified.disclosed_claims["age"], serde_json::json!(42));
+    assert_eq!(
+        verified.disclosed_claims["family_name"],
+        serde_json::json!("Doe")
+    );
+}
+
+#[test]
+fn ietf_sd_jwt_encoding_rejects_unrepresentable_holder_binding() {
+    let now = 1_700_000_000u64;
+    let (issuer_pub, issuer_priv, issuer_jwk) = issuer_keys();
+    let signing = IssuerSigning::new(Algorithm::Ed25519, issuer_priv);
+    let (subject_pub, _subject_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
+    let ietf_config = identity_credential_vc_api::IetfSdJwtIssuerConfig {
+        issuer_jwk,
+        jwt_type: IetfSdJwtJwtType::DcSdJwt,
+        include_me_profile_merkle_binding: false,
+        salt_len: 16,
+    };
+    let mut rng = OsSaltRng;
+
+    let mut claims_based = sample_issue_request(issuer_pub.clone(), subject_pub);
+    claims_based.subject.holder_binding = HolderBinding::ClaimsBased(vec!["family_name".into()]);
+    let (secp_pub, _secp_priv) = generate_keypair(Algorithm::Secp256k1).unwrap();
+    let mut secp256k1 = sample_issue_request(issuer_pub.clone(), secp_pub.clone());
+    secp256k1.subject.holder_binding = HolderBinding::CryptographicKey(PublicKeyRef {
+        alg: CredentialAlgorithm::Secp256k1,
+        reference: KeyReference::DirectPublicKey,
+        public_key: PublicKeyRepresentation::Raw {
+            serialization: RawPublicKeySerialization::Sec1Compressed,
+            bytes: secp_pub,
+        },
+        assurance: KeyAssurance::None,
+    });
+
+    for (label, request) in [("claims-based", claims_based), ("secp256k1", secp256k1)] {
+        let result = issue_and_encode_with_rng(
+            request,
+            &signing,
+            &mut rng,
+            now,
+            PublicFormat::IetfSdJwtVc,
+            ietf_encoder_configs(&ietf_config),
+        );
+        assert!(
+            matches!(result, Err(VcApiError::InvalidSubject)),
+            "{label}: {:?}",
+            result.err()
+        );
+    }
+}
+
+fn ietf_encoder_configs(
+    config: &identity_credential_vc_api::IetfSdJwtIssuerConfig,
+) -> PublicEncoderConfigs<'_> {
+    PublicEncoderConfigs {
+        jwt: None,
+        ietf_sd_jwt: Some(config),
+    }
+}
+
+fn decode_issuer_payload(compact: &str) -> serde_json::Value {
+    let issuer_signed_jwt = compact.split('~').next().unwrap();
+    let payload = issuer_signed_jwt.split('.').nth(1).unwrap();
+    serde_json::from_slice(&codec_base64url::base64url_to_bytes(payload).unwrap()).unwrap()
 }

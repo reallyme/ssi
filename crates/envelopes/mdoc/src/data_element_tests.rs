@@ -40,3 +40,16 @@ fn rejects_maps_that_cannot_be_addressed_by_json_claim_paths() {
     assert!(encoded_result.is_ok());
     assert!(decode_mdoc_data_element_json(&encoded).is_err());
 }
+
+#[test]
+fn projects_byte_strings_as_compact_base64url_text() {
+    let value = CborValue::Bytes(vec![0, 1, 255]);
+    let mut encoded = Vec::new();
+    let encoded_result = ciborium::ser::into_writer(&value, &mut encoded);
+    assert!(encoded_result.is_ok());
+    let projected = decode_mdoc_data_element_json(&encoded);
+    assert!(projected.is_ok());
+    if let Ok(projected) = projected {
+        assert_eq!(projected.as_value(), &json!("AAH_"));
+    }
+}

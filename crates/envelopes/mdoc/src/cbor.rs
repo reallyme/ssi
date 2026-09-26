@@ -4,6 +4,7 @@
 
 #[cfg(feature = "mdoc-crypto")]
 mod mso_status;
+mod scan_cbor_limits;
 
 include!("cbor/section_01.rs");
 include!("cbor/section_02.rs");

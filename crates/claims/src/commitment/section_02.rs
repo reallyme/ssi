@@ -193,7 +193,7 @@ pub fn build_claims_commitment(
         };
 
         validate_claim_value(definition, value)?;
-        let canonical_value = canonical_claim_value_bytes(value)?;
+        let canonical_value = canonical_typed_claim_value_bytes(definition.claim_type, value)?;
         if canonical_value.len() > max_value_len {
             return Err(ClaimsError::InvalidInput(
                 ClaimsInvalidReason::ClaimValueLimitExceeded,
@@ -310,50 +310,40 @@ pub fn verify_subject_private_bundle(
 ) -> Result<(), ClaimsError> {
     validate_subject_private_bundle(commitment, bundle)?;
     validate_supported_commitment(commitment)?;
-
-    if bundle.tree.count == 0 {
+    if bundle.tree.count == 0 || bundle.claims.is_empty() {
         return Err(ClaimsError::InvalidInput(
             ClaimsInvalidReason::InvalidPrivateBundleTree,
         ));
     }
 
-    let expected_count = usize::try_from(bundle.tree.count)
-        .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidPrivateBundleTree))?;
-    if bundle.tree.depth != merkle_depth_for_leaf_count(expected_count)? {
-        return Err(ClaimsError::InvalidInput(
-            ClaimsInvalidReason::InvalidPrivateBundleTree,
-        ));
-    }
-    let expected_depth = usize::try_from(bundle.tree.depth)
-        .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidPrivateBundleTree))?;
     let mut seen_paths = BTreeSet::new();
     let mut seen_indexes = BTreeSet::new();
     for opening in &bundle.claims {
-        let opening_index = usize::try_from(opening.index).map_err(|_| {
-            ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidPrivateBundleTree)
-        })?;
-        if opening.merkle_path.len() != expected_depth
-            || opening_index >= expected_count
-            || !seen_paths.insert(opening.claim_path.as_str())
-            || !seen_indexes.insert(opening.index)
-        {
+        if !seen_paths.insert(opening.claim_path.as_str()) || !seen_indexes.insert(opening.index) {
             return Err(ClaimsError::InvalidInput(
                 ClaimsInvalidReason::InvalidPrivateBundleTree,
             ));
         }
-        verify_claim_opening(commitment, opening)?;
+        verify_claim_opening(commitment, &bundle.tree, opening)?;
     }
 
     Ok(())
 }
 
 /// Verify one holder-private opening against a public claim commitment.
+///
+/// `tree` is the Merkle shape recorded in the holder-private bundle. The
+/// opening index must address a real leaf and the sibling path must have
+/// exactly the depth implied by the leaf count, so a truncated or padded path
+/// cannot be presented as an opening.
 pub fn verify_claim_opening(
     commitment: &ClaimsCommitment,
+    tree: &MerkleTreeInfo,
     opening: &ClaimOpening,
 ) -> Result<(), ClaimsError> {
     validate_claim_opening(commitment, opening)?;
     validate_supported_commitment(commitment)?;
+    validate_opening_tree_position(tree, opening)?;
 
     let mut node = claim_leaf_hash(
         &commitment.domain_tags,
@@ -378,6 +368,34 @@ pub fn verify_claim_opening(
             ClaimsInvalidReason::InvalidCommitmentProof,
         ))
     }
+}
+
+fn validate_opening_tree_position(
+    tree: &MerkleTreeInfo,
+    opening: &ClaimOpening,
+) -> Result<(), ClaimsError> {
+    let count = usize::try_from(tree.count)
+        .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidPrivateBundleTree))?;
+    if count == 0 || count > MAX_CLAIM_OPENINGS_PER_BUNDLE {
+        return Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidPrivateBundleTree,
+        ));
+    }
+    if tree.depth != merkle_depth_for_leaf_count(count)? {
+        return Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidPrivateBundleTree,
+        ));
+    }
+    let depth = usize::try_from(tree.depth)
+        .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidPrivateBundleTree))?;
+    let index = usize::try_from(opening.index)
+        .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidPrivateBundleTree))?;
+    if index >= count || opening.merkle_path.len() != depth {
+        return Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidPrivateBundleTree,
+        ));
+    }
+    Ok(())
 }
 
 /// Validate a public key's independent reference, representation, and

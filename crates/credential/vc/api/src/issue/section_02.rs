@@ -137,6 +137,10 @@ fn ietf_sd_jwt_input_from_envelope(
     input.not_before_unix = Some(unix_seconds_to_u64(envelope.valid_from)?);
     input.expires_at_unix = Some(unix_seconds_to_u64(envelope.valid_until)?);
     input.vct = Some(envelope.profile_id.clone());
+    // SD-JWT VC holder binding is carried only by the issuer-signed `cnf`
+    // claim. Omitting it would silently downgrade a key-bound credential to a
+    // bearer credential, so unrepresentable bindings fail closed.
+    input.confirmation_jwk = ietf_sd_jwt_confirmation_jwk(&envelope.subject.holder_binding)?;
     input.jwt_type = cfg.jwt_type;
     input.salt_len = cfg.salt_len;
 
@@ -158,6 +162,117 @@ fn ietf_sd_jwt_input_from_envelope(
     }
 
     Ok(input)
+}
+
+/// Map a semantic holder binding to the SD-JWT VC `cnf.jwk` confirmation key.
+///
+/// Only bearer credentials omit `cnf`. Claims-based bindings and key
+/// representations or algorithms that cannot be expressed as a public JWK are
+/// rejected instead of being issued as bearer credentials.
+#[cfg(feature = "ietf-sd-jwt")]
+fn ietf_sd_jwt_confirmation_jwk(
+    binding: &reallyme_credential::committed::model::HolderBinding,
+) -> Result<Option<envelopes_jwk::Jwk>, VcApiError> {
+    use reallyme_credential::committed::model::{
+        CredentialAlgorithm, HolderBinding, PublicKeyRepresentation, RawPublicKeySerialization,
+    };
+
+    const ED25519_PUBLIC_KEY_BYTES: usize = 32;
+
+    let key = match binding {
+        HolderBinding::BearerWithoutBinding => return Ok(None),
+        HolderBinding::ClaimsBased(_) => return Err(VcApiError::InvalidSubject),
+        HolderBinding::CryptographicKey(key) => key,
+    };
+    let jwk = match (&key.public_key, key.alg) {
+        (PublicKeyRepresentation::JwkJson(bytes), CredentialAlgorithm::Ed25519)
+        | (PublicKeyRepresentation::JwkJson(bytes), CredentialAlgorithm::P256) => {
+            if bytes.is_empty() || bytes.len() > reallyme_credential::MAX_PUBLIC_KEY_BYTES {
+                return Err(VcApiError::InvalidSubject);
+            }
+            let parsed: envelopes_jwk::Jwk =
+                serde_json::from_slice(bytes).map_err(|_| VcApiError::InvalidSubject)?;
+            canonical_public_jwk(parsed, key.alg)?
+        }
+        (
+            PublicKeyRepresentation::Raw {
+                serialization: RawPublicKeySerialization::FixedWidth,
+                bytes,
+            },
+            CredentialAlgorithm::Ed25519,
+        ) if bytes.len() == ED25519_PUBLIC_KEY_BYTES => {
+            envelopes_jwk::Jwk::Okp(envelopes_jwk::OkpJwk {
+                kty: "OKP".to_owned(),
+                crv: "Ed25519".to_owned(),
+                x: codec_base64url::bytes_to_base64url(bytes),
+                alg: None,
+                use_: None,
+                kid: None,
+            })
+        }
+        (
+            PublicKeyRepresentation::Raw {
+                serialization:
+                    RawPublicKeySerialization::Sec1Compressed
+                    | RawPublicKeySerialization::Sec1Uncompressed,
+                bytes,
+            },
+            CredentialAlgorithm::P256,
+        ) => envelopes_jwk::Jwk::Ec(
+            envelopes_jwk::p256_public_key_to_jwk(
+                bytes,
+                envelopes_jwk::JwkOptions {
+                    alg: false,
+                    use_sig: false,
+                    use_enc: false,
+                    kid: None,
+                },
+            )
+            .map_err(|_| VcApiError::InvalidSubject)?,
+        ),
+        _ => return Err(VcApiError::InvalidSubject),
+    };
+    jwk.public_key_bytes()
+        .map_err(|_| VcApiError::InvalidSubject)?;
+    Ok(Some(jwk))
+}
+
+/// Rebuild a caller JWK as a minimal public key matching the declared algorithm.
+#[cfg(feature = "ietf-sd-jwt")]
+fn canonical_public_jwk(
+    jwk: envelopes_jwk::Jwk,
+    alg: reallyme_credential::committed::model::CredentialAlgorithm,
+) -> Result<envelopes_jwk::Jwk, VcApiError> {
+    use reallyme_credential::committed::model::CredentialAlgorithm;
+
+    match (jwk, alg) {
+        (envelopes_jwk::Jwk::Okp(okp), CredentialAlgorithm::Ed25519)
+            if okp.kty == "OKP" && okp.crv == "Ed25519" =>
+        {
+            Ok(envelopes_jwk::Jwk::Okp(envelopes_jwk::OkpJwk {
+                kty: okp.kty,
+                crv: okp.crv,
+                x: okp.x,
+                alg: None,
+                use_: None,
+                kid: None,
+            }))
+        }
+        (envelopes_jwk::Jwk::Ec(ec), CredentialAlgorithm::P256)
+            if ec.kty == "EC" && ec.crv == "P-256" =>
+        {
+            Ok(envelopes_jwk::Jwk::Ec(envelopes_jwk::EcJwk {
+                kty: ec.kty,
+                crv: ec.crv,
+                x: ec.x,
+                y: ec.y,
+                alg: None,
+                use_: None,
+                kid: None,
+            }))
+        }
+        _ => Err(VcApiError::InvalidSubject),
+    }
 }
 
 fn encoded_party_reference(

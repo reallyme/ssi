@@ -17,7 +17,6 @@ fn attestation_client_authentication_rejects_missing_or_non_public_cnf_jwk(
         json!({"kty": "EC", "crv": "P-256", "x": "x", "y": "y", "x5c": ["certificate"]}),
     ];
     let pop = AttestationPopRequest {
-        issuer: "wallet-client".to_owned(),
         audience: "https://as.example".to_owned(),
         jti: "pop-invalid-cnf".to_owned(),
         iat: 1_700_000_000,
@@ -98,7 +97,6 @@ fn attestation_client_authentication_rejects_ambiguous_confirmation_claim() -> R
         }
     }))?;
     let pop = AttestationPopRequest {
-        issuer: "wallet-client".to_owned(),
         audience: "https://as.example".to_owned(),
         jti: "pop-ambiguous-confirmation".to_owned(),
         iat: 1_700_000_000,
@@ -136,7 +134,6 @@ fn attestation_client_authentication_rejects_ambiguous_confirmation_claim() -> R
 fn attestation_client_authentication_rejects_pop_algorithm_key_family_mismatch(
 ) -> Result<(), OauthError> {
     let pop = AttestationPopRequest {
-        issuer: "wallet-client".to_owned(),
         audience: "https://as.example".to_owned(),
         jti: "pop-key-family-mismatch".to_owned(),
         iat: 1_700_000_000,
@@ -179,7 +176,6 @@ fn attestation_client_authentication_rejects_pop_algorithm_key_family_mismatch(
 fn attestation_client_authentication_rejects_wrong_challenge() -> Result<(), OauthError> {
     let public_jwk = test_client_instance_jwk("challenge-test-x");
     let pop = AttestationPopRequest {
-        issuer: "wallet-client".to_owned(),
         audience: "https://as.example".to_owned(),
         jti: "pop-2".to_owned(),
         iat: 1_700_000_000,

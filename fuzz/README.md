@@ -22,6 +22,10 @@ arbitrary UTF-8 input and compact structure-generation triggers. Its corpus
 includes malformed XML, wrong and correct namespaces, entity-bearing XML,
 recursive depth, the exact oversized-input boundary, and a valid v6 document.
 
+`fuzz_sd_jwt_processing` exercises SD-JWT compact and JSON serialization
+parsing, disclosure decoding, and bounded disclosure resolution against an
+arbitrary issuer payload, all of which run before signature verification.
+
 `fuzz_status_list` exercises bounded status-list structure validation,
 deterministic signing-payload construction, and bit lookup.
 
@@ -37,6 +41,15 @@ cargo fuzz run fuzz_claim_path
 cargo fuzz run fuzz_claim_set
 cargo fuzz run fuzz_mdoc_device_response
 cargo fuzz run fuzz_parse_tsl_xml
+cargo fuzz run fuzz_sd_jwt_processing
 cargo fuzz run fuzz_status_list
 cargo fuzz run fuzz_x509_trust_der
 ```
+
+The `fuzz_xml_signature_profile` target exercises the XMLDSig structural pass
+without native signature verification. `fuzz_jades_header` wraps arbitrary
+protected-header JSON in compact serialization and uses a rejecting signature
+backend. `fuzz_status_tokens` exercises JWT and CWT token-status verification
+boundaries with untrusted input. These targets complement the model-level
+`fuzz_status_list` target; building a target is not a substitute for sustained
+fuzz execution with a retained corpus.

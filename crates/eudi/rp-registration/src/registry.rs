@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use time::OffsetDateTime;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::json::{deserialize_strict, MAX_JSON_BYTES};
@@ -21,6 +22,7 @@ pub use jose::{JoseRegistryJwsVerifier, ValidatedJwks};
 use jose::{parse_protected_header, select_signing_key, JwksDocument};
 use payload::{
     decode_compact_payload, parse_selected_payload, validate_compact, validate_profile_shape,
+    FreshnessPolicy,
 };
 
 const MAX_SIGNER_CERTIFICATE_BYTES: usize = 65_536;
@@ -37,6 +39,32 @@ pub struct RegistryAuthenticationInput<'a> {
     pub compact_jws: &'a [u8],
     /// Bounded JWKS fetched from the application-accepted `x-jku-url`.
     pub jwks: &'a ValidatedJwks,
+    /// Trusted evaluation time used to judge the freshness of the answer.
+    pub evaluation_time: OffsetDateTime,
+    /// Maximum accepted age, in seconds, of a current envelope's signed `iat`.
+    ///
+    /// Must be positive and at most one day. Legacy shapes carry no signed
+    /// issue time and therefore fail closed with
+    /// [`RegistrationErrorReason::UnboundLegacyAnswer`].
+    pub max_response_age_seconds: u64,
+    /// Service and intended use a single-WRP answer must register.
+    ///
+    /// Only [`RegistryPayloadShape::Ts5SignedWrp`] and
+    /// [`RegistryPayloadShape::LegacyRawWrp`] carry the identifiers needed for
+    /// this check. TS5 intended-use-check results and WRP arrays do not echo
+    /// the queried identifiers in the signed payload, so supplying a query for
+    /// those shapes is rejected; their answers are bounded only by signature
+    /// authentication and freshness.
+    pub expected_intended_use: Option<RegistryIntendedUseQuery<'a>>,
+}
+
+/// Queried service and intended-use identifiers for a single-WRP lookup.
+#[derive(Clone, Copy)]
+pub struct RegistryIntendedUseQuery<'a> {
+    /// Exact expected `serviceIdentifier`.
+    pub service_id: &'a str,
+    /// Exact expected `intendedUseIdentifier` within that service.
+    pub intended_use_id: &'a str,
 }
 
 /// Bytes released by a cryptographic backend only after JWS verification.
@@ -313,6 +341,9 @@ pub fn authenticate_registry_record(
     verifier: &dyn RegistryJwsVerifier,
 ) -> Result<AuthenticatedRegistryRecord, RegistrationError> {
     validate_profile_shape(input.profile, input.payload_shape)?;
+    validate_query_shape(input.payload_shape, input.expected_intended_use.as_ref())?;
+    let freshness =
+        FreshnessPolicy::try_new(input.evaluation_time, input.max_response_age_seconds)?;
     validate_compact(input.compact_jws)?;
     let mut receipt = verifier.verify(input.compact_jws, input.jwks)?;
     if receipt.compact_digest != ArtifactDigest::of(input.compact_jws) {
@@ -337,7 +368,11 @@ pub fn authenticate_registry_record(
             RegistrationErrorReason::AuthenticationReceiptMismatch,
         ));
     }
-    let (payload, metadata) = parse_selected_payload(input.payload_shape, &receipt.payload)?;
+    let (payload, metadata) =
+        parse_selected_payload(input.payload_shape, &receipt.payload, freshness)?;
+    if let Some(query) = input.expected_intended_use.as_ref() {
+        validate_intended_use_query(&payload, query)?;
+    }
     let signer_certificate_digest = receipt_chain.leaf_certificate_digest();
     let signer_certificate_chain = receipt.signer_certificate_chain.take().ok_or_else(|| {
         RegistrationError::from_reason(RegistrationErrorReason::MissingSignerCertificate)
@@ -351,4 +386,44 @@ pub fn authenticate_registry_record(
         metadata,
         payload,
     })
+}
+
+fn validate_query_shape(
+    shape: RegistryPayloadShape,
+    query: Option<&RegistryIntendedUseQuery<'_>>,
+) -> Result<(), RegistrationError> {
+    let bindable = matches!(
+        shape,
+        RegistryPayloadShape::Ts5SignedWrp | RegistryPayloadShape::LegacyRawWrp
+    );
+    if query.is_some() && !bindable {
+        return Err(RegistrationError::from_reason(
+            RegistrationErrorReason::PayloadShapeMismatch,
+        ));
+    }
+    Ok(())
+}
+
+fn validate_intended_use_query(
+    payload: &RegistryPayload,
+    query: &RegistryIntendedUseQuery<'_>,
+) -> Result<(), RegistrationError> {
+    let RegistryPayload::Wrp(record) = payload else {
+        return Err(RegistrationError::from_reason(
+            RegistrationErrorReason::PayloadShapeMismatch,
+        ));
+    };
+    let registered = record.services().iter().any(|service| {
+        service.service_identifier() == query.service_id
+            && service
+                .intended_uses()
+                .iter()
+                .any(|intended_use| intended_use.intended_use_identifier() == query.intended_use_id)
+    });
+    if !registered {
+        return Err(RegistrationError::from_reason(
+            RegistrationErrorReason::SemanticBindingMismatch,
+        ));
+    }
+    Ok(())
 }

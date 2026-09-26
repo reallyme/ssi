@@ -16,7 +16,7 @@ use reallyme_credential_claims::ClaimsRegistry;
 use reallyme_disclosure_policy::{
     evaluate, plan_satisfaction, policy_for_claimset, validate_policy_claims_against_registry,
     EvaluationContext, ExtractedDisclosure, PolicyDecision, QeaaContext, SatisfactionPlan,
-    StatusContext, VpPolicy, VpPolicyError,
+    StatusContext, VpPolicy, VpPolicyError, MAX_EVALUATED_DISCLOSURES,
 };
 use reallyme_vp_core::{DisclosureMode, Presentation, SdJwtVcPresentation};
 
@@ -369,4 +369,153 @@ fn policy_defers_derivation_capability_to_the_protocol_layer() {
         }
         SatisfactionPlan::Disclose(_) => panic!("predicate must require derivation"),
     }
+}
+
+fn pid_context_with_status<'a>(
+    presentation: &'a Presentation,
+    claimset_id: &'a str,
+    disclosures: &'a [ExtractedDisclosure],
+    status: StatusContext,
+) -> EvaluationContext<'a> {
+    EvaluationContext {
+        binding_ok: true,
+        now_unix: 1_700_000_000,
+        presentation,
+        issuer_algorithm: Algorithm::P256,
+        holder_algorithm: Algorithm::P256,
+        claimset_id,
+        disclosures,
+        status: Some(status),
+        qeaa: Some(QeaaContext {
+            verified: true,
+            profile: Some("QEAA-ETSI-1.0"),
+            identity_proofing_rank: Some(3),
+        }),
+    }
+}
+
+#[test]
+fn pid_policy_treats_unknown_status_age_as_too_old() {
+    let policy = policy_for_claimset("eu.pid.v1").unwrap();
+    let presentation = sd_jwt_presentation();
+    let status = StatusContext {
+        checked: true,
+        revoked: false,
+        suspended: false,
+        age_seconds: None,
+    };
+
+    let decision = evaluate(
+        &policy,
+        &pid_context_with_status(&presentation, "eu.pid.v1", &[], status),
+    );
+
+    assert_eq!(
+        decision,
+        PolicyDecision::Reject(vec![VpPolicyError::StatusTooOld])
+    );
+}
+
+#[test]
+fn builtin_profiles_only_accept_their_own_claimset() {
+    let ids = [
+        "eu.pid.v1",
+        "eu.pid.baseline.v1",
+        "eu.eaa.v1",
+        "eu.address.v1",
+        "eu.age.v1",
+        "eu.diploma.v1",
+        "eu.driving_license.v1",
+        "eu.professional_license.v1",
+        "eu.passport.v1",
+        "eu.health.v1",
+        "eu.kyc.v1",
+        "eu.company.v1",
+        "eu.tax.v1",
+        "eu.eidas-vid.v1",
+    ];
+    for id in ids {
+        let policy = policy_for_claimset(id).unwrap();
+        assert_eq!(policy.allowed_claimsets, Some(vec![id.to_owned()]), "{id}");
+    }
+
+    let policy = policy_for_claimset("eu.pid.v1").unwrap();
+    let presentation = sd_jwt_presentation();
+    let status = StatusContext {
+        checked: true,
+        revoked: false,
+        suspended: false,
+        age_seconds: Some(60),
+    };
+    let decision = evaluate(
+        &policy,
+        &pid_context_with_status(&presentation, "eu.age.v1", &[], status),
+    );
+    assert_eq!(
+        decision,
+        PolicyDecision::Reject(vec![VpPolicyError::ClaimsetNotAllowed])
+    );
+}
+
+#[test]
+fn evaluation_rejects_oversized_disclosure_sets() {
+    let policy = policy_for_claimset("eu.pid.v1")
+        .unwrap()
+        .require_claim("/claims/family_name", DisclosureMode::Reveal);
+    let presentation = sd_jwt_presentation();
+    let disclosures = vec![
+        ExtractedDisclosure {
+            claim_path: "/claims/family_name".into(),
+            mode: DisclosureMode::Reveal,
+        };
+        MAX_EVALUATED_DISCLOSURES + 1
+    ];
+    let status = StatusContext {
+        checked: true,
+        revoked: false,
+        suspended: false,
+        age_seconds: Some(60),
+    };
+
+    let decision = evaluate(
+        &policy,
+        &pid_context_with_status(&presentation, "eu.pid.v1", &disclosures, status),
+    );
+    assert_eq!(
+        decision,
+        PolicyDecision::Reject(vec![VpPolicyError::ProofInvalid])
+    );
+}
+
+#[test]
+fn evaluation_rejects_disclosures_outside_the_policy_allow_list() {
+    let policy = policy_for_claimset("eu.pid.v1")
+        .unwrap()
+        .require_claim("/claims/family_name", DisclosureMode::Reveal);
+    let presentation = sd_jwt_presentation();
+    let disclosures = [
+        ExtractedDisclosure {
+            claim_path: "/claims/family_name".into(),
+            mode: DisclosureMode::Reveal,
+        },
+        ExtractedDisclosure {
+            claim_path: "/claims/unrequested".into(),
+            mode: DisclosureMode::Reveal,
+        },
+    ];
+    let status = StatusContext {
+        checked: true,
+        revoked: false,
+        suspended: false,
+        age_seconds: Some(60),
+    };
+
+    let decision = evaluate(
+        &policy,
+        &pid_context_with_status(&presentation, "eu.pid.v1", &disclosures, status),
+    );
+    assert!(matches!(
+        decision,
+        PolicyDecision::Reject(errors) if errors.contains(&VpPolicyError::UnexpectedDisclosure)
+    ));
 }

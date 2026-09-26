@@ -98,7 +98,7 @@ test("reviewed attestation accepts the exact run, SHA, and version", () => {
 
 test("attestation rejects mismatched inputs and unreviewed fields", () => {
   for (const candidate of [
-    attestation({ version: "0.1.1" }),
+    attestation({ version: "0.2.0" }),
     attestation({ release_sha: "b".repeat(40) }),
     attestation({ run_id: 124 }),
     attestation({ rust_ci_run_id: 322 }),
@@ -184,7 +184,7 @@ test("newer failed, running, wrong-version, and rerun preflights fail closed", (
     listedWorkflowRun({ id: 124, conclusion: null, status: "in_progress" }),
     listedWorkflowRun({
       id: 124,
-      display_title: `Crates package preflight 0.1.1 @ ${releaseSha}`,
+      display_title: `Crates package preflight 0.2.0 @ ${releaseSha}`,
     }),
     listedWorkflowRun({ id: 124, run_attempt: 2 }),
   ];

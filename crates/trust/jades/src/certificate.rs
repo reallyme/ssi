@@ -110,7 +110,7 @@ pub(crate) fn validate_certificate_references(
     header: &ProtectedHeader,
     certificates: &[X509Certificate],
 ) -> Result<(), JadesError> {
-    if !header.has_certificate_reference() {
+    if !header.has_signing_certificate_reference() {
         return Err(JadesError::new(
             JadesErrorReason::MissingSigningCertificateReference,
         ));

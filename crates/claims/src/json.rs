@@ -111,8 +111,58 @@ fn normalize_json_number(value: &serde_json::Number) -> Result<ClaimValue, Claim
     if let Some(value) = value.as_i64() {
         return Ok(ClaimValue::Signed(value));
     }
+    let Some(value) = value.as_f64() else {
+        return Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidDecimal,
+        ));
+    };
+    decimal_from_json_f64(value)
+}
+
+/// Maximum significant decimal digits that survive a round trip through an
+/// IEEE 754 binary64 value unchanged (`DBL_DIG`).
+const MAX_EXACT_JSON_DECIMAL_SIGNIFICANT_DIGITS: usize = 15;
+
+/// Convert a JSON non-integer number into a canonical fixed-point decimal.
+///
+/// This is the single decimal normalization path for both JSON entry points.
+/// JSON numbers reach this layer as binary64 values, so the original lexical
+/// form is no longer available. The shortest round-trip fixed-point rendering
+/// is accepted only when it has at most
+/// [`MAX_EXACT_JSON_DECIMAL_SIGNIFICANT_DIGITS`] significant digits, which is
+/// the range where every decimal input maps back to itself exactly. Longer
+/// renderings may differ from the submitted number and fail closed.
+fn decimal_from_json_f64(value: f64) -> Result<ClaimValue, ClaimsError> {
+    if !value.is_finite() {
+        return Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidDecimal,
+        ));
+    }
     let lexical = value.to_string();
+    if significant_digit_count(lexical.as_str()) > MAX_EXACT_JSON_DECIMAL_SIGNIFICANT_DIGITS {
+        return Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidDecimal,
+        ));
+    }
     ClaimDecimal::new(lexical).map(ClaimValue::Decimal)
+}
+
+fn significant_digit_count(lexical: &str) -> usize {
+    let digits = lexical
+        .bytes()
+        .filter(u8::is_ascii_digit)
+        .skip_while(|digit| *digit == b'0');
+    let mut count = 0_usize;
+    let mut pending_zeros = 0_usize;
+    for digit in digits {
+        if digit == b'0' {
+            pending_zeros = pending_zeros.saturating_add(1);
+        } else {
+            count = count.saturating_add(pending_zeros).saturating_add(1);
+            pending_zeros = 0;
+        }
+    }
+    count
 }
 
 fn validate_claim_object_key(value: &str) -> Result<(), ClaimsError> {
@@ -187,9 +237,7 @@ impl<'de> Visitor<'de> for ClaimValueVisitor {
     where
         E: serde::de::Error,
     {
-        let lexical = value.to_string();
-        ClaimDecimal::new(lexical)
-            .map(ClaimValue::Decimal)
+        decimal_from_json_f64(value)
             .map_err(|_| json_parse_error::<E>(ClaimsInvalidReason::InvalidDecimal))
     }
 

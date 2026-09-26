@@ -39,11 +39,16 @@ impl SignatureVerifier for WasmSignatureVerifier {
 
 const fn map_x509_error(error: X509Error) -> SignatureVerifyError {
     match error {
-        X509Error::SignatureFailed(X509SignatureFailure::UnsupportedAlgorithm) => {
-            SignatureVerifyError::UnsupportedAlgorithm
-        }
+        // Path constraints this lane cannot process fail closed with the same
+        // typed unsupported result as a missing algorithm provider.
         X509Error::SignatureFailed(
-            X509SignatureFailure::InvalidSignature | X509SignatureFailure::ChainIssuerMismatch,
+            X509SignatureFailure::UnsupportedAlgorithm
+            | X509SignatureFailure::UnsupportedPathConstraint,
+        ) => SignatureVerifyError::UnsupportedAlgorithm,
+        X509Error::SignatureFailed(
+            X509SignatureFailure::InvalidSignature
+            | X509SignatureFailure::ChainIssuerMismatch
+            | X509SignatureFailure::AlgorithmIdentifierMismatch,
         ) => SignatureVerifyError::InvalidSignature,
         X509Error::InvalidDer
         | X509Error::InvalidSerialNumber

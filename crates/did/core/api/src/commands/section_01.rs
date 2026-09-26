@@ -12,7 +12,9 @@ use crate::messaging::services_with_designated_pre_keys;
 use crate::profile::DidProfile;
 use crate::resolve::{DidProvider, DidResolutionResult, DidResolveRequest};
 use crate::rotate::RekeyRelationship;
-use crate::validate::{validate_did, DomainVerificationEnv};
+use crate::validate::{
+    validate_did, validate_did_consistency, validate_did_transition, DomainVerificationEnv,
+};
 use reallyme_did_core::update::merge::merge_domain_verification;
 use reallyme_did_core::validate::{
     validate_all_domain_bindings, validate_did_me_structure, validate_services,

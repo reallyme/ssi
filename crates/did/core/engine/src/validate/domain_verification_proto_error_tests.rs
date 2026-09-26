@@ -23,4 +23,12 @@ fn domain_verification_error_maps_to_identity_core_proto_reason() {
         IdentityCoreErrorReason::from(DomainVerificationError::UnsupportedMethod),
         IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_UNSUPPORTED_FORMAT
     );
+    assert_eq!(
+        IdentityCoreErrorReason::from(DomainVerificationError::InvalidDomain),
+        IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOMAIN
+    );
+    assert_eq!(
+        IdentityCoreErrorReason::from(DomainVerificationError::BindingMismatch),
+        IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOMAIN
+    );
 }

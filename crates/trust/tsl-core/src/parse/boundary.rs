@@ -20,6 +20,7 @@ fn enforce_xml_limits_and_namespace(xml: &str) -> Result<(), TslError> {
     let mut key_value_depth = None;
     let mut critical_extension_depth = None;
     let mut critical_extension_supported = false;
+    let mut qualification_path: Vec<QualificationNode> = Vec::new();
     loop {
         match reader.read_event() {
             Ok(Event::Start(element)) => {
@@ -87,8 +88,18 @@ fn enforce_xml_limits_and_namespace(xml: &str) -> Result<(), TslError> {
                     }
                     critical_extension_supported = true;
                 }
-                if is_qualification_root(&namespace, local_name.as_ref()) {
+                if qualification_depth.is_some_and(|qualification| depth > qualification) {
+                    let node = classify_qualification_child(
+                        qualification_path.last().copied(),
+                        &namespace,
+                        local_name.as_ref(),
+                        critical_extension_depth.is_some(),
+                    )?;
+                    qualification_path.push(node);
+                } else if is_qualification_root(&namespace, local_name.as_ref()) {
                     qualification_depth = Some(depth);
+                    qualification_path.clear();
+                    qualification_path.push(QualificationNode::Qualifications);
                 }
                 if is_tsl_element(&namespace, local_name.as_ref(), "DigitalId") {
                     digital_id_depth = Some(depth);
@@ -167,6 +178,14 @@ fn enforce_xml_limits_and_namespace(xml: &str) -> Result<(), TslError> {
                     }
                     critical_extension_supported = true;
                 }
+                if qualification_depth.is_some_and(|qualification| depth > qualification) {
+                    classify_qualification_child(
+                        qualification_path.last().copied(),
+                        &namespace,
+                        local_name.as_ref(),
+                        critical_extension_depth.is_some(),
+                    )?;
+                }
                 if signature_depth == Some(depth) {
                     signature_depth = None;
                 }
@@ -175,8 +194,12 @@ fn enforce_xml_limits_and_namespace(xml: &str) -> Result<(), TslError> {
                     .ok_or(TslError::Xml(TslXmlFailure::Unbalanced))?;
             }
             Ok(Event::End(_)) => {
+                if qualification_depth.is_some_and(|qualification| depth > qualification) {
+                    qualification_path.pop();
+                }
                 if qualification_depth == Some(depth) {
                     qualification_depth = None;
+                    qualification_path.clear();
                 }
                 if digital_id_depth == Some(depth) {
                     digital_id_depth = None;
@@ -469,3 +492,4 @@ fn validate_element_namespace(
 }
 
 include!("boundary/elements.rs");
+include!("boundary/qualification_structure.rs");

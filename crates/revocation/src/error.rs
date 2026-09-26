@@ -52,6 +52,10 @@ pub enum StatusCheckError {
 /// Stable revocation policy errors.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
 pub enum RevocationPolicyError {
+    /// The evaluation instant cannot be represented as Unix seconds.
+    #[error("invalid revocation evaluation time")]
+    InvalidEvaluationTime,
+
     /// No revocation source was configured.
     #[error("no revocation source configured")]
     NoSources,
@@ -59,6 +63,28 @@ pub enum RevocationPolicyError {
     /// All configured revocation sources were unavailable.
     #[error("revocation sources unavailable")]
     Unavailable,
+}
+
+/// Stable revocation evidence cache errors.
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+pub enum RevocationCacheError {
+    /// Evidence without an expiry bound cannot be cached.
+    #[error("revocation evidence has no expiry")]
+    MissingExpiry,
+
+    /// Evidence expiry does not follow its fetch time.
+    #[error("revocation evidence expiry precedes fetch time")]
+    InvalidExpiry,
+}
+
+impl From<RevocationCacheError> for IdentityCoreErrorReason {
+    fn from(error: RevocationCacheError) -> Self {
+        match error {
+            RevocationCacheError::MissingExpiry | RevocationCacheError::InvalidExpiry => {
+                Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_STATUS_INVALID_TIME_WINDOW
+            }
+        }
+    }
 }
 
 impl From<StatusCheckError> for IdentityCoreErrorReason {
@@ -95,6 +121,9 @@ impl From<StatusCheckError> for IdentityCoreErrorReason {
 impl From<RevocationPolicyError> for IdentityCoreErrorReason {
     fn from(error: RevocationPolicyError) -> Self {
         match error {
+            RevocationPolicyError::InvalidEvaluationTime => {
+                Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_STATUS_INVALID_TIME_WINDOW
+            }
             RevocationPolicyError::NoSources => {
                 Self::IDENTITY_CORE_ERROR_REASON_REVOCATION_SOURCE_NOT_CONFIGURED
             }

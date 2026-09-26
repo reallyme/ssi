@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-credential-trust-api"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -15,6 +15,7 @@ default = []
 # native consumer. Apple and Android SDK artifacts must remain cross-compilable
 # and fail closed when the explicitly packaged XMLSec backend is unavailable.
 native = [
+    "reallyme-trust-core/native",
     "dep:identity-trust-openssl",
     "dep:identity-trust-tsl-openssl",
     "identity-trust-tsl-openssl/native",
@@ -28,6 +29,7 @@ xmlsec-ffi = ["native", "identity-trust-tsl-openssl/xmlsec-ffi"]
 
 # Optional WASM helper surface used by browser-targeted adapters.
 wasm = [
+    "reallyme-trust-core/wasm",
     "dep:identity-trust-wasm",
     "identity-trust-wasm/wasm",
     "reallyme-crypto/wasm",
@@ -40,12 +42,12 @@ time = "0.3"
 zeroize = { workspace = true, features = ["derive"] }
 
 # Core trust logic
-reallyme-trust-core = { version = "0.1.0", path = "../core" }
+reallyme-trust-core = { version = "0.2.0", path = "../core", default-features = false }
 identity-revocation-core = { workspace = true }
-identity-trust-tsl-core = { version = "0.1.0", path = "../tsl-core" }
+identity-trust-tsl-core = { version = "0.2.0", path = "../tsl-core" }
 reallyme-ssi-proto = { workspace = true }
 reallyme-crypto = { workspace = true, features = ["sha2"] }
-identity-trust-wasm = { version = "0.1.0", path = "../wasm", optional = true, default-features = false }
+identity-trust-wasm = { version = "0.2.0", path = "../wasm", optional = true, default-features = false }
 
 # Certificate model
 envelopes-x509 = { workspace = true }
@@ -54,8 +56,8 @@ envelopes-x509 = { workspace = true }
 codec-base64url = { package = "reallyme-codec-base64url", version = "=0.2.3" }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios", target_os = "tvos", target_os = "watchos", target_os = "visionos")))'.dependencies]
-identity-trust-openssl = { version = "0.1.0", path = "../openssl", optional = true }
-identity-trust-tsl-openssl = { version = "0.1.0", path = "../tsl-openssl", optional = true, default-features = false }
+identity-trust-openssl = { version = "0.2.0", path = "../openssl", optional = true }
+identity-trust-tsl-openssl = { version = "0.2.0", path = "../tsl-openssl", optional = true, default-features = false }
 
 [dev-dependencies]
 openssl = "0.10"

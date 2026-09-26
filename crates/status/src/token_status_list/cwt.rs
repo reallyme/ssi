@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use reallyme_codec::{
-    base64url::{base64url_to_bytes, bytes_to_base64url},
+    base64url::bytes_to_base64url,
     cbor::{
         decode_deterministic_cbor, encode_deterministic_cbor, DeterministicCborInteger,
         DeterministicCborMapEntry, DeterministicCborMapKey, DeterministicCborValue,
@@ -17,12 +17,13 @@ use reallyme_cose::{
 use zeroize::Zeroizing;
 
 use super::{
-    compress::decompress_status_bytes,
-    issue_jwt::validate_claims,
+    check_freshness::check_freshness,
+    issue_jwt::{validate_claims, validate_claims_with_compressed},
     model::{
-        TokenStatusListClaims, TokenStatusListError, TokenStatusListInvalidReason,
-        TokenStatusListPayload, TokenStatusListProfile, VerifiedTokenStatusList,
-        MAX_TOKEN_STATUS_CWT_BYTES, STATUS_LIST_CWT_CONTENT_FORMAT, STATUS_LIST_CWT_MEDIA_TYPE,
+        TokenStatusListClaims, TokenStatusListError, TokenStatusListFreshnessPolicy,
+        TokenStatusListInvalidReason, TokenStatusListPayload, TokenStatusListProfile,
+        VerifiedTokenStatusList, MAX_TOKEN_STATUS_CWT_BYTES, STATUS_LIST_CWT_CONTENT_FORMAT,
+        STATUS_LIST_CWT_MEDIA_TYPE,
     },
 };
 
@@ -51,10 +52,7 @@ fn text_entry(key: &str, value: DeterministicCborValue) -> DeterministicCborMapE
 fn encode_claims(
     claims: &TokenStatusListClaims,
 ) -> Result<Zeroizing<Vec<u8>>, TokenStatusListError> {
-    validate_claims(claims)?;
-    let compressed = base64url_to_bytes(&claims.status_list.lst).map_err(|_| {
-        TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidCompressedList)
-    })?;
+    let compressed = validate_claims(claims)?.compressed;
     let mut status_entries = vec![
         text_entry("bits", integer_value(u64::from(claims.status_list.bits))),
         text_entry("lst", DeterministicCborValue::Bytes(compressed)),
@@ -127,12 +125,16 @@ pub fn issue_token_status_list_cwt_with_signer(
 }
 
 /// Authenticate and validate a tagged COSE_Sign1 Token Status List CWT.
+///
+/// `freshness` bounds how long after `iat` the list is accepted, honoring a
+/// shorter `ttl` claim; see [`TokenStatusListFreshnessPolicy`].
 pub fn verify_token_status_list_cwt(
     cwt: &[u8],
     expected_algorithm: CoseSignatureAlgorithm,
     public_key_resolver: impl Fn(Algorithm, &[u8]) -> Option<Vec<u8>>,
     expected_status_list_uri: &str,
     now_unix: u64,
+    freshness: TokenStatusListFreshnessPolicy,
 ) -> Result<VerifiedTokenStatusList, TokenStatusListError> {
     let policy = CosePolicy::new()
         .with_require_tagged_sign1(true)
@@ -150,28 +152,21 @@ pub fn verify_token_status_list_cwt(
     if !valid_type {
         return Err(TokenStatusListError::Authentication);
     }
-    let claims = decode_claims(&verified.payload)?;
-    validate_claims(&claims)?;
+    let (claims, compressed) = decode_claims(&verified.payload)?;
+    let packed_statuses = validate_claims_with_compressed(&claims, &compressed)?;
     if claims.sub != expected_status_list_uri {
         return Err(TokenStatusListError::SubjectMismatch);
     }
-    if now_unix < claims.iat {
-        return Err(TokenStatusListError::NotYetValid);
-    }
-    if claims.exp.is_some_and(|expiration| now_unix >= expiration) {
-        return Err(TokenStatusListError::Expired);
-    }
-    let compressed = base64url_to_bytes(&claims.status_list.lst).map_err(|_| {
-        TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidCompressedList)
-    })?;
-    let packed_statuses = decompress_status_bytes(&compressed, claims.status_list.bits)?;
+    check_freshness(&claims, now_unix, freshness)?;
     Ok(VerifiedTokenStatusList {
         claims,
         packed_statuses,
     })
 }
 
-fn decode_claims(payload: &[u8]) -> Result<TokenStatusListClaims, TokenStatusListError> {
+/// Decode CWT claims, returning the compressed status bytes alongside so they
+/// are not re-encoded and re-decoded during validation.
+fn decode_claims(payload: &[u8]) -> Result<(TokenStatusListClaims, Vec<u8>), TokenStatusListError> {
     let decoded = decode_deterministic_cbor(payload).map_err(|_| {
         TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidCwtClaims)
     })?;
@@ -196,7 +191,7 @@ fn decode_claims(payload: &[u8]) -> Result<TokenStatusListClaims, TokenStatusLis
     let compressed = required_bytes(text_member(status_entries, "lst")?)?;
     let aggregation_uri = optional_text(text_member(status_entries, "aggregation_uri")?)?;
 
-    Ok(TokenStatusListClaims {
+    let claims = TokenStatusListClaims {
         profile: TokenStatusListProfile::IetfDraft21,
         sub: subject,
         iat: issued_at,
@@ -207,7 +202,8 @@ fn decode_claims(payload: &[u8]) -> Result<TokenStatusListClaims, TokenStatusLis
             lst: bytes_to_base64url(&compressed),
             aggregation_uri,
         },
-    })
+    };
+    Ok((claims, compressed))
 }
 
 fn invalid_claims() -> TokenStatusListError {

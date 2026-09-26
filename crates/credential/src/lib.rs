@@ -8,6 +8,12 @@
 //! ReallyMe credential. Signing and verification operate through injected
 //! interfaces. OpenID flows, VP response assembly, network fetching, wallet
 //! state, and application orchestration remain outside this crate.
+//!
+//! `committed` preserves the established credential-envelope Merkle
+//! construction for existing issued credentials. Its roots and openings are
+//! not interchangeable with `reallyme-credential-claims` commitments. A
+//! verifier must select the construction from authenticated profile/version
+//! metadata and must never retry an opening under the other construction.
 
 mod canonical;
 mod commands;
@@ -35,6 +41,7 @@ pub use commands::{
 pub use error::{
     CredentialCanonicalReason, CredentialError, CredentialInvalidReason, CredentialProtoField,
     CredentialProtoReason, CredentialSignatureReason, CredentialStatusReason,
+    CredentialValidityReason,
 };
 pub use issue_provider::{
     CredentialIssueProvider, CredentialIssueProviderError, CredentialLifecycleAction,

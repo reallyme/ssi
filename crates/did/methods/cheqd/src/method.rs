@@ -195,7 +195,9 @@ fn is_uuid(value: &str) -> bool {
             }
             continue;
         }
-        if !byte.is_ascii_hexdigit() {
+        // Canonical lowercase only: mixed-case UUIDs name the same DID and
+        // would otherwise be accepted as distinct aliases.
+        if !(byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
             return false;
         }
     }

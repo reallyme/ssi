@@ -12,6 +12,8 @@ pub fn eu_driving_license_policy() -> VpPolicy {
         min_identity_proofing_level: Some(2),
         require_status: true,
         max_status_age_seconds: Some(86_400),
+        // Only credentials of this claimset satisfy this profile.
+        allowed_claimsets: Some(vec!["eu.driving_license.v1".into()]),
         ..VpPolicy::default()
     }
 }

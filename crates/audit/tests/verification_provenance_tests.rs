@@ -103,3 +103,24 @@ fn provenance_debug_output_is_redacted_and_owned_values_zeroize() {
     value.zeroize();
     assert!(value.standards_versions.did_web.is_empty());
 }
+
+#[test]
+fn provenance_text_rejects_control_and_bidi_characters() {
+    let mut newline = provenance();
+    newline.standards_versions.did_web = "1.0\ninjected".to_owned();
+    assert_eq!(
+        validate_verification_provenance(&newline),
+        Err(VerificationProvenanceError::InvalidCharacters(
+            VerificationProvenanceField::DidWebVersion,
+        ))
+    );
+
+    let mut bidi = provenance();
+    bidi.trace_id = "trace-\u{2066}24".to_owned();
+    assert_eq!(
+        validate_verification_provenance(&bidi),
+        Err(VerificationProvenanceError::InvalidCharacters(
+            VerificationProvenanceField::TraceId,
+        ))
+    );
+}

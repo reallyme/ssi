@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-revocation-ocsp-openssl"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -17,7 +17,7 @@ native = []
 thiserror = { workspace = true }
 time = "0.3"
 
-identity-revocation-ocsp-core = { version = "0.1.0", path = "../core" }
+identity-revocation-ocsp-core = { version = "0.2.0", path = "../core" }
 reallyme-ssi-proto = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

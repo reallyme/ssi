@@ -15,7 +15,7 @@ use crate::core::{
 use crate::document::{project_did_document, DocumentProjection};
 use crate::error::DidCoreError;
 use crate::hashing::compute_core_cid;
-use crate::signing::sign_core_with_policy;
+use crate::signing::{attestation_crypto_algorithm, sign_core_with_policy};
 use crate::update::{
     error::UpdateError,
     invariants::validate_chain,
@@ -185,11 +185,11 @@ fn validate_relationship_references(
         }
     }
 
+    // Update authority is limited to core attestation algorithms so every
+    // produced policy can be verified by `validate::attestation`.
     for id in allowed {
         match algorithm_for_key(controller_keys, id).map(|key| key.algorithm) {
-            Some(
-                Algorithm::Ed25519 | Algorithm::MlDsa87 | Algorithm::P256 | Algorithm::Secp256k1,
-            ) => {}
+            Some(algorithm) if attestation_crypto_algorithm(algorithm).is_some() => {}
             _ => return Err(UpdateError::InvalidState),
         }
     }

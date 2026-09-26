@@ -46,9 +46,16 @@ impl ProtectedHeader {
         }
     }
 
-    pub(crate) const fn has_certificate_reference(&self) -> bool {
-        self.x5c.is_some()
-            || self.x5t_s256.is_some()
+    /// Reports whether the protected header identifies the signing
+    /// certificate through one of the mechanisms permitted by JAdES.
+    ///
+    /// ETSI TS 119 182-1 v1.2.1 clause 5.1.7 requires at least one of
+    /// `x5t#S256`, `x5c`, `sigX5ts`, or `x5t#o` in the protected header. An
+    /// `x5c` chain is therefore a standards-defined certificate identifier;
+    /// its trust and signature binding are still validated separately.
+    pub(crate) const fn has_signing_certificate_reference(&self) -> bool {
+        self.x5t_s256.is_some()
+            || self.x5c.is_some()
             || self.x5t_o.is_some()
             || self.sig_x5ts.is_some()
     }

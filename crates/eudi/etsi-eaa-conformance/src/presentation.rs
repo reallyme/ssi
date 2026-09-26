@@ -308,6 +308,11 @@ pub fn validate_eu_mediating_api(facts: &EuMediatingApiFacts) -> Result<()> {
 /// The function compares the actual requested and registered type/attribute
 /// pairs, rejects duplicate or malformed identifiers, and requires the user
 /// response to match the exact warning combination produced by the checks.
+///
+/// The registered claim set is only trusted when the registration certificate
+/// validated. For any other status the set may be absent, malformed, or
+/// attacker-controlled, so it is ignored and treated as empty: every requested
+/// claim then counts as overasking.
 pub fn authorize_eu_presentation<'a>(
     requested: &'a [RegisteredClaim<'a>],
     registered: &'a [RegisteredClaim<'a>],
@@ -317,7 +322,6 @@ pub fn authorize_eu_presentation<'a>(
     user_decision: PresentationUserDecision,
 ) -> Result<PresentationAuthorization<'a>> {
     validate_claim_set(requested)?;
-    validate_claim_set(registered)?;
 
     let registration_warning =
         !matches!(registration_status, RelyingPartyRegistrationStatus::Valid);
@@ -327,8 +331,19 @@ pub fn authorize_eu_presentation<'a>(
         return Err(ConformanceError::InvalidRelyingPartyRegistration);
     }
 
+    let registered: &'a [RegisteredClaim<'a>] = if registration_warning {
+        &[]
+    } else {
+        validate_claim_set(registered)?;
+        registered
+    };
+
     let overasking = requested.iter().any(|claim| !registered.contains(claim));
-    if overasking && matches!(overasking_policy, OveraskingPolicy::Reject) {
+    if overasking
+        && (matches!(overasking_policy, OveraskingPolicy::Reject)
+            || (registered.is_empty()
+                && matches!(overasking_policy, OveraskingPolicy::RegisteredSubsetOnly)))
+    {
         return Err(ConformanceError::RelyingPartyOverasking);
     }
 

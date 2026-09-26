@@ -23,11 +23,11 @@ fn verify_sd_jwt_rejects_unaccepted_issuer_typ() {
         &compact,
         &issuer.jwk,
         &issuer.public,
-        &SdJwtVerificationOptions::default(),
+        &SdJwtVerificationOptions::new(VERIFY_NOW_UNIX),
     )
     .expect_err("wrong issuer typ must fail");
 
-    assert!(matches!(err, SdJwtEnvelopeError::Jwt));
+    assert!(matches!(err, SdJwtEnvelopeError::InvalidIssuerJwt));
 }
 
 #[test]
@@ -48,6 +48,7 @@ fn verify_sd_jwt_validates_key_binding_jwt() {
         "iat": 1683000000u64,
         "_sd": [digest],
         "_sd_alg": "sha-256",
+        "cnf": {"jwk": holder.jwk},
     });
     let issuer_signed_jwt = encode_signed_jwt_with_header_options(
         &issuer_payload,
@@ -82,7 +83,7 @@ fn verify_sd_jwt_validates_key_binding_jwt() {
         &compact,
         &issuer.jwk,
         &issuer.public,
-        &SdJwtVerificationOptions::default(),
+        &SdJwtVerificationOptions::new(VERIFY_NOW_UNIX),
     )
     .expect_err("a supplied KB-JWT must never be returned without verification");
     assert!(matches!(
@@ -118,13 +119,13 @@ fn verify_sd_jwt_validates_key_binding_jwt() {
                 max_future_iat_skew_seconds: 300,
                 max_iat_age_seconds: 300,
             }),
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect_err("RFC 9901 requires KB-JWT iat");
     assert!(matches!(
         missing_iat_error,
-        SdJwtEnvelopeError::Jwt
+        SdJwtEnvelopeError::InvalidKeyBindingJwt
     ));
 
     let mut epoch_iat_payload = kb_payload.clone();
@@ -152,7 +153,7 @@ fn verify_sd_jwt_validates_key_binding_jwt() {
                 max_future_iat_skew_seconds: 300,
                 max_iat_age_seconds: 300,
             }),
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect_err("epoch-zero evaluation time must not disable freshness checks");
@@ -176,13 +177,50 @@ fn verify_sd_jwt_validates_key_binding_jwt() {
                 max_future_iat_skew_seconds: 60,
                 max_iat_age_seconds: 300,
             }),
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect("verified SD-JWT+KB");
 
-    assert_eq!(verified.key_binding_jwt, Some(kb_jwt));
+    assert_eq!(verified.key_binding_jwt.as_deref(), Some(kb_jwt.as_str()));
     assert_eq!(verified.key_binding_payload, Some(kb_payload));
+
+    let bearer_payload = json!({
+        "iss": "https://example.com/issuer",
+        "iat": 1683000000u64,
+        "_sd_alg": "sha-256",
+    });
+    let bearer_jwt = encode_signed_jwt_with_header_options(
+        &bearer_payload,
+        &issuer.jwk,
+        &issuer.private,
+        &JwtHeaderEncodeOptions::new(Some("dc+sd-jwt".to_owned())),
+    )
+    .expect("bearer issuer JWT");
+    let bearer_compact = serialize_sd_jwt_compact(&bearer_jwt, &[]).expect("bearer compact");
+    let substituted = format!("{bearer_compact}{kb_jwt}");
+    assert_eq!(
+        verify_sd_jwt(
+            &substituted,
+            &issuer.jwk,
+            &issuer.public,
+            &SdJwtVerificationOptions {
+                require_key_binding: true,
+                key_binding: Some(KeyBindingVerificationOptions {
+                    holder_jwk: &holder.jwk,
+                    holder_public_key: &holder.public,
+                    expected_audience: "https://verifier.example",
+                    expected_nonce: "nonce-123",
+                    now_unix: 1_683_000_002,
+                    max_future_iat_skew_seconds: 60,
+                    max_iat_age_seconds: 300,
+                }),
+                ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
+            },
+        )
+        .err(),
+        Some(SdJwtEnvelopeError::InvalidKeyBindingJwt)
+    );
 }
 
 #[test]
@@ -210,7 +248,7 @@ fn verify_sd_jwt_enforces_issuer_confirmation_key_binding() {
         &compact_without_kb,
         &issuer.jwk,
         &issuer.public,
-        &SdJwtVerificationOptions::default(),
+        &SdJwtVerificationOptions::new(VERIFY_NOW_UNIX),
     )
     .expect_err("issuer-signed cnf must not be demoted to bearer verification");
     assert!(matches!(
@@ -246,7 +284,7 @@ fn verify_sd_jwt_enforces_issuer_confirmation_key_binding() {
                 max_future_iat_skew_seconds: 60,
                 max_iat_age_seconds: 300,
             }),
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect("matching issuer confirmation key must verify");
@@ -291,7 +329,7 @@ fn verify_sd_jwt_enforces_issuer_confirmation_key_binding() {
                     max_future_iat_skew_seconds: 60,
                     max_iat_age_seconds: 300,
                 }),
-                ..SdJwtVerificationOptions::default()
+                ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
             },
         ),
         Err(SdJwtEnvelopeError::InvalidKeyBindingJwt)
@@ -325,7 +363,7 @@ fn verify_sd_jwt_enforces_issuer_confirmation_key_binding() {
                 max_future_iat_skew_seconds: 60,
                 max_iat_age_seconds: 300,
             }),
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect_err("KB-JWT key must match issuer-signed cnf.jwk");
@@ -353,6 +391,7 @@ fn build_key_binding_jwt_builds_verifiable_kb_jwt() {
         "iat": 1683000000u64,
         "_sd": [digest],
         "_sd_alg": "sha-256",
+        "cnf": {"jwk": holder.jwk},
     });
     let issuer_signed_jwt = encode_signed_jwt_with_header_options(
         &issuer_payload,
@@ -393,7 +432,7 @@ fn build_key_binding_jwt_builds_verifiable_kb_jwt() {
                 max_future_iat_skew_seconds: 60,
                 max_iat_age_seconds: 300,
             }),
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect("verified SD-JWT+KB");
@@ -432,7 +471,7 @@ fn build_key_binding_jwt_builds_verifiable_kb_jwt() {
                 max_future_iat_skew_seconds: 301,
                 max_iat_age_seconds: 300,
             }),
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect_err("future iat skew above the security ceiling must fail");
@@ -493,7 +532,7 @@ fn verify_sd_jwt_rejects_wrong_key_binding_nonce() {
                 max_future_iat_skew_seconds: 60,
                 max_iat_age_seconds: 300,
             }),
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect_err("wrong nonce must fail");
@@ -549,7 +588,7 @@ fn verify_sd_jwt_rejects_wrong_key_binding_sd_hash() {
                 max_future_iat_skew_seconds: 60,
                 max_iat_age_seconds: 300,
             }),
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect_err("wrong sd_hash must fail");
@@ -580,7 +619,7 @@ fn verify_sd_jwt_rejects_missing_required_key_binding() {
         &issuer.public,
         &SdJwtVerificationOptions {
             require_key_binding: true,
-            ..SdJwtVerificationOptions::default()
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
         },
     )
     .expect_err("missing required KB-JWT must fail");

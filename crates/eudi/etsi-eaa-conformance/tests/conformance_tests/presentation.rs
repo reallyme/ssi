@@ -227,8 +227,8 @@ fn presentation_authorization_enforces_registration_warning() {
             &claims,
             RelyingPartyRegistrationStatus::InvalidSignature,
             FailedRegistrationPolicy::AllowAfterExplicitWarning,
-            OveraskingPolicy::Reject,
-            PresentationUserDecision::Approved,
+            OveraskingPolicy::AllowAfterExplicitWarning,
+            PresentationUserDecision::ApprovedAfterRegistrationWarning,
         ),
         Err(ConformanceError::ExplicitPresentationApprovalRequired)
     ));
@@ -237,10 +237,80 @@ fn presentation_authorization_enforces_registration_warning() {
         &claims,
         RelyingPartyRegistrationStatus::InvalidSignature,
         FailedRegistrationPolicy::AllowAfterExplicitWarning,
-        OveraskingPolicy::Reject,
-        PresentationUserDecision::ApprovedAfterRegistrationWarning,
+        OveraskingPolicy::AllowAfterExplicitWarning,
+        PresentationUserDecision::ApprovedAfterBothWarnings,
     )
     .is_ok());
+}
+
+#[test]
+fn presentation_authorization_ignores_untrusted_registered_claims() {
+    let claims = [RegisteredClaim {
+        credential_type: EU_PID_SD_JWT_VCT,
+        attribute: "family_name",
+    }];
+
+    for status in [
+        RelyingPartyRegistrationStatus::Malformed,
+        RelyingPartyRegistrationStatus::InvalidSignature,
+    ] {
+        assert!(matches!(
+            authorize_eu_presentation(
+                &claims,
+                &claims,
+                status,
+                FailedRegistrationPolicy::AllowAfterExplicitWarning,
+                OveraskingPolicy::Reject,
+                PresentationUserDecision::ApprovedAfterRegistrationWarning,
+            ),
+            Err(ConformanceError::RelyingPartyOverasking)
+        ));
+        assert!(matches!(
+            authorize_eu_presentation(
+                &claims,
+                &claims,
+                status,
+                FailedRegistrationPolicy::AllowAfterExplicitWarning,
+                OveraskingPolicy::RegisteredSubsetOnly,
+                PresentationUserDecision::ApprovedAfterBothWarnings,
+            ),
+            Err(ConformanceError::RelyingPartyOverasking)
+        ));
+    }
+}
+
+#[test]
+fn presentation_authorization_accepts_empty_registered_set_under_warning() {
+    let claims = [RegisteredClaim {
+        credential_type: EU_PID_SD_JWT_VCT,
+        attribute: "family_name",
+    }];
+
+    let authorization = authorize_eu_presentation(
+        &claims,
+        &[],
+        RelyingPartyRegistrationStatus::Malformed,
+        FailedRegistrationPolicy::AllowAfterExplicitWarning,
+        OveraskingPolicy::AllowAfterExplicitWarning,
+        PresentationUserDecision::ApprovedAfterBothWarnings,
+    );
+    assert!(authorization.is_ok());
+    let Ok(authorization) = authorization else {
+        return;
+    };
+    assert!(authorization.allows(claims[0]));
+
+    assert!(matches!(
+        authorize_eu_presentation(
+            &claims,
+            &[],
+            RelyingPartyRegistrationStatus::Valid,
+            FailedRegistrationPolicy::AllowAfterExplicitWarning,
+            OveraskingPolicy::AllowAfterExplicitWarning,
+            PresentationUserDecision::ApprovedAfterOveraskingWarning,
+        ),
+        Err(ConformanceError::RelyingPartyOverasking)
+    ));
 }
 
 #[test]

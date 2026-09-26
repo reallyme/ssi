@@ -52,6 +52,14 @@ pub enum DomainVerificationError {
     /// The DID document requested a domain-verification method this engine does not support.
     #[error("unsupported domain verification method")]
     UnsupportedMethod,
+
+    /// The claimed domain is not a canonical lowercase DNS host name.
+    #[error("domain is not a valid dns host name")]
+    InvalidDomain,
+
+    /// The binding is not bound to the DID or uses a non-standard record or path.
+    #[error("domain binding is not bound to the did")]
+    BindingMismatch,
 }
 
 impl From<DomainVerificationError> for IdentityCoreErrorReason {
@@ -77,6 +85,9 @@ impl From<DomainVerificationError> for IdentityCoreErrorReason {
             }
             DomainVerificationError::UnsupportedMethod => {
                 Self::IDENTITY_CORE_ERROR_REASON_UNSUPPORTED_FORMAT
+            }
+            DomainVerificationError::InvalidDomain | DomainVerificationError::BindingMismatch => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOMAIN
             }
         }
     }
@@ -104,13 +115,32 @@ pub struct DidDocumentViewForDV<'a> {
     pub id: &'a str,
 }
 
+/// DNS TXT record label that carries a did:me domain binding.
+pub const DID_DNS_RECORD_NAME: &str = "_did";
+
+/// Well-known path that carries a did:me domain binding.
+pub const DID_WELL_KNOWN_PATH: &str = "/.well-known/did-configuration.json";
+
+const MAX_DOMAIN_LEN: usize = 253;
+const MAX_DOMAIN_LABEL_LEN: usize = 63;
+
 /// Validate *one* DomainVerification entry.
 /// May perform I/O via injected callbacks.
+///
+/// The claimed domain must be a canonical lowercase DNS host name and the
+/// binding must name this DID. Only fixed, derived targets are dereferenced:
+/// the DNS TXT record `_did.{domain}` and the URL
+/// `https://{domain}/.well-known/did-configuration.json`. Nothing is fetched
+/// for an entry that fails these checks.
 pub fn validate_domain_entry(
     dv: &DomainVerification,
-    _doc: &DidDocumentViewForDV<'_>,
+    doc: &DidDocumentViewForDV<'_>,
     env: &DomainVerificationEnv<'_>,
 ) -> Result<bool, DomainVerificationError> {
+    if !is_valid_dns_host_name(&dv.domain) {
+        return Err(DomainVerificationError::InvalidDomain);
+    }
+
     match dv.method.as_str() {
         // ------------------------------------------------------------
         // DNS TXT verification
@@ -121,11 +151,16 @@ pub fn validate_domain_entry(
                 .as_ref()
                 .ok_or(DomainVerificationError::MissingDnsBinding)?;
 
+            if dns.record_name != DID_DNS_RECORD_NAME || dns.txt_value != doc.id {
+                return Err(DomainVerificationError::BindingMismatch);
+            }
+
             let resolve = env
                 .resolve_txt
                 .ok_or(DomainVerificationError::ResolveTxtUnavailable)?;
 
-            let records = Zeroizing::new(resolve(&dv.domain)?);
+            let record_name = Zeroizing::new(format!("{DID_DNS_RECORD_NAME}.{}", dv.domain));
+            let records = Zeroizing::new(resolve(&record_name)?);
             Ok(records.iter().any(|r| r.trim() == dns.txt_value))
         }
 
@@ -138,37 +173,55 @@ pub fn validate_domain_entry(
                 .as_ref()
                 .ok_or(DomainVerificationError::MissingWellKnownBinding)?;
 
-            let fetch = env
-                .fetch_url
-                .ok_or(DomainVerificationError::FetchUrlUnavailable)?;
-
-            // For did:me, `wk.uri` is typically a path.
-            // The actual fetch target must include the domain.
-            let url = Zeroizing::new(if wk.uri.starts_with("https://") {
-                wk.uri.clone()
-            } else if wk.uri.starts_with('/') {
-                format!("https://{}{}", dv.domain, wk.uri)
-            } else {
+            if wk.uri != DID_WELL_KNOWN_PATH {
                 return Err(DomainVerificationError::InvalidWellKnownUri);
-            });
-
-            let body = Zeroizing::new(fetch(&url)?);
-            let json: serde_json::Value = serde_json::from_str(&body)
-                .map_err(|_| DomainVerificationError::InvalidWellKnownJson)?;
-
-            if json.get("domain").and_then(|v| v.as_str()) != Some(&dv.domain) {
-                return Ok(false);
+            }
+            if wk.content != doc.id {
+                return Err(DomainVerificationError::BindingMismatch);
             }
 
-            if json.get("did").and_then(|v| v.as_str()) != Some(&wk.content) {
-                return Ok(false);
-            }
-
-            Ok(true)
+            // DIF Domain Linkage requires a signed Domain Linkage Credential.
+            // Treating an unsigned JSON object as equivalent creates a false
+            // authentication signal, so this legacy method fails closed until
+            // a proof-suite verifier is injected at this boundary.
+            let _unused_fetcher = env.fetch_url;
+            Err(DomainVerificationError::UnsupportedMethod)
         }
 
         _ => Err(DomainVerificationError::UnsupportedMethod),
     }
+}
+
+/// Return true for a canonical lowercase, fully qualified ASCII DNS host name.
+///
+/// IP literals, single-label names, trailing dots, uppercase, and any URL
+/// syntax (ports, paths, userinfo) are rejected so a domain claim cannot
+/// redirect a verification lookup to an unintended target.
+#[must_use]
+pub fn is_valid_dns_host_name(domain: &str) -> bool {
+    if domain.is_empty() || domain.len() > MAX_DOMAIN_LEN {
+        return false;
+    }
+
+    let mut label_count = 0usize;
+    let mut last_label = "";
+    for label in domain.split('.') {
+        if label.is_empty()
+            || label.len() > MAX_DOMAIN_LABEL_LEN
+            || label.starts_with('-')
+            || label.ends_with('-')
+            || !label
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        {
+            return false;
+        }
+        label_count = label_count.saturating_add(1);
+        last_label = label;
+    }
+
+    // A numeric final label would make the name an IPv4-like literal.
+    label_count >= 2 && !last_label.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 #[cfg(test)]

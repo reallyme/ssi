@@ -21,7 +21,8 @@ const RELATIONSHIPS: [&str; 5] = [
     "capabilityInvocation",
     "capabilityDelegation",
 ];
-const PRIVATE_JWK_MEMBERS: [&str; 9] = ["d", "p", "q", "dp", "dq", "qi", "oth", "k", "key_ops"];
+/// JWK members that carry private or symmetric key material (RFC 7518 §6).
+const PRIVATE_JWK_MEMBERS: [&str; 8] = ["d", "p", "q", "dp", "dq", "qi", "oth", "k"];
 
 /// Explicit limits applied before a network response becomes a DID document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,6 +102,8 @@ pub fn parse_and_validate_did_web_document(
     if bytes.is_empty() || bytes.len() > limits.max_bytes {
         return Err(DidWebError::new(DidWebErrorReason::ResponseTooLarge));
     }
+    identity_core_primitives::validate_json::validate_json(bytes)
+        .map_err(|_| DidWebError::new(DidWebErrorReason::InvalidDocument))?;
     let value: Value = serde_json::from_slice(bytes)
         .map_err(|_| DidWebError::new(DidWebErrorReason::InvalidDocument))?;
     validate_shape_limits(&value, limits)?;
@@ -149,22 +152,23 @@ fn validate_document(requested: &DidWebIdentifier, value: &Value) -> Result<(), 
     validate_context(object)?;
     validate_controllers(object.get("controller"))?;
 
+    let did = requested.as_str();
     let mut method_ids = BTreeSet::new();
     if let Some(methods) = object.get("verificationMethod") {
         let methods = methods.as_array().ok_or(DidWebError::new(
             DidWebErrorReason::InvalidVerificationMethod,
         ))?;
         for method in methods {
-            validate_verification_method(method, &mut method_ids)?;
+            validate_verification_method(did, method, &mut method_ids)?;
         }
     }
     for relationship in RELATIONSHIPS {
-        validate_relationship_embedded(object.get(relationship), &mut method_ids)?;
+        validate_relationship_embedded(did, object.get(relationship), &mut method_ids)?;
     }
     for relationship in RELATIONSHIPS {
         validate_relationship_references(object.get(relationship), &method_ids)?;
     }
-    validate_services(object.get("service"), &mut method_ids)?;
+    validate_services(did, object.get("service"), &mut method_ids)?;
     validate_all_did_urls(value)?;
     Ok(())
 }
@@ -208,6 +212,7 @@ fn validate_controllers(value: Option<&Value>) -> Result<(), DidWebError> {
 }
 
 fn validate_verification_method(
+    did: &str,
     value: &Value,
     method_ids: &mut BTreeSet<String>,
 ) -> Result<(), DidWebError> {
@@ -216,6 +221,11 @@ fn validate_verification_method(
     ))?;
     let id = required_string(object, "id", DidWebErrorReason::InvalidVerificationMethod)?;
     validate_absolute_did_url(id, true)?;
+    if !did_url_belongs_to(id, did) {
+        return Err(DidWebError::new(
+            DidWebErrorReason::DocumentIdentifierMismatch,
+        ));
+    }
     if !method_ids.insert(id.to_owned()) {
         return Err(DidWebError::new(
             DidWebErrorReason::InvalidVerificationMethod,
@@ -280,6 +290,7 @@ fn validate_public_key_material(object: &Map<String, Value>) -> Result<(), DidWe
 }
 
 fn validate_relationship_embedded(
+    did: &str,
     value: Option<&Value>,
     method_ids: &mut BTreeSet<String>,
 ) -> Result<(), DidWebError> {
@@ -291,7 +302,7 @@ fn validate_relationship_embedded(
     ))?;
     for entry in entries {
         if entry.as_str().is_none() {
-            validate_verification_method(entry, method_ids)?;
+            validate_verification_method(did, entry, method_ids)?;
         }
     }
     Ok(())
@@ -319,6 +330,7 @@ fn validate_relationship_references(
 }
 
 fn validate_services(
+    did: &str,
     value: Option<&Value>,
     resource_ids: &mut BTreeSet<String>,
 ) -> Result<(), DidWebError> {
@@ -334,6 +346,11 @@ fn validate_services(
             .ok_or(DidWebError::new(DidWebErrorReason::InvalidService))?;
         let id = required_string(object, "id", DidWebErrorReason::InvalidService)?;
         validate_absolute_did_url(id, true)?;
+        if !did_url_belongs_to(id, did) {
+            return Err(DidWebError::new(
+                DidWebErrorReason::DocumentIdentifierMismatch,
+            ));
+        }
         if !resource_ids.insert(id.to_owned())
             || !object.contains_key("type")
             || !object.contains_key("serviceEndpoint")
@@ -342,6 +359,12 @@ fn validate_services(
         }
     }
     Ok(())
+}
+
+/// Return true when an absolute DID URL's base DID is exactly `did`.
+fn did_url_belongs_to(url: &str, did: &str) -> bool {
+    url.strip_prefix(did)
+        .is_some_and(|suffix| suffix.starts_with(['/', '?', '#']))
 }
 
 fn validate_all_did_urls(value: &Value) -> Result<(), DidWebError> {

@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-credential-audit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Protocol-neutral QEAA compliance metadata and audit evidence validation."
 edition.workspace = true
 rust-version.workspace = true

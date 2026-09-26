@@ -134,8 +134,6 @@ impl ZeroizeOnDrop for AttestationPopHeader {}
 /// Client Attestation PoP JWT claims.
 #[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttestationPopClaims {
-    /// OAuth client identifier bound to the Client Attestation `sub` claim.
-    pub iss: String,
     /// Audience, normally the RFC 8414 Authorization Server issuer identifier.
     pub aud: String,
     /// Unique replay-prevention identifier.
@@ -155,7 +153,6 @@ impl fmt::Debug for AttestationPopClaims {
 
 impl Zeroize for AttestationPopClaims {
     fn zeroize(&mut self) {
-        self.iss.zeroize();
         self.aud.zeroize();
         self.jti.zeroize();
         zeroize_option(&mut self.challenge);
@@ -173,7 +170,6 @@ impl ZeroizeOnDrop for AttestationPopClaims {}
 impl AttestationPopClaims {
     /// Validates the PoP claim set.
     pub fn validate(&self) -> OauthResult<()> {
-        validate_token(&self.iss)?;
         validate_issuer_identifier(&self.aud)?;
         validate_token(&self.jti)?;
         if self.iat <= 0 {
@@ -277,8 +273,6 @@ pub trait AttestationClientAuthenticationVerifier {
 /// Holder-side Client Attestation PoP build request.
 #[derive(PartialEq, Eq)]
 pub struct AttestationPopRequest {
-    /// OAuth client identifier also carried by the attestation `sub` claim.
-    pub issuer: String,
     /// Authorization Server audience.
     pub audience: String,
     /// Unique PoP identifier.
@@ -297,7 +291,6 @@ impl fmt::Debug for AttestationPopRequest {
 
 impl Zeroize for AttestationPopRequest {
     fn zeroize(&mut self) {
-        self.issuer.zeroize();
         self.audience.zeroize();
         self.jti.zeroize();
         zeroize_option(&mut self.challenge);
@@ -322,7 +315,6 @@ impl AttestationPopRequest {
         validate_asymmetric_jose_alg(&header.alg)
             .map_err(|_| OauthError::new(Reason::InvalidClientAttestation))?;
         let claims = AttestationPopClaims {
-            iss: self.issuer.clone(),
             aud: self.audience.clone(),
             jti: self.jti.clone(),
             iat: self.iat,
@@ -377,9 +369,6 @@ pub fn validate_attestation_client_authentication(
             &decoded_pop.signature,
         )
         .map_err(|_| OauthError::new(Reason::AttestationKeyBindingFailed))?;
-    if decoded_pop.claims.iss != verified_attestation.attested_client_key().client_id() {
-        return Err(OauthError::new(Reason::AttestationKeyBindingFailed));
-    }
     verifier
         .check_replay(
             &verified_attestation,

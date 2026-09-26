@@ -19,6 +19,14 @@ fn single_use_errors_map_to_stable_proto_reasons() {
             SingleUseError::InvalidKey,
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SINGLE_USE_INVALID_KEY,
         ),
+        (
+            SingleUseError::CapacityExceeded,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SINGLE_USE_UNAVAILABLE,
+        ),
+        (
+            SingleUseError::InvalidExpiry,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SINGLE_USE_INVALID_KEY,
+        ),
     ];
 
     for (error, expected) in cases {

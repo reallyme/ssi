@@ -2,8 +2,11 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[path = "assign_digest_id.rs"]
+mod assign_digest_id;
 use crate::cbor::{encode_issuer_signed_item, encode_mso_cbor, encode_tagged_cbor_bytes};
 use crate::device_auth::device_public_key_from_cose_key_cbor;
+use crate::validate_item_random::validate_issuance_item_random;
 use crate::validity::validate_validity_window;
 use crate::{
     DeviceKeyInfo, IssuerAuthSigner, IssuerNameSpaces, IssuerSigned, IssuerSignedItem,
@@ -12,7 +15,9 @@ use crate::{
     MAX_MDOC_ELEMENTS_PER_NAMESPACE, MAX_MDOC_ELEMENT_VALUE_BYTES, MAX_MDOC_ISSUER_ELEMENTS,
     MAX_MDOC_NAMESPACES, MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES, MSO_VERSION, SHA256_DIGEST_LEN,
 };
+use assign_digest_id::assign_digest_id;
 use reallyme_crypto::core::HashAlgorithm;
+use reallyme_crypto::csprng::{OsSecureRandom, SecureRandom};
 use reallyme_crypto::dispatch::hash_digest;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -37,7 +42,7 @@ pub struct MdocIssueConfig {
     /// Digest algorithm label. Only SHA-256 is supported.
     pub digest_algorithm: String,
 
-    /// If true, digest identifiers start at one inside each namespace.
+    /// If true, random digest identifiers need only be unique within each namespace.
     pub digest_id_per_namespace: bool,
 
     /// Optional ISO/IEC 18013-5 status mechanism to authenticate in the MSO.
@@ -115,6 +120,19 @@ pub fn build_mso_mdoc(
     elements: &[MdocElement],
     signer: &dyn IssuerAuthSigner,
 ) -> Result<(MdocIssuerSignedDocument, MobileSecurityObject), MdocEnvelopeError> {
+    build_mso_mdoc_with_random(cfg, elements, signer, &mut OsSecureRandom)
+}
+
+/// Build an mdoc using an injected cryptographically secure random source.
+///
+/// Digest identifiers are independent of element position and private salts.
+/// The caller must supply a CSPRNG; predictable sources are suitable only for tests.
+pub fn build_mso_mdoc_with_random(
+    cfg: &MdocIssueConfig,
+    elements: &[MdocElement],
+    signer: &dyn IssuerAuthSigner,
+    random: &mut impl SecureRandom,
+) -> Result<(MdocIssuerSignedDocument, MobileSecurityObject), MdocEnvelopeError> {
     validate_issue_config(cfg, elements)?;
 
     let mut sorted = elements.to_vec();
@@ -125,17 +143,19 @@ pub fn build_mso_mdoc(
 
     let mut namespaces: IssuerNameSpaces = BTreeMap::new();
     let mut value_digests: ValueDigests = BTreeMap::new();
-    let mut global_digest_id = 0_u64;
-    let mut per_namespace_digest_id: BTreeMap<String, u64> = BTreeMap::new();
+    let mut global_digest_ids = BTreeSet::new();
+    let mut per_namespace_digest_ids: BTreeMap<String, BTreeSet<u64>> = BTreeMap::new();
 
     for element in &sorted {
         validate_element(element)?;
-        let digest_id = next_digest_id(
-            cfg.digest_id_per_namespace,
-            element.namespace.as_str(),
-            &mut global_digest_id,
-            &mut per_namespace_digest_id,
-        )?;
+        let used_ids = if cfg.digest_id_per_namespace {
+            per_namespace_digest_ids
+                .entry(element.namespace.clone())
+                .or_default()
+        } else {
+            &mut global_digest_ids
+        };
+        let digest_id = assign_digest_id(used_ids, random)?;
         let item = IssuerSignedItem {
             digest_id,
             random: element.random.clone(),
@@ -291,35 +311,9 @@ fn validate_element(element: &MdocElement) -> Result<(), MdocEnvelopeError> {
             MdocInvalidInputReason::EmptyElementValue,
         ));
     }
-    if element.random.is_empty() {
-        return Err(MdocEnvelopeError::InvalidInput(
-            MdocInvalidInputReason::EmptyRandom,
-        ));
-    }
+    validate_issuance_item_random(&element.random)?;
 
     Ok(())
-}
-
-fn next_digest_id(
-    per_namespace: bool,
-    namespace: &str,
-    global_digest_id: &mut u64,
-    per_namespace_digest_id: &mut BTreeMap<String, u64>,
-) -> Result<u64, MdocEnvelopeError> {
-    if per_namespace {
-        let current = per_namespace_digest_id
-            .entry(namespace.to_owned())
-            .or_insert(0);
-        *current = current.checked_add(1).ok_or({
-            MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::IntegerOutOfRange)
-        })?;
-        Ok(*current)
-    } else {
-        *global_digest_id = global_digest_id.checked_add(1).ok_or({
-            MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::IntegerOutOfRange)
-        })?;
-        Ok(*global_digest_id)
-    }
 }
 
 pub(crate) fn sha256(data: &[u8]) -> Result<[u8; SHA256_DIGEST_LEN], MdocEnvelopeError> {

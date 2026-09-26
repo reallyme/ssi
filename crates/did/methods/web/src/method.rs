@@ -303,7 +303,13 @@ fn validate_path_segment(segment: &str) -> Result<String, DidWebError> {
         return Err(DidWebError::new(DidWebErrorReason::InvalidPath));
     }
     let decoded = percent_decode_for_validation(&normalized)?;
-    if decoded == b"." || decoded == b".." || core::str::from_utf8(&decoded).is_err() {
+    // A decoded separator would change the HTTPS path structure once a server
+    // decodes the segment, so encoded `/` and `\` are rejected.
+    if decoded == b"."
+        || decoded == b".."
+        || decoded.iter().any(|byte| matches!(byte, b'/' | b'\\'))
+        || core::str::from_utf8(&decoded).is_err()
+    {
         return Err(DidWebError::new(DidWebErrorReason::InvalidPath));
     }
     if normalized
@@ -344,7 +350,10 @@ fn normalize_percent_escapes(value: &str) -> Result<String, DidWebError> {
             .get(second_index)
             .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
         let decoded = decode_hex(first, second)?;
-        if decoded.is_ascii_alphanumeric() || matches!(decoded, b'-' | b'.' | b'_' | b'~') {
+        // Characters that DID syntax allows raw (`idchar`) must not be
+        // percent-encoded. `~` is not a DID `idchar`, so `%7E` is its only
+        // valid spelling and is accepted here.
+        if decoded.is_ascii_alphanumeric() || matches!(decoded, b'-' | b'.' | b'_') {
             return Err(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding));
         }
         output.push('%');

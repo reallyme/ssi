@@ -69,10 +69,24 @@ fn validate_issue_input(input: &IetfSdJwtIssueInput) -> Result<(), IetfSdJwtVcEr
         return Err(IetfSdJwtVcError::InvalidInput);
     }
 
-    for key in RESERVED_KEYS {
+    for key in SD_JWT_STRUCTURAL_CLAIMS {
         if input.public_claims.contains_key(key) || input.selective_claims.contains_key(key) {
             return Err(IetfSdJwtVcError::ReservedClaimKey);
         }
+    }
+    // Registered claims come only from the typed input fields, and SD-JWT VC
+    // registered claims such as `status` must never become disclosable.
+    if input
+        .public_claims
+        .keys()
+        .chain(input.selective_claims.keys())
+        .any(|key| is_ietf_issuer_owned_claim(key))
+        || input
+            .selective_claims
+            .keys()
+            .any(|key| is_non_selectively_disclosable_claim(key))
+    {
+        return Err(IetfSdJwtVcError::ReservedClaimKey);
     }
 
     let mut seen = BTreeSet::new();
@@ -169,8 +183,11 @@ fn map_jwt_error(err: envelopes_jwt::jwt::JwtError) -> IetfSdJwtVcError {
 pub(crate) fn parse_sd_alg(
     payload: &Map<String, Value>,
 ) -> Result<IetfSdJwtHashAlgorithm, IetfSdJwtVcError> {
-    match payload.get("_sd_alg").and_then(Value::as_str) {
-        None | Some("sha-256") => Ok(IetfSdJwtHashAlgorithm::Sha256),
+    match payload.get("_sd_alg") {
+        None => Ok(IetfSdJwtHashAlgorithm::Sha256),
+        Some(Value::String(name)) if name == IetfSdJwtHashAlgorithm::Sha256.as_str() => {
+            Ok(IetfSdJwtHashAlgorithm::Sha256)
+        }
         Some(_) => Err(IetfSdJwtVcError::InvalidInput),
     }
 }

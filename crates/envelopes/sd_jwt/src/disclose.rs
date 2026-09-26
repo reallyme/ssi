@@ -16,6 +16,7 @@ const OBJECT_DISCLOSURE_ELEMENTS: usize = 3;
 const ARRAY_DISCLOSURE_ELEMENTS: usize = 2;
 pub(crate) const SD_CLAIM_NAME: &str = "_sd";
 pub(crate) const ARRAY_DIGEST_CLAIM_NAME: &str = "...";
+const SD_ALG_CLAIM_NAME: &str = "_sd_alg";
 
 #[derive(PartialEq)]
 pub enum DisclosureKind {
@@ -48,6 +49,14 @@ impl Zeroize for DisclosureKind {
         }
     }
 }
+
+impl Drop for DisclosureKind {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl ZeroizeOnDrop for DisclosureKind {}
 
 #[derive(PartialEq)]
 pub struct Disclosure {
@@ -193,7 +202,10 @@ pub fn digest_disclosure(
 }
 
 pub(crate) fn validate_object_claim_name(claim_name: &str) -> Result<(), SdJwtEnvelopeError> {
-    if claim_name.is_empty() || claim_name == SD_CLAIM_NAME || claim_name == ARRAY_DIGEST_CLAIM_NAME
+    if claim_name.is_empty()
+        || claim_name == SD_CLAIM_NAME
+        || claim_name == SD_ALG_CLAIM_NAME
+        || claim_name == ARRAY_DIGEST_CLAIM_NAME
     {
         return Err(SdJwtEnvelopeError::InvalidDisclosureClaimName);
     }

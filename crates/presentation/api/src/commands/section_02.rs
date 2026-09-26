@@ -238,6 +238,10 @@ pub fn create_presentation_request(
 pub fn present(mut request: PresentationPresentRequest) -> Result<PresentationRecord, VpApiError> {
     validate_presentation_shape(&request.presentation, request.now_unix)?;
     validate_disclosures(request.selected_claims.as_slice())?;
+    validate_selected_claims(
+        &request.presentation,
+        request.selected_claims.as_slice(),
+    )?;
     if request.selected_credentials.is_empty()
         || has_duplicate_text(request.selected_credentials.as_slice())
         || is_zero_32(&request.holder_binding.nonce)

@@ -25,9 +25,15 @@ pub fn fragment_message(
     // Compute the maximum chunk size that still fits in `max_frame_bytes`.
     // This avoids relying on fixed overhead estimates, which can break when
     // CBOR length encodings cross thresholds (e.g., 24/256/etc).
-    let seq_worst = u16::try_from(limits.max_frames.saturating_sub(1).min(u16::MAX as usize))
-        .unwrap_or(u16::MAX);
-    let total_worst = u16::try_from(limits.max_frames.min(u16::MAX as usize)).unwrap_or(u16::MAX);
+    let seq_worst = u16::try_from(
+        limits
+            .max_frames
+            .saturating_sub(1)
+            .min(usize::from(u16::MAX)),
+    )
+    .unwrap_or(u16::MAX);
+    let total_worst =
+        u16::try_from(limits.max_frames.min(usize::from(u16::MAX))).unwrap_or(u16::MAX);
 
     let frame_len_for_chunk_len = |chunk_len: usize| -> Result<usize, ContactDeliveryError> {
         let frame = ContactFrame {

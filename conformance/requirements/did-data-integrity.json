@@ -66,8 +66,8 @@
     "keyword": "MUST",
     "feature": "did_domain_verification_binding",
     "implementation": ["crates/did/core/engine/src/validate/domain_binding.rs", "crates/did/core/api/src/domain.rs"],
-    "positive_tests": ["dns_domain_verification_succeeds", "wellknown_domain_verification_succeeds", "validate_did_domain_no_bindings_is_ok"],
-    "negative_tests": ["dns_domain_verification_fails_on_mismatch", "dns_binding_wrong_value_fails"],
+    "positive_tests": ["dns_domain_verification_succeeds", "wellknown_binding_valid", "validate_did_domain_no_bindings_is_ok"],
+    "negative_tests": ["dns_domain_verification_fails_on_mismatch", "dns_binding_wrong_value_fails", "unsigned_wellknown_document_is_not_domain_control_evidence"],
     "applicable": true,
     "exclusion_reason": null
   },

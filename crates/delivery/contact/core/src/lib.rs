@@ -19,6 +19,7 @@
 //! responsible for signatures, encryption, and presentation semantics.
 
 mod cbor;
+mod derive;
 mod error;
 mod framing;
 mod hash;
@@ -29,11 +30,15 @@ pub use cbor::{
     decode_contact_frame_cbor, decode_contact_message_cbor, encode_contact_frame_cbor,
     encode_contact_message_cbor,
 };
+pub use derive::{
+    contact_payload_kind_label, derive_contact_message_id, derive_contact_session_id,
+};
 pub use error::ContactDeliveryError;
 pub use framing::{fragment_message, reassemble_frames};
 pub use hash::{sha256_bytes, sha256_concat};
 pub use limits::{
-    ContactLimits, CONTACT_SESSION_ID_BYTES, MAX_CONTACT_FRAMES, MAX_CONTACT_FRAME_CBOR_BYTES,
-    MAX_CONTACT_MESSAGE_CBOR_BYTES,
+    ContactLimits, CONTACT_MESSAGE_ID_BYTES, CONTACT_SESSION_ID_BYTES, MAX_CONTACT_FRAMES,
+    MAX_CONTACT_FRAME_CBOR_BYTES, MAX_CONTACT_MESSAGE_CBOR_BYTES,
+    MAX_CONTACT_MESSAGE_LIFETIME_SECONDS,
 };
 pub use model::{ContactFrame, ContactMessage, ContactPayloadKind};

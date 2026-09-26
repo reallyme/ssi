@@ -32,6 +32,13 @@ impl SensitivePresentationProto {
         &self.inner
     }
 
+    /// Mutably borrow the generated protobuf message so crate-internal
+    /// conversions can move owned fields out; anything left behind is still
+    /// zeroized when this owner drops.
+    pub(crate) fn as_proto_mut(&mut self) -> &mut pb::Presentation {
+        &mut self.inner
+    }
+
     /// Returns whether all schema-known presentation variants have been removed.
     #[must_use]
     pub fn is_cleared(&self) -> bool {

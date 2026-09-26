@@ -21,10 +21,13 @@ mod hash_algorithm;
 mod holder_binding;
 mod json_serialization;
 mod present;
+mod registered_claims;
 mod select_disclosures;
 mod sensitive;
+mod validate_temporal_claims;
 mod verify;
 mod verify_receipt;
+mod verify_receipt_policy;
 
 pub use compact::{
     parse_sd_jwt_compact, parse_sd_jwt_or_kb_compact, serialize_sd_jwt_compact,
@@ -47,7 +50,8 @@ pub use json_serialization::{
 pub use present::{
     issue_sd_jwt, process_sd_jwt_payload, DecoyPolicy, DisclosureRecord, IssuedSdJwt,
     SdJwtDisclosureStrategy, SdJwtIssuanceInput, SdJwtIssuancePolicy, SdJwtIssuerType,
-    SdJwtProcessingPolicy, SdJwtSaltSource, SecureRandomSaltSource,
+    SdJwtProcessingPolicy, SdJwtSaltSource, SecureRandomSaltSource, MAX_SD_JWT_PROCESSING_DEPTH,
+    MAX_SD_JWT_PROCESSING_NODES,
 };
 /// Exact JWK type accepted by issuance-receipt holder-binding policy.
 pub use reallyme_crypto::jwk::EcJwk as SdJwtReceiptEcJwk;
@@ -55,11 +59,18 @@ pub use reallyme_crypto::jwk::Jwk as SdJwtReceiptJwk;
 pub use select_disclosures::{
     select_sd_jwt_disclosures, SdJwtClaimPathComponent, SelectedSdJwtDisclosures,
 };
+pub use validate_temporal_claims::{
+    DEFAULT_SD_JWT_CLOCK_SKEW_SECONDS, MAX_SD_JWT_CLOCK_SKEW_SECONDS,
+};
 pub use verify::{
     verify_sd_jwt, verify_sd_jwt_json_serialization, SdJwtVerificationOptions, VerifiedSdJwt,
 };
 pub use verify_receipt::{
-    parse_sd_jwt_issuer_x5c, verify_sd_jwt_receipt, verify_sd_jwt_receipt_with_x5c,
-    SdJwtReceiptVerificationPolicy, ValidatedSdJwtHolderBinding, VerifiedSdJwtReceipt,
-    MAX_SD_JWT_EXPECTED_CLAIM_BYTES,
+    parse_sd_jwt_issuer_x5c, verify_sd_jwt_credential, verify_sd_jwt_credential_with_x5c,
+    verify_sd_jwt_receipt, verify_sd_jwt_receipt_with_x5c, ValidatedSdJwtHolderBinding,
+    VerifiedSdJwtCredential, VerifiedSdJwtReceipt,
+};
+pub use verify_receipt_policy::{
+    SdJwtCredentialStatusVerifier, SdJwtCredentialVerificationPolicy,
+    SdJwtReceiptVerificationPolicy, MAX_SD_JWT_EXPECTED_CLAIM_BYTES,
 };

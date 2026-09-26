@@ -109,13 +109,23 @@ pub(super) fn texts(values: Vec<String>) -> Result<Vec<BoundedText>, Registratio
 pub(super) fn validate_entitlements(
     values: Vec<String>,
 ) -> Result<Vec<WrpEntitlement>, RegistrationError> {
-    values
-        .into_iter()
-        .map(|value| {
-            let value = Zeroizing::new(value);
-            WrpEntitlement::parse(&value)
-        })
-        .collect()
+    let mut entitlements = Vec::new();
+    entitlements
+        .try_reserve_exact(values.len())
+        .map_err(|_error| {
+            RegistrationError::from_reason(RegistrationErrorReason::CapacityUnavailable)
+        })?;
+    for value in values {
+        let value = Zeroizing::new(value);
+        let entitlement = WrpEntitlement::parse(&value)?;
+        if entitlements.contains(&entitlement) {
+            return Err(RegistrationError::from_reason(
+                RegistrationErrorReason::InvalidField,
+            ));
+        }
+        entitlements.push(entitlement);
+    }
+    Ok(entitlements)
 }
 
 pub(super) fn uri_text_owned(value: String) -> Result<BoundedText, RegistrationError> {

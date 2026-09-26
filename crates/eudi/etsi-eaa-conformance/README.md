@@ -168,9 +168,11 @@ duplicating conformance rules in individual SDKs.
   requirements.
 - `authorize_eu_presentation` compares actual requested type/attribute pairs
   with the registration certificate and requires the exact explicit decision
-  appropriate to validation or overasking warnings.
-- `validate_eu_mdoc_status` validates the current CWT/list profile and rejects
-  repeated MSO correlation keys; `validate_eu_mdoc_status_capabilities` closes
+  appropriate to validation or overasking warnings. Registered claims from a
+  certificate that did not validate are ignored, so every requested claim is
+  then treated as overasking.
+- `validate_eu_mdoc_status` validates the current CWT/list profile, `iat`/`ttl`
+  freshness, and rejects repeated MSO correlation keys after URI normalization; `validate_eu_mdoc_status_capabilities` closes
   the two-mechanism WIA/KA support boundary.
 - `validate_eu_issuance` applies the Part 3 registration-certificate and Annex
   A adaptations. Reuse-policy validation treats an omitted policy as

@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-vp-api"
-version = "0.1.0"
+version = "0.2.0"
 description = "Protocol-neutral verifiable presentation validation API."
 edition.workspace = true
 rust-version.workspace = true
@@ -14,10 +14,12 @@ publish.workspace = true
 
 [dependencies]
 buffa = { workspace = true }
-reallyme-disclosure-policy = { path = "../../disclosure-policy", version = "0.1.0" }
-identity-core-primitives = { package = "reallyme-ssi-core", path = "../../did/core/common", version = "0.1.0" }
+reallyme-disclosure-policy = { path = "../../disclosure-policy", version = "0.2.0" }
+identity-core-primitives = { package = "reallyme-ssi-core", path = "../../did/core/common", version = "0.2.0" }
+identity-credential-claims-core = { workspace = true }
 reallyme-ssi-proto = { workspace = true }
-reallyme-vp-core = { path = "../core", version = "0.1.0" }
+reallyme-vp-core = { path = "../core", version = "0.2.0" }
+identity-presentation-vp-policy = { path = "../policy", version = "0.2.0" }
 reallyme-crypto = { workspace = true, features = ["constant-time"] }
 serde.workspace = true
 thiserror.workspace = true
