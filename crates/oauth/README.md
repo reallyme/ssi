@@ -25,7 +25,7 @@ components without duplicating OAuth validation logic.
 
 ```toml
 [dependencies]
-reallyme-openid-oauth = "0.1"
+reallyme-openid-oauth = "0.2.0"
 ```
 
 The default `native` feature selects native trust dependencies. Disable

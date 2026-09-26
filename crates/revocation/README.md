@@ -27,7 +27,7 @@ explicit interfaces.
 
 ```toml
 [dependencies]
-reallyme-revocation = "0.1"
+reallyme-revocation = "0.2.0"
 ```
 
 ## License

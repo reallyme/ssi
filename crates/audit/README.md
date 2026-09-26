@@ -27,7 +27,7 @@ server audit trail or a compliance automation service.
 
 ```toml
 [dependencies]
-reallyme-credential-audit = "0.1"
+reallyme-credential-audit = "0.2.0"
 ```
 
 ## License
