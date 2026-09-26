@@ -72,7 +72,8 @@ fn validate_updated_document(
         return Err(DidApiError::UpdateResultInvalid);
     }
 
-    let validation = validate_did(
+    let validation = validate_did_transition(
+        old,
         document,
         DomainVerificationEnv {
             resolve_txt: None,
@@ -164,7 +165,7 @@ pub fn deactivate_did_with_provider_owned<P: DidProvider + ?Sized>(
 
 fn validate_deactivation_request(request: &DidDeactivateRequest) -> Result<(), DidApiError> {
     let document = &request.document;
-    let validation = validate_did(
+    let validation = validate_did_consistency(
         document,
         DomainVerificationEnv {
             resolve_txt: None,
@@ -235,7 +236,8 @@ fn validate_deactivated_document(
         return Err(DidApiError::DeactivationResultInvalid);
     }
 
-    let validation = validate_did(
+    let validation = validate_did_transition(
+        old,
         document,
         DomainVerificationEnv {
             resolve_txt: None,
@@ -285,7 +287,7 @@ fn validate_rotation_request(
     created: Option<&String>,
     invalid: DidApiError,
 ) -> Result<(), DidApiError> {
-    let validation = validate_did(
+    let validation = validate_did_consistency(
         document,
         DomainVerificationEnv {
             resolve_txt: None,
@@ -376,7 +378,8 @@ fn validate_rotated_document(
         return Err(invalid);
     }
 
-    let validation = validate_did(
+    let validation = validate_did_transition(
+        old,
         document,
         DomainVerificationEnv {
             resolve_txt: None,

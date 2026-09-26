@@ -34,7 +34,10 @@ pub fn validate_certificate_link(
     issuer: &X509Certificate,
     link: &ChainLinkPolicy,
 ) -> Result<(), TrustError> {
-    if link.require_dn_continuity && child.issuer != issuer.subject {
+    // RFC 5280 Section 7.1 name matching is applied as exact DER equality of
+    // the encoded Names: the conservative subset that never equates two
+    // distinct encodings. Rendered display strings are lossy and are not used.
+    if link.require_dn_continuity && child.issuer_der != issuer.subject_der {
         return Err(TrustError::ChainLinkPolicy(
             ChainLinkPolicyViolation::IssuerDistinguishedNameMismatch,
         ));

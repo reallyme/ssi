@@ -40,12 +40,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: reallyme/ssi
+          persist-credentials: false
 
       - name: Checkout shared protobuf contracts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: me-id/protos
+          ref: 4be77725510185b29964ffdce7a62942179aaff8
           path: me-id/protos
+          persist-credentials: false
 
       - name: Checkout release-readiness runner
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -53,6 +56,7 @@ jobs:
           repository: reallyme/release-readiness
           ref: 985cf16f866bcdbd384edd8a9b6f332b38c5eb52
           path: reallyme/ssi/.release-readiness
+          persist-credentials: false
 
       - name: Install Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -78,6 +82,8 @@ jobs:
 
       - name: Install Buf
         uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+        with:
+          version: 1.73.0
 
       - name: Install Buffa generators
         run: |
@@ -85,7 +91,16 @@ jobs:
           cargo install protoc-gen-buffa-packaging --version 0.9.2 --locked
 
       - name: Install XMLSec build dependencies
-        run: sudo apt-get update && sudo apt-get install --yes libxmlsec1-dev pkg-config
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential curl libssl-dev libtool libxml2-dev libxslt1-dev pkg-config
+
+      - name: Build pinned XMLSec OpenSSL backend
+        working-directory: reallyme/ssi
+        run: |
+          sh scripts/install-xmlsec-linux.sh "${RUNNER_TEMP}/xmlsec"
+          echo "PKG_CONFIG_PATH=${RUNNER_TEMP}/xmlsec/lib/pkgconfig" >> "${GITHUB_ENV}"
+          echo "LD_LIBRARY_PATH=${RUNNER_TEMP}/xmlsec/lib" >> "${GITHUB_ENV}"
 
       - name: Format
         working-directory: reallyme/ssi
@@ -147,6 +162,16 @@ jobs:
         working-directory: reallyme/ssi
         run: cargo check --locked --workspace --no-default-features --features wasm --target wasm32-unknown-unknown
 
+      - name: Check wasm lane excludes native providers
+        working-directory: reallyme/ssi
+        run: |
+          if cargo tree --locked -e normal,build -e features --target wasm32-unknown-unknown \
+              -p reallyme-ssi --no-default-features --features wasm \
+              | grep -E 'reallyme-crypto(-[a-z0-9-]+)? feature "native"'; then
+            echo "native crypto providers are enabled in the wasm artifact" >&2
+            exit 1
+          fi
+
       - name: Check shared dependency boundaries
         working-directory: reallyme/ssi
         run: node scripts/check-shared-dependency-boundaries.mjs
@@ -178,25 +203,24 @@ jobs:
         run: scripts/audit_committed_lockfiles.sh
 
   platform-boundaries:
-    name: OCSP host ABI (${{ matrix.name }})
+    name: OCSP mobile fail-closed lane (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: Apple
             runner: macos-15
-            target: ""
-            feature: apple-platform
+            target: aarch64-apple-ios
           - name: Android
             runner: ubuntu-24.04
             target: aarch64-linux-android
-            feature: android-platform
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout SSI
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: reallyme/ssi
+          persist-credentials: false
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
@@ -204,13 +228,8 @@ jobs:
           toolchain: 1.98.1
           targets: ${{ matrix.target }}
 
-      - name: Type-check platform OCSP boundary
+      - name: Type-check fail-closed OCSP lane for mobile targets
         working-directory: reallyme/ssi
         env:
           TARGET_ARGUMENT: ${{ matrix.target }}
-        run: |
-          target_args=()
-          if [[ -n "$TARGET_ARGUMENT" ]]; then
-            target_args=(--target "$TARGET_ARGUMENT")
-          fi
-          cargo check --locked -p identity-revocation-ocsp-dispatch --no-default-features --features "${{ matrix.feature }}" "${target_args[@]}"
+        run: cargo check --locked -p identity-revocation-ocsp-dispatch --no-default-features --target "$TARGET_ARGUMENT"

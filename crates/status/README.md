@@ -31,6 +31,14 @@ The default `native` feature enables the native cryptographic provider. Use
 `default-features = false` with `wasm` for WebAssembly, or enable `proto` for
 protobuf conversions.
 
+## Signing payload version
+
+The proprietary `StatusList` signing payload uses the `reallyme.status-list.v2`
+domain and authenticates the signature algorithm alongside the list fields.
+Issuers must re-sign lists produced with the previous payload encoding. Verifiers
+do not accept the old encoding as a fallback. The JWT and CWT Token Status List
+wire formats are unchanged.
+
 ## License
 
 Licensed under either the [MIT License](LICENSE-MIT) or the

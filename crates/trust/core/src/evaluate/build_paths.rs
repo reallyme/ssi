@@ -29,6 +29,7 @@ fn build_candidate_paths(
             .collect::<Vec<_>>();
 
         let mut search = PathSearch {
+            leaf,
             intermediates,
             root,
             root_index,
@@ -36,7 +37,10 @@ fn build_candidate_paths(
             work_steps,
             limit_reached: false,
         };
-        let mut current = vec![leaf.clone()];
+        // The in-progress path is tracked as indices into `intermediates`
+        // after the implicit leaf. Certificates are cloned only when a path
+        // completes, so dead-end search steps never copy DER material.
+        let mut current = Vec::with_capacity(MAX_X509_CHAIN_CERTIFICATES);
         let mut used = vec![false; search.intermediates.len()];
         search_paths(&mut search, &mut current, &mut used, &cfg.link_policy);
         work_steps = search.work_steps;
@@ -62,7 +66,7 @@ fn build_candidate_paths(
 
 fn search_paths(
     search: &mut PathSearch<'_>,
-    current: &mut Vec<X509Certificate>,
+    current: &mut Vec<usize>,
     used: &mut [bool],
     link_policy: &crate::ChainLinkPolicy,
 ) {
@@ -85,12 +89,17 @@ fn search_paths(
         search.limit_reached = true;
         return;
     }
-    let Some(child) = current.last() else {
+    let Some(child) = path_tail(search, current) else {
+        return;
+    };
+    // The leaf is always the first element of the in-progress path.
+    let Some(current_len) = current.len().checked_add(1) else {
+        search.limit_reached = true;
         return;
     };
 
     if certificates_link(child, search.root, link_policy) {
-        let candidate_len = match current.len().checked_add(1) {
+        let candidate_len = match current_len.checked_add(1) {
             Some(value) => value,
             None => {
                 search.limit_reached = true;
@@ -98,38 +107,70 @@ fn search_paths(
             }
         };
         if candidate_len <= MAX_X509_CHAIN_CERTIFICATES {
-            let mut certs = Vec::with_capacity(candidate_len);
-            certs.extend(current.iter().cloned());
-            certs.push(search.root.clone());
+            let Some(chain) = materialize_path(search, current, candidate_len) else {
+                search.limit_reached = true;
+                return;
+            };
             search.paths.push(CandidatePath {
-                chain: X509Chain { certs },
+                chain,
                 trust_root_index: search.root_index,
             });
         }
     }
 
-    if current.len() >= MAX_X509_CHAIN_CERTIFICATES.saturating_sub(1) {
+    if current_len >= MAX_X509_CHAIN_CERTIFICATES.saturating_sub(1) {
         return;
     }
 
     for index in 0..search.intermediates.len() {
-        if used[index] {
+        if used.get(index).copied().unwrap_or(true) {
             continue;
         }
-        let links_to_current = current.last().is_some_and(|current_child| {
-            certificates_link(current_child, search.intermediates[index], link_policy)
-        });
+        let Some(candidate) = search.intermediates.get(index).copied() else {
+            continue;
+        };
+        let links_to_current = path_tail(search, current)
+            .is_some_and(|current_child| certificates_link(current_child, candidate, link_policy));
         if !links_to_current {
             continue;
         }
-        used[index] = true;
-        current.push(search.intermediates[index].clone());
+        set_used(used, index, true);
+        current.push(index);
         search_paths(search, current, used, link_policy);
         current.pop();
-        used[index] = false;
+        set_used(used, index, false);
         if search.limit_reached {
             return;
         }
+    }
+}
+
+/// Return the last certificate of the in-progress path.
+fn path_tail<'a>(search: &PathSearch<'a>, current: &[usize]) -> Option<&'a X509Certificate> {
+    match current.last() {
+        Some(index) => search.intermediates.get(*index).copied(),
+        None => Some(search.leaf),
+    }
+}
+
+/// Clone the certificates of one completed leaf-to-root path.
+fn materialize_path(
+    search: &PathSearch<'_>,
+    current: &[usize],
+    candidate_len: usize,
+) -> Option<X509Chain> {
+    let mut certs = Vec::with_capacity(candidate_len);
+    certs.push(search.leaf.clone());
+    for index in current {
+        certs.push(search.intermediates.get(*index).copied()?.clone());
+    }
+    certs.push(search.root.clone());
+    Some(X509Chain { certs })
+}
+
+fn set_used(used: &mut [bool], index: usize, value: bool) {
+    if let Some(slot) = used.get_mut(index) {
+        *slot = value;
     }
 }
 

@@ -43,6 +43,12 @@ impl StatusChecker for CompositeStatusChecker<'_> {
                 Err(StatusCheckError::Suspended) => return Err(StatusCheckError::Suspended),
                 Err(error) => match self.policy.soft_fail {
                     SoftFailMode::Strict => return Err(error),
+                    SoftFailMode::FallbackOnUnavailable => {
+                        if error != StatusCheckError::Unavailable {
+                            return Err(error);
+                        }
+                        last_non_terminal_error = Some(error);
+                    }
                     SoftFailMode::Fallback => last_non_terminal_error = Some(error),
                 },
             }

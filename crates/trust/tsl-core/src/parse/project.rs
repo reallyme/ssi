@@ -248,33 +248,45 @@ fn parse_providers(raw: Option<RawTspList>) -> Result<Vec<TrustServiceProvider>,
 
 include!("project/coalesce.rs");
 
+/// Order service history newest first and bound it by the current state.
+///
+/// Every authenticated row is retained, including rows of a different service
+/// type and rows whose key cannot be identified: TS 119 612 clause 5.6 defines
+/// history as a sequence of effective-dated states, so each row terminates the
+/// interval of every older row. Removing a restrictive row would let an older
+/// granted row govern a period in which the service was not granted. Rows at
+/// or after the current `StatusStartingTime` are superseded by the current
+/// state. Rows sharing one starting time collapse to one entry; when they
+/// disagree, the surviving entry becomes a non-authorizing barrier.
 fn normalize_service_history(
-    current_type: &TrustServiceType,
     current_start: TslTimestamp,
     history: &mut Vec<TrustServiceHistoryEntry>,
 ) {
     history.sort_by(|left, right| {
-        (
-            right.status_starting_time.unix_seconds(),
-            right.status_starting_time.nanosecond(),
-        )
-            .cmp(&(
-                left.status_starting_time.unix_seconds(),
-                left.status_starting_time.nanosecond(),
-            ))
+        timestamp_order_key(right.status_starting_time)
+            .cmp(&timestamp_order_key(left.status_starting_time))
     });
-    let mut upper_bound = (current_start.unix_seconds(), current_start.nanosecond());
-    history.retain(|entry| {
-        let effective = (
-            entry.status_starting_time.unix_seconds(),
-            entry.status_starting_time.nanosecond(),
-        );
-        let retain = &entry.service_type == current_type && effective < upper_bound;
-        if retain {
-            upper_bound = effective;
+    let upper_bound = timestamp_order_key(current_start);
+    history.retain(|entry| timestamp_order_key(entry.status_starting_time) < upper_bound);
+    let mut normalized: Vec<TrustServiceHistoryEntry> = Vec::with_capacity(history.len());
+    for entry in history.drain(..) {
+        if let Some(previous) = normalized.last_mut() {
+            if timestamp_order_key(previous.status_starting_time)
+                == timestamp_order_key(entry.status_starting_time)
+            {
+                if *previous != entry {
+                    previous.digital_identity = None;
+                }
+                continue;
+            }
         }
-        retain
-    });
+        normalized.push(entry);
+    }
+    *history = normalized;
+}
+
+fn timestamp_order_key(timestamp: TslTimestamp) -> (i64, u32) {
+    (timestamp.unix_seconds(), timestamp.nanosecond())
 }
 
 fn merge_current_certificates(
@@ -373,7 +385,7 @@ fn parse_service(raw: RawService) -> Result<TrustService, TslError> {
     let (qualifications, additional_service_information) =
         parse_extensions(information.extensions, &service_type)?;
     let mut history = parse_history(raw.history)?;
-    normalize_service_history(&service_type, status_starting_time, &mut history);
+    normalize_service_history(status_starting_time, &mut history);
     Ok(TrustService {
         service_names,
         service_type,
@@ -414,9 +426,6 @@ fn parse_history(
         )?)?;
         let (qualifications, additional_service_information) =
             parse_extensions(entry.extensions, &service_type)?;
-        let Some(digital_identity) = digital_identity else {
-            continue;
-        };
         history.push(TrustServiceHistoryEntry {
             service_type,
             service_names,

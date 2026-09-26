@@ -12,4 +12,7 @@
 
 mod store;
 
-pub use store::{InMemorySingleUseStore, SingleUseError, SingleUseResult, SingleUseStore};
+pub use store::{
+    InMemorySingleUseStore, SingleUseError, SingleUseResult, SingleUseStore,
+    DEFAULT_MAX_SINGLE_USE_TTL_SECS,
+};

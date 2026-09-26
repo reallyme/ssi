@@ -48,6 +48,7 @@ fn create_config() -> CreateConfig {
 
 fn active_resolution(doc: DIDDocument) -> DidResolutionResult {
     DidResolutionResult {
+        history: Vec::new(),
         resolution_metadata: DidResolutionMetadata {
             content_type: Some("application/did+json".into()),
             retrieved_at: None,
@@ -223,6 +224,7 @@ fn validate_resolution_result_requires_typed_not_found_for_absent_result() {
         freshness: None,
     };
     let result = DidResolutionResult {
+        history: Vec::new(),
         document: None,
         resolution_metadata: DidResolutionMetadata {
             content_type: None,
@@ -252,6 +254,7 @@ fn validate_resolution_result_rejects_oversized_request_before_provider_use() {
         freshness: None,
     };
     let result = DidResolutionResult {
+        history: Vec::new(),
         document: None,
         resolution_metadata: DidResolutionMetadata {
             content_type: None,
@@ -332,6 +335,7 @@ fn resolution_selectors_assurance_and_freshness_fail_closed() {
         assurance: Some(DidResolutionAssurance::ChainVerified),
         freshness: Some(DidResolutionFreshness {
             maximum_staleness_seconds: 60,
+            trusted_now_unix_seconds: 1_769_904_030,
         }),
     };
     assert_eq!(
@@ -359,6 +363,7 @@ fn validate_resolution_result_accepts_deactivation_document() {
         freshness: None,
     };
     let result = DidResolutionResult {
+        history: vec![doc],
         resolution_metadata: DidResolutionMetadata {
             content_type: Some("application/did+json".into()),
             retrieved_at: None,

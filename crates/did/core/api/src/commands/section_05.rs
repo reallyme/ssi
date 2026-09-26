@@ -6,7 +6,7 @@ fn validate_key_relationship_assignment_request(
     request: &DidSetKeyRelationshipsDocumentRequest,
 ) -> Result<(), DidApiError> {
     let invalid = DidApiError::KeyRelationshipAssignmentRequestInvalid;
-    let validation = validate_did(
+    let validation = validate_did_consistency(
         &request.document,
         DomainVerificationEnv {
             resolve_txt: None,
@@ -224,7 +224,8 @@ fn validate_key_relationship_assignment_result(
     {
         return Err(invalid);
     }
-    let validation = validate_did(
+    let validation = validate_did_transition(
+        old,
         document,
         DomainVerificationEnv {
             resolve_txt: None,

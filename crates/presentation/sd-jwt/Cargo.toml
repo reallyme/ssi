@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-vp-sd-jwt"
-version = "0.1.0"
+version = "0.2.0"
 description = "Legacy ReallyMe Merkle-envelope presentation compatibility; not RFC 9901 SD-JWT VC"
 edition = "2021"
 publish = false
@@ -21,7 +21,7 @@ reallyme-ssi-proto = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = { workspace = true }
-reallyme-crypto = { workspace = true, features = ["sha2"] }
+reallyme-crypto = { workspace = true, features = ["constant-time", "sha2"] }
 
 codec-base64url = { package = "reallyme-codec-base64url", version = "=0.2.3" }
 

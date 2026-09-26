@@ -22,6 +22,9 @@ pub fn eu_health_policy() -> VpPolicy {
         allow_sd_jwt: true,
         allow_zk: false, // health ZK not standardized yet
 
+        // Only credentials of this claimset satisfy this profile.
+        allowed_claimsets: Some(vec!["eu.health.v1".into()]),
+
         ..VpPolicy::default()
     }
 }

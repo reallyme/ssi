@@ -9,6 +9,7 @@ fn coalesce_duplicate_providers(
     providers: Vec<TrustServiceProvider>,
 ) -> Result<Vec<TrustServiceProvider>, TslError> {
     let mut output: Vec<TrustServiceProvider> = Vec::new();
+    let mut merged: Vec<bool> = Vec::new();
     let mut provider_indices: BTreeMap<ProviderIdentityKey, usize> = BTreeMap::new();
     for mut provider in providers {
         let key = provider_identity_key(&provider);
@@ -40,11 +41,23 @@ fn coalesce_duplicate_providers(
             existing
                 .services
                 .append(&mut core::mem::take(&mut provider.services));
-            let services = core::mem::take(&mut existing.services);
-            existing.services = coalesce_duplicate_current_services(services)?;
+            let flag = merged.get_mut(index).ok_or(TslError::Provider(
+                TslProviderFailure::ContradictoryRegistrationIdentifier,
+            ))?;
+            *flag = true;
         } else {
             provider_indices.insert(key, output.len());
             output.push(provider);
+            merged.push(false);
+        }
+    }
+    // Group every duplicate provider record first, then coalesce each merged
+    // service set once. Re-coalescing after every duplicate is quadratic in
+    // the number of services under one provider identity.
+    for (provider, was_merged) in output.iter_mut().zip(merged) {
+        if was_merged {
+            let services = core::mem::take(&mut provider.services);
+            provider.services = coalesce_duplicate_current_services(services)?;
         }
     }
     Ok(output)
@@ -146,14 +159,8 @@ fn merge_duplicate_current_service(
     current: &mut TrustService,
     mut candidate: TrustService,
 ) -> Result<(), TslError> {
-    let current_time = (
-        current.status_starting_time.unix_seconds(),
-        current.status_starting_time.nanosecond(),
-    );
-    let candidate_time = (
-        candidate.status_starting_time.unix_seconds(),
-        candidate.status_starting_time.nanosecond(),
-    );
+    let current_time = timestamp_order_key(current.status_starting_time);
+    let candidate_time = timestamp_order_key(candidate.status_starting_time);
     if candidate_time > current_time {
         core::mem::swap(current, &mut candidate);
     } else if candidate_time == current_time && candidate.status != current.status {
@@ -162,52 +169,48 @@ fn merge_duplicate_current_service(
         ));
     }
 
-    merge_unique(&mut current.service_names, candidate.service_names.clone());
-    merge_unique(&mut current.supply_points, candidate.supply_points.clone());
-    merge_unique(&mut current.qualifications, candidate.qualifications.clone());
-    merge_unique(
-        &mut current.additional_service_information,
-        candidate.additional_service_information.clone(),
-    );
-    merge_current_certificates(&mut current.digital_identity, &candidate.digital_identity)?;
-
-    let candidate_is_prior = (
-        candidate.status_starting_time.unix_seconds(),
-        candidate.status_starting_time.nanosecond(),
-    ) < (
-        current.status_starting_time.unix_seconds(),
-        current.status_starting_time.nanosecond(),
-    );
-    merge_unique(&mut current.history, candidate.history.clone());
-    if candidate_is_prior {
+    merge_unique(&mut current.history, core::mem::take(&mut candidate.history));
+    if candidate_time == current_time {
+        // Two publications of the same effective state: every representation
+        // describes the state in force from this starting time.
+        merge_unique(
+            &mut current.service_names,
+            core::mem::take(&mut candidate.service_names),
+        );
+        merge_unique(
+            &mut current.supply_points,
+            core::mem::take(&mut candidate.supply_points),
+        );
+        merge_unique(
+            &mut current.qualifications,
+            core::mem::take(&mut candidate.qualifications),
+        );
+        merge_unique(
+            &mut current.additional_service_information,
+            core::mem::take(&mut candidate.additional_service_information),
+        );
+        merge_current_certificates(&mut current.digital_identity, &candidate.digital_identity)?;
+    } else {
+        // An older duplicate describes a superseded state. Its qualifications,
+        // additional information, supply points, names, and certificate
+        // representations must not widen the current state; they are kept
+        // only as the historical row effective from its own starting time.
         let historical_identity = historical_identity_from_current(&candidate.digital_identity)?;
         let entry = TrustServiceHistoryEntry {
             service_type: candidate.service_type.clone(),
-            service_names: candidate.service_names.clone(),
+            service_names: core::mem::take(&mut candidate.service_names),
             status: candidate.status.clone(),
             status_starting_time: candidate.status_starting_time,
-            digital_identity: historical_identity,
-            qualifications: candidate.qualifications.clone(),
-            additional_service_information: candidate.additional_service_information.clone(),
+            digital_identity: Some(historical_identity),
+            qualifications: core::mem::take(&mut candidate.qualifications),
+            additional_service_information: core::mem::take(
+                &mut candidate.additional_service_information,
+            ),
         };
         if !current.history.contains(&entry) {
             current.history.push(entry);
         }
     }
-    current.history.sort_by(|left, right| {
-        (
-            right.status_starting_time.unix_seconds(),
-            right.status_starting_time.nanosecond(),
-        )
-            .cmp(&(
-                left.status_starting_time.unix_seconds(),
-                left.status_starting_time.nanosecond(),
-            ))
-    });
-    normalize_service_history(
-        &current.service_type,
-        current.status_starting_time,
-        &mut current.history,
-    );
+    normalize_service_history(current.status_starting_time, &mut current.history);
     Ok(())
 }

@@ -41,31 +41,17 @@ fn validate_present_resolution(
         return Err(DidApiError::ResolutionResultInvalid);
     }
 
-    if request.assurance.is_some()
-        && request.assurance != resolution_metadata.assurance_achieved
-    {
+    if request.assurance.is_some() && request.assurance != resolution_metadata.assurance_achieved {
         return Err(DidApiError::ResolutionResultInvalid);
     }
-    if request.freshness.is_some() && resolution_metadata.retrieved_at.is_none() {
+    if !freshness_is_satisfied(
+        request.freshness.as_ref(),
+        resolution_metadata.retrieved_at.as_deref(),
+    ) {
         return Err(DidApiError::ResolutionResultInvalid);
     }
 
-    if let Some(selected) = request.version_time.as_deref() {
-        let selected = OffsetDateTime::parse(selected, &Rfc3339)
-            .map_err(|_| DidApiError::ResolutionResultInvalid)?;
-        let observed_version_time = metadata
-            .updated
-            .as_deref()
-            .or(metadata.created.as_deref())
-            .ok_or(DidApiError::ResolutionResultInvalid)
-            .and_then(|value| {
-                OffsetDateTime::parse(value, &Rfc3339)
-                    .map_err(|_| DidApiError::ResolutionResultInvalid)
-            })?;
-        if observed_version_time > selected {
-            return Err(DidApiError::ResolutionResultInvalid);
-        }
-    }
+    validate_version_window(request, metadata)?;
 
     if result
         .resolution_metadata
@@ -95,7 +81,15 @@ fn validate_present_resolution(
         }
     }
 
-    let validation = validate_did(
+    // A non-genesis document is authenticated only through its verified
+    // history; a genesis document must not carry one.
+    let expected_history_len = usize::try_from(doc.sequence.saturating_sub(1))
+        .map_err(|_| DidApiError::ResolutionResultInvalid)?;
+    if result.history.len() != expected_history_len {
+        return Err(DidApiError::ResolutionResultInvalid);
+    }
+    let validation = validate_did_with_history(
+        &result.history,
         doc,
         DomainVerificationEnv {
             resolve_txt: None,
@@ -106,6 +100,83 @@ fn validate_present_resolution(
         return Err(DidApiError::ResolutionResultInvalid);
     }
 
+    Ok(())
+}
+
+/// Enforce the caller's staleness bound against a caller-trusted clock.
+fn freshness_is_satisfied(
+    freshness: Option<&DidResolutionFreshness>,
+    retrieved_at: Option<&str>,
+) -> bool {
+    let Some(freshness) = freshness else {
+        return true;
+    };
+    let Some(retrieved_at) = retrieved_at else {
+        return false;
+    };
+    let Ok(retrieved_at) = OffsetDateTime::parse(retrieved_at, &Rfc3339) else {
+        return false;
+    };
+    let retrieved_at = i128::from(retrieved_at.unix_timestamp());
+    let now = i128::from(freshness.trusted_now_unix_seconds);
+
+    let Some(latest_accepted) = now.checked_add(i128::from(MAX_DID_RESOLUTION_CLOCK_SKEW_SECONDS))
+    else {
+        return false;
+    };
+    if retrieved_at > latest_accepted {
+        return false;
+    }
+    match now.checked_sub(retrieved_at) {
+        Some(age) => age <= i128::from(freshness.maximum_staleness_seconds),
+        None => false,
+    }
+}
+
+/// Require the returned version to have been valid at the selected instant.
+fn validate_version_window(
+    request: &DidResolveRequest,
+    metadata: &DidDocumentMetadata,
+) -> Result<(), DidApiError> {
+    let parse = |value: &str| {
+        OffsetDateTime::parse(value, &Rfc3339).map_err(|_| DidApiError::ResolutionResultInvalid)
+    };
+    let valid_from = metadata.valid_from.as_deref().map(parse).transpose()?;
+    let valid_until = metadata.valid_until.as_deref().map(parse).transpose()?;
+    if let (Some(start), Some(end)) = (valid_from, valid_until) {
+        if end <= start {
+            return Err(DidApiError::ResolutionResultInvalid);
+        }
+    }
+
+    let Some(selected) = request.version_time.as_deref() else {
+        // Without a historical selector the current version is required.
+        if request.version_id.is_none() && metadata.valid_until.is_some() {
+            return Err(DidApiError::ResolutionResultInvalid);
+        }
+        return Ok(());
+    };
+    let selected = parse(selected)?;
+
+    let observed_version_time = metadata
+        .updated
+        .as_deref()
+        .or(metadata.created.as_deref())
+        .ok_or(DidApiError::ResolutionResultInvalid)
+        .and_then(parse)?;
+    if observed_version_time > selected {
+        return Err(DidApiError::ResolutionResultInvalid);
+    }
+
+    // A superseded version must carry its exclusive end bound.
+    if metadata.next_version_id.is_some() && valid_until.is_none() {
+        return Err(DidApiError::ResolutionResultInvalid);
+    }
+    if valid_from.is_some_and(|start| selected < start)
+        || valid_until.is_some_and(|end| selected >= end)
+    {
+        return Err(DidApiError::ResolutionResultInvalid);
+    }
     Ok(())
 }
 

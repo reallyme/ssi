@@ -2,7 +2,7 @@
   {
     "id": "SDJWT-MUST-001",
     "source": "RFC9901",
-    "section": "5",
+    "section": "4.2.3, 4.2.4, and 7.1",
     "keyword": "MUST",
     "feature": "disclosure_digest_processing",
     "implementation": ["crates/envelopes/sd_jwt/src/disclose.rs", "crates/envelopes/sd_jwt/src/verify.rs"],
@@ -14,7 +14,7 @@
   {
     "id": "SDJWT-MUST-002",
     "source": "RFC9901",
-    "section": "6",
+    "section": "7.1 and 7.3",
     "keyword": "MUST",
     "feature": "selective_disclosure_reconstruction",
     "implementation": ["crates/envelopes/sd_jwt/src/verify.rs", "crates/envelopes/sd_jwt/src/present.rs"],
@@ -26,7 +26,7 @@
   {
     "id": "SDJWT-MUST-003",
     "source": "RFC9901",
-    "section": "8",
+    "section": "4.3 and 4.3.2",
     "keyword": "MUST",
     "feature": "key_binding_jwt",
     "implementation": ["crates/envelopes/sd_jwt/src/holder_binding.rs"],
@@ -38,7 +38,7 @@
   {
     "id": "SDJWT-MUST-004",
     "source": "RFC9901",
-    "section": "5.2 Disclosure format",
+    "section": "4.2 Disclosure format",
     "keyword": "MUST",
     "feature": "disclosure_format_validation",
     "implementation": ["crates/envelopes/sd_jwt/src/disclose.rs", "crates/envelopes/sd_jwt/src/compact.rs"],
@@ -62,7 +62,7 @@
   {
     "id": "SDJWT-MUST-006",
     "source": "RFC9901",
-    "section": "8 Key Binding JWT validation",
+    "section": "4.3.2 Key Binding JWT validation",
     "keyword": "MUST",
     "feature": "key_binding_nonce_and_audience",
     "implementation": ["crates/envelopes/sd_jwt/src/holder_binding.rs"],
@@ -74,7 +74,7 @@
   {
     "id": "SDJWT-MUST-007",
     "source": "RFC9901",
-    "section": "5.1 SD-JWT payload and digest container",
+    "section": "4.1, 4.1.1, and 4.2.4",
     "keyword": "MUST",
     "feature": "issuance_digest_container_and_hash_algorithm",
     "implementation": ["crates/envelopes/sd_jwt/src/present.rs"],
@@ -98,7 +98,7 @@
   {
     "id": "SDJWT-MUST-009",
     "source": "RFC9901",
-    "section": "8 Key Binding JWT validation",
+    "section": "4.3.2 and 7.3 Key Binding JWT validation",
     "keyword": "MUST",
     "feature": "key_binding_sd_hash_and_required_presence",
     "implementation": ["crates/envelopes/sd_jwt/src/holder_binding.rs", "crates/envelopes/sd_jwt/src/verify.rs"],
@@ -128,6 +128,26 @@
     "implementation": ["crates/envelopes/sd_jwt/src/verify_receipt.rs", "crates/envelopes/sd_jwt/src/lib.rs"],
     "positive_tests": ["receipt_verifier_authenticates_the_exact_x5c_header_chain"],
     "negative_tests": ["receipt_verifier_rejects_malformed_or_untrusted_x5c_headers"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "SDJWT-MUST-012",
+    "source": "I-D-OAUTH-SD-JWT-VC-19",
+    "section": "2.2.1 and 2.2.2.3",
+    "keyword": "MUST",
+    "feature": "sd_jwt_vc_type_and_certificate_bound_issuer_identity",
+    "implementation": [
+      "crates/envelopes/sd_jwt/src/verify_receipt.rs",
+      "crates/envelopes/sd_jwt/src/verify_receipt_policy.rs"
+    ],
+    "positive_tests": [
+      "x5c_credential_allows_missing_issuer_only_by_explicit_policy"
+    ],
+    "negative_tests": [
+      "verify_sd_jwt_rejects_unaccepted_issuer_typ",
+      "x5c_credential_allows_missing_issuer_only_by_explicit_policy"
+    ],
     "applicable": true,
     "exclusion_reason": null
   }

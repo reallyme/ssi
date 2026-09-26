@@ -67,6 +67,34 @@ pub struct SiopIdTokenClaims {
 
     /// Expiration timestamp in Unix seconds.
     pub exp: i64,
+
+    /// Public JWK of the self-issued subject (SIOPv2 `sub_jwk`).
+    ///
+    /// Required when `sub` uses the JWK thumbprint subject syntax type and
+    /// rejected for DID subjects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sub_jwk: Option<SiopSubjectJwk>,
+}
+
+/// Public JWK members relevant to RFC 7638 thumbprint computation.
+///
+/// Only asymmetric `EC` and `OKP` signature keys are modeled; other members
+/// such as `alg`, `use`, or `kid` are ignored because they do not participate
+/// in the thumbprint.
+#[derive(Serialize, Deserialize, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+pub struct SiopSubjectJwk {
+    /// JWK key type (`EC` or `OKP`).
+    pub kty: String,
+
+    /// JWK curve name.
+    pub crv: String,
+
+    /// Base64url x coordinate or OKP public key.
+    pub x: String,
+
+    /// Base64url y coordinate for `EC` keys.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y: Option<String>,
 }
 
 // Requests, responses, and verified claims contain stable identifiers, bearer
@@ -94,6 +122,7 @@ impl_redacted_debug!(
     SiopAuthenticationRequest,
     SiopAuthenticationResponse,
     SiopIdTokenClaims,
+    SiopSubjectJwk,
 );
 
 fn aud_deserialize<'de, D>(d: D) -> Result<Vec<String>, D::Error>

@@ -16,10 +16,14 @@ const IDENTIFIER_PAYLOAD_LEN: usize = 16;
 /// Domain-separation tag for deterministic did:me genesis identifiers.
 pub const GENESIS_DOMAIN_TAG: &[u8] = b"did:me:v1:genesis";
 /// Domain-separation tag for did:me core attestations.
-pub const CORE_SIGNATURE_DOMAIN_TAG: &[u8] = b"did:me:v1:core";
+///
+/// Re-exported from the core engine so signing and verification share one definition.
+pub use reallyme_did_core::identifier::CORE_SIGNATURE_DOMAIN_TAG;
 /// Required nonce length for did:me v1 genesis bindings.
 pub const GENESIS_NONCE_LEN: usize = 16;
 const BECH32_CHECKSUM_LEN: usize = 6;
+/// Maximum Bech32 string length (BIP-173) accepted as a did:me method-specific identifier.
+const MAX_BECH32_LEN: usize = 90;
 const BECH32_CHARSET: &[u8; 32] = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 const BECH32_GENERATOR: [u32; 5] = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
 
@@ -50,6 +54,8 @@ pub enum DidMeErrorReason {
     GenesisIdentifierMismatch,
     /// Canonical DAG-CBOR encoding failed.
     CanonicalEncoding,
+    /// The method-specific identifier exceeded the Bech32 length limit.
+    IdentifierTooLong,
 }
 
 /// Typed did:me method error.
@@ -99,6 +105,9 @@ impl From<DidMeErrorReason> for IdentityCoreErrorReason {
             DidMeErrorReason::CanonicalEncoding => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_CANONICAL_ENCODING_FAILED
             }
+            DidMeErrorReason::IdentifierTooLong => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_METHOD_IDENTIFIER
+            }
         }
     }
 }
@@ -122,14 +131,24 @@ pub struct DidMeIdentifier {
 
 /// Build the byte string signed by did:me core attestation keys.
 pub fn core_signature_input(core_bytes: &[u8]) -> Result<Vec<u8>, DidMeError> {
-    let capacity = CORE_SIGNATURE_DOMAIN_TAG
-        .len()
-        .checked_add(core_bytes.len())
-        .ok_or(DidMeError::new(DidMeErrorReason::CanonicalEncoding))?;
-    let mut input = Vec::with_capacity(capacity);
-    input.extend_from_slice(CORE_SIGNATURE_DOMAIN_TAG);
-    input.extend_from_slice(core_bytes);
-    Ok(input)
+    reallyme_did_core::identifier::core_signature_input(core_bytes)
+        .map_err(|_| DidMeError::new(DidMeErrorReason::CanonicalEncoding))
+}
+
+/// Reject genesis update policies that could never be satisfied.
+fn validate_genesis_update_policy(update_policy: &UpdatePolicy) -> Result<(), DidMeError> {
+    match update_policy.threshold {
+        None => Ok(()),
+        Some(threshold) => {
+            let threshold = usize::try_from(threshold)
+                .map_err(|_| DidMeError::new(DidMeErrorReason::InvalidUpdatePolicy))?;
+            if threshold == 0 || threshold > update_policy.allowed_verification_methods.len() {
+                Err(DidMeError::new(DidMeErrorReason::InvalidUpdatePolicy))
+            } else {
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Encode the deterministic GenesisBinding object from did:me v1 Section 2.5.
@@ -186,6 +205,7 @@ pub fn generate_did_me(
     update_policy: &UpdatePolicy,
     controller_keys: &[CoreVerificationMethod],
 ) -> Result<String, DidMeError> {
+    validate_genesis_update_policy(update_policy)?;
     let binding = genesis_binding_cbor(nonce, update_policy, controller_keys)?;
     let payload = derive_identifier_payload(&binding)?;
     let bech32 = bech32_encode(DID_ME_HRP, &payload)?;
@@ -216,6 +236,9 @@ pub fn parse_did_me(did: &str) -> Result<DidMeIdentifier, DidMeError> {
     let method_specific = did
         .strip_prefix(DID_ME_PREFIX)
         .ok_or(DidMeError::new(DidMeErrorReason::InvalidPrefix))?;
+    if method_specific.len() > MAX_BECH32_LEN {
+        return Err(DidMeError::new(DidMeErrorReason::IdentifierTooLong));
+    }
 
     let separator = method_specific
         .rfind('1')

@@ -6,8 +6,17 @@
 //! Tests for XMLDSig policy pre-screening before xmlsec execution.
 
 use identity_trust_tsl_xmlsec::{
-    verify_tsl_xmldsig_xmlsec, XmlSecError, XmlSecPolicyViolationReason,
+    verify_tsl_xmldsig_xmlsec, verify_tsl_xmldsig_xmlsec_with_exact_signers, XmlSecError,
+    XmlSecPolicyViolationReason, XmlSecTrustRootErrorReason, MAX_TSL_XMLSEC_TRUSTED_ROOTS,
+    MAX_TSL_XMLSEC_TRUSTED_ROOT_DER_BYTES,
 };
+
+/// Placeholder trust root that satisfies the count and size budget. Policy
+/// rejections occur before any backend parses it.
+const PLACEHOLDER_ROOT: &[u8] = &[0x30];
+
+/// Upper bound on XML ID attributes admitted by the profile pre-pass.
+const MAX_XML_ID_ATTRIBUTES: usize = 4_096;
 
 #[test]
 fn rejects_reference_uri_not_same_doc() {
@@ -413,8 +422,201 @@ fn signed_fixture() -> &'static str {
 
 fn verify_policy_rejection(xml: &str) -> XmlSecError {
     let verification_time = time::OffsetDateTime::from_unix_timestamp(1_800_000_000).unwrap();
-    match verify_tsl_xmldsig_xmlsec(xml, "/nope", verification_time) {
+    match verify_tsl_xmldsig_xmlsec(xml, &[PLACEHOLDER_ROOT], verification_time) {
         Ok(_) => XmlSecError::Internal,
         Err(error) => error,
     }
+}
+
+fn verification_time() -> time::OffsetDateTime {
+    time::OffsetDateTime::from_unix_timestamp(1_800_000_000).unwrap()
+}
+
+#[test]
+fn rejects_namespace_prefixed_duplicate_id() {
+    // xmlSecAddIDs registers IDs by attribute local name, so `foo:Id` is an
+    // XML ID for the backend and must participate in uniqueness checks.
+    let xml = signed_fixture().replace(
+        "<SchemeInformation>",
+        "<SchemeInformation xmlns:foo=\"urn:example:foo\" foo:Id=\"TSL\">",
+    );
+    assert!(matches!(
+        verify_policy_rejection(&xml),
+        XmlSecError::PolicyViolation(XmlSecPolicyViolationReason::DuplicateId)
+    ));
+}
+
+#[test]
+fn rejects_namespace_prefixed_id_colliding_with_a_later_unprefixed_id() {
+    let signature_id = signed_fixture()
+        .split("<ds:Signature ")
+        .nth(1)
+        .and_then(|rest| rest.split("Id=\"").nth(1))
+        .and_then(|rest| rest.split('"').next())
+        .unwrap();
+    let xml = signed_fixture().replace(
+        "<SchemeInformation>",
+        &format!("<SchemeInformation xmlns:foo=\"urn:example:foo\" foo:ID=\"{signature_id}\">"),
+    );
+    assert!(matches!(
+        verify_policy_rejection(&xml),
+        XmlSecError::PolicyViolation(XmlSecPolicyViolationReason::DuplicateId)
+    ));
+}
+
+#[test]
+fn rejects_competing_prefixed_root_identifier() {
+    let xml = signed_fixture().replacen(
+        " Id=\"TSL\"",
+        " Id=\"TSL\" xmlns:foo=\"urn:example:foo\" foo:id=\"OTHER\"",
+        1,
+    );
+    assert!(matches!(
+        verify_policy_rejection(&xml),
+        XmlSecError::PolicyViolation(XmlSecPolicyViolationReason::InvalidSignatureProfile)
+    ));
+}
+
+#[test]
+fn namespace_declarations_are_not_xml_ids() {
+    // `xmlns:Id` is a namespace binding, not an attribute xmlsec registers.
+    let xml = signed_fixture().replace(
+        "<SchemeInformation>",
+        "<SchemeInformation xmlns:Id=\"TSL\">",
+    );
+    assert!(!matches!(
+        verify_policy_rejection(&xml),
+        XmlSecError::PolicyViolation(XmlSecPolicyViolationReason::DuplicateId)
+    ));
+}
+
+fn fixture_id_attribute_count() -> usize {
+    let xml = signed_fixture();
+    [" Id=\"", " ID=\"", " id=\"", ":id=\"", ":Id=\"", ":ID=\""]
+        .iter()
+        .map(|needle| xml.matches(needle).count())
+        .sum()
+}
+
+fn with_extra_id_attributes(count: usize) -> String {
+    let mut extra = String::new();
+    for index in 0..count {
+        extra.push_str(&format!(
+            "<x:e xmlns:x=\"urn:example:x\" Id=\"extra-{index}\"/>"
+        ));
+    }
+    signed_fixture().replacen(
+        "<SchemeInformation>",
+        &format!("<SchemeInformation>{extra}"),
+        1,
+    )
+}
+
+#[test]
+fn admits_exactly_the_xml_id_attribute_budget() {
+    let existing = fixture_id_attribute_count();
+    assert!(existing > 0 && existing < MAX_XML_ID_ATTRIBUTES);
+    let xml = with_extra_id_attributes(MAX_XML_ID_ATTRIBUTES - existing);
+    assert!(!matches!(
+        verify_policy_rejection(&xml),
+        XmlSecError::PolicyViolation(
+            XmlSecPolicyViolationReason::InvalidSignatureProfile
+                | XmlSecPolicyViolationReason::DuplicateId
+        )
+    ));
+}
+
+#[test]
+fn rejects_xml_id_attributes_beyond_the_budget() {
+    let existing = fixture_id_attribute_count();
+    let xml = with_extra_id_attributes(MAX_XML_ID_ATTRIBUTES - existing + 1);
+    assert!(matches!(
+        verify_policy_rejection(&xml),
+        XmlSecError::PolicyViolation(XmlSecPolicyViolationReason::InvalidSignatureProfile)
+    ));
+}
+
+#[test]
+fn rejects_empty_trust_root_list() {
+    let error = verify_tsl_xmldsig_xmlsec(signed_fixture(), &[], verification_time()).unwrap_err();
+    assert!(matches!(
+        error,
+        XmlSecError::TrustRoots(XmlSecTrustRootErrorReason::Empty)
+    ));
+}
+
+#[test]
+fn rejects_too_many_trust_roots() {
+    let roots = vec![PLACEHOLDER_ROOT; MAX_TSL_XMLSEC_TRUSTED_ROOTS + 1];
+    let error =
+        verify_tsl_xmldsig_xmlsec(signed_fixture(), &roots, verification_time()).unwrap_err();
+    assert!(matches!(
+        error,
+        XmlSecError::TrustRoots(XmlSecTrustRootErrorReason::TooManyTrustRoots)
+    ));
+}
+
+#[test]
+fn admits_the_maximum_trust_root_count_through_the_budget_check() {
+    // The maximum count passes the budget; the XML defect is reported instead.
+    let roots = vec![PLACEHOLDER_ROOT; MAX_TSL_XMLSEC_TRUSTED_ROOTS];
+    let xml = signed_fixture().replace("URI=\"#TSL\"", "URI=\"#OTHER\"");
+    let error = verify_tsl_xmldsig_xmlsec(&xml, &roots, verification_time()).unwrap_err();
+    assert!(matches!(
+        error,
+        XmlSecError::PolicyViolation(XmlSecPolicyViolationReason::InvalidSignatureProfile)
+    ));
+}
+
+#[test]
+fn rejects_oversized_and_empty_trust_root_der() {
+    let oversized = vec![0_u8; MAX_TSL_XMLSEC_TRUSTED_ROOT_DER_BYTES + 1];
+    let error = verify_tsl_xmldsig_xmlsec(
+        signed_fixture(),
+        &[oversized.as_slice()],
+        verification_time(),
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        XmlSecError::TrustRoots(XmlSecTrustRootErrorReason::CertificateDerTooLarge)
+    ));
+
+    let error = verify_tsl_xmldsig_xmlsec(
+        signed_fixture(),
+        &[PLACEHOLDER_ROOT, &[]],
+        verification_time(),
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        XmlSecError::TrustRoots(XmlSecTrustRootErrorReason::InvalidCertificateDer)
+    ));
+}
+
+#[test]
+fn exact_signers_entry_point_validates_trust_roots_and_candidates_first() {
+    let error = verify_tsl_xmldsig_xmlsec_with_exact_signers(
+        signed_fixture(),
+        &[],
+        verification_time(),
+        &[PLACEHOLDER_ROOT],
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        XmlSecError::TrustRoots(XmlSecTrustRootErrorReason::Empty)
+    ));
+
+    let error = verify_tsl_xmldsig_xmlsec_with_exact_signers(
+        signed_fixture(),
+        &[PLACEHOLDER_ROOT],
+        verification_time(),
+        &[],
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        XmlSecError::PolicyViolation(XmlSecPolicyViolationReason::SignerBindingMismatch)
+    ));
 }

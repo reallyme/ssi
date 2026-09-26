@@ -331,18 +331,33 @@ fn ensure_not_cancelled(cancellation: &dyn DidWebCancellation) -> Result<(), Did
     }
 }
 
+/// Parse a response media type per RFC 9110: type, subtype, and parameter
+/// names and the charset value are case-insensitive, and optional whitespace
+/// may surround `;` and `=`. Only a UTF-8 `charset` parameter is accepted.
 fn parse_media_type(value: Option<&str>) -> Result<DidWebMediaType, DidWebError> {
     let value = value.ok_or(DidWebError::new(DidWebErrorReason::UnsupportedMediaType))?;
     let mut parts = value.split(';');
     let base = parts
         .next()
-        .ok_or(DidWebError::new(DidWebErrorReason::UnsupportedMediaType))?;
+        .ok_or(DidWebError::new(DidWebErrorReason::UnsupportedMediaType))?
+        .trim()
+        .to_ascii_lowercase();
     for parameter in parts {
-        if parameter.trim() != "charset=utf-8" {
+        let (name, parameter_value) = parameter
+            .split_once('=')
+            .ok_or(DidWebError::new(DidWebErrorReason::UnsupportedMediaType))?;
+        let parameter_value = parameter_value.trim();
+        let parameter_value = parameter_value
+            .strip_prefix('"')
+            .and_then(|inner| inner.strip_suffix('"'))
+            .unwrap_or(parameter_value);
+        if !name.trim().eq_ignore_ascii_case("charset")
+            || !parameter_value.eq_ignore_ascii_case("utf-8")
+        {
             return Err(DidWebError::new(DidWebErrorReason::UnsupportedMediaType));
         }
     }
-    match base {
+    match base.as_str() {
         "application/did+json" => Ok(DidWebMediaType::ApplicationDidJson),
         "application/did+ld+json" => Ok(DidWebMediaType::ApplicationDidLdJson),
         "application/json" => Ok(DidWebMediaType::ApplicationJson),
@@ -382,5 +397,18 @@ fn is_public_ipv6(address: Ipv6Addr) -> bool {
     let segments = address.segments();
     let is_global_unicast = (segments[0] & 0xe000) == 0x2000;
     let is_documentation = segments[0] == 0x2001 && segments[1] == 0x0db8;
-    is_global_unicast && !is_documentation
+    // Transition and special-purpose prefixes embed or tunnel to IPv4 (or are
+    // not globally routable) and would bypass the IPv4 destination checks:
+    // 6to4 2002::/16, Teredo 2001::/32, benchmarking 2001:2::/48, and
+    // ORCHID/ORCHIDv2 2001:10::/28 and 2001:20::/28.
+    let is_6to4 = segments[0] == 0x2002;
+    let is_teredo = segments[0] == 0x2001 && segments[1] == 0x0000;
+    let is_benchmarking = segments[0] == 0x2001 && segments[1] == 0x0002 && segments[2] == 0;
+    let is_orchid = segments[0] == 0x2001 && matches!(segments[1] & 0xfff0, 0x0010 | 0x0020);
+    is_global_unicast
+        && !is_documentation
+        && !is_6to4
+        && !is_teredo
+        && !is_benchmarking
+        && !is_orchid
 }

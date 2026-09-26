@@ -17,6 +17,8 @@ pub fn eu_passport_policy() -> VpPolicy {
         allowed_holder_algorithms: vec![Algorithm::P256],
         allow_sd_jwt: false,
         allow_zk: true,
+        // Only credentials of this claimset satisfy this profile.
+        allowed_claimsets: Some(vec!["eu.passport.v1".into()]),
         ..VpPolicy::default()
     }
 }

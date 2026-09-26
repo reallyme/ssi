@@ -2,15 +2,15 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use reallyme_did_types::DIDDocument;
 use reallyme_did_method_ebsi::{
     validate_did_ebsi_resolution, write_did_ebsi_registry_document,
     AuthenticatedDidEbsiRegistryProvider, DidEbsiDocumentLimits, DidEbsiRegistryOperation,
-    DidEbsiRegistryProviderError, DidEbsiRegistryProviderErrorReason,
-    DidEbsiRegistryWriteRequest, DidEbsiRegistryWriteResponse, DidEbsiRegistryWriteResult,
-    DidEbsiResolution, DidEbsiResolutionAssurance, DidEbsiResolveRequest,
+    DidEbsiRegistryProviderError, DidEbsiRegistryProviderErrorReason, DidEbsiRegistryWriteRequest,
+    DidEbsiRegistryWriteResponse, DidEbsiRegistryWriteResult, DidEbsiResolution,
+    DidEbsiResolutionAssurance, DidEbsiResolveRequest,
 };
 use reallyme_did_method_web::{parse_did_web, DidWebDocument, DidWebMediaType};
+use reallyme_did_types::DIDDocument;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -22,7 +22,7 @@ use crate::commands::{
 };
 use crate::error::DidApiError;
 use crate::parse::parse_did_url;
-use crate::validate::{validate_did, DomainVerificationEnv};
+use crate::validate::{validate_did_with_history, DomainVerificationEnv};
 
 /// Maximum DID or requested version identifier accepted by resolution.
 pub const MAX_DID_RESOLUTION_IDENTIFIER_BYTES: usize = 4 * 1024;
@@ -31,6 +31,8 @@ pub const MAX_DID_RESOLUTION_IDENTIFIER_BYTES: usize = 4 * 1024;
 pub const MAX_DID_RESOLUTION_METADATA_BYTES: usize = 1024;
 
 const DID_JSON_CONTENT_TYPE: &str = "application/did+json";
+/// DID method validated by the generic provider resolution path.
+const GENERIC_RESOLUTION_METHOD: &str = "me";
 const DID_LD_JSON_CONTENT_TYPE: &str = "application/did+ld+json";
 
 /// Request for provider-backed DID resolution.
@@ -70,11 +72,19 @@ impl Drop for DidResolveRequest {
 
 impl ZeroizeOnDrop for DidResolveRequest {}
 
+/// Maximum tolerated amount, in seconds, by which a provider `retrieved_at`
+/// may lie in the future of the caller's trusted clock.
+pub const MAX_DID_RESOLUTION_CLOCK_SKEW_SECONDS: u64 = 300;
+
 /// Caller policy for cached resolution observations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DidResolutionFreshness {
     /// Maximum observation age. Zero requires a current provider observation.
     pub maximum_staleness_seconds: u64,
+    /// Caller-trusted current time as Unix seconds. The provider-supplied
+    /// `retrieved_at` is compared against this instant; it is never taken from
+    /// the provider.
+    pub trusted_now_unix_seconds: i64,
 }
 
 /// Resolution assurance achieved by the provider.
@@ -162,6 +172,12 @@ pub struct DidResolutionResult {
     /// Resolved DID document. Absent DIDs must not carry a document.
     pub document: Option<DIDDocument>,
 
+    /// Predecessor did:me documents, genesis first, ending with the document
+    /// directly preceding `document`. Required whenever the resolved did:me
+    /// document has `sequence >= 2`, because a non-genesis document can only be
+    /// authenticated against its previous core state. Must be empty otherwise.
+    pub history: Vec<DIDDocument>,
+
     /// Resolution metadata.
     pub resolution_metadata: DidResolutionMetadata,
 
@@ -218,6 +234,10 @@ impl Zeroize for SensitiveDidResolutionResult {
             document.zeroize();
         }
         self.inner.document = None;
+        for document in &mut self.inner.history {
+            document.zeroize();
+        }
+        self.inner.history.clear();
         self.inner.resolution_metadata.content_type.zeroize();
         self.inner.resolution_metadata.retrieved_at.zeroize();
         self.inner.resolution_metadata.resolver.zeroize();
@@ -411,87 +431,4 @@ pub trait DidProvider {
     ) -> Result<DIDDocument, DidApiError> {
         Err(DidApiError::ProviderCapabilityUnsupported)
     }
-}
-
-/// Resolve through an injected provider and validate the returned did:me result.
-pub fn resolve_did_with_provider<P: DidProvider + ?Sized>(
-    provider: &P,
-    request: DidResolveRequest,
-) -> Result<DidResolutionResult, DidApiError> {
-    let result = provider.resolve_did(request.clone())?;
-    validate_resolution_result(&request, &result)?;
-    Ok(result)
-}
-
-/// Resolve through an injected provider and adopt the validated result into a
-/// non-cloneable zeroizing owner for canonical dispatch.
-pub fn resolve_did_with_provider_owned<P: DidProvider + ?Sized>(
-    provider: &P,
-    request: DidResolveRequest,
-) -> Result<SensitiveDidResolutionResult, DidApiError> {
-    resolve_did_with_provider(provider, request).map(SensitiveDidResolutionResult::from_result)
-}
-
-/// Validate a provider-supplied resolution result against did:me taxonomy invariants.
-pub fn validate_resolution_result(
-    request: &DidResolveRequest,
-    result: &DidResolutionResult,
-) -> Result<(), DidApiError> {
-    validate_resolution_request(request)?;
-    let parsed = parse_did_url(&request.did)?;
-    if parsed.is_did_url {
-        return Err(DidApiError::InvalidDidUrl);
-    }
-    if !parsed.method_supported {
-        return Err(DidApiError::UnsupportedDidMethod);
-    }
-
-    match result.resolution_metadata.deactivation_status {
-        DidDeactivationStatus::Absent => validate_absent_resolution(request, result),
-        DidDeactivationStatus::Active => validate_present_resolution(request, result, false),
-        DidDeactivationStatus::Deactivated => validate_present_resolution(request, result, true),
-    }
-}
-
-fn validate_resolution_request(request: &DidResolveRequest) -> Result<(), DidApiError> {
-    if request.did.is_empty() || request.did.len() > MAX_DID_RESOLUTION_IDENTIFIER_BYTES {
-        return Err(DidApiError::InvalidDid);
-    }
-    if request.version_id.as_ref().is_some_and(|version_id| {
-        version_id.is_empty() || version_id.len() > MAX_DID_RESOLUTION_IDENTIFIER_BYTES
-    }) {
-        return Err(DidApiError::InvalidDid);
-    }
-    if request.version_id.is_some() && request.version_time.is_some() {
-        return Err(DidApiError::InvalidDid);
-    }
-    if request.version_time.as_deref().is_some_and(|version_time| {
-        version_time.is_empty()
-            || version_time.len() > MAX_DID_RESOLUTION_IDENTIFIER_BYTES
-            || OffsetDateTime::parse(version_time, &Rfc3339).is_err()
-    }) {
-        return Err(DidApiError::InvalidDid);
-    }
-    Ok(())
-}
-
-fn validate_absent_resolution(
-    request: &DidResolveRequest,
-    result: &DidResolutionResult,
-) -> Result<(), DidApiError> {
-    let metadata = &result.resolution_metadata;
-    if result.document.is_some()
-        || result.document_metadata.is_some()
-        || metadata.content_type.is_some()
-        || metadata.assurance_achieved.is_some()
-        || metadata.sequence.is_some()
-        || metadata.error != Some(DidResolutionErrorCode::NotFound)
-        || !optional_timestamp_is_valid(metadata.retrieved_at.as_deref())
-        || !optional_metadata_is_valid(metadata.resolver.as_deref())
-        || (request.freshness.is_some() && metadata.retrieved_at.is_none())
-    {
-        return Err(DidApiError::ResolutionResultInvalid);
-    }
-
-    Ok(())
 }

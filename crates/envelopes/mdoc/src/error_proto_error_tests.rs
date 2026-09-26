@@ -15,6 +15,18 @@ fn mdoc_invalid_reason_maps_to_identity_core_proto_reason() {
         IdentityCoreErrorReason::from(MdocInvalidInputReason::TooManyDocuments),
         IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_MDOC_TOO_MANY_DOCUMENTS
     );
+    assert_eq!(
+        IdentityCoreErrorReason::from(MdocInvalidInputReason::CborTooManyItems),
+        IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED
+    );
+    assert_eq!(
+        IdentityCoreErrorReason::from(MdocInvalidInputReason::InvalidRandomLength),
+        IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_MDOC_MALFORMED_ISSUER_SIGNED_ITEM
+    );
+    assert_eq!(
+        IdentityCoreErrorReason::from(MdocInvalidInputReason::DeviceKeyAlgorithmMismatch),
+        IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_MDOC_INVALID_DEVICE_AUTH
+    );
 }
 
 #[test]

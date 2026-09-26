@@ -18,13 +18,15 @@ use serde_json::{Map, Value};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::me_profile::{insert_me_profile_merkle_binding, MeProfileMerkleBinding};
+use crate::registered_claims::{
+    is_ietf_issuer_owned_claim, is_non_selectively_disclosable_claim, SD_JWT_STRUCTURAL_CLAIMS,
+};
 use crate::sensitive::{
     compact_capacity, json_value_within_limits, zeroize_json_map, zeroize_strings,
     MAX_SD_JWT_DISCLOSURES, MAX_SD_JWT_ISSUER_BYTES, MAX_SD_JWT_SALT_BYTES,
 };
 use crate::{error::IetfSdJwtVcError, payload::SdJwtDisclosure};
 
-const RESERVED_KEYS: [&str; 2] = ["_sd", "_sd_alg"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IetfSdJwtHashAlgorithm {
@@ -38,7 +40,7 @@ impl IetfSdJwtHashAlgorithm {
         }
     }
 
-    fn digest_b64url(self, disclosure_b64u: &str) -> String {
+    pub(crate) fn digest_b64url(self, disclosure_b64u: &str) -> String {
         match self {
             Self::Sha256 => {
                 bytes_to_base64url(sha2_256_digest(disclosure_b64u.as_bytes()).as_bytes())

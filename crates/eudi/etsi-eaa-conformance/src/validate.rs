@@ -22,6 +22,7 @@ pub fn validate_attestation(
 ) -> Result<()> {
     validate_common(common)?;
     validate_format_pair(common.format, format)?;
+    validate_category_format(common.category, format)?;
 
     match format {
         FormatFacts::SdJwt(facts) => validate_sd_jwt(common, facts),
@@ -378,6 +379,19 @@ fn validate_status(common: &CommonAttestationFacts<'_>) -> Result<()> {
                 Ok(())
             }
         }
+    }
+}
+
+/// Natural-person PID is only defined for the SD-JWT VC and ISO mdoc
+/// encodings, whose format validators enforce the PID-specific key-binding and
+/// header requirements. Other encodings would bypass those checks.
+fn validate_category_format(category: AttestationCategory, format: &FormatFacts<'_>) -> Result<()> {
+    match (category, format) {
+        (
+            AttestationCategory::NaturalPersonPid,
+            FormatFacts::JsonLd(_) | FormatFacts::X509AttributeCertificate(_),
+        ) => Err(ConformanceError::InvalidAttestationType),
+        _ => Ok(()),
     }
 }
 

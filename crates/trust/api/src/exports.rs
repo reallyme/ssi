@@ -49,7 +49,7 @@ pub use crate::evaluate::verify_credential_trust_api;
 /// Explicit issuer authorization against a Trusted List (TSL).
 ///
 /// Exposed for advanced workflows and testing.
-pub use crate::authorize::authorize_issuer;
+pub use crate::authorize::{authorize_issuer, AuthenticatedTrustedList};
 pub use crate::qualification::{matching_service_qualifiers, qualification_criteria_matches};
 
 // -----------------------------------------------------------------------------

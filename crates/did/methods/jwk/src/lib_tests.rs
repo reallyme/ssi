@@ -85,3 +85,22 @@ fn did_jwk_rejects_padded_base64url() {
         .map(|error| error.reason);
     assert_eq!(err, Some(DidJwkErrorReason::InvalidBase64Url));
 }
+
+#[test]
+fn rejects_duplicate_jwk_members_at_both_byte_boundaries() {
+    let input = br#"{"kty":"RSA","kty":"OKP","crv":"Ed25519","x":"AA"}"#;
+    assert_eq!(
+        generate_did_jwk_from_json_bytes(input)
+            .err()
+            .map(|error| error.reason),
+        Some(DidJwkErrorReason::InvalidJson)
+    );
+    let did = format!(
+        "did:jwk:{}",
+        reallyme_codec::base64url::bytes_to_base64url(input)
+    );
+    assert_eq!(
+        parse_did_jwk(&did).err().map(|error| error.reason),
+        Some(DidJwkErrorReason::InvalidJson)
+    );
+}

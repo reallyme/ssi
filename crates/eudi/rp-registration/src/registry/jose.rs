@@ -58,10 +58,12 @@ impl ValidatedJwks {
         }
         let accepted = strict_https_url(accepted_url)?;
         let final_value = strict_https_url(final_url)?;
-        if accepted.scheme() != final_value.scheme()
-            || accepted.host_str() != final_value.host_str()
-            || accepted.port_or_known_default() != final_value.port_or_known_default()
-        {
+        // The application accepts one exact `x-jku-url`. A same-origin
+        // redirect to another path or query can reach content controlled by a
+        // different tenant of a shared host, so the resolved location must be
+        // the accepted URL itself after WHATWG URL normalization. Redirects
+        // are tolerated only when they terminate at that exact location.
+        if accepted != final_value {
             return Err(RegistrationError::from_reason(
                 RegistrationErrorReason::SemanticBindingMismatch,
             ));

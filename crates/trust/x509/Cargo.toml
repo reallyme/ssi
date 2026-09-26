@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-trust-x509"
-version = "0.1.0"
+version = "0.2.0"
 description = "X.509 parsing and policy helpers for ReallyMe identity trust decisions."
 edition.workspace = true
 rust-version.workspace = true
@@ -42,7 +42,8 @@ oid-registry = { workspace = true }
 pem = { workspace = true }
 reallyme-ssi-proto = { workspace = true }
 reallyme-codec = { workspace = true, features = ["base64"] }
-reallyme-crypto = { workspace = true }
+# SHA-2 computes RFC 7093 key identifiers from SubjectPublicKeyInfo.
+reallyme-crypto = { workspace = true, features = ["sha2"] }
 sha1 = "0.11"
 thiserror = { workspace = true }
 time = { workspace = true }

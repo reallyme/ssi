@@ -124,7 +124,8 @@ fn validator_accepts_valid_pid_with_qeaa_and_binding() {
     let status_list = StatusList {
         issuer: "did:test:issuer".into(),
         purpose: StatusPurpose::Revocation,
-        issued_at: 1_700_000_000,
+        // Within the PID profile's 24h status freshness bound at `now_unix`.
+        issued_at: 1_719_990_000,
         next_update: 1_800_000_000,
         encoded_list: vec![0u8],
         length: 1,

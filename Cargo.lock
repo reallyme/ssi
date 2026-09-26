@@ -777,7 +777,7 @@ checksum = "e079f19b08ca6239f47f8ba8509c11cf3ea30095831f7fed61441475edd8c449"
 
 [[package]]
 name = "envelopes-data-integrity"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -789,7 +789,7 @@ dependencies = [
 
 [[package]]
 name = "envelopes-jwt-vc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -801,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "envelopes-profiles"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-ssi-proto",
  "thiserror",
@@ -812,22 +812,6 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
-
-[[package]]
-name = "errno"
-version = "0.3.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
-dependencies = [
- "libc",
- "windows-sys",
-]
-
-[[package]]
-name = "fastrand"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "ff"
@@ -1138,7 +1122,7 @@ dependencies = [
 
 [[package]]
 name = "identity-credential-trust-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
  "identity-trust-openssl",
@@ -1160,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "identity-credential-vc-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-vc-ietf-sd-jwt",
  "identity-vc-jwt",
@@ -1182,7 +1166,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-contact-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-presentation-delivery-contact-core",
  "identity-presentation-delivery-contact-validator",
@@ -1193,7 +1177,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-contact-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ciborium",
  "reallyme-crypto",
@@ -1205,7 +1189,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-contact-validator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-presentation-delivery-contact-core",
  "reallyme-ssi-proto",
@@ -1215,7 +1199,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-ssi-proto",
  "thiserror",
@@ -1224,7 +1208,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-siop-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-presentation-delivery-siop-core",
  "identity-presentation-delivery-siop-verifier",
@@ -1237,7 +1221,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-siop-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-ssi-proto",
  "serde",
@@ -1247,10 +1231,11 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-siop-verifier"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-presentation-delivery-siop-core",
  "reallyme-codec-base64url",
+ "reallyme-crypto",
  "reallyme-crypto-core",
  "reallyme-crypto-dispatch",
  "reallyme-crypto-jwk",
@@ -1264,7 +1249,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-web-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-presentation-delivery-core",
  "reallyme-codec-base64url",
@@ -1282,7 +1267,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-web-validator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-presentation-delivery-web-core",
  "identity-presentation-vp-policy",
@@ -1307,7 +1292,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-vp-policy"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-credential-audit",
@@ -1322,7 +1307,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-vp-sd-jwt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-credential",
@@ -1341,7 +1326,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-vp-validator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-presentation-vp-policy",
  "identity-presentation-vp-sd-jwt",
@@ -1359,7 +1344,7 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-crl-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-revocation",
  "reallyme-trust-x509",
@@ -1368,7 +1353,7 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-crl-openssl"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-revocation-crl-core",
  "openssl",
@@ -1377,11 +1362,12 @@ dependencies = [
  "reallyme-trust-x509",
  "thiserror",
  "time",
+ "x509-parser",
 ]
 
 [[package]]
 name = "identity-revocation-ocsp-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-revocation",
  "reallyme-ssi-proto",
@@ -1393,7 +1379,7 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-ocsp-dispatch"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-revocation-ocsp-core",
  "identity-revocation-ocsp-openssl",
@@ -1406,7 +1392,7 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-ocsp-openssl"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-revocation-ocsp-core",
  "openssl",
@@ -1417,7 +1403,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-jades"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "openssl",
  "reallyme-codec",
@@ -1435,7 +1421,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-openssl"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "openssl",
  "reallyme-trust-core",
@@ -1445,7 +1431,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quick-xml",
  "reallyme-codec-base64",
@@ -1460,17 +1446,17 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-openssl"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-trust-openssl",
  "identity-trust-tsl-core",
  "identity-trust-tsl-xmlsec",
  "openssl",
  "reallyme-crypto",
+ "reallyme-revocation",
  "reallyme-ssi-proto",
  "reallyme-trust-core",
  "reallyme-trust-x509",
- "tempfile",
  "thiserror",
  "time",
  "zeroize",
@@ -1478,14 +1464,13 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-xmlsec"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-trust-tsl-xmlsec-sys",
  "quick-xml",
  "reallyme-codec-base64",
  "reallyme-crypto",
  "reallyme-ssi-proto",
- "tempfile",
  "thiserror",
  "time",
  "zeroize",
@@ -1493,11 +1478,11 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-xmlsec-sys"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "identity-trust-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-trust-tsl-core",
  "openssl",
@@ -1510,7 +1495,7 @@ dependencies = [
 
 [[package]]
 name = "identity-vc-ietf-sd-jwt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-crypto",
@@ -1529,7 +1514,7 @@ dependencies = [
 
 [[package]]
 name = "identity-vc-jwt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-credential",
@@ -1692,12 +1677,6 @@ name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
-
-[[package]]
-name = "linux-raw-sys"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "litemap"
@@ -2308,7 +2287,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-compression-brotli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "brotli",
  "thiserror",
@@ -2330,7 +2309,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -2356,7 +2335,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-audit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-ssi-proto",
  "thiserror",
@@ -2365,7 +2344,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-claims"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
  "reallyme-codec",
@@ -2382,7 +2361,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-status"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -2934,7 +2913,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-compression-brotli",
  "reallyme-cose",
@@ -2956,7 +2935,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "envelopes-data-integrity",
  "reallyme-codec",
@@ -2972,7 +2951,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-cheqd"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-ssi-proto",
  "thiserror",
@@ -2980,7 +2959,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-conformance"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-did-method-cheqd",
  "reallyme-did-method-ebsi",
@@ -2995,8 +2974,9 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-ebsi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "reallyme-ssi-core",
  "reallyme-ssi-proto",
  "serde_json",
  "thiserror",
@@ -3006,17 +2986,23 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-ion"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "reallyme-codec",
+ "reallyme-crypto",
+ "reallyme-ssi-core",
  "reallyme-ssi-proto",
+ "serde_json",
  "thiserror",
+ "zeroize",
 ]
 
 [[package]]
 name = "reallyme-did-method-jwk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec",
+ "reallyme-ssi-core",
  "reallyme-ssi-proto",
  "serde_json",
  "thiserror",
@@ -3024,16 +3010,15 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-key"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
- "reallyme-codec",
  "reallyme-ssi-proto",
  "thiserror",
 ]
 
 [[package]]
 name = "reallyme-did-method-me"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -3045,9 +3030,10 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-web"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "percent-encoding",
+ "reallyme-ssi-core",
  "reallyme-ssi-proto",
  "serde_json",
  "thiserror",
@@ -3057,7 +3043,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-types"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3066,7 +3052,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-disclosure-policy"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-credential-claims",
  "reallyme-ssi-core",
@@ -3078,7 +3064,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-etsi-eaa-conformance"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "email_address",
  "serde",
@@ -3090,7 +3076,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-eudi-rp-registration"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "identity-trust-jades",
  "openssl",
@@ -3123,7 +3109,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-keys"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec",
  "reallyme-ssi-proto",
@@ -3136,7 +3122,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-mdoc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ciborium",
  "reallyme-codec",
@@ -3156,7 +3142,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-openid-oauth"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
  "percent-encoding",
@@ -3176,14 +3162,14 @@ dependencies = [
 
 [[package]]
 name = "reallyme-openid4vc-profiles"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "reallyme-revocation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-credential-status",
  "reallyme-ssi-proto",
@@ -3191,11 +3177,12 @@ dependencies = [
  "serde",
  "thiserror",
  "time",
+ "zeroize",
 ]
 
 [[package]]
 name = "reallyme-sd-jwt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -3208,7 +3195,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-single-use"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-ssi-proto",
  "thiserror",
@@ -3217,7 +3204,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "envelopes-data-integrity",
  "envelopes-jwt-vc",
@@ -3278,15 +3265,18 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-ssi-proto",
  "serde",
+ "serde_json",
+ "thiserror",
+ "zeroize",
 ]
 
 [[package]]
 name = "reallyme-ssi-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -3298,7 +3288,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-proto-codec"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -3316,7 +3306,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-trust-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-revocation",
  "reallyme-ssi-proto",
@@ -3327,7 +3317,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-trust-x509"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "asn1-rs",
  "oid-registry",
@@ -3346,9 +3336,11 @@ dependencies = [
 
 [[package]]
 name = "reallyme-vp-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
+ "identity-presentation-vp-policy",
+ "reallyme-credential-claims",
  "reallyme-crypto",
  "reallyme-disclosure-policy",
  "reallyme-ssi-core",
@@ -3361,7 +3353,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-vp-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reallyme-ssi-proto",
  "serde",
@@ -3405,19 +3397,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632"
 dependencies = [
  "nom",
-]
-
-[[package]]
-name = "rustix"
-version = "1.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
-dependencies = [
- "bitflags 2.13.1",
- "errno",
- "libc",
- "linux-raw-sys",
- "windows-sys",
 ]
 
 [[package]]
@@ -3734,19 +3713,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tempfile"
-version = "3.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
-dependencies = [
- "fastrand",
- "getrandom 0.4.3",
- "once_cell",
- "rustix",
- "windows-sys",
-]
-
-[[package]]
 name = "thiserror"
 version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3958,21 +3924,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef64dbcc55df09c7e5a46182d181c2cfa3e925f3da937ea764728b4bbb9dcbf"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "windows-link"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
-
-[[package]]
-name = "windows-sys"
-version = "0.61.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
-dependencies = [
- "windows-link",
 ]
 
 [[package]]

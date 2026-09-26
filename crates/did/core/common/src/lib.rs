@@ -29,3 +29,6 @@ pub use registry::{
 
 pub use canonical::CanonicalObject;
 pub use error::IdentityCoreError;
+
+/// Bounded JSON syntax checks before DID document materialization.
+pub mod validate_json;

@@ -14,7 +14,11 @@ impl KeySet {
         target.private_keys.clear();
         target.public_keys.clear();
 
-        target.private_keys = self.private_keys.clone();
+        target.private_keys = self
+            .private_keys
+            .iter()
+            .map(|(id, private_key)| (id.clone(), private_key.duplicate()))
+            .collect();
         target.public_keys = self.public_keys.clone();
     }
 }

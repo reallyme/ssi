@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::BTreeSet;
 use identity_core_primitives::Algorithm;
 use reallyme_disclosure_policy::{
     EvaluationContext, ExtractedDisclosure, QeaaContext, StatusContext, VpPolicy,
@@ -302,6 +303,17 @@ pub struct PresentationVerificationFacts {
     /// Whether age-over attestation was verified when applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub age_over_attestation_ok: Option<bool>,
+    /// Whether the response `state` matched the expected state.
+    ///
+    /// Required whenever [`PresentationExpected::state`] is set; the verifier
+    /// never infers a state binding from the expected value alone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state_ok: Option<bool>,
+    /// Whether the response was delivered to the expected response URI.
+    ///
+    /// Required whenever [`PresentationExpected::response_uri`] is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_uri_ok: Option<bool>,
     /// Issuer signature algorithm.
     pub issuer_algorithm: Algorithm,
     /// Holder binding algorithm.
@@ -333,6 +345,8 @@ impl Zeroize for PresentationVerificationFacts {
         self.wallet_trust_ok.zeroize();
         self.transaction_data_ok.zeroize();
         self.age_over_attestation_ok.zeroize();
+        self.state_ok.zeroize();
+        self.response_uri_ok.zeroize();
         self.issuer_algorithm = Algorithm::Ed25519;
         self.holder_algorithm = Algorithm::Ed25519;
         self.claimset_id.zeroize();

@@ -11,7 +11,8 @@ use reallyme_did_api::{
     create::create_did,
     error::DidApiError,
     messaging::{
-        designate_messaging_pre_keys, discover_messaging_pre_keys, rotate_messaging_pre_keys,
+        designate_messaging_pre_keys, discover_messaging_pre_keys,
+        discover_messaging_pre_keys_from_chain, rotate_messaging_pre_keys,
     },
     profile::DidProfile,
     update::{update_did, UpdateConfig},
@@ -77,7 +78,16 @@ fn discover_messaging_pre_keys_returns_transcript_bound_snapshot() {
 
     let (doc2, _) =
         update_did(&doc1, &ks, no_op_update_config(service)).expect("update_did failed");
-    let mut snapshots = discover_messaging_pre_keys(&doc2).expect("discovery failed");
+
+    // A non-genesis document cannot be authenticated without its history.
+    assert_eq!(
+        discover_messaging_pre_keys(&doc2).err(),
+        Some(DidApiError::MessagingPreKeyDiscoveryInvalid)
+    );
+
+    let chain = [doc1, doc2];
+    let doc2 = &chain[1];
+    let mut snapshots = discover_messaging_pre_keys_from_chain(&chain).expect("discovery failed");
 
     assert_eq!(snapshots.len(), 1);
     assert_eq!(snapshots[0].did, doc2.id);
@@ -111,7 +121,8 @@ fn designate_messaging_pre_keys_publishes_valid_snapshot() {
     )
     .expect("designation failed");
 
-    let snapshots = discover_messaging_pre_keys(&doc2).expect("discovery failed");
+    let snapshots =
+        discover_messaging_pre_keys_from_chain(&[doc1, doc2]).expect("discovery failed");
 
     assert_eq!(snapshots.len(), 1);
     assert_eq!(snapshots[0].pre_keys, vec!["#x25519", "#mlkem768"]);

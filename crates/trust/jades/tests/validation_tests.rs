@@ -80,9 +80,7 @@ impl SignatureVerifier for UnusedCertificateVerifier {
 #[test]
 fn authenticates_proof_only_against_the_exact_expected_leaf() {
     let certificate = signing_certificate();
-    let encoded_certificate = bytes_to_base64(&certificate.der);
-    let header =
-        format!("{{\"alg\":\"ES256\",\"iat\":{SIGNING_TIME},\"x5c\":[\"{encoded_certificate}\"]}}");
+    let header = x5c_with_thumbprint_header(&certificate);
     let compact = compact(&header);
     let verifier = TestJwsVerifier {
         authenticated_header: header.as_bytes().to_vec(),
@@ -176,9 +174,7 @@ fn reparses_supplied_der_before_using_projected_certificate_fields() {
 #[test]
 fn validates_canonical_x5c_as_the_presented_chain() {
     let certificate = signing_certificate();
-    let encoded_certificate = bytes_to_base64(&certificate.der);
-    let header =
-        format!("{{\"alg\":\"ES256\",\"iat\":{SIGNING_TIME},\"x5c\":[\"{encoded_certificate}\"]}}");
+    let header = x5c_with_thumbprint_header(&certificate);
 
     let validated = validate(
         &header,
@@ -213,11 +209,45 @@ fn rejects_missing_or_mismatched_signing_certificate_references() {
 }
 
 #[test]
+fn accepts_x5c_as_the_signing_certificate_reference() {
+    let certificate = signing_certificate();
+    let header = format!(
+        "{{\"alg\":\"ES256\",\"iat\":{SIGNING_TIME},\"x5c\":[\"{}\"]}}",
+        bytes_to_base64(&certificate.der)
+    );
+    let validated = validate(
+        &header,
+        std::slice::from_ref(&certificate),
+        optional_status(),
+    )
+    .expect("a protected x5c chain identifies the signing certificate");
+    assert_eq!(validated.signing_certificate().der, certificate.der);
+
+    let compact = compact(&header);
+    let verifier = TestJwsVerifier {
+        authenticated_header: header.as_bytes().to_vec(),
+        failure: None,
+    };
+    let authenticated = authenticate_compact_jades(
+        JadesAuthenticationInput {
+            compact: &compact,
+            expected_signing_certificate: &certificate,
+            evaluation_time: OffsetDateTime::from_unix_timestamp(SIGNING_TIME).unwrap(),
+            policy: &JadesPolicy::default(),
+        },
+        &verifier,
+    )
+    .expect("an authenticated x5c chain identifies the signing certificate");
+    assert_eq!(authenticated.payload(), b"verified-payload");
+}
+
+#[test]
 fn rejects_prohibited_sha1_x5t_parameter() {
     let certificate = signing_certificate();
     let header = format!(
-        "{{\"alg\":\"ES256\",\"iat\":{SIGNING_TIME},\"x5t\":\"prohibited\",\"x5c\":[\"{}\"]}}",
-        bytes_to_base64(&certificate.der)
+        "{{\"alg\":\"ES256\",\"iat\":{SIGNING_TIME},\"x5t\":\"prohibited\",\"x5c\":[\"{}\"],\"x5t#S256\":\"{}\"}}",
+        bytes_to_base64(&certificate.der),
+        sha256_thumbprint(&certificate)
     );
     assert_reason(
         &header,
@@ -427,6 +457,18 @@ fn assert_reason(
         .err()
         .expect("input must fail");
     assert_eq!(error.reason(), expected);
+}
+
+fn sha256_thumbprint(certificate: &X509Certificate) -> String {
+    bytes_to_base64url(reallyme_crypto::sha2::digest(&certificate.der).as_bytes())
+}
+
+fn x5c_with_thumbprint_header(certificate: &X509Certificate) -> String {
+    format!(
+        "{{\"alg\":\"ES256\",\"iat\":{SIGNING_TIME},\"x5c\":[\"{}\"],\"x5t#S256\":\"{}\"}}",
+        bytes_to_base64(&certificate.der),
+        sha256_thumbprint(certificate)
+    )
 }
 
 fn compact(header: &str) -> String {

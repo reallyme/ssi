@@ -30,7 +30,7 @@ fn ssi_facade_exposes_composable_identity_surfaces() {
     assert_type_is_reachable::<reallyme_ssi::delivery::core::DeliveryEnvelope>();
     assert_type_is_reachable::<reallyme_ssi::delivery::contact::api::BuildContactMessageInput>();
     assert_type_is_reachable::<reallyme_ssi::delivery::contact::core::ContactFrame>();
-    assert_type_is_reachable::<reallyme_ssi::delivery::contact::validator::VerifiedContactMessage>(
+    assert_type_is_reachable::<reallyme_ssi::delivery::contact::validator::ValidatedContactEnvelope>(
     );
     assert_type_is_reachable::<reallyme_ssi::delivery::siop::api::SiopAuthenticationRequest>();
     assert_type_is_reachable::<reallyme_ssi::delivery::siop::core::SiopAuthenticationRequest>();

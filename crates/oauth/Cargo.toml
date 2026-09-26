@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-openid-oauth"
-version = "0.1.0"
+version = "0.2.0"
 description = "OAuth substrate: PAR, DPoP, PKCE, AS metadata, and attestation-based client authentication."
 edition.workspace = true
 rust-version.workspace = true
@@ -30,7 +30,7 @@ wasm = ["reallyme-trust-core/wasm"]
 
 [dependencies]
 buffa = { workspace = true }
-reallyme-trust-core = { path = "../trust/core", version = "0.1.0", default-features = false }
+reallyme-trust-core = { path = "../trust/core", version = "0.2.0", default-features = false }
 percent-encoding = { workspace = true }
 reallyme-codec = { workspace = true, features = ["base64url"] }
 reallyme-crypto = { workspace = true, features = ["constant-time", "sha2"] }

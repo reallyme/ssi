@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    did_key_url, generate_did_key, parse_did_key, DidKeyErrorReason, DidKeyMultibase,
-    DidKeyMulticodec,
+    base58_encode, did_key_url, generate_did_key, parse_did_key, DidKeyErrorReason,
+    DidKeyMultibase, DidKeyMulticodec,
 };
 
 #[test]
@@ -61,20 +61,30 @@ fn published_did_key_vectors_decode_expected_multicodecs() -> Result<(), Box<dyn
 }
 
 #[test]
-fn base64url_did_key_round_trips() -> Result<(), Box<dyn std::error::Error>> {
-    let public_key = [0x41u8; 32];
-    let did = generate_did_key(
-        DidKeyMulticodec::X25519,
-        &public_key,
-        DidKeyMultibase::Base64Url,
-    )?;
+fn did_key_rejects_base64url_multibase_alias() {
+    // Same X25519 key as a `u` (base64url) multibase: not allowed by the did:key ABNF.
+    let err = parse_did_key("did:key:u7AFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFB")
+        .err()
+        .map(|error| error.reason);
+    assert_eq!(err, Some(DidKeyErrorReason::UnsupportedMultibase));
+}
 
-    assert!(did.starts_with("did:key:u"));
-    assert!(!did.contains('='));
-    let parsed = parse_did_key(&did)?;
-    assert_eq!(parsed.multicodec, DidKeyMulticodec::X25519);
-    assert_eq!(parsed.public_key, public_key);
+#[test]
+fn did_key_rejects_non_minimal_multicodec_varint() -> Result<(), Box<dyn std::error::Error>> {
+    // 0xed encoded minimally is [0xed, 0x01]; [0xed, 0x81, 0x00] is a non-minimal alias.
+    let mut bytes = vec![0xed, 0x81, 0x00];
+    bytes.extend_from_slice(&[0x42u8; 32]);
+    let did = format!("did:key:z{}", base58_encode(&bytes)?);
+    let err = parse_did_key(&did).err().map(|error| error.reason);
+    assert_eq!(err, Some(DidKeyErrorReason::InvalidVarint));
     Ok(())
+}
+
+#[test]
+fn did_key_rejects_oversized_identifier_before_decoding() {
+    let did = format!("did:key:z{}", "2".repeat(10_000));
+    let err = parse_did_key(&did).err().map(|error| error.reason);
+    assert_eq!(err, Some(DidKeyErrorReason::IdentifierTooLong));
 }
 
 #[test]

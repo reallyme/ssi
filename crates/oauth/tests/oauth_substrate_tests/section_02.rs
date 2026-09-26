@@ -238,13 +238,16 @@ fn metadata_rejects_duplicate_json_members() {
 #[test]
 fn attestation_client_auth_headers_are_draft_names() -> Result<(), OauthError> {
     let pop = AttestationPopRequest {
-        issuer: "wallet-client".to_owned(),
         audience: "https://as.example".to_owned(),
         jti: "pop-1".to_owned(),
         iat: 1_700_000_000,
         challenge: Some("challenge".to_owned()),
     }
     .sign(&TestSigner)?;
+    let (_header, claims, _signature): (Value, Value, Vec<u8>) = decode_compact_jwt(&pop)?;
+    assert_eq!(claims.get("aud").and_then(Value::as_str), Some("https://as.example"));
+    assert_eq!(claims.get("jti").and_then(Value::as_str), Some("pop-1"));
+    assert!(claims.get("iss").is_none());
     let attestation = client_attestation(test_client_instance_jwk("header-test-x"))?;
     let auth = AttestationClientAuthentication::new(
         attestation.as_str().to_owned(),
@@ -339,7 +342,6 @@ fn attestation_client_authentication_validation_enforces_replay_hook() -> Result
     let public_jwk = test_client_instance_jwk("bound-key-x");
     let key_thumbprint = jwk_thumbprint(&public_jwk)?;
     let pop = AttestationPopRequest {
-        issuer: "wallet-client".to_owned(),
         audience: "https://as.example".to_owned(),
         jti: "pop-1".to_owned(),
         iat: 1_700_000_000,
@@ -366,7 +368,7 @@ fn attestation_client_authentication_validation_enforces_replay_hook() -> Result
         },
         &verifier,
     )?;
-    assert_eq!(verified.pop_claims.iss, "wallet-client");
+    assert_eq!(verified.client_id(), "wallet-client");
     assert_eq!(verified.pop_claims.jti, "pop-1");
     assert_eq!(verified.client_instance_key_thumbprint(), key_thumbprint);
     assert_eq!(
@@ -409,53 +411,11 @@ fn attestation_client_authentication_validation_enforces_replay_hook() -> Result
 }
 
 #[test]
-fn attestation_client_authentication_rejects_pop_for_different_client() -> Result<(), OauthError> {
-    let public_jwk = test_client_instance_jwk("bound-key-x");
-    let key_thumbprint = jwk_thumbprint(&public_jwk)?;
-    let pop = AttestationPopRequest {
-        issuer: "different-client".to_owned(),
-        audience: "https://as.example".to_owned(),
-        jti: "pop-wrong-client".to_owned(),
-        iat: 1_700_000_000,
-        challenge: Some("challenge".to_owned()),
-    }
-    .sign(&KeyBoundSigner { key_thumbprint })?;
-    let attestation = client_attestation(public_jwk)?;
-    let auth = AttestationClientAuthentication::new(
-        attestation.as_str().to_owned(),
-        pop.as_str().to_owned(),
-    )?;
-    let verifier = KeyBoundAttestationVerifier::new();
-
-    let result = validate_attestation_client_authentication(
-        &auth,
-        &AttestationClientAuthenticationValidationContext {
-            expected_audience: "https://as.example".to_owned(),
-            expected_challenge: Some("challenge".to_owned()),
-            earliest_iat: 1_699_999_990,
-            latest_iat: 1_700_000_010,
-            current_time: 1_700_000_000,
-            max_trust_evidence_age_seconds: 30,
-        },
-        &verifier,
-    );
-
-    assert_eq!(
-        result.err().map(|error| error.reason()),
-        Some(Reason::AttestationKeyBindingFailed)
-    );
-    assert!(verifier.pop_signature_checked.get());
-    assert!(!verifier.replay_checked.get());
-    Ok(())
-}
-
-#[test]
 fn attestation_client_authentication_rejects_pop_signed_by_different_key() -> Result<(), OauthError>
 {
     let attested_jwk = test_client_instance_jwk("attested-key-x");
     let different_jwk = test_client_instance_jwk("different-key-x");
     let pop = AttestationPopRequest {
-        issuer: "wallet-client".to_owned(),
         audience: "https://as.example".to_owned(),
         jti: "pop-mismatched-key".to_owned(),
         iat: 1_700_000_000,
@@ -499,7 +459,6 @@ fn attestation_client_authentication_rejects_receipt_for_a_different_jwt() -> Re
     let attestation = client_attestation(test_client_instance_jwk("bound-key-x"))?;
     let other_attestation = client_attestation(test_client_instance_jwk("other-key-x"))?;
     let pop = AttestationPopRequest {
-        issuer: "wallet-client".to_owned(),
         audience: "https://as.example".to_owned(),
         jti: "pop-receipt-mismatch".to_owned(),
         iat: 1_700_000_000,
@@ -551,7 +510,6 @@ fn attestation_client_authentication_rejects_noncurrent_trust_receipts() -> Resu
     ];
     for (evaluated_at_unix, valid_until_unix, expected_reason) in cases {
         let pop = AttestationPopRequest {
-            issuer: "wallet-client".to_owned(),
             audience: "https://as.example".to_owned(),
             jti: "pop-trust-freshness".to_owned(),
             iat: CURRENT_TIME,

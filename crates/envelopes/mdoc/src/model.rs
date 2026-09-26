@@ -44,14 +44,31 @@ pub const MAX_MDOC_CBOR_MAP_ENTRIES: usize = 512;
 /// Maximum decoded CBOR array items accepted in an mdoc CBOR container.
 pub const MAX_MDOC_CBOR_ARRAY_ITEMS: usize = 512;
 
+/// Maximum CBOR data items (including nested items, tags, and string chunks)
+/// accepted in one serialized mdoc CBOR input.
+///
+/// The limit is enforced by a structural pre-scan before any decoded value
+/// tree is allocated, bounding the memory amplification of many small items.
+pub const MAX_MDOC_CBOR_ITEMS: usize = 65_536;
+
 /// Maximum serialized CBOR input accepted at an mdoc parsing boundary.
-pub const MAX_MDOC_CBOR_INPUT_BYTES: usize = 16 * 1024 * 1024;
+///
+/// Decoded byte strings can expand substantially when projected through JSON
+/// adapters, so this ceiling is intentionally lower than the process memory
+/// budget and is enforced before allocating a decoded value tree.
+pub const MAX_MDOC_CBOR_INPUT_BYTES: usize = 1024 * 1024;
+
+/// Minimum `IssuerSignedItem.random` length, per ISO/IEC 18013-5 §9.1.2.5.
+pub const MIN_MDOC_ITEM_RANDOM_BYTES: usize = 16;
+
+/// Maximum `IssuerSignedItem.random` length accepted at issuance.
+pub const MAX_MDOC_ITEM_RANDOM_BYTES: usize = 64;
 
 /// Maximum encoded value for one issuer-signed data element.
-pub const MAX_MDOC_ELEMENT_VALUE_BYTES: usize = 8 * 1024 * 1024;
+pub const MAX_MDOC_ELEMENT_VALUE_BYTES: usize = 256 * 1024;
 
 /// Maximum combined encoded element values accepted for one issuance.
-pub const MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES: usize = 1024 * 1024;
 
 /// ISO `IssuerSignedItem` map containing `digestID`, `random`,
 /// `elementIdentifier`, and `elementValue`.

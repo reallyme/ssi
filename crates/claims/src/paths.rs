@@ -68,6 +68,24 @@ impl ClaimPath {
         self.segments.len() < other.segments.len()
             && other.segments.starts_with(self.segments.as_slice())
     }
+
+    /// Return the canonical claim identifiers of every strict, non-root ancestor.
+    ///
+    /// Canonical segment rendering is injective, so identifier equality is
+    /// equivalent to segment-wise equality used by [`Self::is_strict_ancestor_of`].
+    pub(crate) fn strict_ancestor_claim_ids(&self) -> Vec<String> {
+        let ancestor_count = self.segments.len().saturating_sub(1);
+        let mut out = Vec::with_capacity(ancestor_count);
+        let mut current = String::new();
+        for segment in self.segments.iter().take(ancestor_count) {
+            if !current.is_empty() {
+                current.push('/');
+            }
+            current.push_str(segment.as_canonical_segment().as_str());
+            out.push(current.clone());
+        }
+        out
+    }
 }
 
 impl ClaimPathSegment {

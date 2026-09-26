@@ -6,7 +6,7 @@
 
 use core::fmt;
 
-use reallyme_codec::base64url::bytes_to_base64url;
+use reallyme_codec::base64url::{base64url_to_bytes, bytes_to_base64url};
 use reallyme_crypto::sha2::digest as digest_sha2_256;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
@@ -82,10 +82,33 @@ impl Drop for PkceChallenge {
 
 impl ZeroizeOnDrop for PkceChallenge {}
 
+/// Length of an unpadded base64url SHA-256 S256 code challenge (RFC 7636 §4.2).
+const S256_CODE_CHALLENGE_BYTES: usize = 43;
+
+/// Decoded length of an S256 code challenge (one SHA-256 digest).
+const S256_DIGEST_BYTES: usize = 32;
+
 impl PkceChallenge {
     /// Validates the public challenge.
+    ///
+    /// Only S256 is supported, so the challenge must be exactly the canonical
+    /// 43-byte unpadded base64url encoding of a 32-byte SHA-256 digest.
     pub fn validate(&self) -> OauthResult<()> {
-        validate_token(&self.code_challenge)
+        validate_token(&self.code_challenge)?;
+        if self.code_challenge.len() != S256_CODE_CHALLENGE_BYTES
+            || !self
+                .code_challenge
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        {
+            return Err(OauthError::new(Reason::InvalidPkce));
+        }
+        let digest = base64url_to_bytes(&self.code_challenge)
+            .map_err(|_| OauthError::new(Reason::InvalidPkce))?;
+        if digest.len() != S256_DIGEST_BYTES || bytes_to_base64url(&digest) != self.code_challenge {
+            return Err(OauthError::new(Reason::InvalidPkce));
+        }
+        Ok(())
     }
 }
 

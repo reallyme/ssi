@@ -23,5 +23,5 @@ mod validator;
 
 pub use error::ContactValidationError;
 pub use validator::{
-    validate_contact_frames_cbor, validate_contact_message_cbor, VerifiedContactMessage,
+    validate_contact_frames_cbor, validate_contact_message_cbor, ValidatedContactEnvelope,
 };

@@ -7,6 +7,7 @@ use reallyme_codec::cbor::{decode_dag_cbor, verify_dag_cbor_cid, CborValue};
 use reallyme_did_types::Controller;
 
 use crate::validate::diagnostic::{DidValidationCode, DidValidationIssue, DidValidationLocation};
+use crate::validate::limits::MAX_CORE_CBOR_ENCODED_BYTES;
 
 /// Result of validating the embedded canonical core snapshot.
 #[derive(Debug)]
@@ -55,11 +56,25 @@ fn issue(code: DidValidationCode, location: DidValidationLocation) -> DidValidat
 /// Validate that a DID Document's encoded core snapshot is canonical and self-consistent.
 pub fn validate_core_snapshot(doc: DidMeDocCoreView<'_>) -> CoreValidationResult {
     let mut errors = Vec::new();
-    let mut warnings = Vec::new();
+    let warnings = Vec::new();
 
     // ---------------------------------------------------------------------
-    // 1. Decode coreCbor base64
+    // 1. Decode coreCbor base64 (bounded before any decoding work)
     // ---------------------------------------------------------------------
+    if doc.core_cbor.len() > MAX_CORE_CBOR_ENCODED_BYTES {
+        errors.push(issue(
+            DidValidationCode::ResourceLimitExceeded,
+            DidValidationLocation::Core,
+        ));
+        return CoreValidationResult {
+            ok: false,
+            errors,
+            warnings,
+            core: None,
+            cbor_bytes: None,
+        };
+    }
+
     let cbor_bytes: Vec<u8> = match base64url_to_bytes(doc.core_cbor) {
         Ok(b) => b,
         Err(_) => {
@@ -216,7 +231,7 @@ pub fn validate_core_snapshot(doc: DidMeDocCoreView<'_>) -> CoreValidationResult
     // ---------------------------------------------------------------------
     // 7. controller consistency (supports reduced projection)
     // ---------------------------------------------------------------------
-    validate_controller_projection(&core_value, doc.controller, &mut errors, &mut warnings);
+    validate_controller_projection(&core_value, doc.controller, &mut errors);
 
     CoreValidationResult {
         ok: errors.is_empty(),
@@ -237,12 +252,11 @@ fn map_get<'a>(core: &'a CborValue, key: &str) -> Option<&'a CborValue> {
     }
 }
 
-/// Mirrors TS controller consistency logic exactly.
+/// Require the projected controller to equal the signed core controller set.
 fn validate_controller_projection(
     core: &CborValue,
     doc_controller: &Controller,
     errors: &mut Vec<DidValidationIssue>,
-    warnings: &mut Vec<DidValidationIssue>,
 ) {
     let core_ctrl: Vec<String> = match map_get(core, "controller") {
         Some(CborValue::Array(arr)) => {
@@ -282,10 +296,10 @@ fn validate_controller_projection(
     match (core_ctrl.as_slice(), doc_controller) {
         // ---- Case 1: core has exactly one controller ----
         ([one], Controller::Single(doc_one)) => {
-            // doc may reduce controller (warning only, matches TS)
+            // The projected controller must be the signed core controller.
             if doc_one != one {
-                warnings.push(issue(
-                    DidValidationCode::CoreProjectionMismatch,
+                errors.push(issue(
+                    DidValidationCode::ControllerInvalid,
                     DidValidationLocation::Controller,
                 ));
             }
@@ -301,14 +315,13 @@ fn validate_controller_projection(
         }
 
         // ---- Case 2: core has multiple controllers ----
-        (many, Controller::Single(doc_one)) => {
-            // Reduced projection allowed if doc_one is one of them; otherwise warning
-            if !many.iter().any(|s| s == doc_one) {
-                warnings.push(issue(
-                    DidValidationCode::CoreProjectionMismatch,
-                    DidValidationLocation::Controller,
-                ));
-            }
+        (_many, Controller::Single(_)) => {
+            // The projection never collapses several signed controllers into one;
+            // a single-controller document cannot represent a multi-controller core.
+            errors.push(issue(
+                DidValidationCode::ControllerInvalid,
+                DidValidationLocation::Controller,
+            ));
         }
         (many, Controller::Multiple(doc_arr)) => {
             let mut core_sorted = many.to_vec();

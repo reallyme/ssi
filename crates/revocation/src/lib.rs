@@ -16,10 +16,10 @@ mod statuslist;
 
 pub use cache::{InMemoryRevocationCache, RevocationEvidenceCache};
 pub use composite::CompositeStatusChecker;
-pub use error::{RevocationPolicyError, StatusCheckError};
+pub use error::{RevocationCacheError, RevocationPolicyError, StatusCheckError};
 pub use model::{
     CompositeRevocationPolicy, OcspPolicy, RevocationEvidenceMeta, RevocationSource, SoftFailMode,
-    StatusChecker,
+    StatusChecker, DEFAULT_MAX_OCSP_AGE_SECS, DEFAULT_OCSP_ALLOWED_SKEW_SECS,
 };
 pub use presets::{eu_qtsp_x509, hybrid_fallback, vc_statuslist};
 pub use reallyme_trust_x509::X509Certificate;

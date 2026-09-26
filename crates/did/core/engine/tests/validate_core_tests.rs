@@ -189,7 +189,7 @@ fn prev_mismatch_is_detected() {
 }
 
 #[test]
-fn controller_reduction_is_allowed_with_warning() {
+fn controller_mismatch_with_signed_core_is_an_error() {
     let (core, cid) = make_valid_core(1, None);
     let cbor_b64 = bytes_to_base64url(&core.canonical_cbor().unwrap());
 
@@ -204,6 +204,7 @@ fn controller_reduction_is_allowed_with_warning() {
 
     let res = validate_core_snapshot(view);
 
-    assert!(res.ok);
-    assert!(!res.warnings.is_empty());
+    assert!(!res.ok);
+    assert!(has_code(&res.errors, DidValidationCode::ControllerInvalid));
+    assert!(res.warnings.is_empty());
 }

@@ -28,8 +28,6 @@ pub enum RegistryPayload {
         /// Optional bounded registrar explanation.
         details: Option<BoundedText>,
     },
-    /// Legacy raw Boolean response.
-    Boolean(bool),
 }
 
 /// Validated current-profile pagination state.

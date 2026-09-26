@@ -33,9 +33,7 @@ use crate::committed::{
         HolderBinding, MerkleTreeInfo, PartyReference, PublicKeyRef, Signature,
         SubjectPrivateBundle,
     },
-    proof_binding::{
-        p256_coordinates, CredentialProofBinding, CREDENTIAL_PROOF_BINDING_VERSION,
-    },
+    proof_binding::{p256_coordinates, CredentialProofBinding, CREDENTIAL_PROOF_BINDING_VERSION},
 };
 
 /// Input for issuing a credential (public envelope).
@@ -149,8 +147,9 @@ pub fn issue_credential_with_payload_signer<R: SaltRng + ?Sized>(
     signer: &dyn CredentialPayloadSigner,
     rng: &mut R,
 ) -> Result<IssueResult, VcError> {
-    // Basic hygiene
-    if input.valid_until < input.valid_from {
+    // Basic hygiene: `valid_until` is exclusive, so an empty window is rejected
+    // consistently with public envelope validation.
+    if input.valid_until <= input.valid_from {
         return Err(VcError::InvalidCredential);
     }
     if input.limits.salt_len < MIN_COMMITMENT_SALT_BYTES
@@ -188,12 +187,12 @@ pub fn issue_credential_with_payload_signer<R: SaltRng + ?Sized>(
 
         let v = claims.get(name).ok_or(VcError::InvalidCredential)?;
 
-        let value_bytes = jcs_utf8_bytes(v)?;
+        let mut value_bytes = Zeroizing::new(jcs_utf8_bytes(v)?);
         if value_bytes.len() > max_value_len {
             return Err(VcError::InvalidCredential);
         }
 
-        let salt = generate_nonzero_salt(rng, salt_len)?;
+        let mut salt = generate_nonzero_salt(rng, salt_len)?;
 
         let path = format!("/claims/{}", name);
 
@@ -206,8 +205,8 @@ pub fn issue_credential_with_payload_signer<R: SaltRng + ?Sized>(
 
         openings.push(ClaimOpening {
             claim_path: path,
-            salt,
-            value: value_bytes,
+            salt: core::mem::take(&mut *salt),
+            value: core::mem::take(&mut *value_bytes),
             index: opening_index,
             merkle_path: Vec::new(), // filled after tree built
         });
@@ -342,8 +341,7 @@ fn build_credential_proof_binding(
 
     let (issuer_public_key_x, issuer_public_key_y) =
         p256_coordinates(&envelope.issuer_signature.verification_key.public_key)?;
-    let (subject_public_key_x, subject_public_key_y) =
-        p256_coordinates(&holder_key.public_key)?;
+    let (subject_public_key_x, subject_public_key_y) = p256_coordinates(&holder_key.public_key)?;
     let envelope_hash = <[u8; 32]>::try_from(subject_bundle.envelope_hash.as_slice())
         .map_err(|_| VcError::InvalidCredential)?;
     let claims_root = <[u8; 32]>::try_from(envelope.claims_commitment.merkle_root.as_slice())

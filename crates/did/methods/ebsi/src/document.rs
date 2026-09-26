@@ -180,6 +180,8 @@ pub fn parse_and_validate_did_ebsi_document_for_state(
     if bytes.is_empty() || bytes.len() > limits.max_bytes {
         return Err(DidEbsiError::new(DidEbsiErrorReason::DocumentLimitExceeded));
     }
+    identity_core_primitives::validate_json::validate_json(bytes)
+        .map_err(|_| DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
     let value: Value = serde_json::from_slice(bytes)
         .map_err(|_| DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
     validate_shape_limits(&value, limits)?;

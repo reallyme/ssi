@@ -21,6 +21,9 @@ pub fn eu_age_policy() -> VpPolicy {
         allow_sd_jwt: true,
         allow_zk: true, // strongly recommended
 
+        // Only credentials of this claimset satisfy this profile.
+        allowed_claimsets: Some(vec!["eu.age.v1".into()]),
+
         ..VpPolicy::default()
     }
 }

@@ -8,6 +8,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <limits.h>
+#include <pthread.h>
+#include <time.h>
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
@@ -25,22 +27,48 @@
 #include <xmlsec/errors.h>
 #include <xmlsec/list.h>
 #include <xmlsec/keysdata.h>
+#include <xmlsec/transforms.h>
 
 // We currently target the OpenSSL xmlsec backend (Homebrew: xmlsec1-openssl).
 #include <xmlsec/openssl/app.h>
 #include <xmlsec/openssl/crypto.h>
 #include <xmlsec/openssl/x509.h>
 
+/*__ABI_DEFINES__*/
+
 /*__SCHEMA_BYTES__*/
 
+/*
+ * Attribute local names that xmlSecAddIDs registers as XML IDs. xmlsec matches
+ * `xmlAttr.name`, which is the local name, so a namespace-prefixed attribute
+ * such as `foo:Id` is registered as well. The Rust profile pre-pass mirrors
+ * this exact local-name set when it enforces ID uniqueness.
+ */
 static const xmlChar* meid_id_attrs[] = {
-    BAD_CAST "id",  /* xml:id */
+ BAD_CAST "id",
  BAD_CAST "Id",
  BAD_CAST "ID",
  NULL
 };
 
-static int meid_xmlsec_initialized = 0;
+/*
+ * Threading model.
+ *
+ * libxml2, libxslt, and xmlsec keep process-wide state: parser globals, the
+ * external entity loader, default XSLT security preferences, the xmlsec error
+ * callback, and the crypto backend registration. That state is initialized
+ * exactly once through pthread_once. The resulting status is recorded once and
+ * returned unchanged to every later caller, so a failed initialization fails
+ * closed deterministically and is never retried against half-initialized
+ * library state. The compiled trusted-list schema is created inside the same
+ * once routine and is only read afterwards.
+ *
+ * Per-call state (document, keys manager, signature context) is owned by the
+ * calling thread for the duration of one call. The Rust safe wrapper
+ * additionally serializes verification calls behind a process-wide lock.
+ */
+static pthread_once_t meid_global_init_once = PTHREAD_ONCE_INIT;
+static int meid_global_init_status = MEID_XMLSEC_STATUS_INIT_FAILED;
 static xmlSchemaPtr meid_tsl_schema = NULL;
 
 // Native libraries otherwise print certificate subjects, XML content, file
@@ -74,8 +102,10 @@ static xmlParserInputPtr meid_schema_loader(const char* url, const char* id, xml
  return NULL;
 }
 
-static int meid_tsl_schema_init_once(void) {
- if(meid_tsl_schema != NULL) return 0;
+// Runs only inside the pthread_once routine: the external entity loader is
+// process-global and must not be swapped concurrently with other parses.
+static int meid_tsl_schema_init(void) {
+ if(meid_etsi_tsl_xsd_len > (size_t)INT_MAX) return MEID_XMLSEC_STATUS_SCHEMA_INIT_FAILED;
  xmlExternalEntityLoader previous_loader = xmlGetExternalEntityLoader();
  xmlSetExternalEntityLoader(meid_schema_loader);
  xmlSchemaParserCtxtPtr parser = xmlSchemaNewMemParserCtxt(
@@ -87,14 +117,10 @@ static int meid_tsl_schema_init_once(void) {
  xmlSchemaFreeParserCtxt(parser);
  }
  xmlSetExternalEntityLoader(previous_loader);
- return (meid_tsl_schema == NULL) ? -1 : 0;
+ return (meid_tsl_schema == NULL) ? MEID_XMLSEC_STATUS_SCHEMA_INIT_FAILED : MEID_XMLSEC_STATUS_OK;
 }
 
-static int meid_xmlsec_init_once(void) {
- if(meid_xmlsec_initialized) {
- return 0;
- }
-
+static int meid_xmlsec_library_init(void) {
  // libxml2 global init
  xmlInitParser();
  LIBXML_TEST_VERSION
@@ -102,57 +128,196 @@ static int meid_xmlsec_init_once(void) {
  // libxslt global init (xmlsec may reference default security prefs)
  xsltInit();
 
- // xmlsec 1.3.9's XSLT transform asserts if default security prefs are unset.
- // We set a restrictive default to avoid file/network access even if an XSLT
- // transform is present.
+ // xmlsec's XSLT transform asserts if default security prefs are unset. A
+ // restrictive default forbids file and network access even though the
+ // reference transform allowlist below never admits XSLT.
  xsltSecurityPrefsPtr prefs = xsltNewSecurityPrefs();
- if(prefs != NULL) {
- xsltSetSecurityPrefs(prefs, XSLT_SECPREF_READ_FILE, xsltSecurityForbid);
- xsltSetSecurityPrefs(prefs, XSLT_SECPREF_WRITE_FILE, xsltSecurityForbid);
- xsltSetSecurityPrefs(prefs, XSLT_SECPREF_CREATE_DIRECTORY, xsltSecurityForbid);
- xsltSetSecurityPrefs(prefs, XSLT_SECPREF_READ_NETWORK, xsltSecurityForbid);
- xsltSetSecurityPrefs(prefs, XSLT_SECPREF_WRITE_NETWORK, xsltSecurityForbid);
- xsltSetDefaultSecurityPrefs(prefs);
+ if(prefs == NULL) return MEID_XMLSEC_STATUS_INIT_FAILED;
+ if(xsltSetSecurityPrefs(prefs, XSLT_SECPREF_READ_FILE, xsltSecurityForbid) != 0 ||
+ xsltSetSecurityPrefs(prefs, XSLT_SECPREF_WRITE_FILE, xsltSecurityForbid) != 0 ||
+ xsltSetSecurityPrefs(prefs, XSLT_SECPREF_CREATE_DIRECTORY, xsltSecurityForbid) != 0 ||
+ xsltSetSecurityPrefs(prefs, XSLT_SECPREF_READ_NETWORK, xsltSecurityForbid) != 0 ||
+ xsltSetSecurityPrefs(prefs, XSLT_SECPREF_WRITE_NETWORK, xsltSecurityForbid) != 0) {
+ xsltFreeSecurityPrefs(prefs);
+ return MEID_XMLSEC_STATUS_INIT_FAILED;
  }
+ // Ownership of `prefs` transfers to libxslt as the process default.
+ xsltSetDefaultSecurityPrefs(prefs);
 
- if(xmlSecInit() < 0) return -1;
- if(xmlSecCheckVersion() != 1) return -1;
+ if(xmlSecInit() < 0) return MEID_XMLSEC_STATUS_INIT_FAILED;
+ if(xmlSecCheckVersion() != 1) return MEID_XMLSEC_STATUS_INIT_FAILED;
  xmlSecErrorsSetCallback(meid_xmlsec_error_callback);
 
- if(xmlSecCryptoAppInit(NULL) < 0) return -1;
- if(xmlSecCryptoInit() < 0) return -1;
+ if(xmlSecCryptoAppInit(NULL) < 0) return MEID_XMLSEC_STATUS_INIT_FAILED;
+ if(xmlSecCryptoInit() < 0) return MEID_XMLSEC_STATUS_INIT_FAILED;
 
- meid_xmlsec_initialized = 1;
+ return MEID_XMLSEC_STATUS_OK;
+}
+
+static void meid_global_init_routine(void) {
+ int status = meid_xmlsec_library_init();
+ if(status == MEID_XMLSEC_STATUS_OK) {
+ status = meid_tsl_schema_init();
+ }
+ meid_global_init_status = status;
+}
+
+static int meid_global_init(void) {
+ // pthread_once publishes every write made by the routine to all callers
+ // that observe its completion, including meid_global_init_status.
+ if(pthread_once(&meid_global_init_once, meid_global_init_routine) != 0) {
+ return MEID_XMLSEC_STATUS_INIT_FAILED;
+ }
+ return meid_global_init_status;
+}
+
+/*
+ * Shared pointer/length validation for every buffer crossing the boundary.
+ * A buffer is valid when its pointer is non-null, its length is non-zero, and
+ * its length does not exceed the named per-buffer limit. The end address must
+ * be representable so later overlap checks cannot wrap.
+ */
+static int meid_validate_buffer(const void* pointer, size_t length, size_t max_length) {
+ if(pointer == NULL) return 0;
+ if(length == 0 || length > max_length) return 0;
+ if((uintptr_t)pointer > UINTPTR_MAX - (uintptr_t)length) return 0;
+ return 1;
+}
+
+// Half-open ranges [a, a+a_len) and [b, b+b_len), both previously validated.
+static int meid_buffers_overlap(const void* a, size_t a_len, const void* b, size_t b_len) {
+ uintptr_t a_start = (uintptr_t)a;
+ uintptr_t b_start = (uintptr_t)b;
+ uintptr_t a_end = a_start + (uintptr_t)a_len;
+ uintptr_t b_end = b_start + (uintptr_t)b_len;
+ return (a_start < b_end) && (b_start < a_end);
+}
+
+static int meid_validate_trusted_roots(const unsigned char* const* roots_der, const size_t* roots_der_lens,
+ size_t roots_count, const unsigned char* signer_der, size_t signer_der_capacity) {
+ // The count bound precedes every size computation below, so
+ // `roots_count * sizeof(...)` cannot overflow size_t.
+ if(roots_count == 0 || roots_count > MEID_XMLSEC_MAX_TRUSTED_ROOTS) return 0;
+ if(!meid_validate_buffer(roots_der, roots_count * sizeof(roots_der[0]),
+ MEID_XMLSEC_MAX_TRUSTED_ROOTS * sizeof(roots_der[0]))) return 0;
+ if(!meid_validate_buffer(roots_der_lens, roots_count * sizeof(roots_der_lens[0]),
+ MEID_XMLSEC_MAX_TRUSTED_ROOTS * sizeof(roots_der_lens[0]))) return 0;
+ for(size_t index = 0; index < roots_count; ++index) {
+ if(!meid_validate_buffer(roots_der[index], roots_der_lens[index],
+ MEID_XMLSEC_MAX_TRUSTED_ROOT_DER_BYTES)) return 0;
+ if(meid_buffers_overlap(roots_der[index], roots_der_lens[index], signer_der, signer_der_capacity)) return 0;
+ }
+ if(meid_buffers_overlap(roots_der, roots_count * sizeof(roots_der[0]), signer_der, signer_der_capacity)) return 0;
+ if(meid_buffers_overlap(roots_der_lens, roots_count * sizeof(roots_der_lens[0]), signer_der, signer_der_capacity)) return 0;
+ return 1;
+}
+
+static int meid_enable_transform(xmlSecPtrListPtr list, xmlSecTransformId id) {
+ if(list == NULL || id == xmlSecTransformIdUnknown) return -1;
+ return (xmlSecPtrListAdd(list, (xmlSecPtr)id) < 0) ? -1 : 0;
+}
+
+/*
+ * Install the xmlsec-side allowlists that mirror the Rust profile pre-pass.
+ *
+ * - Reference URIs: only the empty URI and same-document fragments.
+ * - Reference transforms: enveloped-signature and exclusive C14N (without
+ *   comments), plus the SHA-2 DigestMethod algorithms admitted by the profile.
+ *   xmlsec reads DigestMethod through the same per-reference enabled list.
+ * - SignedInfo: exclusive C14N plus the admitted SignatureMethod algorithms.
+ */
+static int meid_restrict_signature_context(xmlSecDSigCtxPtr dsig) {
+ dsig->enabledReferenceUris = xmlSecTransformUriTypeEmpty | xmlSecTransformUriTypeSameDocument;
+ dsig->transformCtx.enabledUris = xmlSecTransformUriTypeEmpty | xmlSecTransformUriTypeSameDocument;
+
+ xmlSecPtrListPtr reference_transforms = xmlSecPtrListCreate(xmlSecTransformIdListId);
+ if(reference_transforms == NULL) return -1;
+ if(meid_enable_transform(reference_transforms, xmlSecTransformEnvelopedId) < 0 ||
+ meid_enable_transform(reference_transforms, xmlSecTransformExclC14NId) < 0 ||
+ meid_enable_transform(reference_transforms, xmlSecTransformSha256Id) < 0 ||
+ meid_enable_transform(reference_transforms, xmlSecTransformSha384Id) < 0 ||
+ meid_enable_transform(reference_transforms, xmlSecTransformSha512Id) < 0) {
+ xmlSecPtrListDestroy(reference_transforms);
+ return -1;
+ }
+ // xmlSecDSigCtxFinalize destroys enabledReferenceTransforms; ownership of
+ // the list transfers to the context here.
+ if(dsig->enabledReferenceTransforms != NULL) {
+ xmlSecPtrListDestroy(dsig->enabledReferenceTransforms);
+ }
+ dsig->enabledReferenceTransforms = reference_transforms;
+
+ xmlSecPtrListPtr signed_info_transforms = &(dsig->transformCtx.enabledTransforms);
+ if(!xmlSecPtrListIsValid(signed_info_transforms)) return -1;
+ if(meid_enable_transform(signed_info_transforms, xmlSecTransformExclC14NId) < 0 ||
+ meid_enable_transform(signed_info_transforms, xmlSecTransformRsaSha256Id) < 0 ||
+ meid_enable_transform(signed_info_transforms, xmlSecTransformRsaSha384Id) < 0 ||
+ meid_enable_transform(signed_info_transforms, xmlSecTransformRsaSha512Id) < 0 ||
+ meid_enable_transform(signed_info_transforms, xmlSecTransformRsaPssSha256Id) < 0 ||
+ meid_enable_transform(signed_info_transforms, xmlSecTransformRsaPssSha384Id) < 0 ||
+ meid_enable_transform(signed_info_transforms, xmlSecTransformRsaPssSha512Id) < 0 ||
+ meid_enable_transform(signed_info_transforms, xmlSecTransformEcdsaSha256Id) < 0 ||
+ meid_enable_transform(signed_info_transforms, xmlSecTransformEcdsaSha384Id) < 0 ||
+ meid_enable_transform(signed_info_transforms, xmlSecTransformEcdsaSha512Id) < 0) {
+ return -1;
+ }
  return 0;
 }
 
-// Verify an enveloped XMLDSig in `xml` against a PEM bundle of trusted roots at `trusted_pem_path`.
-// Returns 0 on success, non-zero on failure.
-int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len, const char* trusted_pem_path,
- int64_t verification_time_unix, int allow_trusted_leaf, unsigned char* signer_der,
- size_t signer_der_capacity, size_t* signer_der_len) {
- if(xml == NULL || trusted_pem_path == NULL || signer_der == NULL || signer_der_len == NULL) return -1;
+// Verify an enveloped XMLDSig in `xml` against the caller-supplied DER trust
+// roots. Every root is loaded into the keys manager as a trusted certificate.
+// Returns MEID_XMLSEC_STATUS_OK on success and a negative status otherwise.
+int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len,
+ const unsigned char* const* trusted_roots_der, const size_t* trusted_roots_der_lens,
+ size_t trusted_roots_count, int64_t verification_time_unix, int allow_trusted_leaf,
+ unsigned char* signer_der, size_t signer_der_capacity, size_t* signer_der_len) {
+ if(signer_der_len == NULL) return MEID_XMLSEC_STATUS_INVALID_ARGUMENT;
+ if(!meid_validate_buffer(signer_der_len, sizeof(*signer_der_len), sizeof(*signer_der_len))) {
+ return MEID_XMLSEC_STATUS_INVALID_ARGUMENT;
+ }
+ if(!meid_validate_buffer(xml, xml_len, MEID_XMLSEC_MAX_XML_BYTES) || xml_len > (size_t)INT_MAX) {
+ return MEID_XMLSEC_STATUS_INVALID_ARGUMENT;
+ }
+ if(!meid_validate_buffer(signer_der, signer_der_capacity, MEID_XMLSEC_MAX_SIGNER_DER_BYTES)) {
+ return MEID_XMLSEC_STATUS_INVALID_ARGUMENT;
+ }
+ if(meid_buffers_overlap(xml, xml_len, signer_der, signer_der_capacity) ||
+ meid_buffers_overlap(signer_der_len, sizeof(*signer_der_len), signer_der, signer_der_capacity)) {
+ return MEID_XMLSEC_STATUS_INVALID_ARGUMENT;
+ }
+ if(!meid_validate_trusted_roots(trusted_roots_der, trusted_roots_der_lens, trusted_roots_count,
+ signer_der, signer_der_capacity)) {
+ return MEID_XMLSEC_STATUS_INVALID_ARGUMENT;
+ }
  *signer_der_len = 0;
- if(xml_len > INT_MAX) return -1;
- if(meid_xmlsec_init_once() != 0) return -2;
- if(meid_tsl_schema_init_once() != 0) return -11;
+
+ // RFC 5280 Section 6 path validation is defined at the caller-selected time.
+ // xmlsec otherwise uses the ambient system clock and could reject a valid
+ // historical signature before the independently evaluated SSI trust policy runs.
+ time_t verification_time = (time_t)verification_time_unix;
+ if((int64_t)verification_time != verification_time_unix) {
+ return MEID_XMLSEC_STATUS_VERIFICATION_TIME_UNREPRESENTABLE;
+ }
+
+ int init_status = meid_global_init();
+ if(init_status != MEID_XMLSEC_STATUS_OK) return init_status;
 
  xmlDocPtr doc = xmlReadMemory(xml, (int)xml_len, NULL, NULL,
  XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING);
  if(doc == NULL) {
- return -3;
+ return MEID_XMLSEC_STATUS_XML_PARSE_FAILED;
  }
 
  xmlNodePtr root = xmlDocGetRootElement(doc);
  if(root == NULL) {
  xmlFreeDoc(doc);
- return -4;
+ return MEID_XMLSEC_STATUS_MISSING_ROOT;
  }
 
  xmlSchemaValidCtxtPtr schema_validation = xmlSchemaNewValidCtxt(meid_tsl_schema);
  if(schema_validation == NULL) {
  xmlFreeDoc(doc);
- return -11;
+ return MEID_XMLSEC_STATUS_SCHEMA_INIT_FAILED;
  }
  xmlSchemaSetValidErrors(schema_validation, meid_xml_schema_error_callback,
  meid_xml_schema_error_callback, NULL);
@@ -160,12 +325,12 @@ int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len, const char* trusted_
  xmlSchemaFreeValidCtxt(schema_validation);
  if(schema_result != 0) {
  xmlFreeDoc(doc);
- return -12;
+ return MEID_XMLSEC_STATUS_SCHEMA_INVALID;
  }
 
  // Ensure XML ID attributes are registered for same-document references.
  //
- // Note: xmlsec uses an XPointer like `xpointer(id('TSL'))` for same-doc refs.
+ // Note: xmlsec resolves `#id` references through the document ID table.
  // Registering through xmlsec avoids double-registering libxml2 ID tables on
  // platforms that already treat `xml:id` specially.
  xmlSecAddIDs(doc, root, meid_id_attrs);
@@ -174,42 +339,47 @@ int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len, const char* trusted_
  xmlNodePtr sig_node = xmlSecFindNode(root, xmlSecNodeSignature, xmlSecDSigNs);
  if(sig_node == NULL) {
  xmlFreeDoc(doc);
- return -5;
+ return MEID_XMLSEC_STATUS_MISSING_SIGNATURE;
  }
 
  // Keys manager + trust roots.
  xmlSecKeysMngrPtr mngr = xmlSecKeysMngrCreate();
  if(mngr == NULL) {
  xmlFreeDoc(doc);
- return -6;
+ return MEID_XMLSEC_STATUS_KEYS_MANAGER_CREATE_FAILED;
  }
- int result = -10;
+ int result = MEID_XMLSEC_STATUS_SIGNATURE_INVALID;
+ xmlSecDSigCtxPtr dsig = NULL;
 
  if(xmlSecCryptoAppDefaultKeysMngrInit(mngr) < 0) {
- result = -7;
+ result = MEID_XMLSEC_STATUS_KEYS_MANAGER_INIT_FAILED;
  goto cleanup_manager;
  }
 
- // Load trusted certs (root store) for chain validation.
- if(xmlSecCryptoAppKeysMngrCertLoad(mngr, trusted_pem_path, xmlSecKeyDataFormatPem, xmlSecKeyDataTypeTrusted) < 0) {
- result = -8;
+ // Load every trusted root separately from memory. A PEM bundle loaded through
+ // a file path is read only up to its first certificate by the backend, which
+ // would silently drop every later root.
+ // Each length was validated against MEID_XMLSEC_MAX_TRUSTED_ROOT_DER_BYTES,
+ // which is far below the xmlSecSize range, so the conversion is lossless.
+ for(size_t index = 0; index < trusted_roots_count; ++index) {
+ if(xmlSecCryptoAppKeysMngrCertLoadMemory(mngr, (const xmlSecByte*)trusted_roots_der[index],
+ (xmlSecSize)trusted_roots_der_lens[index], xmlSecKeyDataFormatDer, xmlSecKeyDataTypeTrusted) < 0) {
+ result = MEID_XMLSEC_STATUS_TRUSTED_ROOT_LOAD_FAILED;
  goto cleanup_manager;
  }
+ }
 
- xmlSecDSigCtxPtr dsig = xmlSecDSigCtxCreate(mngr);
+ dsig = xmlSecDSigCtxCreate(mngr);
  if(dsig == NULL) {
- result = -9;
+ result = MEID_XMLSEC_STATUS_CONTEXT_SETUP_FAILED;
  goto cleanup_manager;
  }
 
- // RFC 5280 Section 6 path validation is defined at the caller-selected time.
- // xmlsec otherwise uses the ambient system clock and could reject a valid
- // historical signature before the independently evaluated SSI trust policy runs.
- time_t verification_time = (time_t)verification_time_unix;
- if((int64_t)verification_time != verification_time_unix) {
- result = -13;
+ if(meid_restrict_signature_context(dsig) < 0) {
+ result = MEID_XMLSEC_STATUS_POLICY_SETUP_FAILED;
  goto cleanup_context;
  }
+
  dsig->keyInfoReadCtx.certsVerificationTime = verification_time;
  if(allow_trusted_leaf != 0) {
  // Exact-leaf bootstrap trust is enforced by the Rust caller after XMLSec
@@ -222,12 +392,12 @@ int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len, const char* trusted_
  // Allow KeyInfo/X509Data for public key extraction (equivalent to `xmlsec1 --enabled-key-data x509`).
  if(!xmlSecPtrListIsValid(&(dsig->keyInfoReadCtx.enabledKeyData))) {
  if(xmlSecPtrListInitialize(&(dsig->keyInfoReadCtx.enabledKeyData), xmlSecKeyDataIdListGetKlass()) < 0) {
- result = -9;
+ result = MEID_XMLSEC_STATUS_CONTEXT_SETUP_FAILED;
  goto cleanup_context;
  }
  }
- if(xmlSecPtrListAdd(&(dsig->keyInfoReadCtx.enabledKeyData), xmlSecOpenSSLKeyDataX509Id) < 0) {
- result = -9;
+ if(xmlSecPtrListAdd(&(dsig->keyInfoReadCtx.enabledKeyData), (xmlSecPtr)xmlSecOpenSSLKeyDataX509Id) < 0) {
+ result = MEID_XMLSEC_STATUS_CONTEXT_SETUP_FAILED;
  goto cleanup_context;
  }
  int rc = xmlSecDSigCtxVerify(dsig, sig_node);
@@ -250,7 +420,7 @@ int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len, const char* trusted_
  }
  }
 
- result = ok ? 0 : -10;
+ result = ok ? MEID_XMLSEC_STATUS_OK : MEID_XMLSEC_STATUS_SIGNATURE_INVALID;
 
 cleanup_context:
  xmlSecDSigCtxDestroy(dsig);

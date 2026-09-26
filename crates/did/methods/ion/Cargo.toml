@@ -4,8 +4,8 @@
 
 [package]
 name = "reallyme-did-method-ion"
-version = "0.1.0"
-description = "did:ion Sidetree identifier syntax helpers."
+version = "0.2.0"
+description = "did:ion identifiers with authenticated Sidetree initial-state commitments."
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -13,6 +13,11 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+identity-core-primitives = { workspace = true }
+reallyme-codec = { workspace = true, features = ["base64url", "jcs"] }
+reallyme-crypto = { workspace = true, features = ["sha2"] }
+serde_json = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
 reallyme-ssi-proto = { workspace = true }
 thiserror = { workspace = true }
 

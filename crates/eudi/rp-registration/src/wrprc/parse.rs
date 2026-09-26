@@ -2,25 +2,54 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use super::{
-    ParsedRegistrationCertificate, RegistrationCertificatePolicy, ETSI_TS_119_475_WRPRC_POLICY_OID,
+    ParsedRegistrationCertificate, RegisteredCredentialFormat, RegistrationCertificatePolicy,
+    ETSI_TS_119_475_WRPRC_POLICY_OID,
 };
 use crate::json::{canonical_json, deserialize_strict, StrictValue};
 use crate::{
-    ArtifactDigest, BoundedText, RegistrationError, RegistrationErrorReason, WrpEntitlement,
+    ArtifactDigest, BoundedText, CredentialRequest, RegistrationError, RegistrationErrorReason,
+    WrpEntitlement,
 };
 
 const MAX_WRPRC_VALIDITY_SECONDS: u64 = 31_622_400;
 
-/// Parses strict TS 119 475 WRPRC payload claims without authenticating them.
+/// Parses strict TS 119 475 WRPRC JWT payload claims without authenticating
+/// them or evaluating them against a clock.
 pub fn parse_registration_certificate(
     payload: &[u8],
 ) -> Result<ParsedRegistrationCertificate, RegistrationError> {
     let raw: RawWrprc = deserialize_strict(payload)?;
+    parse_raw_claims(raw, payload)
+}
+
+/// Parses a CWT claims set already projected onto JWT claim names.
+///
+/// `signed_payload` is the exact CBOR payload whose digest the parsed claims
+/// retain; `claims` must be its strict decoding.
+#[cfg(any(feature = "native", feature = "wasm"))]
+pub(super) fn parse_registration_certificate_claims(
+    claims: &StrictValue,
+    signed_payload: &[u8],
+) -> Result<ParsedRegistrationCertificate, RegistrationError> {
+    let encoded = Zeroizing::new(serde_json::to_vec(claims).map_err(|_error| {
+        RegistrationError::from_reason(RegistrationErrorReason::SerializationFailed)
+    })?);
+    let raw: RawWrprc = serde_json::from_slice(&encoded)
+        .map_err(|_error| RegistrationError::from_reason(RegistrationErrorReason::InvalidField))?;
+    parse_raw_claims(raw, signed_payload)
+}
+
+fn parse_raw_claims(
+    mut raw: RawWrprc,
+    payload: &[u8],
+) -> Result<ParsedRegistrationCertificate, RegistrationError> {
     if raw.iat == 0 || raw.exp <= raw.iat {
         return Err(RegistrationError::from_reason(
             RegistrationErrorReason::InvalidValidityInterval,
@@ -50,7 +79,11 @@ pub fn parse_registration_certificate(
         let _ = BoundedText::try_new(value)?;
     }
     validate_collection_value(&raw.purpose)?;
-    validate_collection_value(&raw.credentials)?;
+    if raw.credentials.is_empty() {
+        return Err(RegistrationError::from_reason(
+            RegistrationErrorReason::InvalidField,
+        ));
+    }
     let certificate_policy = validate_policy_identifiers(&raw.policy_id)?;
     let entitlements = validate_wrprc_entitlements(&raw.entitlements)?;
     let provides_attestations_required = entitlements
@@ -86,6 +119,29 @@ pub fn parse_registration_certificate(
     };
     let canonical_semantic = Zeroizing::new(canonical_json(&semantic)?);
     let semantic_content_digest = ArtifactDigest::of(&canonical_semantic);
+    let registered_credentials = core::mem::take(&mut raw.credentials)
+        .into_iter()
+        .map(|mut credential| {
+            CredentialRequest::try_new(
+                core::mem::take(&mut credential.format),
+                core::mem::take(&mut credential.meta),
+                core::mem::take(&mut credential.claims)
+                    .into_iter()
+                    .map(|mut claim| core::mem::take(&mut claim.path))
+                    .collect(),
+            )
+        })
+        .collect::<Result<Vec<_>, RegistrationError>>()?;
+    let registered_credential_formats = registered_credentials
+        .iter()
+        .map(|credential| match credential.format() {
+            "dc+sd-jwt" => Ok(RegisteredCredentialFormat::DcSdJwt),
+            "mso_mdoc" => Ok(RegisteredCredentialFormat::MsoMdoc),
+            _ => Err(RegistrationError::from_reason(
+                RegistrationErrorReason::UnsupportedProfile,
+            )),
+        })
+        .collect::<Result<Vec<_>, RegistrationError>>()?;
     if raw.intermediary.is_some() && raw.act.is_some() {
         return Err(RegistrationError::from_reason(
             RegistrationErrorReason::SemanticBindingMismatch,
@@ -112,6 +168,8 @@ pub fn parse_registration_certificate(
         certificate_policy,
         certificate_policy_uri_digest: ArtifactDigest::of(certificate_policy_uri.as_bytes()),
         semantic_content_digest,
+        registered_credentials,
+        registered_credential_formats,
     })
 }
 
@@ -139,7 +197,7 @@ struct RawWrprc {
     exp: u64,
     status: RawStatus,
     purpose: StrictValue,
-    credentials: StrictValue,
+    credentials: Vec<RawWrprcCredential>,
     #[serde(default)]
     provides_attestations: Option<StrictValue>,
     intermediary: Option<RawIntermediary>,
@@ -159,6 +217,39 @@ struct RawStatusList {
     uri: String,
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct RawWrprcCredential {
+    format: String,
+    meta: BTreeMap<String, StrictValue>,
+    claims: Vec<RawWrprcClaim>,
+}
+
+impl Zeroize for RawWrprcCredential {
+    fn zeroize(&mut self) {
+        self.format.zeroize();
+        for (mut key, mut value) in core::mem::take(&mut self.meta) {
+            key.zeroize();
+            value.zeroize();
+        }
+        self.claims.zeroize();
+    }
+}
+
+impl Drop for RawWrprcCredential {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl ZeroizeOnDrop for RawWrprcCredential {}
+
+#[derive(Deserialize, Serialize, Zeroize, ZeroizeOnDrop)]
+#[serde(deny_unknown_fields)]
+struct RawWrprcClaim {
+    path: String,
+}
+
 #[derive(Deserialize, Serialize, Zeroize, ZeroizeOnDrop)]
 #[serde(deny_unknown_fields)]
 struct RawIntermediary {
@@ -174,7 +265,7 @@ struct SemanticClaims<'a> {
     subject_given_name: Option<&'a str>,
     subject_family_name: Option<&'a str>,
     purpose: &'a StrictValue,
-    credentials: &'a StrictValue,
+    credentials: &'a [RawWrprcCredential],
     policy_id: &'a [String],
     certificate_policy: &'a str,
     service_description: &'a StrictValue,
@@ -242,13 +333,25 @@ fn validate_wrprc_entitlements(
             RegistrationErrorReason::InvalidField,
         ));
     }
-    values
-        .iter()
-        .map(|value| match value {
-            StrictValue::String(value) => WrpEntitlement::parse(value),
-            _ => Err(RegistrationError::from_reason(
+    let mut entitlements = Vec::new();
+    entitlements
+        .try_reserve_exact(values.len())
+        .map_err(|_error| {
+            RegistrationError::from_reason(RegistrationErrorReason::CapacityUnavailable)
+        })?;
+    for value in values {
+        let StrictValue::String(value) = value else {
+            return Err(RegistrationError::from_reason(
                 RegistrationErrorReason::InvalidField,
-            )),
-        })
-        .collect()
+            ));
+        };
+        let entitlement = WrpEntitlement::parse(value)?;
+        if entitlements.contains(&entitlement) {
+            return Err(RegistrationError::from_reason(
+                RegistrationErrorReason::InvalidField,
+            ));
+        }
+        entitlements.push(entitlement);
+    }
+    Ok(entitlements)
 }

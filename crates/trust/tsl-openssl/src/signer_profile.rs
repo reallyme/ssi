@@ -403,8 +403,21 @@ fn shares_scheme_community(left: &TrustedList, right: &TrustedList) -> bool {
 
 #[cfg(feature = "native")]
 fn list_contains_issuer(list: &TrustedList, signer: &X509Certificate) -> bool {
+    // TS 119 612 clause 5.5.3 requires every certificate representation of a
+    // service identity to carry the same subject name and public key, and the
+    // parser enforces that. One representation per service therefore decides
+    // the subject/signature test exactly. RFC 5280 clause 4.2.1.9 only lets a
+    // CA key verify certificate signatures, so non-CA service identities are
+    // excluded before any certificate is parsed.
     list.services()
-        .flat_map(|service| service.certificates_der().iter())
+        .filter_map(|service| match &service.digital_identity {
+            identity_trust_tsl_core::ServiceDigitalIdentity::Pki(identity)
+                if identity.is_certificate_authority() =>
+            {
+                identity.certificates_der.first()
+            }
+            _ => None,
+        })
         .filter_map(|der| envelopes_x509::parse_cert_der(der).ok())
         .any(|candidate| {
             candidate.profile.subject == signer.profile.issuer

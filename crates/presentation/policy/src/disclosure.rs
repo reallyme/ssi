@@ -9,6 +9,7 @@ use identity_presentation_vp_core::model::{
 };
 
 use crate::error::VpPolicyError;
+use crate::evaluate::MAX_POLICY_DISCLOSURES;
 
 /// A policy-relevant disclosure intent extracted from a presentation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,6 +32,10 @@ pub fn extract_disclosed_claims(pres: &Presentation) -> Result<Vec<DisclosedClai
             extract_sd_jwt_disclosed_claims(sd).map_err(|_| VpPolicyError::ProofInvalid)
         }
 
+        Presentation::Zk(zk) if zk.disclosures.len() > MAX_POLICY_DISCLOSURES => {
+            Err(VpPolicyError::ProofInvalid)
+        }
+
         Presentation::Zk(zk) => zk
             .disclosures
             .iter()
@@ -51,7 +56,12 @@ pub fn extract_disclosed_claims(pres: &Presentation) -> Result<Vec<DisclosedClai
 fn extract_sd_jwt_disclosed_claims(
     vp: &SdJwtVcPresentation,
 ) -> Result<Vec<DisclosedClaim>, VpPolicyError> {
+    if vp.disclosures.len() > MAX_POLICY_DISCLOSURES {
+        return Err(VpPolicyError::ProofInvalid);
+    }
     let mut out = Vec::new();
+    out.try_reserve(vp.disclosures.len())
+        .map_err(|_| VpPolicyError::ProofInvalid)?;
 
     for encoded in &vp.disclosures {
         let bytes = codec_base64url::base64url_to_bytes(encoded)

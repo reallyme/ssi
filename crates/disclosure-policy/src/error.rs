@@ -40,6 +40,10 @@ pub enum VpPolicyError {
     #[error("required claim missing")]
     MissingClaim,
 
+    /// The presentation disclosed a claim outside the policy allow-list.
+    #[error("unexpected claim disclosure")]
+    UnexpectedDisclosure,
+
     /// The disclosure mode is not accepted for the required claim.
     #[error("disclosure mode not allowed")]
     DisclosureModeNotAllowed,
@@ -110,6 +114,7 @@ impl From<VpPolicyError> for IdentityCoreErrorReason {
             VpPolicyError::ClaimRegistryInvalid
             | VpPolicyError::RequiredClaimInvalid
             | VpPolicyError::MissingClaim
+            | VpPolicyError::UnexpectedDisclosure
             | VpPolicyError::DisclosureModeNotAllowed
             | VpPolicyError::PredicateNotSatisfied => {
                 Self::IDENTITY_CORE_ERROR_REASON_PRESENTATION_POLICY_NOT_SATISFIED

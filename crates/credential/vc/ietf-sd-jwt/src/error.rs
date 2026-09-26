@@ -52,6 +52,21 @@ pub enum IetfSdJwtVcError {
 
     #[error("_sd must contain unique digest strings")]
     InvalidSdClaim,
+
+    #[error("invalid verification policy")]
+    InvalidVerificationPolicy,
+
+    #[error("invalid temporal claim")]
+    InvalidTemporalClaim,
+
+    #[error("credential has expired")]
+    CredentialExpired,
+
+    #[error("credential is not yet valid")]
+    CredentialNotYetValid,
+
+    #[error("SD-JWT processing limit exceeded")]
+    ProcessingLimitExceeded,
 }
 
 impl From<IetfSdJwtVcError> for IdentityCoreErrorReason {
@@ -101,6 +116,15 @@ impl From<IetfSdJwtVcError> for IdentityCoreErrorReason {
             }
             IetfSdJwtVcError::InvalidSdClaim => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_IETF_SD_JWT_VC_INVALID_SD_CLAIM
+            }
+            IetfSdJwtVcError::InvalidVerificationPolicy
+            | IetfSdJwtVcError::ProcessingLimitExceeded => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_IETF_SD_JWT_VC_INVALID_INPUT
+            }
+            IetfSdJwtVcError::InvalidTemporalClaim
+            | IetfSdJwtVcError::CredentialExpired
+            | IetfSdJwtVcError::CredentialNotYetValid => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_VALIDITY_WINDOW
             }
         }
     }

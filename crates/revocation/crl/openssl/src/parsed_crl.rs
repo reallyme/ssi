@@ -17,10 +17,12 @@ pub struct ParsedOpenSslCrl {
     pub crl: X509Crl,
     /// Revoked certificate serial numbers.
     pub revoked_serials: Vec<Vec<u8>>,
+    /// Serial numbers carrying the temporary `certificateHold` reason.
+    pub suspended_serials: Vec<Vec<u8>>,
     /// `thisUpdate` as Unix seconds.
-    pub this_update_unix: Option<u64>,
+    pub this_update_unix: u64,
     /// `nextUpdate` as Unix seconds.
-    pub next_update_unix: Option<u64>,
+    pub next_update_unix: u64,
     /// Issuer certificate used to verify the CRL signature.
     pub issuer_cert: X509,
 }
@@ -30,6 +32,7 @@ impl core::fmt::Debug for ParsedOpenSslCrl {
         f.debug_struct("ParsedOpenSslCrl")
             .field("issuer_key", &self.issuer_key)
             .field("revoked_serials", &self.revoked_serials)
+            .field("suspended_serials", &self.suspended_serials)
             .field("this_update_unix", &self.this_update_unix)
             .field("next_update_unix", &self.next_update_unix)
             .finish()
@@ -41,6 +44,7 @@ impl From<ParsedOpenSslCrl> for ParsedCrl {
         ParsedCrl {
             issuer_key: crl.issuer_key,
             revoked_serials: crl.revoked_serials,
+            suspended_serials: crl.suspended_serials,
             this_update_unix: crl.this_update_unix,
             next_update_unix: crl.next_update_unix,
         }

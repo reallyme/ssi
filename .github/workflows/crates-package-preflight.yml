@@ -13,7 +13,7 @@ on:
         description: Release version without a leading v
         required: true
         type: string
-        default: 0.1.0
+        default: 0.2.0
 
 concurrency:
   group: crates-package-preflight-${{ inputs.version }}-${{ github.sha }}
@@ -140,6 +140,18 @@ jobs:
         working-directory: reallyme/ssi
         run: node scripts/verify_release_attestation.mjs
 
+      - name: Generate clean SSI conformance evidence
+        working-directory: reallyme/ssi
+        run: node scripts/generate_conformance_reports.mjs --output-dir "${RUNNER_TEMP}/ssi-conformance"
+
+      - name: Upload SSI conformance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}
+          path: ${{ runner.temp }}/ssi-conformance
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Write reviewed package attestation
         env:
           RELEASE_SHA: ${{ needs.verify-source-sha.outputs.release_sha }}
@@ -167,5 +179,6 @@ jobs:
             echo "- Version: \`${RELEASE_VERSION}\`"
             echo "- Commit: \`${RELEASE_SHA}\`"
             echo "- Publish set: eighteen SSI support crates in verified dependency order"
+            echo "- Conformance evidence: \`reallyme-ssi-conformance-${RELEASE_VERSION}-${RELEASE_SHA}\`"
             echo "- Attestation run ID: \`${GITHUB_RUN_ID}\`"
           } >> "$GITHUB_STEP_SUMMARY"

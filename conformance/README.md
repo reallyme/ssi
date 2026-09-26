@@ -12,14 +12,22 @@ concrete ZK backend tests.
 - `upstream/` contains pinned normative source metadata and upstream reference
   test registries.
 - `fixtures/` contains inputs owned specifically by conformance executions.
-- `results/` contains generated release evidence derived from the same records.
+- `dependencies.lock.json` pins the published dependency versions recorded in
+  release evidence.
 - `concepts.json` ties local crates, public APIs, requirement files, and
   publishing posture into one machine-checked inventory.
 
 The root `vectors/` directory contains reusable cross-crate and cross-language
 vectors. Files move into `conformance/fixtures/` only when they exist solely as
-inputs to a conformance run; execution evidence belongs in
-`conformance/results/`.
+inputs to a conformance run.
+
+Generated reports are release evidence rather than source metadata. The package
+preflight workflow generates them from a clean release commit, uploads the
+hashed bundle as a workflow artifact, and the release workflow attaches the
+same bundle to the GitHub release. Reviewed bundles are retained by
+`reallyme/identity-conformance`; they are deliberately not committed here
+because a commit cannot truthfully contain evidence stamped with its own commit
+identifier.
 
 Protocol, wallet, SDK, and concrete ZK conformance suites belong in their owning
 repositories and should be referenced here only as explicit upstream or external

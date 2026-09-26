@@ -268,6 +268,10 @@ fn create_did_with_manual_verification_methods() {
 
     assert_eq!(vm_ids, vec!["#ed", "#x"]);
 
+    // Only attestation-capable keys receive default update authority.
+    let policy = doc.update_policy.as_ref().expect("update policy");
+    assert_eq!(policy.allowed_verification_methods, vec!["#ed".to_owned()]);
+
     assert!(!ks.get_private("#ed").unwrap().is_empty());
     assert!(!ks.get_public("#x").unwrap().is_empty());
 

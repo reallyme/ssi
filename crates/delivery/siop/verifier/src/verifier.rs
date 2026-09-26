@@ -7,10 +7,12 @@ use envelopes_jwk::Jwk;
 use envelopes_jwt::jwt::{decode_verify_jwt_signature_only, JwtError};
 
 use identity_presentation_delivery_siop_core::{
-    SiopAuthenticationRequest, SiopIdTokenClaims, MAX_SIOP_REQUEST_LIFETIME_SECONDS,
-    MAX_SIOP_TEXT_BYTES,
+    validate_siop_authentication_request, SiopAuthenticationRequest, SiopAuthenticationResponse,
+    SiopDeliveryError, SiopIdTokenClaims, MAX_SIOP_REQUEST_LIFETIME_SECONDS, MAX_SIOP_TEXT_BYTES,
 };
+use reallyme_crypto::operations::constant_time::equal as constant_time_equal;
 
+use crate::subject_binding::verify_subject_binding;
 use crate::SiopVerifierError;
 use serde::Deserialize;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
@@ -37,7 +39,8 @@ struct JwtProtectedHeader {
 /// Verified SIOP ID token output.
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct VerifiedSiopIdToken {
-    /// Decoded SIOP claims that passed signature, audience, nonce, and time checks.
+    /// Decoded SIOP claims that passed signature, subject binding, audience,
+    /// nonce, and time checks.
     pub claims: SiopIdTokenClaims,
 
     /// Optional key identifier from the JWT protected header.
@@ -171,6 +174,14 @@ fn map_jwt_err(e: JwtError) -> SiopVerifierError {
 }
 
 /// Verify a compact JWT SIOP ID token against expected audience and nonce.
+///
+/// Besides the signature, audience, nonce, and lifetime, this enforces the
+/// SIOPv2 self-issued subject binding: `iss` must equal `sub`, and the
+/// verifying key must be the subject's key (JWK thumbprint of `sub_jwk`, or a
+/// `kid` that is a verification method of the DID in `sub`).
+///
+/// `expected_audience` must be the relying party's `client_id`. This function
+/// does not track nonce use; see [`verify_siop_authentication_response`].
 pub fn verify_siop_id_token_jwt(
     id_token_jwt: &str,
     resolver: &dyn SiopKeyResolver,
@@ -188,17 +199,28 @@ pub fn verify_siop_id_token_jwt(
         decode_verify_jwt_signature_only(id_token_jwt, &jwk, &public_key).map_err(map_jwt_err)?;
 
     validate_claims(&claims, expected_audience, expected_nonce_b64url, now_unix)?;
+    verify_subject_binding(&claims, kid.as_deref(), &jwk)?;
 
     Ok(VerifiedSiopIdToken { claims, kid })
 }
 
-/// Verify a SIOP response against a request (nonce/audience/expiry).
+/// Verify a SIOP ID token against the originating request.
+///
+/// The request is revalidated at `now_unix`, the ID token audience must
+/// contain the request `client_id` (SIOPv2 §11.1), and the nonce must equal
+/// the request nonce.
+///
+/// Replay: the request nonce is single-use. After this function succeeds the
+/// caller must atomically mark the request (and its nonce) as consumed in its
+/// session store and reject any later response for the same request; this
+/// stateless verifier cannot do that on the caller's behalf.
 pub fn verify_siop_authentication_response(
     req: &SiopAuthenticationRequest,
     resp_id_token_jwt: &str,
     resolver: &dyn SiopKeyResolver,
     now_unix: u64,
 ) -> Result<VerifiedSiopIdToken, SiopVerifierError> {
+    validate_siop_authentication_request(req, now_unix).map_err(map_request_error)?;
     if now_unix >= req.expires_at {
         return Err(SiopVerifierError::Expired);
     }
@@ -208,8 +230,52 @@ pub fn verify_siop_authentication_response(
     verify_siop_id_token_jwt(
         resp_id_token_jwt,
         resolver,
-        &req.audience,
+        &req.client_id,
         &nonce_b64url,
         now_unix,
     )
+}
+
+/// Verify a complete SIOP authentication response, including `state`.
+///
+/// `expected_state` is the `state` value the relying party sent with the
+/// request, if any. The response must echo it exactly; a response state
+/// without an expected state, or the reverse, is rejected. All checks and
+/// the single-use nonce obligation of [`verify_siop_authentication_response`]
+/// apply.
+pub fn verify_siop_authentication_response_with_state(
+    req: &SiopAuthenticationRequest,
+    response: &SiopAuthenticationResponse,
+    expected_state: Option<&str>,
+    resolver: &dyn SiopKeyResolver,
+    now_unix: u64,
+) -> Result<VerifiedSiopIdToken, SiopVerifierError> {
+    verify_response_state(response.state.as_deref(), expected_state)?;
+    let id_token =
+        core::str::from_utf8(&response.id_token).map_err(|_| SiopVerifierError::InvalidInput)?;
+    verify_siop_authentication_response(req, id_token, resolver, now_unix)
+}
+
+fn verify_response_state(
+    received: Option<&str>,
+    expected: Option<&str>,
+) -> Result<(), SiopVerifierError> {
+    match (received, expected) {
+        (None, None) => Ok(()),
+        (Some(received), Some(expected))
+            if !expected.is_empty()
+                && expected.len() <= MAX_SIOP_TEXT_BYTES
+                && constant_time_equal(received.as_bytes(), expected.as_bytes()) =>
+        {
+            Ok(())
+        }
+        _ => Err(SiopVerifierError::StateMismatch),
+    }
+}
+
+fn map_request_error(error: SiopDeliveryError) -> SiopVerifierError {
+    match error {
+        SiopDeliveryError::Expired => SiopVerifierError::Expired,
+        SiopDeliveryError::InvalidInput => SiopVerifierError::InvalidInput,
+    }
 }

@@ -6,7 +6,7 @@
     "keyword": "MUST",
     "feature": "issuer_signed_mdoc",
     "implementation": ["crates/envelopes/mdoc/src/issue.rs", "crates/envelopes/mdoc/src/issuer_auth.rs", "crates/envelopes/mdoc/src/verify.rs", "vectors/mdoc-issuer-signed.json"],
-    "positive_tests": ["issues_and_verifies_issuer_signed_mdoc", "issuance_is_deterministic_for_ordered_content", "portable_mdoc_issuer_signed_vector_matches_value_digests", "issuer_auth_uses_iso_tagged_mso_types", "mdoc-issuer-signed"],
+    "positive_tests": ["issues_and_verifies_issuer_signed_mdoc", "issuance_is_order_independent_with_fixed_entropy", "portable_mdoc_issuer_signed_vector_matches_value_digests", "issuer_auth_uses_iso_tagged_mso_types", "mdoc-issuer-signed"],
     "negative_tests": ["verification_rejects_tampered_issuer_signed_item", "verification_rejects_wrong_issuer_namespace", "verification_rejects_wrong_issuer_key", "issuance_rejects_invalid_validity_window"],
     "applicable": true,
     "exclusion_reason": null

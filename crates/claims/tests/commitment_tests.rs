@@ -12,9 +12,9 @@ use reallyme_credential_claims::{
     verify_claim_opening, verify_subject_private_bundle, ClaimCommitmentBuildInput,
     ClaimDefinition, ClaimDisclosurePolicy, ClaimOpening, ClaimSaltSource, ClaimType, ClaimValue,
     ClaimsError, ClaimsInvalidReason, ClaimsRegistry, CredentialAlgorithm, DisclosureMode,
-    KeyAssurance, KeyReference, PublicKeyRef, PublicKeyRepresentation, RawPublicKeySerialization,
-    Signature, CLAIM_COMMITMENT_HASH_ALG_SHA256, CLAIM_COMMITMENT_VALUE_ENCODING,
-    ENCODING_JCS_UTF8,
+    KeyAssurance, KeyReference, MerkleTreeInfo, PublicKeyRef, PublicKeyRepresentation,
+    RawPublicKeySerialization, Signature, CLAIM_COMMITMENT_HASH_ALG_SHA256,
+    CLAIM_COMMITMENT_VALUE_ENCODING, ENCODING_JCS_UTF8,
 };
 
 struct DeterministicSaltSource {
@@ -176,7 +176,7 @@ fn builds_and_verifies_claim_commitment_from_normalized_values() {
     assert_eq!(built.bundle.claims.len(), 2);
     verify_subject_private_bundle(&built.commitment, &built.bundle).unwrap();
     for opening in &built.bundle.claims {
-        verify_claim_opening(&built.commitment, opening).unwrap();
+        verify_claim_opening(&built.commitment, &built.bundle.tree, opening).unwrap();
     }
 }
 
@@ -324,5 +324,208 @@ fn unsupported_commitment_encoding_is_rejected_by_verifier() {
         Err(ClaimsError::InvalidInput(
             ClaimsInvalidReason::UnsupportedCommitmentEncoding
         ))
+    );
+}
+
+fn three_claim_registry() -> ClaimsRegistry {
+    let mut claims = BTreeMap::new();
+    for (claim_id, claim_type) in [
+        ("age", ClaimType::UnsignedInteger),
+        ("country", ClaimType::String),
+        ("score", ClaimType::SignedInteger),
+    ] {
+        claims.insert(claim_id.to_owned(), definition(claim_id, claim_type));
+    }
+    ClaimsRegistry {
+        claimset_id: "claims.commitment.three.v1".to_owned(),
+        claims,
+    }
+}
+
+fn three_claim_payload() -> ClaimValue {
+    let mut values = BTreeMap::new();
+    values.insert("age".to_owned(), ClaimValue::Unsigned(42));
+    values.insert("country".to_owned(), ClaimValue::String("DE".to_owned()));
+    values.insert("score".to_owned(), ClaimValue::Signed(-7));
+    ClaimValue::Object(values)
+}
+
+#[test]
+fn standalone_opening_rejects_index_outside_leaf_count() {
+    let registry = three_claim_registry();
+    let payload = three_claim_payload();
+    let built = build_claims_commitment(
+        build_input(&registry, &payload),
+        &mut DeterministicSaltSource { next: 5 },
+    )
+    .unwrap();
+    assert_eq!(built.bundle.tree.count, 3);
+    let last = &built.bundle.claims[2];
+    let mut shifted = duplicate_opening(last);
+    shifted.index = 3;
+
+    assert_eq!(
+        verify_claim_opening(&built.commitment, &built.bundle.tree, &shifted),
+        Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidPrivateBundleTree
+        ))
+    );
+}
+
+#[test]
+fn standalone_opening_rejects_path_length_not_matching_depth() {
+    let registry = three_claim_registry();
+    let payload = three_claim_payload();
+    let built = build_claims_commitment(
+        build_input(&registry, &payload),
+        &mut DeterministicSaltSource { next: 5 },
+    )
+    .unwrap();
+    let mut truncated = duplicate_opening(&built.bundle.claims[0]);
+    truncated.merkle_path.pop();
+
+    assert_eq!(
+        verify_claim_opening(&built.commitment, &built.bundle.tree, &truncated),
+        Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidPrivateBundleTree
+        ))
+    );
+
+    let wrong_depth = MerkleTreeInfo {
+        depth: built.bundle.tree.depth + 1,
+        count: built.bundle.tree.count,
+    };
+    assert_eq!(
+        verify_claim_opening(&built.commitment, &wrong_depth, &built.bundle.claims[0]),
+        Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidPrivateBundleTree
+        ))
+    );
+
+    let empty_tree = MerkleTreeInfo { depth: 0, count: 0 };
+    assert_eq!(
+        verify_claim_opening(&built.commitment, &empty_tree, &built.bundle.claims[0]),
+        Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidPrivateBundleTree
+        ))
+    );
+}
+
+#[test]
+fn integer_claims_commit_to_declared_variant_regardless_of_input_variant() {
+    let registry = three_claim_registry();
+    let canonical = three_claim_payload();
+    let mut cross_variant_values = BTreeMap::new();
+    cross_variant_values.insert("age".to_owned(), ClaimValue::Signed(42));
+    cross_variant_values.insert("country".to_owned(), ClaimValue::String("DE".to_owned()));
+    cross_variant_values.insert("score".to_owned(), ClaimValue::Signed(-7));
+    let cross_variant = ClaimValue::Object(cross_variant_values);
+
+    let canonical_built = build_claims_commitment(
+        build_input(&registry, &canonical),
+        &mut DeterministicSaltSource { next: 5 },
+    )
+    .unwrap();
+    let cross_built = build_claims_commitment(
+        build_input(&registry, &cross_variant),
+        &mut DeterministicSaltSource { next: 5 },
+    )
+    .unwrap();
+
+    assert_eq!(
+        canonical_built.commitment.merkle_root,
+        cross_built.commitment.merkle_root
+    );
+    assert_eq!(
+        canonical_built.bundle.claims[0].value,
+        br#"{"t":"unsigned","v":42}"#.to_vec()
+    );
+
+    let mut signed_registry_claims = BTreeMap::new();
+    signed_registry_claims.insert(
+        "score".to_owned(),
+        definition("score", ClaimType::SignedInteger),
+    );
+    let signed_registry = ClaimsRegistry {
+        claimset_id: "claims.commitment.signed.v1".to_owned(),
+        claims: signed_registry_claims,
+    };
+    let mut unsigned_input = BTreeMap::new();
+    unsigned_input.insert("score".to_owned(), ClaimValue::Unsigned(7));
+    let unsigned_input = ClaimValue::Object(unsigned_input);
+    let built = build_claims_commitment(
+        build_input(&signed_registry, &unsigned_input),
+        &mut DeterministicSaltSource { next: 5 },
+    )
+    .unwrap();
+    assert_eq!(
+        built.bundle.claims[0].value,
+        br#"{"t":"signed","v":7}"#.to_vec()
+    );
+}
+
+#[test]
+fn integer_claims_reject_out_of_range_cross_variant_values() {
+    let registry = three_claim_registry();
+    let mut negative_unsigned = BTreeMap::new();
+    negative_unsigned.insert("age".to_owned(), ClaimValue::Signed(-1));
+    let negative_unsigned = ClaimValue::Object(negative_unsigned);
+    assert_eq!(
+        build_claims_commitment(
+            build_input(&registry, &negative_unsigned),
+            &mut DeterministicSaltSource { next: 5 },
+        )
+        .err(),
+        Some(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::ClaimValueTypeMismatch
+        ))
+    );
+
+    let mut oversized_signed = BTreeMap::new();
+    oversized_signed.insert("score".to_owned(), ClaimValue::Unsigned(u64::MAX));
+    let oversized_signed = ClaimValue::Object(oversized_signed);
+    assert_eq!(
+        build_claims_commitment(
+            build_input(&registry, &oversized_signed),
+            &mut DeterministicSaltSource { next: 5 },
+        )
+        .err(),
+        Some(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::ClaimValueTypeMismatch
+        ))
+    );
+}
+
+#[test]
+fn number_claims_normalize_nonnegative_integer_storage_variants() {
+    let mut definitions = BTreeMap::new();
+    definitions.insert("value".to_owned(), definition("value", ClaimType::Number));
+    let registry = ClaimsRegistry {
+        claimset_id: "claims.commitment.number.v1".to_owned(),
+        claims: definitions,
+    };
+    let mut signed = BTreeMap::new();
+    signed.insert("value".to_owned(), ClaimValue::Signed(42));
+    let mut unsigned = BTreeMap::new();
+    unsigned.insert("value".to_owned(), ClaimValue::Unsigned(42));
+
+    let signed = build_claims_commitment(
+        build_input(&registry, &ClaimValue::Object(signed)),
+        &mut DeterministicSaltSource { next: 9 },
+    )
+    .unwrap();
+    let unsigned = build_claims_commitment(
+        build_input(&registry, &ClaimValue::Object(unsigned)),
+        &mut DeterministicSaltSource { next: 9 },
+    )
+    .unwrap();
+
+    assert_eq!(
+        signed.commitment.merkle_root,
+        unsigned.commitment.merkle_root
+    );
+    assert_eq!(
+        signed.bundle.claims[0].value,
+        unsigned.bundle.claims[0].value
     );
 }

@@ -10,11 +10,13 @@ use reallyme_sd_jwt::{
     build_key_binding_jwt, create_array_element_disclosure, create_object_property_disclosure,
     decode_disclosure, digest_disclosure, issue_sd_jwt, parse_sd_jwt_compact,
     parse_sd_jwt_json_serialization, parse_sd_jwt_or_kb_compact, process_sd_jwt_payload,
-    serialize_sd_jwt_compact, verify_sd_jwt, verify_sd_jwt_receipt,
-    verify_sd_jwt_receipt_with_x5c, DecoyPolicy, DisclosureKind, KeyBindingJwtBuildOptions,
-    KeyBindingVerificationOptions, SdJwtDisclosureStrategy, SdJwtEnvelopeError, SdJwtHashAlgorithm,
-    SdJwtIssuanceInput, SdJwtIssuancePolicy, SdJwtOrKbCompact, SdJwtProcessingPolicy,
-    SdJwtReceiptVerificationPolicy, SdJwtSaltSource, SdJwtVerificationOptions,
+    serialize_sd_jwt_compact, verify_sd_jwt, verify_sd_jwt_credential,
+    verify_sd_jwt_credential_with_x5c, verify_sd_jwt_receipt, verify_sd_jwt_receipt_with_x5c,
+    DecoyPolicy, DisclosureKind, KeyBindingJwtBuildOptions, KeyBindingVerificationOptions,
+    SdJwtCredentialVerificationPolicy, SdJwtDisclosureStrategy, SdJwtEnvelopeError,
+    SdJwtHashAlgorithm, SdJwtIssuanceInput, SdJwtIssuancePolicy, SdJwtOrKbCompact,
+    SdJwtProcessingPolicy, SdJwtReceiptVerificationPolicy, SdJwtSaltSource,
+    SdJwtVerificationOptions, DEFAULT_SD_JWT_CLOCK_SKEW_SECONDS, MAX_SD_JWT_CLOCK_SKEW_SECONDS,
     MAX_SD_JWT_COMPACT_BYTES, MAX_SD_JWT_DISCLOSURES, MAX_SD_JWT_DISCLOSURE_BYTES,
     MAX_SD_JWT_JSON_SIGNATURES,
 };
@@ -75,8 +77,9 @@ fn sanitize_json_for_parsing(input: &str) -> String {
                 in_string = false;
                 continue;
             }
-            if character == '\n' || character == '\r' || character == '\t' {
-                out.push(' ');
+            // The reference vectors wrap long base64url members for display.
+            // The parser rejects whitespace inside members, so drop it here.
+            if character.is_ascii_whitespace() {
                 continue;
             }
             out.push(character);
@@ -620,7 +623,12 @@ fn issue_sd_jwt_top_level_roundtrip_verifies() {
     )
     .expect("valid SD-JWT issuance must succeed");
 
-    assert_eq!(issued.records.len(), 4);
+    // `iss` is a registered SD-JWT VC claim and stays in the issuer payload.
+    assert_eq!(issued.records.len(), 3);
+    assert_eq!(
+        issued.issuer_payload.get("iss").and_then(Value::as_str),
+        Some("https://example.com/issuer")
+    );
     assert!(issued.issuer_payload.get("_sd").is_some());
     assert_eq!(
         issued.issuer_payload.get("_sd_alg").and_then(Value::as_str),
@@ -632,7 +640,7 @@ fn issue_sd_jwt_top_level_roundtrip_verifies() {
         &issued.compact,
         &issuer.jwk,
         &issuer.public,
-        &SdJwtVerificationOptions::default(),
+        &SdJwtVerificationOptions::new(VERIFY_NOW_UNIX),
     )
     .expect("issued SD-JWT must verify");
 
@@ -680,7 +688,7 @@ fn issue_sd_jwt_all_levels_supports_array_elements_and_decoys() {
         &issued.compact,
         &issuer.jwk,
         &issuer.public,
-        &SdJwtVerificationOptions::default(),
+        &SdJwtVerificationOptions::new(VERIFY_NOW_UNIX),
     )
     .expect("nested issued SD-JWT must verify");
 
@@ -743,7 +751,7 @@ fn verify_sd_jwt_verifies_issuer_signature_and_resolves_payload() {
         &compact,
         &issuer.jwk,
         &issuer.public,
-        &SdJwtVerificationOptions::default(),
+        &SdJwtVerificationOptions::new(VERIFY_NOW_UNIX),
     )
     .expect("verified SD-JWT");
 

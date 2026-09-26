@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::BTreeSet;
+
 use codec_base64::base64_to_bytes;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::name::ResolveResult;
@@ -23,6 +25,12 @@ const MAX_XML_BYTES: usize = 16 * 1024 * 1024;
 const MAX_XML_DEPTH: usize = 128;
 const MAX_XML_ELEMENTS: usize = 200_000;
 const MAX_ATTRIBUTES_PER_ELEMENT: usize = 128;
+/// Maximum XML ID attributes (any element, any prefix) admitted in one document.
+const MAX_XML_ID_ATTRIBUTES: usize = 4_096;
+/// Attribute local names that the native shim registers as XML IDs through
+/// `xmlSecAddIDs`. xmlsec compares the libxml2 attribute local name, so a
+/// prefixed attribute such as `foo:Id` or `xml:id` is registered too.
+const XML_ID_ATTRIBUTE_LOCAL_NAMES: [&str; 3] = ["id", "Id", "ID"];
 const MAX_KEY_INFO_CERTIFICATES: usize = 1;
 const MAX_REFERENCES: usize = 8;
 const MAX_CERTIFICATE_BASE64_BYTES: usize = 2 * 1024 * 1024;
@@ -53,7 +61,7 @@ const TEXT_XML_MIME_TYPE: &str = "text/xml";
 #[derive(Default, Zeroize, ZeroizeOnDrop)]
 pub(super) struct SignatureProfile {
     root_id: Option<String>,
-    ids: Vec<String>,
+    ids: XmlIdSet,
     signature_depth: Option<usize>,
     signature_id: Option<String>,
     signature_count: usize,
@@ -100,6 +108,42 @@ pub(super) struct SignatureProfile {
     current_data_object_format_depth: Option<usize>,
     mime_type_depth: Option<usize>,
     mime_type_text: Option<String>,
+}
+
+/// Ordered set of XML ID values with O(log n) duplicate detection and lookup.
+#[derive(Default)]
+struct XmlIdSet {
+    values: BTreeSet<String>,
+}
+
+impl XmlIdSet {
+    /// Insert a new ID value, rejecting empty values, duplicates, and values
+    /// beyond the document-wide ID attribute budget.
+    fn insert_unique(&mut self, value: &str) -> Result<(), XmlSecError> {
+        if value.is_empty() || self.values.contains(value) {
+            return Err(XmlSecError::PolicyViolation(
+                XmlSecPolicyViolationReason::DuplicateId,
+            ));
+        }
+        if self.values.len() >= MAX_XML_ID_ATTRIBUTES {
+            return Err(profile_violation());
+        }
+        self.values.insert(value.to_owned());
+        Ok(())
+    }
+
+    fn contains(&self, value: &str) -> bool {
+        self.values.contains(value)
+    }
+}
+
+impl Zeroize for XmlIdSet {
+    fn zeroize(&mut self) {
+        let values = core::mem::take(&mut self.values);
+        for mut value in values {
+            value.zeroize();
+        }
+    }
 }
 
 #[derive(Default, Zeroize, ZeroizeOnDrop)]
@@ -390,20 +434,22 @@ fn collect_ids(
     let mut root_id_count = 0_usize;
     for attribute in element.attributes().with_checks(true) {
         let attribute = attribute.map_err(|_| XmlSecError::Internal)?;
-        let raw_name = attribute.key.as_ref();
-        if raw_name != "xml:id" && raw_name != "id" && raw_name != "Id" && raw_name != "ID" {
+        // Namespace declarations are not attributes in the libxml2 tree and
+        // are never registered as IDs, even when declared as `xmlns:Id`.
+        if attribute.key.as_namespace_binding().is_some() {
+            continue;
+        }
+        // Match by local name, exactly as xmlSecAddIDs does. Matching the
+        // qualified name would let `foo:Id` register a second, unchecked ID
+        // in xmlsec that the pre-pass never saw.
+        if !XML_ID_ATTRIBUTE_LOCAL_NAMES.contains(&attribute.key.local_name().as_ref()) {
             continue;
         }
         let value = attribute
             .normalized_value(XmlVersion::Implicit1_0)
             .map_err(|_| XmlSecError::Internal)?;
         let value = value.as_ref();
-        if value.is_empty() || profile.ids.iter().any(|existing| existing == value) {
-            return Err(XmlSecError::PolicyViolation(
-                XmlSecPolicyViolationReason::DuplicateId,
-            ));
-        }
-        profile.ids.push(value.to_owned());
+        profile.ids.insert_unique(value)?;
         if is_root {
             root_id_count = root_id_count.checked_add(1).ok_or_else(profile_violation)?;
             profile.root_id = Some(value.to_owned());

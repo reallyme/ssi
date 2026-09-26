@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::DidApiError;
-use crate::validate::{validate_did, DomainVerificationEnv, FullValidationResult};
+use crate::validate::{validate_did_transition, DomainVerificationEnv, FullValidationResult};
 use reallyme_keys::KeySet;
 
 use reallyme_did_core::update::{
@@ -162,12 +162,20 @@ pub fn update_did(
     ks: &KeySet,
     cfg: UpdateConfig,
 ) -> Result<(DIDDocument, KeySet), DidApiError> {
-    update_did_with_authorization_exclusions(old_doc, ks, cfg, &[])
+    update_did_with_keysets(old_doc, ks, ks, cfg, &[])
 }
 
-pub(crate) fn update_did_with_authorization_exclusions(
+/// Update with distinct authorization and post-update key material.
+///
+/// `authorization_ks` holds the private keys active in `old_doc`: a did:me
+/// transition is authorized by the previous core's controller keys, so key
+/// rotation must never sign the new core with the replacement keys.
+/// `current_ks` holds the key material of the resulting document (rotated
+/// public keys and keys for regenerated Data Integrity proofs) and is returned.
+pub(crate) fn update_did_with_keysets(
     old_doc: &DIDDocument,
-    ks: &KeySet,
+    authorization_ks: &KeySet,
+    current_ks: &KeySet,
     cfg: UpdateConfig,
     excluded_authorization_methods: &[String],
 ) -> Result<(DIDDocument, KeySet), DidApiError> {
@@ -177,7 +185,7 @@ pub(crate) fn update_did_with_authorization_exclusions(
 
     // Clone KeySet (never mutate caller state)
     let mut new_ks = KeySet::new();
-    ks.copy_into(&mut new_ks);
+    current_ks.copy_into(&mut new_ks);
 
     // Normalize config → engine options
     let opts = build_update_options(old_doc, cfg)?;
@@ -190,7 +198,8 @@ pub(crate) fn update_did_with_authorization_exclusions(
                 return None;
             }
 
-            ks.get_private(id)
+            authorization_ks
+                .get_private(id)
                 .ok()
                 .and_then(|key| (!key.is_empty()).then_some(key.to_vec()))
         },
@@ -287,7 +296,8 @@ pub fn deactivate_did_validated(
     ks: &KeySet,
 ) -> Result<DeactivationResult, DidApiError> {
     let (document, keyset) = deactivate_did(old_doc, ks)?;
-    let validation = validate_did(
+    let validation = validate_did_transition(
+        old_doc,
         &document,
         DomainVerificationEnv {
             resolve_txt: None,

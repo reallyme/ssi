@@ -12,7 +12,10 @@ use crate::error::{TslOpenSslError, TslTrustRootErrorReason};
 pub const MAX_TSL_TRUST_ROOTS: usize = reallyme_trust_core::MAX_TRUST_ROOTS;
 /// Maximum DER bytes accepted for one TSL trust root.
 pub const MAX_TSL_TRUST_ROOT_DER_BYTES: usize = MAX_X509_CERTIFICATE_DER_BYTES;
-/// Maximum bytes reserved for the complete XMLSec trust-root PEM bundle.
+/// Maximum aggregate PEM-encoded size of the configured trust roots.
+///
+/// Roots are passed to XMLSec individually as DER; this remains the stable,
+/// encoding-independent configuration budget checked before any allocation.
 pub const MAX_TSL_TRUST_ROOT_PEM_BUNDLE_BYTES: usize = MAX_X509_CHAIN_PEM_BYTES;
 
 const PEM_BEGIN_CERTIFICATE_BYTES: usize = b"-----BEGIN CERTIFICATE-----\n".len();

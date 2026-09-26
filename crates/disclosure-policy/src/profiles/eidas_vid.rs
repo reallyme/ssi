@@ -17,6 +17,8 @@ pub fn eu_eidas_vid_policy() -> VpPolicy {
         allowed_holder_algorithms: vec![Algorithm::P256],
         allow_sd_jwt: true,
         allow_zk: true,
+        // Only credentials of this claimset satisfy this profile.
+        allowed_claimsets: Some(vec!["eu.eidas-vid.v1".into()]),
         ..VpPolicy::default()
     }
 }

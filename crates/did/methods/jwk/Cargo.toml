@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-method-jwk"
-version = "0.1.0"
+version = "0.2.0"
 description = "did:jwk deterministic identifier helpers."
 edition.workspace = true
 rust-version.workspace = true
@@ -13,6 +13,7 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+identity-core-primitives = { workspace = true }
 reallyme-codec = { workspace = true, features = ["base64url"] }
 reallyme-ssi-proto = { workspace = true }
 serde_json = { workspace = true }

@@ -267,6 +267,8 @@ fn attestation_trust_decision(outcome: TrustOutcome) -> TrustDecision {
         der: vec![0x30, 0x00],
         subject: "CN=Wallet Attestation Issuer".to_owned(),
         issuer: "CN=Wallet Attestation Root".to_owned(),
+        subject_der: b"CN=Wallet Attestation Issuer".to_vec(),
+        issuer_der: b"CN=Wallet Attestation Root".to_vec(),
         serial: vec![1],
         not_before: time::OffsetDateTime::UNIX_EPOCH,
         not_after: time::OffsetDateTime::UNIX_EPOCH + time::Duration::days(365_000),

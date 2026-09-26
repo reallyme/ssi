@@ -6,12 +6,12 @@ use time::OffsetDateTime;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 mod chain;
+mod key_identifier;
 pub use chain::X509Chain;
 
 /// Maximum certificate count accepted for a presented X.509 chain.
 ///
-/// Typical eIDAS/QTSP paths are short. This bound keeps parsing, policy
-/// screening, and signature verification deterministic for hostile inputs.
+/// Typical eIDAS/QTSP paths are short; this bound keeps hostile-input work deterministic.
 pub const MAX_X509_CHAIN_CERTIFICATES: usize = 10;
 /// Maximum DER size accepted for one certificate at the parser boundary.
 pub const MAX_X509_CERTIFICATE_DER_BYTES: usize = 65_536;
@@ -29,8 +29,20 @@ pub const MAX_X509_SERIAL_BYTES: usize = 20;
 #[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct X509Certificate {
     pub der: Vec<u8>,
+    /// Display-only subject Name; use [`X509Certificate::subject_der`] for identity and chaining.
     pub subject: String,
+    /// Display-only rendering of the issuer Name. Never compare it for
+    /// chaining or identity; use [`X509Certificate::issuer_der`].
     pub issuer: String,
+    /// Exact DER encoding of the subject Name (RFC 5280 Section 4.1.2.6).
+    ///
+    /// Chaining compares these bytes for exact equality. RFC 5280 Section 7.1
+    /// permits a relying party to match names after internationalized
+    /// normalization; exact DER equality is the conservative subset of that
+    /// rule and never treats two distinct encodings as the same name.
+    pub subject_der: Vec<u8>,
+    /// Exact DER encoding of the issuer Name (RFC 5280 Section 4.1.2.4).
+    pub issuer_der: Vec<u8>,
     pub serial: Vec<u8>,
     #[zeroize(skip)]
     pub not_before: OffsetDateTime,
@@ -66,6 +78,8 @@ impl core::fmt::Debug for X509Certificate {
             .field("der", &"<redacted>")
             .field("subject", &"<redacted>")
             .field("issuer", &"<redacted>")
+            .field("subject_der", &"<redacted>")
+            .field("issuer_der", &"<redacted>")
             .field("serial", &"<redacted>")
             .field("not_before", &self.not_before)
             .field("not_after", &self.not_after)

@@ -132,7 +132,10 @@ pub fn decode_issuer_signed_item(
         }
     };
     let random = match map_get(entries, "random") {
-        Some(Value::Bytes(value)) => value.clone(),
+        Some(Value::Bytes(value)) => {
+            crate::validate_item_random::validate_decoded_item_random(value)?;
+            value.clone()
+        }
         _ => {
             return Err(MdocEnvelopeError::InvalidInput(reason));
         }

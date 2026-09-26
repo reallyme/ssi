@@ -294,6 +294,7 @@ const requiredFuzzTargets = [
   "fuzz_claim_path",
   "fuzz_claim_set",
   "fuzz_mdoc_device_response",
+  "fuzz_sd_jwt_processing",
   "fuzz_status_list",
   "fuzz_x509_trust_der",
 ];
@@ -694,7 +695,21 @@ assertContains(".github/workflows/rust-ci.yml", "repository: me-id/protos");
 assertContains(".github/workflows/rust-ci.yml", "path: me-id/protos");
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "sudo apt-get update && sudo apt-get install --yes libxmlsec1-dev pkg-config",
+  "sh scripts/install-xmlsec-linux.sh \"${RUNNER_TEMP}/xmlsec\"",
+);
+assertContains(
+  ".github/workflows/rust-ci.yml",
+  'echo "PKG_CONFIG_PATH=${RUNNER_TEMP}/xmlsec/lib/pkgconfig" >> "${GITHUB_ENV}"',
+);
+assertContains(
+  ".github/workflows/rust-ci.yml",
+  'echo "LD_LIBRARY_PATH=${RUNNER_TEMP}/xmlsec/lib" >> "${GITHUB_ENV}"',
+);
+assertContains("scripts/install-xmlsec-linux.sh", 'readonly XMLSEC_VERSION="1.3.12"');
+assertContains("scripts/install-xmlsec-linux.sh", "--disable-crypto-dl");
+assertContains(
+  "scripts/install-xmlsec-linux.sh",
+  'readonly XMLSEC_ARCHIVE_SHA256="24045199af12d93fe5fdbbbf7e386e823e4842071e9432e2b90ac108b889a923"',
 );
 assertNotContains(".github/workflows/crates-package-preflight.yml", "repository: me-id/protos");
 assertNotContains(".github/workflows/crates-package-preflight.yml", "Install XMLSec");
@@ -1012,6 +1027,9 @@ assertContains(
   releaseWorkflow,
   "CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}",
 );
+assertNotContains(releaseWorkflow, "id-token: write");
+assertNotContains(releaseWorkflow, "rust-lang/crates-io-auth-action");
+assertNotContains(releaseWorkflow, "steps.crates-io-auth.outputs.token");
 assertNotContains(releaseWorkflow, "dry-run:");
 assertNotContains(releaseWorkflow, "node scripts/publish_crates_in_order.mjs inspect");
 assertNotContains(releaseWorkflow, "cargo nextest run");
@@ -1111,7 +1129,7 @@ assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-trust-x509");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-mdoc");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-sd-jwt");
 assertExists(".github/workflows/fuzz.yml");
-assertContains(".github/workflows/fuzz.yml", "cargo +nightly fuzz build");
+assertContains(".github/workflows/fuzz.yml", "cargo +nightly-2026-09-01 fuzz build");
 for (const target of requiredFuzzTargets) {
   assertContains("fuzz/Cargo.toml", `name = "${target}"`);
   assertContains("fuzz/README.md", `\`${target}\``);
@@ -1119,6 +1137,7 @@ for (const target of requiredFuzzTargets) {
 }
 assertContains(".github/workflows/rust-ci.yml", "node scripts/check_conformance_coverage.mjs");
 assertExists("scripts/generate_conformance_reports.mjs");
+assertExists("conformance/dependencies.lock.json");
 assertExists("scripts/generate_conformance_vectors.mjs");
 assertExists("conformance/README.md");
 assertExists("conformance/upstream/sources.lock");
@@ -1143,7 +1162,7 @@ assertExists("conformance/requirements/audit-claims.json");
 assertExists("conformance/requirements/vp.json");
 assertExists("conformance/requirements/resource-limits.json");
 assertExists("conformance/upstream/tests.json");
-assertExists("conformance/results/README.md");
+assertMissing("conformance/results");
 assertExists("vectors/README.md");
 assertExists("vectors/manifest.json");
 assertExists("vectors/sd-jwt-compact.json");
@@ -1151,27 +1170,18 @@ assertExists("vectors/sd-jwt-json-serialization.json");
 assertExists("vectors/mdoc-issuer-signed.json");
 assertExists("vectors/resource-limits.json");
 assertExists("docs/ARCHITECTURE.md");
-for (const report of [
-  "identity-core",
-  "jose",
-  "cose",
-  "compression",
-  "credential",
-  "envelope-profiles",
-  "etsi-eaa",
-  "keys",
-  "jwt-vc",
-  "sd-jwt",
-  "mdoc",
-  "w3c-vc",
-  "x509",
-  "status",
-  "attestations",
-  "vp",
-  "zk-binding",
-]) {
-assertExists(`conformance/results/${report}.json`);
-}
+assertContains("scripts/generate_conformance_reports.mjs", "--output-dir");
+assertContains("scripts/generate_conformance_reports.mjs", "SSI source repository must be clean");
+assertContains("scripts/generate_conformance_reports.mjs", "Cargo.lock does not resolve the pinned published crypto package");
+assertContains("scripts/generate_conformance_reports.mjs", "reallyme.ssi.conformance.bundle.v1");
+assertContains(
+  "conformance/dependencies.lock.json",
+  '"version": "0.3.9"',
+);
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.2.0");
+assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
+assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
+assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");
 assertContains("docs/ARCHITECTURE.md", "Rust identity crates expose only `native` and `wasm`");
 assertContains("docs/ARCHITECTURE.md", "cargo features named `swift` or `kotlin`");
 assertContains("docs/ARCHITECTURE.md", "`crates/oauth` owns reusable OAuth substrate");

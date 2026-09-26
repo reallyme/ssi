@@ -4,6 +4,8 @@
 
 //! IETF OAuth Token Status List draft-21 JWT and CWT claim profile.
 
+#[cfg(any(feature = "native", feature = "wasm"))]
+mod check_freshness;
 mod compress;
 #[cfg(any(feature = "native", feature = "wasm"))]
 mod cwt;
@@ -22,8 +24,9 @@ pub use cwt::{
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub use issue_jwt::{issue_token_status_list_jwt, issue_token_status_list_jwt_with_signer};
 pub use model::{
-    TokenStatusBits, TokenStatusListClaims, TokenStatusListError, TokenStatusListInvalidReason,
-    TokenStatusListPayload, TokenStatusListProfile, VerifiedTokenStatusList,
+    TokenStatusBits, TokenStatusListClaims, TokenStatusListError, TokenStatusListFreshnessPolicy,
+    TokenStatusListInvalidReason, TokenStatusListPayload, TokenStatusListProfile,
+    VerifiedTokenStatusList, DEFAULT_TOKEN_STATUS_LIST_MAX_AGE_SECS,
     STATUS_LIST_CWT_CONTENT_FORMAT, STATUS_LIST_CWT_MEDIA_TYPE, STATUS_LIST_JWT_MEDIA_TYPE,
     STATUS_LIST_JWT_TYPE,
 };

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    claim_path, parse_claim_path, validate_claim_payload, validate_claim_value, ClaimValue,
-    ClaimsError, ClaimsInvalidReason, ClaimsRegistry, MAX_CLAIMS_PER_REGISTRY,
+    claim_path, parse_claim_path, validate_claim_payload, validate_claim_value, ClaimType,
+    ClaimValue, ClaimsError, ClaimsInvalidReason, ClaimsRegistry, MAX_CLAIMS_PER_REGISTRY,
     MAX_CLAIM_BYTES_VALUE_BYTES,
 };
 use reallyme_codec::base64url::bytes_to_base64url;
@@ -13,11 +13,11 @@ use reallyme_cose::{
     cose_key_to_public_bytes, CoseError, CoseSignatureAlgorithm,
 };
 use reallyme_crypto::sha2::digest as sha2_256_digest;
-use std::collections::{BTreeMap, BTreeSet};
 use reallyme_trust_x509::{
     certificate_subject_public_key_info, parse_subject_public_key_info_der,
     validate_certificate_der, SubjectPublicKeyAlgorithm,
 };
+use std::collections::{BTreeMap, BTreeSet};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Hash byte length for ReallyMe claim commitments using SHA-256.

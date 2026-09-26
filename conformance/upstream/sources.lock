@@ -110,6 +110,18 @@
       "url": "https://www.rfc-editor.org/rfc/rfc9901.html"
     },
     {
+      "id": "I-D-OAUTH-SD-JWT-VC-19",
+      "title": "SD-JWT-based Verifiable Digital Credentials (SD-JWT VC)",
+      "version": "draft-ietf-oauth-sd-jwt-vc-19 (August 2026)",
+      "url": "https://datatracker.ietf.org/doc/html/draft-ietf-oauth-sd-jwt-vc-19"
+    },
+    {
+      "id": "I-D-OAUTH-ATTESTATION-CLIENT-AUTH-11",
+      "title": "OAuth 2.0 Attestation-Based Client Authentication",
+      "version": "draft-ietf-oauth-attestation-based-client-auth-11 (September 2026)",
+      "url": "https://datatracker.ietf.org/doc/html/draft-ietf-oauth-attestation-based-client-auth-11"
+    },
+    {
       "id": "I-D-OAUTH-STATUS-LIST-21",
       "title": "Token Status List (TSL)",
       "version": "draft-ietf-oauth-status-list-21 (June 2026)",
@@ -214,7 +226,7 @@
     {
       "id": "ISO18013-5",
       "title": "ISO/IEC 18013-5 mobile driving licence application",
-      "version": "edition selected by the supported EUDI profile",
+      "version": "ISO/IEC 18013-5:2021",
       "url": "licensed-standard-not-vendored"
     },
     {
@@ -226,7 +238,7 @@
     {
       "id": "W3C-VC-DM-2.0",
       "title": "Verifiable Credentials Data Model v2.0",
-      "version": "W3C Recommendation selected by supported envelope profiles",
+      "version": "W3C Recommendation 15 May 2025",
       "url": "https://www.w3.org/TR/vc-data-model-2.0/"
     },
     {
@@ -244,8 +256,8 @@
     {
       "id": "EUDI-ARF",
       "title": "European Digital Identity Wallet Architecture and Reference Framework",
-      "version": "pinned by release notes",
-      "url": "https://github.com/eu-digital-identity-wallet/eudi-doc-architecture-and-reference-framework"
+      "version": "v3.0.0",
+      "url": "https://github.com/eu-digital-identity-wallet/eudi-doc-architecture-and-reference-framework/releases/tag/v3.0.0"
     },
     {
       "id": "EU-2024-2977",

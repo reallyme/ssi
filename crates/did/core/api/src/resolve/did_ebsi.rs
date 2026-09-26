@@ -29,7 +29,7 @@ pub fn resolve_did_ebsi_with_provider<P: DidProvider + ?Sized>(
     if request.assurance.is_some() && request.assurance != achieved {
         return Err(DidApiError::ResolutionResultInvalid);
     }
-    if request.freshness.is_some() && result.retrieved_at.is_none() {
+    if !freshness_is_satisfied(request.freshness.as_ref(), result.retrieved_at.as_deref()) {
         return Err(DidApiError::ResolutionResultInvalid);
     }
     Ok(result)
@@ -115,9 +115,7 @@ fn map_did_ebsi_error(error: reallyme_did_method_ebsi::DidEbsiError) -> DidApiEr
         | reallyme_did_method_ebsi::DidEbsiErrorReason::IdentifierTooLong
         | reallyme_did_method_ebsi::DidEbsiErrorReason::UnsupportedVersion
         | reallyme_did_method_ebsi::DidEbsiErrorReason::InvalidPayloadLength
-        | reallyme_did_method_ebsi::DidEbsiErrorReason::InvalidDidUrl => {
-            DidApiError::InvalidDid
-        }
+        | reallyme_did_method_ebsi::DidEbsiErrorReason::InvalidDidUrl => DidApiError::InvalidDid,
         reallyme_did_method_ebsi::DidEbsiErrorReason::ArithmeticOverflow
         | reallyme_did_method_ebsi::DidEbsiErrorReason::InvalidDocument
         | reallyme_did_method_ebsi::DidEbsiErrorReason::DocumentLimitExceeded

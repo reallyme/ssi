@@ -6,7 +6,7 @@ use identity_core_primitives::Algorithm;
 use reallyme_did_types::DIDDocument;
 
 use crate::error::DidApiError;
-use crate::update::{update_did, update_did_with_authorization_exclusions, UpdateConfig};
+use crate::update::{update_did_with_keysets, UpdateConfig};
 use reallyme_keys::KeySet;
 
 use reallyme_did_core::keys::{
@@ -57,9 +57,11 @@ pub fn rotate_keys(
 
     let new_ks = build_rotated_keyset(old_doc, ks, vm_ids)?;
 
-    // Delegate to update engine
-    update_did(
+    // Delegate to update engine. The transition is authorized by the keys
+    // active in `old_doc`; the replacement keys only populate the new core.
+    update_did_with_keysets(
         old_doc,
+        ks,
         &new_ks,
         UpdateConfig {
             rotate_vms: Some(vm_ids.to_vec()),
@@ -79,6 +81,7 @@ pub fn rotate_keys(
             invocation: None,
             key_agreement: None,
         },
+        &[],
     )
 }
 
@@ -174,8 +177,11 @@ pub fn replace_compromised_keys(
 
     let recovery_ks = build_rotated_keyset(old_doc, ks, vm_ids)?;
 
-    update_did_with_authorization_exclusions(
+    // Compromised methods never authorize their own replacement; the remaining
+    // previously active keys authorize the recovery transition.
+    update_did_with_keysets(
         old_doc,
+        ks,
         &recovery_ks,
         UpdateConfig {
             rotate_vms: Some(vm_ids.to_vec()),

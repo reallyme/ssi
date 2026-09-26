@@ -173,13 +173,13 @@ fn binding_matches_leaf(binding: &TslCertificateBinding, leaf: &X509Certificate)
         .certificate_der
         .as_ref()
         .is_some_and(|certificate_der| certificate_der == &leaf.der);
-    let ski_matches = match (
-        binding.subject_key_identifier.as_ref(),
-        leaf.subject_key_identifier.as_ref(),
-    ) {
-        (Some(binding_ski), Some(leaf_ski)) => binding_ski == leaf_ski,
-        _ => false,
-    };
+    // A certificate's SubjectKeyIdentifier extension is self-asserted content;
+    // matching it would let any certificate claim a trusted service's key.
+    // Bind only against identifiers computed from the leaf's public key.
+    let ski_matches = binding
+        .subject_key_identifier
+        .as_ref()
+        .is_some_and(|binding_ski| leaf.matches_key_identifier(binding_ski));
 
     der_matches || ski_matches
 }

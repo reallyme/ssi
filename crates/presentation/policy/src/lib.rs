@@ -39,7 +39,9 @@ pub mod selector;
 
 pub use disclosure::{extract_disclosed_claims, DisclosedClaim};
 pub use error::{PolicyDecision, VpPolicyError};
-pub use evaluate::{evaluate, EvaluationContext, StatusContext};
+pub use evaluate::{
+    evaluate, EvaluationContext, StatusContext, MAX_POLICY_DISCLOSURES, MAX_POLICY_REQUIRED_CLAIMS,
+};
 pub use model::{RequiredClaim, VpPolicy};
 pub use plan::{plan_satisfaction, DerivationInput, DerivationPlan, SatisfactionPlan};
 pub use selector::policy_for_claimset;

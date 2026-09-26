@@ -470,7 +470,7 @@ fn validate_path_length_constraints(chain: &X509Chain) -> Result<(), X509Error> 
                 .basic_constraints
                 .as_ref()
                 .is_some_and(|constraints| constraints.ca);
-            let is_self_issued = certificate.subject == certificate.issuer;
+            let is_self_issued = certificate.subject_der == certificate.issuer_der;
             if is_ca && !is_self_issued {
                 subordinate_non_self_issued_ca_count = subordinate_non_self_issued_ca_count
                     .checked_add(1)

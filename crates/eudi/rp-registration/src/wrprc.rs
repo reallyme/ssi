@@ -5,7 +5,7 @@
 use serde::Serialize;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-use crate::json::{canonical_json, MAX_JSON_BYTES};
+use crate::json::canonical_json;
 use crate::{ArtifactDigest, BoundedText, RegistrationError, RegistrationErrorReason};
 
 mod parse;
@@ -51,11 +51,31 @@ pub enum RegistrationCertificateFormat {
     CoseCwt,
 }
 
-/// Local issuance bindings not represented as standalone TS 119 475 claims.
+/// Credential format that a signed WRPRC authorizes the relying party to request.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+pub enum RegisteredCredentialFormat {
+    /// IETF SD-JWT VC using the `dc+sd-jwt` format identifier.
+    DcSdJwt,
+    /// ISO/IEC 18013-5 mobile document using the `mso_mdoc` identifier.
+    MsoMdoc,
+}
+
+/// Locally reviewed issuance binding for one WRPRC.
 ///
-/// A backend must include the canonical digest of this object in its signed
-/// authority receipt. This avoids manufacturing service or intended-use claims
-/// that TS 119 475 does not define.
+/// [`authenticate_registration_certificate`] checks every field that has a
+/// counterpart in the signed TS 119 475 claims:
+///
+/// - `relying_party_id` must equal the signed `sub`;
+/// - `intermediary_association_id` must equal the signed intermediary `sub`
+///   (both absent, or both present and equal);
+/// - `national_register_reference_digest` must equal the digest of the
+///   canonical signed `registry_uri`.
+///
+/// TS 119 475 defines no standalone service, intended-use, or registration
+/// snapshot claims, and the signed WRPRC does not carry this binding's digest.
+/// `service_id`, `intended_use_id`, and `registration_snapshot_digest` are
+/// therefore caller-asserted local context retained for audit correlation;
+/// they are not authenticated by the WRPRC signature.
 #[derive(Serialize, Zeroize, ZeroizeOnDrop)]
 pub struct RegistrationCertificateBinding {
     relying_party_id: BoundedText,
@@ -89,7 +109,10 @@ impl RegistrationCertificateBinding {
         })
     }
 
-    /// Returns the canonical digest a verifier receipt must authenticate.
+    /// Returns the canonical digest of this local binding for audit records.
+    ///
+    /// The digest is computed locally; it is not carried in or authenticated
+    /// by the signed WRPRC.
     pub fn digest(&self) -> Result<ArtifactDigest, RegistrationError> {
         let canonical = Zeroizing::new(canonical_json(self)?);
         Ok(ArtifactDigest::of(&canonical))
@@ -101,19 +124,20 @@ impl RegistrationCertificateBinding {
         self.relying_party_id.expose()
     }
 
-    /// Returns the bound service identifier.
+    /// Returns the caller-asserted, unauthenticated service identifier.
     #[must_use]
     pub fn service_id(&self) -> &str {
         self.service_id.expose()
     }
 
-    /// Returns the bound intended-use identifier.
+    /// Returns the caller-asserted, unauthenticated intended-use identifier.
     #[must_use]
     pub fn intended_use_id(&self) -> &str {
         self.intended_use_id.expose()
     }
 
-    /// Returns the optional bound intermediary association.
+    /// Returns the optional intermediary identifier checked against the
+    /// signed intermediary `sub`.
     #[must_use]
     pub fn intermediary_association_id(&self) -> Option<&str> {
         self.intermediary_association_id
@@ -127,36 +151,36 @@ impl RegistrationCertificateBinding {
         self.national_register_reference_digest
     }
 
-    /// Returns the bound reviewed registration snapshot digest.
+    /// Returns the caller-asserted, unauthenticated registration snapshot
+    /// digest.
     #[must_use]
     pub const fn registration_snapshot_digest(&self) -> ArtifactDigest {
         self.registration_snapshot_digest
     }
 }
 
-/// Proof receipt released only after JAdES or COSE signature verification.
+/// Proof receipt released only after JAdES or COSE signature verification
+/// and evaluation of the signed validity period at a trusted time.
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct RegistrationCertificateProof {
     format: RegistrationCertificateFormat,
     representation_digest: ArtifactDigest,
-    payload: Vec<u8>,
+    parsed: Option<ParsedRegistrationCertificate>,
     signer_certificate_der: Vec<u8>,
-    binding_digest: ArtifactDigest,
 }
 
 impl RegistrationCertificateProof {
-    /// Constructs a receipt after the crate-owned verifier has authenticated it.
+    /// Constructs a receipt after the crate-owned verifier has authenticated
+    /// the representation and parsed and time-checked its signed claims.
+    #[cfg(any(feature = "native", feature = "wasm"))]
     fn from_verified(
         format: RegistrationCertificateFormat,
         signed_representation: &[u8],
-        authenticated_payload: &[u8],
+        parsed: ParsedRegistrationCertificate,
         signer_certificate_der: &[u8],
-        authenticated_binding_digest: ArtifactDigest,
     ) -> Result<Self, RegistrationError> {
         if signed_representation.is_empty()
             || signed_representation.len() > MAX_REPRESENTATION_BYTES
-            || authenticated_payload.is_empty()
-            || authenticated_payload.len() > MAX_JSON_BYTES
         {
             return Err(RegistrationError::from_reason(
                 RegistrationErrorReason::InputTooLarge,
@@ -177,9 +201,8 @@ impl RegistrationCertificateProof {
         Ok(Self {
             format,
             representation_digest: ArtifactDigest::of(signed_representation),
-            payload: authenticated_payload.to_vec(),
+            parsed: Some(parsed),
             signer_certificate_der: signer_certificate_der.to_vec(),
-            binding_digest: authenticated_binding_digest,
         })
     }
 }
@@ -198,6 +221,8 @@ pub struct ParsedRegistrationCertificate {
     certificate_policy: RegistrationCertificatePolicy,
     certificate_policy_uri_digest: ArtifactDigest,
     semantic_content_digest: ArtifactDigest,
+    registered_credentials: Vec<crate::CredentialRequest>,
+    registered_credential_formats: Vec<RegisteredCredentialFormat>,
 }
 
 impl ParsedRegistrationCertificate {
@@ -260,6 +285,27 @@ impl ParsedRegistrationCertificate {
     pub const fn registry_reference_digest(&self) -> ArtifactDigest {
         self.registry_reference_digest
     }
+
+    /// Returns the credential formats authenticated by the WRPRC signature.
+    #[must_use]
+    pub fn registered_credential_formats(&self) -> &[RegisteredCredentialFormat] {
+        &self.registered_credential_formats
+    }
+
+    /// Returns the signed, strictly validated credential authorizations.
+    #[must_use]
+    pub fn registered_credentials(&self) -> &[crate::CredentialRequest] {
+        &self.registered_credentials
+    }
+
+    /// Reports whether every metadata value and claim path in `requested` is
+    /// covered by one signed WRPRC credential authorization.
+    #[must_use]
+    pub fn authorizes_credential_request(&self, requested: &crate::CredentialRequest) -> bool {
+        self.registered_credentials
+            .iter()
+            .any(|registered| registered.authorizes(requested))
+    }
 }
 
 /// One authenticated encoded representation digest.
@@ -299,14 +345,23 @@ impl AuthenticatedRegistrationCertificate {
         &self.parsed
     }
 
-    /// Returns the authenticated local issuance binding.
+    /// Returns the local issuance binding.
+    ///
+    /// Only the relying-party, intermediary, and national-register fields
+    /// were checked against signed claims; see
+    /// [`RegistrationCertificateBinding`].
     #[must_use]
     pub const fn binding(&self) -> &RegistrationCertificateBinding {
         &self.binding
     }
 }
 
-/// Parses strict TS 119 475 WRPRC payload claims without authenticating them.
+/// Combines one or both proof receipts for the same WRPRC and checks the
+/// local binding fields that have counterparts in the signed claims.
+///
+/// Each receipt already proved signature validity and that its trusted
+/// evaluation time fell within the signed `iat`/`exp` period. This function
+/// asserts neither issuer nor certification-path trust.
 pub fn authenticate_registration_certificate(
     proofs: Vec<RegistrationCertificateProof>,
     binding: RegistrationCertificateBinding,
@@ -316,17 +371,10 @@ pub fn authenticate_registration_certificate(
             RegistrationErrorReason::ResourceLimitExceeded,
         ));
     }
-    let canonical_binding = Zeroizing::new(canonical_json(&binding)?);
-    let expected_binding_digest = ArtifactDigest::of(&canonical_binding);
     let mut parsed_result: Option<ParsedRegistrationCertificate> = None;
     let mut signer_digest: Option<ArtifactDigest> = None;
     let mut representations = Vec::new();
-    for proof in proofs {
-        if proof.binding_digest != expected_binding_digest {
-            return Err(RegistrationError::from_reason(
-                RegistrationErrorReason::SemanticBindingMismatch,
-            ));
-        }
+    for mut proof in proofs {
         if representations
             .iter()
             .any(|item: &AuthenticatedRepresentation| item.format == proof.format)
@@ -335,8 +383,12 @@ pub fn authenticate_registration_certificate(
                 RegistrationErrorReason::InvalidField,
             ));
         }
-        let parsed = parse_registration_certificate(&proof.payload)?;
-        if parsed.relying_party_id() != binding.relying_party_id.expose()
+        let parsed = proof
+            .parsed
+            .take()
+            .ok_or_else(|| RegistrationError::from_reason(RegistrationErrorReason::MissingField))?;
+        if parsed.relying_party_id() != binding.relying_party_id()
+            || parsed.intermediary_id() != binding.intermediary_association_id()
             || parsed.registry_reference_digest != binding.national_register_reference_digest
         {
             return Err(RegistrationError::from_reason(

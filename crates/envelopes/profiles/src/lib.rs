@@ -19,6 +19,6 @@ pub use profile::{
 
 pub(crate) use profile::{
     invalid, require_status, require_validity_window, require_vct_for_sd_jwt, validate_common,
-    Result, DID_ME_CRYPTOSUITE, DID_ME_METHOD, EU_AGE_CLAIMSET, EU_PASSPORT_CLAIMSET,
-    EU_PID_CLAIMSET, EU_TAX_CLAIMSET,
+    Result, DID_ME_CRYPTOSUITE, DID_ME_METHOD, DID_ME_PREFIX, EU_AGE_CLAIMSET,
+    EU_PASSPORT_CLAIMSET, EU_PID_CLAIMSET, EU_TAX_CLAIMSET,
 };

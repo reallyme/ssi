@@ -7,6 +7,8 @@
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+use crate::screen_text::contains_unsafe_text_chars;
+
 /// Maximum UTF-8 length of one provenance identifier or version value.
 pub const MAX_PROVENANCE_TEXT_BYTES: usize = 2_048;
 
@@ -148,6 +150,10 @@ pub enum VerificationProvenanceError {
     /// A text field exceeds the deterministic boundary limit.
     #[error("verification provenance field exceeds its bound")]
     TooLarge(VerificationProvenanceField),
+    /// A text field contains control, separator, or bidirectional formatting
+    /// characters.
+    #[error("verification provenance field contains disallowed characters")]
+    InvalidCharacters(VerificationProvenanceField),
     /// The subject evaluation time is later than completion time.
     #[error("verification provenance time ordering is invalid")]
     InvalidTimeOrder,
@@ -285,6 +291,9 @@ fn validate_text(
     }
     if value.len() > MAX_PROVENANCE_TEXT_BYTES {
         return Err(VerificationProvenanceError::TooLarge(field));
+    }
+    if contains_unsafe_text_chars(value) {
+        return Err(VerificationProvenanceError::InvalidCharacters(field));
     }
     Ok(())
 }

@@ -30,6 +30,10 @@ pub enum TslError {
     ClosedListNonExpiredService,
     #[error("trusted list is expired")]
     Expired,
+    #[error("trusted-list issue time is later than the evaluation time")]
+    NotYetIssued,
+    #[error("trusted-list sequence number is older than the last accepted list")]
+    SequenceRollback,
     #[error("invalid or oversized trusted-list URI")]
     InvalidUri,
     #[error("invalid embedded certificate")]
@@ -290,6 +294,14 @@ impl From<TslError> for IdentityCoreErrorReason {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_CORE_CLOSED_LIST_NON_EXPIRED_SERVICE
             }
             TslError::Expired => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_CORE_EXPIRED
+            }
+            TslError::NotYetIssued => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_CORE_INVALID_TIMESTAMP
+            }
+            // A superseded list is stale for the caller: a newer authentic
+            // publication has already been accepted for this location.
+            TslError::SequenceRollback => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_CORE_EXPIRED
             }
             TslError::InvalidUri => {

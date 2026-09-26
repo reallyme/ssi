@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-core"
-version = "0.1.0"
+version = "0.2.0"
 description = "DID identity-core document generation, validation, canonical state, and update logic."
 edition.workspace = true
 rust-version.workspace = true
@@ -14,16 +14,16 @@ publish.workspace = true
 
 [features]
 default = ["native"]
-native = ["reallyme-crypto/native"]
-wasm = ["reallyme-crypto/wasm"]
+native = ["envelopes-data-integrity/native", "reallyme-crypto/native"]
+wasm = ["envelopes-data-integrity/wasm", "reallyme-crypto/wasm"]
 
 [dependencies]
 reallyme-codec = { workspace = true, features = ["base64url", "cbor", "multikey"] }
 reallyme-crypto = { workspace = true, features = ["dispatch", "ed25519", "ml-dsa-87", "ml-kem-768", "ml-kem-1024", "p256", "secp256k1", "sha2", "x25519"] }
-envelopes-data-integrity = { path = "../../../envelopes/data_integrity", version = "0.1.0" }
-identity-core-primitives = { package = "reallyme-ssi-core", path = "../common", version = "0.1.0" }
+envelopes-data-integrity = { path = "../../../envelopes/data_integrity", version = "0.2.0", default-features = false }
+identity-core-primitives = { package = "reallyme-ssi-core", path = "../common", version = "0.2.0" }
 reallyme-ssi-proto = { workspace = true }
-reallyme-did-types = { path = "../types", version = "0.1.0" }
+reallyme-did-types = { path = "../types", version = "0.2.0" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

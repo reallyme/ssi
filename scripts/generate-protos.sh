@@ -13,11 +13,11 @@ SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 # Generate every SSI-owned package in one descriptor set so imported messages
 # resolve inside the canonical Rust proto crate instead of through compatibility
 # packages. The external crypto package remains owned by its source repository.
-buf generate "${GITHUB_ROOT}" \
-  --config "${BUF_CONFIG_JSON}" \
+stage_buf_workspace
+buf generate "${BUF_WORKSPACE}" \
   --template "${SSI_ROOT}/buf.gen.yaml" \
   --include-imports \
-  --path crates/proto/proto/identity \
-  --path crates/proto/proto/reallyme
+  --path "${BUF_WORKSPACE}/reallyme/ssi/crates/proto/proto/identity" \
+  --path "${BUF_WORKSPACE}/reallyme/ssi/crates/proto/proto/reallyme"
 
 node "${SSI_ROOT}/scripts/sync-did-crypto-proto-boundary.mjs"

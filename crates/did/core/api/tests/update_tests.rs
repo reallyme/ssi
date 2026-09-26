@@ -15,7 +15,7 @@ use reallyme_did_api::{
         deactivate_did, deactivate_did_validated, set_key_relationships, update_did,
         RelationshipAssignmentConfig, UpdateConfig,
     },
-    validate::{validate_did, DomainVerificationEnv},
+    validate::{validate_did, validate_did_transition, DidValidationCode, DomainVerificationEnv},
     CreateConfig, KeySet,
 };
 
@@ -391,7 +391,22 @@ fn deactivate_did_publishes_terminal_core_shape() {
     assert!(policy.allowed_verification_methods.is_empty());
     assert!(policy.threshold.is_none());
 
-    let validation = validate_did(
+    // Standalone validation of a non-genesis document fails closed.
+    let standalone = validate_did(
+        &doc2,
+        DomainVerificationEnv {
+            resolve_txt: None,
+            fetch_url: None,
+        },
+    );
+    assert!(!standalone.ok);
+    assert!(standalone
+        .errors
+        .iter()
+        .any(|issue| issue.code == DidValidationCode::TransitionAuthorityUnverified));
+
+    let validation = validate_did_transition(
+        &doc1,
         &doc2,
         DomainVerificationEnv {
             resolve_txt: None,

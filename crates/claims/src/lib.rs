@@ -8,6 +8,11 @@
 //! envelope crates should map into these types instead of defining parallel
 //! claim semantics. JSON is supported only as an explicit boundary
 //! normalization input, not as a second internal schema.
+//!
+//! The commitment builder in this crate uses the versioned claim path, value,
+//! and domain-tag encoding exported here. Its roots and openings are valid
+//! only for this construction; they are not interchangeable with the legacy
+//! committed-credential tree in `reallyme-credential`.
 
 mod commands;
 mod commitment;

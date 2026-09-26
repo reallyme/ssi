@@ -2,41 +2,6 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-fn collect_expected_digests(
-    value: &Value,
-    out: &mut BTreeSet<String>,
-) -> Result<(), IetfSdJwtVcError> {
-    match value {
-        Value::Object(map) => {
-            if let Some(sd) = map.get("_sd") {
-                let arr = sd.as_array().ok_or(IetfSdJwtVcError::InvalidSdClaim)?;
-                for v in arr {
-                    let s = v.as_str().ok_or(IetfSdJwtVcError::InvalidSdClaim)?;
-                    out.insert(s.to_string());
-                }
-            }
-            if let Some(placeholder) = map.get("...") {
-                let s = placeholder
-                    .as_str()
-                    .ok_or(IetfSdJwtVcError::InvalidSdClaim)?;
-                out.insert(s.to_string());
-            }
-            for (k, v) in map {
-                if k != "_sd" && k != "_sd_alg" && k != "..." {
-                    collect_expected_digests(v, out)?;
-                }
-            }
-        }
-        Value::Array(arr) => {
-            for v in arr {
-                collect_expected_digests(v, out)?;
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
 fn disclosure_dependencies(path: &str) -> Vec<String> {
     if !path.starts_with("$.") {
         return vec![path.to_string()];

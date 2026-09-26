@@ -52,11 +52,16 @@ pub struct EuMdocStatusTokenFacts<'a> {
     pub reference: MdocStatusCorrelationKey<'a>,
     /// CWT type/media type.
     pub content_type: &'a str,
+    /// Numeric `iat` claim.
+    pub issued_at: u64,
     /// Numeric `exp` claim.
     pub expires_at: u64,
     /// Current verification time.
     pub verified_at: u64,
     /// Optional positive token-status-list `ttl` claim.
+    ///
+    /// When present, a token is rejected once `iat + ttl` is not after
+    /// `verified_at`: a stale cached token must be refreshed rather than used.
     pub time_to_live: Option<u64>,
     /// Permitted COSE signature algorithm.
     pub algorithm: EuMdocStatusAlgorithm,
@@ -94,6 +99,9 @@ pub struct EuMdocStatusCapabilities {
 /// `prior_references` is the issuer's already allocated MSO-reference set. The
 /// current URI/index or URI/identifier pair must not repeat, so the uniqueness
 /// rule is evaluated from actual keys rather than a caller-supplied boolean.
+/// URIs are compared after WHATWG URL normalization so that spelling variants
+/// of the same list (for example host case or an explicit default port) cannot
+/// evade the check.
 pub fn validate_eu_mdoc_status(
     facts: &EuMdocStatusTokenFacts<'_>,
     prior_references: &[MdocStatusCorrelationKey<'_>],
@@ -106,7 +114,9 @@ pub fn validate_eu_mdoc_status(
         return Err(ConformanceError::CorrelatableMdocStatusReference);
     }
     if facts.expires_at <= facts.verified_at
+        || facts.issued_at > facts.verified_at
         || facts.time_to_live == Some(0)
+        || status_token_stale(facts)
         || !facts.protected_x5chain_present
         || !facts.signature_and_certificate_binding_valid
         || !facts.binary_revocation_only
@@ -175,6 +185,30 @@ fn validate_reference(reference: &MdocStatusCorrelationKey<'_>) -> Result<()> {
     Ok(())
 }
 
+/// Returns whether the token's `ttl` window closed at or before verification.
+///
+/// An `iat + ttl` sum beyond `u64::MAX` lies past any representable
+/// verification time, so it never marks the token stale.
+fn status_token_stale(facts: &EuMdocStatusTokenFacts<'_>) -> bool {
+    facts.time_to_live.is_some_and(|ttl| {
+        facts
+            .issued_at
+            .checked_add(ttl)
+            .is_some_and(|fresh_until| fresh_until <= facts.verified_at)
+    })
+}
+
+/// Compare status-list URIs by their normalized WHATWG URL serialization.
+///
+/// A URI that does not parse is compared byte-for-byte, which keeps the
+/// uniqueness check conservative for malformed prior allocations.
+fn uris_equal(left: &str, right: &str) -> bool {
+    match (Url::parse(left), Url::parse(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
+}
+
 fn references_equal(
     left: &MdocStatusCorrelationKey<'_>,
     right: &MdocStatusCorrelationKey<'_>,
@@ -189,7 +223,7 @@ fn references_equal(
                 uri: right_uri,
                 index: right_index,
             },
-        ) => left_uri == right_uri && left_index == right_index,
+        ) => left_index == right_index && uris_equal(left_uri, right_uri),
         (
             MdocStatusCorrelationKey::IdentifierList {
                 uri: left_uri,
@@ -199,7 +233,7 @@ fn references_equal(
                 uri: right_uri,
                 identifier: right_identifier,
             },
-        ) => left_uri == right_uri && left_identifier == right_identifier,
+        ) => left_identifier == right_identifier && uris_equal(left_uri, right_uri),
         _ => false,
     }
 }

@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-ssi-proto-codec"
-version = "0.1.0"
+version = "0.2.0"
 description = "Bounded, zeroizing codecs and domain conversions for ReallyMe SSI protobufs."
 edition.workspace = true
 rust-version.workspace = true
@@ -27,10 +27,10 @@ buffa = { workspace = true }
 buffa-types = { workspace = true }
 reallyme-compression-brotli = { workspace = true }
 reallyme-codec = { workspace = true, features = ["base64url"] }
-identity-core-primitives = { package = "reallyme-ssi-core", path = "../did/core/common", version = "0.1.0" }
+identity-core-primitives = { package = "reallyme-ssi-core", path = "../did/core/common", version = "0.2.0" }
 reallyme-ssi-proto = { workspace = true }
-reallyme-did-types = { path = "../did/core/types", version = "0.1.0" }
-reallyme-vp-core = { path = "../presentation/core", version = "0.1.0" }
+reallyme-did-types = { path = "../did/core/types", version = "0.2.0" }
+reallyme-vp-core = { path = "../presentation/core", version = "0.2.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror.workspace = true

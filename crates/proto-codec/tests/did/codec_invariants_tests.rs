@@ -7,13 +7,14 @@
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
 
-use buffa_types::google::protobuf::{value::Kind, Value};
+use buffa_types::google::protobuf::{value::Kind, ListValue, Value};
 use reallyme_codec::base64url::{base64url_to_bytes, bytes_to_base64url};
 use reallyme_codec::cbor::{encode_dag_cbor, CborValue};
 use reallyme_did_types::{Controller, DIDDocument, Service, UpdatePolicy};
 use reallyme_ssi_proto::generated::proto::meid::did::v1::DIDDocument as PbDIDDocument;
 use reallyme_ssi_proto_codec::did::{
     decode_proto, encode_proto, json_to_proto, proto_to_json, DidProtoCodecError,
+    MAX_DID_PROTO_MESSAGE_BYTES,
 };
 
 // DID documents erase their owned identity data on drop. Rust therefore disallows
@@ -196,6 +197,74 @@ fn did_proto_rejects_truncated_buffa_message() {
     };
     let mut encoded = encode_proto(&proto).unwrap();
     encoded.truncate(encoded.len().saturating_sub(1));
+
+    assert_eq!(
+        decode_proto(encoded.as_slice()).unwrap_err(),
+        DidProtoCodecError::DecodeFailed
+    );
+}
+
+#[test]
+fn did_proto_rejects_oversized_input_before_decoding() {
+    let oversized = vec![0_u8; MAX_DID_PROTO_MESSAGE_BYTES + 1];
+
+    assert_eq!(
+        decode_proto(oversized.as_slice()).unwrap_err(),
+        DidProtoCodecError::MessageTooLarge
+    );
+}
+
+#[test]
+fn did_proto_rejects_oversized_encoding() {
+    let proto = PbDIDDocument {
+        id: "d".repeat(MAX_DID_PROTO_MESSAGE_BYTES),
+        ..Default::default()
+    };
+
+    assert_eq!(
+        encode_proto(&proto).unwrap_err(),
+        DidProtoCodecError::MessageTooLarge
+    );
+}
+
+#[test]
+fn did_proto_rejects_unknown_fields() {
+    let proto = PbDIDDocument {
+        id: "did:me:unknown".into(),
+        controller: controller_value("did:me:unknown").into(),
+        ..Default::default()
+    };
+    let mut encoded = encode_proto(&proto).unwrap();
+    // Field 1000, wire type varint, value 1.
+    encoded.extend_from_slice(&[0xC0, 0x3E, 0x01]);
+
+    assert_eq!(
+        decode_proto(encoded.as_slice()).unwrap_err(),
+        DidProtoCodecError::DecodeFailed
+    );
+}
+
+#[test]
+fn did_proto_rejects_excessive_value_nesting() {
+    let mut nested = Value {
+        kind: Some(Kind::StringValue("did:me:deep".into())),
+        ..Value::default()
+    };
+    for _ in 0..64 {
+        nested = Value {
+            kind: Some(Kind::ListValue(Box::new(ListValue {
+                values: vec![nested],
+                ..ListValue::default()
+            }))),
+            ..Value::default()
+        };
+    }
+    let proto = PbDIDDocument {
+        id: "did:me:deep".into(),
+        controller: Some(nested).into(),
+        ..Default::default()
+    };
+    let encoded = encode_proto(&proto).unwrap();
 
     assert_eq!(
         decode_proto(encoded.as_slice()).unwrap_err(),

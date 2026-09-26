@@ -8,7 +8,7 @@ beyond repository-relative fixture references.
 
 Inputs that exist only to drive a conformance run belong in
 `conformance/fixtures/`; generated execution evidence belongs in
-`conformance/results/`.
+the generated release bundle retained by `reallyme/identity-conformance`.
 
 Regenerate with:
 

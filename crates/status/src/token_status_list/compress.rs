@@ -13,7 +13,7 @@ use reallyme_codec::base64url::bytes_to_base64url;
 
 use super::model::{
     TokenStatusBits, TokenStatusListError, TokenStatusListInvalidReason, TokenStatusListPayload,
-    MAX_COMPRESSED_STATUS_BYTES, MAX_TOKEN_STATUS_ENTRIES,
+    VerifiedTokenStatusList, MAX_COMPRESSED_STATUS_BYTES, MAX_TOKEN_STATUS_ENTRIES,
 };
 
 /// Pack status values least-significant-bit first within each byte.
@@ -61,6 +61,10 @@ pub fn pack_token_status_values(
 }
 
 /// Read one packed status value using draft-defined least-significant-bit order.
+///
+/// `bits` is supplied by the caller. For an authenticated list, prefer
+/// [`VerifiedTokenStatusList::status`], which reads the width from the signed
+/// `status_list.bits` claim.
 pub fn token_status_value(
     packed: &[u8],
     bits: TokenStatusBits,
@@ -83,6 +87,17 @@ pub fn token_status_value(
         TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidIndex)
     })?;
     Ok((byte >> shift) & bits.maximum_value())
+}
+
+impl VerifiedTokenStatusList {
+    /// Read the status value at `index` using the bit width from the
+    /// authenticated `status_list.bits` claim.
+    pub fn status(&self, index: usize) -> Result<u8, TokenStatusListError> {
+        let bits = TokenStatusBits::from_width(self.claims.status_list.bits).ok_or(
+            TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidBits),
+        )?;
+        token_status_value(&self.packed_statuses, bits, index)
+    }
 }
 
 /// Pack and compress status values into the draft-21 JSON claim shape.

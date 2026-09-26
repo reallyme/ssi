@@ -17,13 +17,20 @@
 //!   Me Protocol ZK proof flows.
 //! - This extension is additive and namespaced so standard SD-JWT verifiers
 //!   can ignore it while Me verifiers can enforce it.
+//! - The commitment root is stable for the lifetime of one issued credential.
+//!   Revealing it directly in multiple presentations is correlatable. Wallets
+//!   that require unlinkability must keep `me_zk` issuer-bound and present only
+//!   circuit outputs that use verifier-specific freshness and context binding.
 
 pub mod error;
 pub mod issue;
 pub mod me_profile;
 pub mod payload;
+mod process_disclosures;
+mod registered_claims;
 pub mod rfc9901;
 mod sensitive;
+mod validate_temporal_claims;
 pub mod verify;
 
 pub use error::IetfSdJwtVcError;
@@ -46,5 +53,9 @@ pub use rfc9901::{
     issue_rfc9901_sd_jwt, verify_rfc9901_sd_jwt, DecoyPolicy, DisclosureRecord, KbJwtBuildParams,
     KbJwtVerifyParams, Rfc9901IssueInput, SdJwtArtifact, SelectiveDisclosureStrategy,
     VerifiedRfc9901,
+};
+pub use validate_temporal_claims::{
+    IetfSdJwtTemporalPolicy, DEFAULT_IETF_SD_JWT_CLOCK_SKEW_SECONDS,
+    MAX_IETF_SD_JWT_CLOCK_SKEW_SECONDS,
 };
 pub use verify::{verify_ietf_sd_jwt_vc, VerifiedIetfSdJwtVc};

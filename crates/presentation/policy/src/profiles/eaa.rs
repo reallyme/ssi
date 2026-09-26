@@ -18,6 +18,9 @@ pub fn eu_eaa_policy() -> VpPolicy {
         require_status: true,
         max_status_age_seconds: Some(86_400),
 
+        // Only credentials of this claimset satisfy this profile.
+        allowed_claimsets: Some(vec!["eu.eaa.v1".into()]),
+
         ..VpPolicy::default()
     }
 }

@@ -8,6 +8,15 @@ use reallyme_vp_core::{DisclosureMode, Presentation};
 use crate::error::{PolicyDecision, VpPolicyError};
 use crate::model::VpPolicy;
 
+/// Maximum number of extracted disclosures evaluated against policy.
+///
+/// Requirement matching is `required_claims x disclosures`; bounding the
+/// caller-supplied side keeps evaluation cost linear in the policy size.
+pub const MAX_EVALUATED_DISCLOSURES: usize = 4_096;
+
+/// Maximum number of required claims evaluated for one policy.
+pub const MAX_EVALUATED_REQUIRED_CLAIMS: usize = 256;
+
 /// Disclosure facts extracted by an envelope-specific verifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractedDisclosure {
@@ -154,6 +163,14 @@ fn validate_required_claims(
     disclosures: &[ExtractedDisclosure],
     errors: &mut Vec<VpPolicyError>,
 ) {
+    if policy.required_claims.len() > MAX_EVALUATED_REQUIRED_CLAIMS {
+        errors.push(VpPolicyError::RequiredClaimInvalid);
+        return;
+    }
+    if disclosures.len() > MAX_EVALUATED_DISCLOSURES {
+        errors.push(VpPolicyError::ProofInvalid);
+        return;
+    }
     for required in &policy.required_claims {
         let Some(disclosed) = disclosures
             .iter()
@@ -165,6 +182,17 @@ fn validate_required_claims(
 
         if disclosed.mode != required.mode {
             errors.push(VpPolicyError::DisclosureModeNotAllowed);
+        }
+    }
+    if !policy.required_claims.is_empty() {
+        for disclosed in disclosures {
+            if !policy
+                .required_claims
+                .iter()
+                .any(|required| required.claim_path == disclosed.claim_path)
+            {
+                errors.push(VpPolicyError::UnexpectedDisclosure);
+            }
         }
     }
 }
@@ -193,9 +221,12 @@ fn validate_status(
         errors.push(VpPolicyError::CredentialSuspended);
     }
 
-    if let (Some(max_age), Some(age)) = (policy.max_status_age_seconds, status.age_seconds) {
-        if age > max_age {
-            errors.push(VpPolicyError::StatusTooOld);
+    // A configured freshness bound cannot be satisfied by status material of
+    // unknown age; missing age is treated as too old.
+    if let Some(max_age) = policy.max_status_age_seconds {
+        match status.age_seconds {
+            Some(age) if age <= max_age => {}
+            _ => errors.push(VpPolicyError::StatusTooOld),
         }
     }
 }

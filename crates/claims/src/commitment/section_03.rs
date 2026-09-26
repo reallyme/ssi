@@ -394,3 +394,42 @@ fn canonical_claim_value_bytes(value: &ClaimValue) -> Result<Vec<u8>, ClaimsErro
     write_canonical_claim_value(value, &mut out)?;
     Ok(out)
 }
+
+/// Encode a top-level claim value after normalizing integers to the variant
+/// named by the declared claim type.
+///
+/// `Signed` and `Unsigned` carry distinct commitment tags. Normalizing to the
+/// declared type ensures that the same numeric claim commits to the same leaf
+/// regardless of whether it arrived through JSON (which yields `Unsigned` for
+/// every non-negative integer) or through a typed boundary. Values already in
+/// the declared variant encode exactly as before.
+fn canonical_typed_claim_value_bytes(
+    claim_type: ClaimType,
+    value: &ClaimValue,
+) -> Result<Vec<u8>, ClaimsError> {
+    match (claim_type, value) {
+        (ClaimType::Integer | ClaimType::SignedInteger, ClaimValue::Unsigned(unsigned)) => {
+            let signed = i64::try_from(*unsigned).map_err(|_| {
+                ClaimsError::InvalidInput(ClaimsInvalidReason::ClaimValueTypeMismatch)
+            })?;
+            canonical_claim_value_bytes(&ClaimValue::Signed(signed))
+        }
+        (ClaimType::UnsignedInteger, ClaimValue::Signed(signed)) => {
+            let unsigned = u64::try_from(*signed).map_err(|_| {
+                ClaimsError::InvalidInput(ClaimsInvalidReason::ClaimValueTypeMismatch)
+            })?;
+            canonical_claim_value_bytes(&ClaimValue::Unsigned(unsigned))
+        }
+        // `Number` admits both integer storage variants. Normalize every
+        // non-negative mathematical integer to `Unsigned`; negative values
+        // remain `Signed`. This prevents JSON and typed callers from creating
+        // different commitments for the same number.
+        (ClaimType::Number, ClaimValue::Signed(signed)) if *signed >= 0 => {
+            let unsigned = u64::try_from(*signed).map_err(|_| {
+                ClaimsError::InvalidInput(ClaimsInvalidReason::ClaimValueTypeMismatch)
+            })?;
+            canonical_claim_value_bytes(&ClaimValue::Unsigned(unsigned))
+        }
+        _ => canonical_claim_value_bytes(value),
+    }
+}

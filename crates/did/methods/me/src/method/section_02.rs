@@ -84,9 +84,10 @@ fn parse_controller_keys(core: &CborValue) -> Result<Vec<CoreVerificationMethod>
     Ok(out)
 }
 
+/// Controller keys must be strictly ascending by id, which also rejects duplicate ids.
 fn controller_keys_are_sorted_by_id(keys: &[CoreVerificationMethod]) -> bool {
     keys.windows(2)
-        .all(|pair| pair[0].id.as_bytes() <= pair[1].id.as_bytes())
+        .all(|pair| pair[0].id.as_bytes() < pair[1].id.as_bytes())
 }
 
 fn map_get<'a>(core: &'a CborValue, key: &str) -> Option<&'a CborValue> {

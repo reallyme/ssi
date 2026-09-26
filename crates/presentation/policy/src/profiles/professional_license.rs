@@ -14,6 +14,9 @@ pub fn eu_professional_license_policy() -> VpPolicy {
         require_status: true,
         max_status_age_seconds: Some(86_400),
 
+        // Only credentials of this claimset satisfy this profile.
+        allowed_claimsets: Some(vec!["eu.professional_license.v1".into()]),
+
         ..VpPolicy::default()
     }
 }

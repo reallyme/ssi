@@ -54,6 +54,9 @@ pub use update::{update_engine, UpdateMetadata, UpdateOptions, UpdateRelationshi
 
 pub use keys::{generate_keypair_for_algorithm, public_key_to_multikey_for_algorithm};
 
-pub use validate::{validate_did_document, FullValidationResult};
+pub use validate::{
+    validate_did_document, validate_did_document_consistency, validate_did_document_transition,
+    FullValidationResult,
+};
 
 pub use validate::DataIntegrityProofValidationResult;

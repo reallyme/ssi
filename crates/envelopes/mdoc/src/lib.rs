@@ -4,17 +4,15 @@
 
 //! ISO mdoc identity envelope surface.
 //!
-//! This crate carries protocol-neutral issuer-signed mdoc and DeviceResponse
-//! behavior. Issuer authentication is COSE_Sign1 via `reallyme-cose`; signed
-//! MSO and issuer item bytes use bounded ISO 18013-5 CBOR structures.
-//!
-//! OpenID4VP handover construction, Digital Credentials API transport, wallet
-//! policy, and platform SDK bindings remain in their owning repositories.
+//! Protocol-neutral issuer-signed mdoc and DeviceResponse behavior. Issuer
+//! authentication is COSE_Sign1 via `reallyme-cose`; signed MSO and issuer item
+//! bytes use bounded ISO 18013-5 CBOR structures. OpenID4VP handover, Digital
+//! Credentials API transport, wallet policy, and platform SDK bindings remain
+//! in their owning repositories.
 
 mod cbor;
 mod data_element;
 mod decode_issuer_signed;
-
 #[cfg(feature = "mdoc-crypto")]
 /// mdoc device authentication validation.
 pub mod device_auth;
@@ -34,13 +32,14 @@ mod mso_status;
 /// mdoc presentation entry points.
 pub mod present;
 mod status;
+#[cfg(feature = "mdoc-crypto")]
+mod validate_item_random;
 mod validate_mso_status;
 #[cfg(feature = "mdoc-crypto")]
 mod validity;
 #[cfg(feature = "mdoc-crypto")]
 /// mdoc verification entry points.
 pub mod verify;
-
 #[cfg(feature = "mdoc-crypto")]
 pub use cbor::decode_issuer_signed_item;
 pub use data_element::{decode_mdoc_data_element_json, MdocDataElementJson};
@@ -71,9 +70,11 @@ pub use model::{
     MdocDeviceDocument, MdocDeviceResponse, MdocDeviceSigned, MdocIssuerSignedDocument,
     MobileSecurityObject, ValidityInfo, ValueDigests, DIGEST_ALG_SHA256,
     ENCODED_CBOR_DATA_ITEM_TAG, MAX_MDOC_CBOR_ARRAY_ITEMS, MAX_MDOC_CBOR_DEPTH,
-    MAX_MDOC_CBOR_INPUT_BYTES, MAX_MDOC_CBOR_MAP_ENTRIES, MAX_MDOC_DEVICE_RESPONSE_DOCUMENTS,
-    MAX_MDOC_ELEMENTS_PER_NAMESPACE, MAX_MDOC_ELEMENT_VALUE_BYTES, MAX_MDOC_ISSUER_ELEMENTS,
-    MAX_MDOC_NAMESPACES, MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES, MSO_VERSION, SHA256_DIGEST_LEN,
+    MAX_MDOC_CBOR_INPUT_BYTES, MAX_MDOC_CBOR_ITEMS, MAX_MDOC_CBOR_MAP_ENTRIES,
+    MAX_MDOC_DEVICE_RESPONSE_DOCUMENTS, MAX_MDOC_ELEMENTS_PER_NAMESPACE,
+    MAX_MDOC_ELEMENT_VALUE_BYTES, MAX_MDOC_ISSUER_ELEMENTS, MAX_MDOC_ITEM_RANDOM_BYTES,
+    MAX_MDOC_NAMESPACES, MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES, MIN_MDOC_ITEM_RANDOM_BYTES,
+    MSO_VERSION, SHA256_DIGEST_LEN,
 };
 pub use mso_status::{
     MdocIdentifierList, MdocStatus, MdocStatusExtension, MdocStatusList,

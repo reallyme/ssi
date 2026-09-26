@@ -11,10 +11,13 @@ use envelopes_jwt::jwt::{
     JwtHeaderValidationOptions, JwtTemporalValidationPolicy,
 };
 
-use reallyme_credential::committed::model::{
-    CredentialEnvelope, HolderBinding, PublicKeyRepresentation,
-};
+use crypto_core::Algorithm as CryptoAlg;
 use identity_presentation_vp_core::model::SdJwtVcPresentation;
+use reallyme_credential::committed::model::{
+    CredentialAlgorithm, CredentialEnvelope, HolderBinding, PublicKeyRepresentation,
+};
+use reallyme_credential::committed::verify::verify_credential as verify_committed_credential;
+use reallyme_crypto::operations::constant_time::equal as constant_time_equal;
 use reallyme_crypto::sha2::digest as sha2_256_digest;
 
 use crate::error::SdJwtVpError;
@@ -24,13 +27,10 @@ const MAX_TEMPORAL_SKEW_SECONDS: u64 = 300;
 // effectively unbounded bearer-token lifetime.
 const MAX_KB_JWT_AGE_SECONDS: u64 = 86_400;
 
-fn now_unix() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(d) => d.as_secs(),
-        Err(_) => 0,
-    }
-}
+// Byte length of the SHA-256 `sd_hash` binding carried by the legacy envelope.
+const SD_HASH_BYTES: usize = 32;
+// Upper bound for the KB-JWT `nonce` claim before hashing.
+const MAX_KB_JWT_NONCE_BYTES: usize = 1_024;
 
 /// Expected binding constraints for the legacy ReallyMe Merkle envelope.
 #[derive(Debug, Clone, Copy)]
@@ -59,24 +59,31 @@ pub struct VerifiedDisclosure {
 /// Verify an SD-JWT VC presentation against a VC envelope.
 ///
 /// This performs:
-/// 1) Verify issuer SD-JWT VC signature (vp.sd_jwt)
-/// 2) Binding check: sd_hash (base64url) must match vp.envelope_hash (if present)
+/// 1) Verify the issuer SD-JWT signature (`vp.sd_jwt`) and its temporal claims
+///    at the caller-supplied verifier time
+/// 2) Verify the issuer signature over the credential envelope and require the
+///    issuer-signed `sd_hash` to equal the envelope hash
+///    (`SHA-256(credential_signing_payload(vc))`); a holder-supplied
+///    `vp.envelope_hash`, when present, must match as well
 /// 3) Verify the holder KB-JWT whenever the credential is cryptographically
 ///    holder-bound or an expected OpenID4VP binding is supplied
-/// 4) Verify merkle proof for each disclosure against VC merkle_root
+/// 4) Verify the Merkle proof for each disclosure against the envelope root
 ///
 /// Inputs:
 /// - `vp`: SD-JWT VP presentation (sd_jwt + disclosures + optional kb_jwt)
 /// - `vc`: public VC envelope containing merkle_root + domain tags + limits
 /// - `issuer_jwk`: issuer public JWK (must match issuer alg)
-/// - `issuer_public_key`: issuer raw public key bytes (as required by crypto-dispatch backend)
+/// - `issuer_public_key`: issuer raw public key bytes; it must verify both the
+///   issuer SD-JWT and the envelope issuer signature
 /// - `holder_public_key`: optional holder public key bytes (required only if kb_jwt present)
+/// - `now_unix`: trusted verifier time in Unix seconds
 pub fn verify_sd_jwt_vp(
     vp: &SdJwtVcPresentation,
     vc: &CredentialEnvelope,
     issuer_jwk: &Jwk,
     issuer_public_key: &[u8],
     holder_public_key: Option<&[u8]>,
+    now_unix: u64,
 ) -> Result<Vec<VerifiedDisclosure>, SdJwtVpError> {
     if vp.kb_jwt.is_some() {
         return Err(SdJwtVpError::Crypto);
@@ -87,11 +94,15 @@ pub fn verify_sd_jwt_vp(
         issuer_jwk,
         issuer_public_key,
         holder_public_key,
+        now_unix,
         None,
     )
 }
 
 /// Verify an SD-JWT VC presentation and require the exact OpenID4VP binding.
+///
+/// The issuer SD-JWT temporal claims are evaluated at
+/// `expected_binding.now_unix`, the same trusted time used for the KB-JWT.
 pub fn verify_sd_jwt_vp_with_binding(
     vp: &SdJwtVcPresentation,
     vc: &CredentialEnvelope,
@@ -106,6 +117,7 @@ pub fn verify_sd_jwt_vp_with_binding(
         issuer_jwk,
         issuer_public_key,
         holder_public_key,
+        expected_binding.now_unix,
         Some(expected_binding),
     )
 }
@@ -116,6 +128,7 @@ fn verify_sd_jwt_vp_inner(
     issuer_jwk: &Jwk,
     issuer_public_key: &[u8],
     holder_public_key: Option<&[u8]>,
+    now_unix: u64,
     expected_binding: Option<ExpectedKbJwtBinding<'_>>,
 ) -> Result<Vec<VerifiedDisclosure>, SdJwtVpError> {
     // --- 1) Verify issuer SD-JWT VC signature ---
@@ -124,11 +137,11 @@ fn verify_sd_jwt_vp_inner(
             .map_err(|_| SdJwtVpError::Crypto)?;
     validate_temporal_claims(
         &payload,
-        now_unix(),
+        now_unix,
         JwtTemporalValidationPolicy::new(true, true, false, 60, 60),
     )?;
 
-    // --- 2) Binding check: sd_hash base64url(32) must match envelope_hash (if present) ---
+    // --- 2) Bind the credential envelope to the issuer-signed sd_hash ---
     let sd_hash_b64 = payload
         .get("sd_hash")
         .and_then(|v| v.as_str())
@@ -136,13 +149,23 @@ fn verify_sd_jwt_vp_inner(
 
     let sd_hash = base64url_to_bytes(sd_hash_b64).map_err(|_| SdJwtVpError::InvalidDisclosure)?;
 
-    if sd_hash.len() != 32 {
+    if sd_hash.len() != SD_HASH_BYTES {
         return Err(SdJwtVpError::InvalidDisclosure);
     }
 
+    // Every field this verifier later trusts (Merkle root, domain tags,
+    // holder key, status pointer, profile, QEAA evidence) comes from `vc`.
+    // The issuer SD-JWT only commits to the envelope through `sd_hash`, so the
+    // envelope must be recomputed and compared here; otherwise any validly
+    // signed SD-JWT could be paired with an attacker-chosen envelope.
+    let envelope_hash = verify_envelope_issuer_signature(vc, issuer_public_key)?;
+    if !constant_time_equal(envelope_hash.as_slice(), sd_hash.as_slice()) {
+        return Err(SdJwtVpError::EnvelopeBindingMismatch);
+    }
+
     if let Some(eh) = vp.envelope_hash {
-        if sd_hash.as_slice() != eh {
-            return Err(SdJwtVpError::InvalidDisclosure);
+        if !constant_time_equal(eh.as_slice(), sd_hash.as_slice()) {
+            return Err(SdJwtVpError::EnvelopeBindingMismatch);
         }
     }
 
@@ -183,7 +206,9 @@ fn verify_sd_jwt_vp_inner(
             .ok_or(SdJwtVpError::InvalidDisclosure)?;
         let kb_sd_hash_bytes =
             base64url_to_bytes(kb_sd_hash).map_err(|_| SdJwtVpError::InvalidDisclosure)?;
-        if kb_sd_hash_bytes.len() != 32 || kb_sd_hash_bytes.as_slice() != sd_hash.as_slice() {
+        if kb_sd_hash_bytes.len() != SD_HASH_BYTES
+            || !constant_time_equal(kb_sd_hash_bytes.as_slice(), sd_hash.as_slice())
+        {
             return Err(SdJwtVpError::InvalidDisclosure);
         }
 
@@ -234,6 +259,35 @@ fn validate_envelope_holder_key(
     }
 
     Ok(())
+}
+
+/// Verify the envelope issuer signature and return the envelope hash.
+///
+/// The issuer key that verified the SD-JWT must also verify the envelope's
+/// canonical signing payload. The returned hash is the same
+/// `SHA-256(credential_signing_payload(envelope))` value committed during
+/// issuance as the subject bundle `envelope_hash`.
+fn verify_envelope_issuer_signature(
+    credential: &CredentialEnvelope,
+    issuer_public_key: &[u8],
+) -> Result<[u8; SD_HASH_BYTES], SdJwtVpError> {
+    let issuer_crypto_alg =
+        envelope_issuer_crypto_algorithm(credential.issuer_signature.verification_key.alg)?;
+    let verified =
+        verify_committed_credential(credential, issuer_crypto_alg, issuer_public_key, None)
+            .map_err(|_| SdJwtVpError::Crypto)?;
+    Ok(verified.envelope_hash)
+}
+
+fn envelope_issuer_crypto_algorithm(
+    algorithm: CredentialAlgorithm,
+) -> Result<CryptoAlg, SdJwtVpError> {
+    match algorithm {
+        CredentialAlgorithm::Ed25519 => Ok(CryptoAlg::Ed25519),
+        CredentialAlgorithm::P256 => Ok(CryptoAlg::P256),
+        CredentialAlgorithm::Secp256k1 => Ok(CryptoAlg::Secp256k1),
+        _ => Err(SdJwtVpError::Crypto),
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -289,12 +343,14 @@ fn sha256_32(data: &[u8]) -> [u8; 32] {
     sha2_256_digest(data).into_bytes()
 }
 
+/// Map the KB-JWT `nonce` string to the verifier's 32-byte challenge.
+///
+/// The legacy envelope has exactly one canonical encoding: the challenge is
+/// `SHA-256(UTF-8 nonce)`. Accepting a second (decoded base64url) encoding
+/// would let two distinct nonce strings satisfy the same challenge.
 fn nonce_str_to_32(nonce: &str) -> Result<[u8; 32], SdJwtVpError> {
-    if let Ok(b) = base64url_to_bytes(nonce) {
-        if b.len() == 32 {
-            let arr: [u8; 32] = b.as_slice().try_into().map_err(|_| SdJwtVpError::Crypto)?;
-            return Ok(arr);
-        }
+    if nonce.is_empty() || nonce.len() > MAX_KB_JWT_NONCE_BYTES {
+        return Err(SdJwtVpError::Crypto);
     }
     Ok(sha256_32(nonce.as_bytes()))
 }
@@ -322,7 +378,7 @@ fn validate_kb_jwt_claims(
         .and_then(|v| v.as_str())
         .ok_or(SdJwtVpError::Crypto)?;
     let nonce_32 = nonce_str_to_32(nonce)?;
-    if nonce_32 != expected.expected_nonce_32 {
+    if !constant_time_equal(nonce_32.as_slice(), expected.expected_nonce_32.as_slice()) {
         return Err(SdJwtVpError::Crypto);
     }
 

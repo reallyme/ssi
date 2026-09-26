@@ -44,6 +44,14 @@ fn tsl_errors_map_to_stable_proto_reasons() {
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_CORE_EXPIRED,
         ),
         (
+            TslError::NotYetIssued,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_CORE_INVALID_TIMESTAMP,
+        ),
+        (
+            TslError::SequenceRollback,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_CORE_EXPIRED,
+        ),
+        (
             TslError::ResourceLimit(TslResourceLimit::XmlDepth),
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_CORE_RESOURCE_LIMIT,
         ),

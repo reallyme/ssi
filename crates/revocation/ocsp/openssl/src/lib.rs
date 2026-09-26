@@ -23,10 +23,19 @@
 //! - fetch OCSP responses
 //! - decide revocation policy
 //! - replace CRL or StatusList
-#![allow(unsafe_code)]
+//!
+//! The issuer argument is the sole trust anchor for responder authorization.
+//! Certificates supplied with a response are untrusted chain-building
+//! material and cannot replace that issuer. Verification uses the caller's
+//! evaluation time and rejects explicit trust shortcuts; freshness and nonce
+//! requirements remain policy decisions for the layer that obtained the
+//! response and bound it to its request.
 
 /// Typed errors for OpenSSL-backed OCSP parsing.
 pub mod error;
+/// RFC 5280 issuer key identifier derivation.
+#[cfg(not(target_arch = "wasm32"))]
+mod issuer_key_identifier;
 /// DER parsing and signature verification for OCSP responses.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod parse;

@@ -4,8 +4,8 @@
 
 #![no_main]
 
-use reallyme_mdoc::{decode_mdoc_device_response_cbor, encode_mdoc_device_response_cbor};
 use libfuzzer_sys::fuzz_target;
+use reallyme_mdoc::{decode_mdoc_device_response_cbor, encode_mdoc_device_response_cbor};
 
 const MAX_FUZZ_INPUT_BYTES: usize = 16_384;
 

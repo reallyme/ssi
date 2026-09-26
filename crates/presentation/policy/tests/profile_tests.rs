@@ -12,7 +12,8 @@
 //! Tests for built-in VP policy profiles.
 
 use identity_presentation_vp_policy::{
-    evaluate, profiles::eu_pid_policy, EvaluationContext, PolicyDecision, StatusContext,
+    evaluate, policy_for_claimset, profiles::eu_pid_policy, EvaluationContext, PolicyDecision,
+    StatusContext, VpPolicyError,
 };
 
 use identity_core_primitives::Algorithm;
@@ -229,4 +230,147 @@ fn pid_profile_rejects_low_loip() {
     );
 
     assert!(matches!(decision, PolicyDecision::Reject(_)));
+}
+
+fn status_list_issued_at(issued_at: u64) -> StatusList {
+    StatusList {
+        issuer: "did:test:issuer".into(),
+        purpose: StatusPurpose::Revocation,
+        issued_at,
+        next_update: 1_800_000_000,
+        encoded_list: vec![0u8],
+        length: 1,
+        list_id: None,
+        signature: StatusListSignature {
+            alg: StatusListAlgorithm::Ed25519,
+            sig_bytes: vec![1, 2, 3],
+        },
+    }
+}
+
+fn evaluate_pid_at(
+    policy: &identity_presentation_vp_policy::VpPolicy,
+    claimset_id: &str,
+    status_list: &StatusList,
+    now_unix: u64,
+) -> PolicyDecision {
+    let qeaa = valid_qeaa();
+    let verifier = AcceptAllStatusVerifier;
+    let presentation = dummy_presentation();
+    let registry = empty_registry(claimset_id);
+    evaluate(
+        policy,
+        &EvaluationContext {
+            binding_ok: true,
+            now_unix,
+            presentation: &presentation,
+            issuer_algorithm: Algorithm::Ed25519,
+            holder_algorithm: Algorithm::Ed25519,
+            claims_registry: &registry,
+            claimset_id,
+            status: Some(StatusContext {
+                list: status_list,
+                index: 0,
+                verifier: &verifier,
+            }),
+            qeaa: Some(&qeaa),
+            qeaa_audit_ok: Some(&qeaa),
+        },
+    )
+}
+
+#[test]
+fn pid_profile_rejects_status_list_older_than_max_age() {
+    let policy = eu_pid_policy();
+    let now = 1_700_100_000;
+
+    // 86_400 seconds is the PID profile bound; one second over is stale.
+    let stale = status_list_issued_at(now - 86_401);
+    assert_eq!(
+        evaluate_pid_at(&policy, "eu.pid.v1", &stale, now),
+        PolicyDecision::Reject(vec![VpPolicyError::StatusTooOld])
+    );
+
+    let boundary = status_list_issued_at(now - 86_400);
+    assert_eq!(
+        evaluate_pid_at(&policy, "eu.pid.v1", &boundary, now),
+        PolicyDecision::Accept
+    );
+}
+
+#[test]
+fn builtin_profiles_reject_foreign_claimset() {
+    let ids = [
+        "eu.pid.v1",
+        "eu.pid.baseline.v1",
+        "eu.eaa.v1",
+        "eu.address.v1",
+        "eu.age.v1",
+        "eu.diploma.v1",
+        "eu.driving_license.v1",
+        "eu.professional_license.v1",
+        "eu.passport.v1",
+        "eu.health.v1",
+        "eu.kyc.v1",
+        "eu.company.v1",
+        "eu.tax.v1",
+        "eu.eidas-vid.v1",
+    ];
+    for id in ids {
+        let policy = policy_for_claimset(id).unwrap();
+        assert_eq!(policy.allowed_claimsets, Some(vec![id.to_owned()]), "{id}");
+    }
+
+    let status = status_list_issued_at(1_700_000_000);
+    assert_eq!(
+        evaluate_pid_at(&eu_pid_policy(), "eu.age.v1", &status, 1_700_000_000),
+        PolicyDecision::Reject(vec![VpPolicyError::ClaimsetNotAllowed])
+    );
+}
+
+#[test]
+fn evaluation_rejects_disclosure_sets_over_the_policy_cap() {
+    let policy = eu_pid_policy().require_claim(
+        "/claims/age",
+        identity_credential_claims_core::DisclosureMode::Reveal,
+    );
+    let disclosure = codec_base64url::bytes_to_base64url(br#"["c2FsdA","/claims/age","NDI",0,[]]"#);
+    let presentation = Presentation::SdJwtVc(Box::new(SdJwtVcPresentation {
+        sd_jwt: "dummy".into(),
+        disclosures: vec![disclosure; identity_presentation_vp_policy::MAX_POLICY_DISCLOSURES + 1],
+        kb_jwt: None,
+        vct: None,
+        envelope_hash: None,
+    }));
+    let registry = empty_registry("eu.pid.v1");
+    let qeaa = valid_qeaa();
+    let status_list = status_list_issued_at(1_700_000_000);
+    let verifier = AcceptAllStatusVerifier;
+
+    let decision = evaluate(
+        &policy,
+        &EvaluationContext {
+            binding_ok: true,
+            now_unix: 1_700_000_000,
+            presentation: &presentation,
+            issuer_algorithm: Algorithm::Ed25519,
+            holder_algorithm: Algorithm::Ed25519,
+            claims_registry: &registry,
+            claimset_id: "eu.pid.v1",
+            status: Some(StatusContext {
+                list: &status_list,
+                index: 0,
+                verifier: &verifier,
+            }),
+            qeaa: Some(&qeaa),
+            qeaa_audit_ok: Some(&qeaa),
+        },
+    );
+
+    match decision {
+        PolicyDecision::Reject(errors) => {
+            assert!(errors.contains(&VpPolicyError::ProofInvalid));
+        }
+        PolicyDecision::Accept => panic!("oversized disclosure set must be rejected"),
+    }
 }

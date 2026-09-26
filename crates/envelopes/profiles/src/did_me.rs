@@ -4,7 +4,7 @@
 
 use crate::{
     invalid, validate_common, CredentialProfile, EnvelopeFormat, EnvelopeProfileInput,
-    EnvelopeProfileInvalidReason, Result, DID_ME_CRYPTOSUITE, DID_ME_METHOD,
+    EnvelopeProfileInvalidReason, Result, DID_ME_CRYPTOSUITE, DID_ME_METHOD, DID_ME_PREFIX,
 };
 
 /// Enforce protocol-neutral did:me envelope constraints.
@@ -17,17 +17,29 @@ pub fn enforce_did_me_profile(input: &EnvelopeProfileInput<'_>) -> Result<()> {
         ));
     }
 
-    if !input.issuer.starts_with(DID_ME_METHOD)
-        || !input.subject.starts_with(DID_ME_METHOD)
-        || input
-            .did_method
-            .is_some_and(|method| method != DID_ME_METHOD)
-    {
+    let Some(did_method) = input.did_method else {
+        return Err(invalid(EnvelopeProfileInvalidReason::MissingDidMethod));
+    };
+    if did_method != DID_ME_METHOD || !is_did_me(input.issuer) || !is_did_me(input.subject) {
         return Err(invalid(EnvelopeProfileInvalidReason::InvalidDidMeBinding));
     }
 
     match input.format {
-        EnvelopeFormat::DataIntegrity | EnvelopeFormat::JwtVcJson | EnvelopeFormat::DcSdJwt => {}
+        EnvelopeFormat::DataIntegrity => {
+            // A Data Integrity proof is only meaningful with a declared
+            // cryptosuite; absence must not bypass the suite check.
+            let Some(suite) = input.proof_cryptosuite else {
+                return Err(invalid(
+                    EnvelopeProfileInvalidReason::MissingDidMeCryptosuite,
+                ));
+            };
+            validate_cryptosuite(suite)?;
+        }
+        EnvelopeFormat::JwtVcJson | EnvelopeFormat::DcSdJwt => {
+            if let Some(suite) = input.proof_cryptosuite {
+                validate_cryptosuite(suite)?;
+            }
+        }
         EnvelopeFormat::MsoMdoc | EnvelopeFormat::CoseSign1Vc | EnvelopeFormat::Unspecified => {
             return Err(invalid(
                 EnvelopeProfileInvalidReason::UnsupportedEnvelopeFormat,
@@ -35,14 +47,22 @@ pub fn enforce_did_me_profile(input: &EnvelopeProfileInput<'_>) -> Result<()> {
         }
     }
 
-    if input
-        .proof_cryptosuite
-        .is_some_and(|suite| suite != DID_ME_CRYPTOSUITE)
-    {
-        return Err(invalid(
-            EnvelopeProfileInvalidReason::UnsupportedDidMeCryptosuite,
-        ));
-    }
-
     Ok(())
+}
+
+/// Require a `did:me:` identifier with a non-empty method-specific id.
+fn is_did_me(identifier: &str) -> bool {
+    identifier
+        .strip_prefix(DID_ME_PREFIX)
+        .is_some_and(|method_specific_id| !method_specific_id.is_empty())
+}
+
+fn validate_cryptosuite(suite: &str) -> Result<()> {
+    if suite == DID_ME_CRYPTOSUITE {
+        Ok(())
+    } else {
+        Err(invalid(
+            EnvelopeProfileInvalidReason::UnsupportedDidMeCryptosuite,
+        ))
+    }
 }

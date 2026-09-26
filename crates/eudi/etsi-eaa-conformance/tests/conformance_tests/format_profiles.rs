@@ -83,3 +83,32 @@ fn rejects_x509_attribute_certificate_eaa_with_invalid_extensions() {
         Err(ConformanceError::InvalidX509AttributeCertificateProfile)
     );
 }
+
+#[test]
+fn rejects_natural_person_pid_in_json_ld_and_x509_attribute_certificate_formats() {
+    let json_ld = common_pid(AttestationFormat::JsonLdJose, "urn:example:pid:json-ld");
+    let json_ld_format = FormatFacts::JsonLd(JsonLdFacts {
+        vc_data_model_2: true,
+        context_and_type_valid: true,
+        credential_subject_valid: true,
+        enveloping_proof_valid: true,
+    });
+    assert_eq!(
+        validate_attestation(&json_ld, &json_ld_format),
+        Err(ConformanceError::InvalidAttestationType)
+    );
+
+    let x509 = common_pid(
+        AttestationFormat::X509AttributeCertificate,
+        "urn:example:pid:x509-attribute-certificate",
+    );
+    let x509_format = FormatFacts::X509AttributeCertificate(X509AttributeCertificateFacts {
+        syntax_valid: true,
+        mandatory_fields_valid: true,
+        extensions_valid: true,
+    });
+    assert_eq!(
+        validate_attestation(&x509, &x509_format),
+        Err(ConformanceError::InvalidAttestationType)
+    );
+}

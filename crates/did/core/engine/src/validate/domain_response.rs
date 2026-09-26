@@ -17,15 +17,15 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct DomainResponse {
-    /// DNS TXT record strings observed for a domain.
+    /// DNS TXT record strings observed for a binding's record name.
     ///
-    /// Map: domain -> TXT strings
+    /// Map: queried record name (`_did.{domain}`) -> TXT strings
     #[serde(default)]
     pub dns_txt: HashMap<String, Vec<String>>,
 
     /// Well-known response bodies observed for a URL.
     ///
-    /// Map: url -> raw body string
+    /// Map: url (`https://{domain}/.well-known/did-configuration.json`) -> raw body string
     ///
     /// For did:me well-known validation, the engine will request:
     /// `https://{domain}{uri}` (for example,

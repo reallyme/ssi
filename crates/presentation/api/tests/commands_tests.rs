@@ -7,6 +7,7 @@
 
 use identity_core_primitives::Algorithm;
 use reallyme_disclosure_policy::eu_pid_policy;
+use reallyme_vp_api::error::PresentationCommandReason;
 use reallyme_vp_api::{
     create_presentation_request, present, verify_presentation, PresentationCheckCode,
     PresentationCheckName, PresentationCheckOutcome, PresentationDecision,
@@ -28,7 +29,7 @@ fn disclosure() -> PresentationDisclosureFact {
 fn presentation() -> Presentation {
     Presentation::SdJwtVc(Box::new(SdJwtVcPresentation {
         sd_jwt: "header.payload.signature".to_owned(),
-        disclosures: vec!["disclosure".to_owned()],
+        disclosures: vec!["WyJzYWx0IiwiL2dpdmVuX25hbWUiLCJ2YWx1ZSJd".to_owned()],
         kb_jwt: Some("kb.header.payload.signature".to_owned()),
         vct: Some("eu.pid.v1".to_owned()),
         envelope_hash: Some([3u8; 32]),
@@ -44,6 +45,8 @@ fn facts() -> PresentationVerificationFacts {
         wallet_trust_ok: Some(true),
         transaction_data_ok: None,
         age_over_attestation_ok: None,
+        state_ok: None,
+        response_uri_ok: None,
         issuer_algorithm: Algorithm::P256,
         holder_algorithm: Algorithm::P256,
         claimset_id: "eu.pid.v1".to_owned(),
@@ -178,6 +181,28 @@ fn present_rejects_duplicate_credential_and_claim_selections() {
 }
 
 #[test]
+fn present_rejects_a_selection_that_omits_an_actual_disclosure() {
+    let result = present(PresentationPresentRequest {
+        presentation: presentation(),
+        selected_credentials: vec!["credential-1".to_owned()],
+        selected_claims: Vec::new(),
+        holder_binding: PresentationBinding {
+            nonce: [1u8; 32],
+            audience_hash: [2u8; 32],
+            expiry_unix: 1_800_000_000,
+        },
+        now_unix: 1_700_000_000,
+    });
+
+    assert!(matches!(
+        result,
+        Err(VpApiError::InvalidCommand(
+            PresentationCommandReason::InvalidDisclosure
+        ))
+    ));
+}
+
+#[test]
 fn presentation_record_owner_clears_selection_and_binding_material() {
     let record = present(PresentationPresentRequest {
         presentation: presentation(),
@@ -239,11 +264,112 @@ fn verify_presentation_is_indeterminate_for_requested_missing_evidence() {
 
     assert!(!result.valid);
     assert_eq!(result.decision, PresentationDecision::Indeterminate);
-    assert_eq!(result.presentation_checks.len(), 1);
-    assert_eq!(
-        result.presentation_checks[0].code,
-        PresentationCheckCode::EvidenceRequired
-    );
+    assert!(result.presentation_checks.iter().any(|check| {
+        check.name == PresentationCheckName::TransactionData
+            && check.code == PresentationCheckCode::EvidenceRequired
+            && check.mandatory
+    }));
+    assert!(result
+        .presentation_checks
+        .iter()
+        .all(|check| check.mandatory || check.name == PresentationCheckName::TransactionData));
+}
+
+fn verify_request_with(
+    expected: PresentationExpected,
+    facts: PresentationVerificationFacts,
+    checks: Vec<PresentationCheckName>,
+) -> PresentationVerifyRequest {
+    PresentationVerifyRequest {
+        presentation: presentation(),
+        expected,
+        verification_context: PresentationVerificationContext {
+            evaluation_time_unix: 1_700_000_000,
+            presentation_time_unix: 1_700_000_000,
+        },
+        policy: eu_pid_policy().require_claim("/given_name", DisclosureMode::Reveal),
+        facts,
+        checks,
+    }
+}
+
+#[test]
+fn verify_presentation_requested_checks_never_drop_mandatory_failures() {
+    let mut failed = facts();
+    failed.proof_verified = false;
+    failed.binding_ok = false;
+    let result = verify_presentation(verify_request_with(
+        PresentationExpected::default(),
+        failed,
+        vec![PresentationCheckName::IssuerTrust],
+    ));
+
+    assert!(!result.valid);
+    assert_eq!(result.decision, PresentationDecision::Deny);
+    assert!(result.presentation_checks.iter().any(|check| {
+        check.name == PresentationCheckName::Signature
+            && check.outcome == PresentationCheckOutcome::Fail
+    }));
+    assert!(result
+        .errors
+        .iter()
+        .any(|issue| issue.code == PresentationCheckCode::InvalidProof));
+}
+
+#[test]
+fn verify_presentation_expected_state_requires_observed_comparison() {
+    let expected = || {
+        let mut expected = PresentationExpected::default();
+        expected.state = Some("state-1".to_owned());
+        expected
+    };
+
+    let missing = verify_presentation(verify_request_with(expected(), facts(), Vec::new()));
+    assert!(!missing.valid);
+    assert_eq!(missing.decision, PresentationDecision::Indeterminate);
+
+    let mut mismatched_facts = facts();
+    mismatched_facts.state_ok = Some(false);
+    let mismatched = verify_presentation(verify_request_with(
+        expected(),
+        mismatched_facts,
+        Vec::new(),
+    ));
+    assert_eq!(mismatched.decision, PresentationDecision::Deny);
+    assert!(mismatched
+        .errors
+        .iter()
+        .any(|issue| issue.code == PresentationCheckCode::BindingMismatch));
+
+    let mut matched_facts = facts();
+    matched_facts.state_ok = Some(true);
+    let matched = verify_presentation(verify_request_with(expected(), matched_facts, Vec::new()));
+    assert_eq!(matched.decision, PresentationDecision::Allow);
+}
+
+#[test]
+fn verify_presentation_expected_response_uri_requires_observed_comparison() {
+    let expected = |uri: &str| {
+        let mut expected = PresentationExpected::default();
+        expected.response_uri = Some(uri.to_owned());
+        expected
+    };
+    let uri = "https://verifier.example/response";
+
+    let missing = verify_presentation(verify_request_with(expected(uri), facts(), Vec::new()));
+    assert_eq!(missing.decision, PresentationDecision::Indeterminate);
+
+    let mut mismatched_facts = facts();
+    mismatched_facts.response_uri_ok = Some(false);
+    let mismatched = verify_presentation(verify_request_with(
+        expected(uri),
+        mismatched_facts,
+        Vec::new(),
+    ));
+    assert_eq!(mismatched.decision, PresentationDecision::Deny);
+
+    let empty = verify_presentation(verify_request_with(expected("  "), facts(), Vec::new()));
+    assert_eq!(empty.decision, PresentationDecision::Deny);
 }
 
 #[test]
@@ -267,4 +393,49 @@ fn presentation_verification_result_owner_clears_disclosed_identity_material() {
     assert!(result.presentation_checks.is_empty());
     assert!(result.credential_results.is_empty());
     assert!(result.disclosed_claims.is_empty());
+}
+
+#[test]
+fn present_rejects_selections_over_the_command_ceiling() {
+    let too_many_claims = (0..=4_096)
+        .map(|index| PresentationDisclosureFact {
+            claim_path: format!("/claim_{index}"),
+            mode: DisclosureMode::Reveal,
+        })
+        .collect::<Vec<_>>();
+    let oversized_claims = present(PresentationPresentRequest {
+        presentation: presentation(),
+        selected_credentials: vec!["credential-1".to_owned()],
+        selected_claims: too_many_claims,
+        holder_binding: PresentationBinding {
+            nonce: [1u8; 32],
+            audience_hash: [2u8; 32],
+            expiry_unix: 1_800_000_000,
+        },
+        now_unix: 1_700_000_000,
+    });
+    assert!(matches!(
+        oversized_claims,
+        Err(VpApiError::InvalidCommand(
+            PresentationCommandReason::InvalidDisclosure
+        ))
+    ));
+
+    let oversized_credentials = present(PresentationPresentRequest {
+        presentation: presentation(),
+        selected_credentials: (0..=256)
+            .map(|index| format!("credential-{index}"))
+            .collect(),
+        selected_claims: vec![disclosure()],
+        holder_binding: PresentationBinding {
+            nonce: [1u8; 32],
+            audience_hash: [2u8; 32],
+            expiry_unix: 1_800_000_000,
+        },
+        now_unix: 1_700_000_000,
+    });
+    assert!(matches!(
+        oversized_credentials,
+        Err(VpApiError::InvalidCommand(_))
+    ));
 }

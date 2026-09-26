@@ -31,6 +31,10 @@ pub enum SdJwtVpError {
     /// A holder-bound credential was presented without a verifiable KB-JWT.
     #[error("missing key binding proof")]
     MissingKeyBinding,
+
+    /// The credential envelope is not the one committed by the issuer SD-JWT.
+    #[error("credential envelope binding mismatch")]
+    EnvelopeBindingMismatch,
 }
 
 impl From<SdJwtVpError> for IdentityCoreErrorReason {
@@ -47,6 +51,9 @@ impl From<SdJwtVpError> for IdentityCoreErrorReason {
             SdJwtVpError::Crypto => Self::IDENTITY_CORE_ERROR_REASON_INVALID_SIGNATURE,
             SdJwtVpError::MissingKeyBinding => {
                 Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_HOLDER_BINDING_FAILED
+            }
+            SdJwtVpError::EnvelopeBindingMismatch => {
+                Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE
             }
         }
     }

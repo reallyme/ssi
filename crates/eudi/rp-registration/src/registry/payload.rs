@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::Deserialize;
+use time::OffsetDateTime;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use super::RegistryMetadata;
@@ -14,6 +15,54 @@ use crate::{
 };
 
 const MAX_COMPACT_JWS_BYTES: usize = 6 * 1_024 * 1_024;
+/// Tolerated forward clock skew for a registrar `iat`, in seconds.
+const REGISTRY_CLOCK_SKEW_SECONDS: u64 = 60;
+/// Largest caller-selectable freshness bound for a registrar answer, in seconds.
+const MAX_REGISTRY_RESPONSE_AGE_SECONDS: u64 = 86_400;
+
+/// Validated caller freshness policy for current signed registrar answers.
+#[derive(Clone, Copy)]
+pub(super) struct FreshnessPolicy {
+    evaluation_time: u64,
+    max_age_seconds: u64,
+}
+
+impl FreshnessPolicy {
+    pub(super) fn try_new(
+        evaluation_time: OffsetDateTime,
+        max_age_seconds: u64,
+    ) -> Result<Self, RegistrationError> {
+        if max_age_seconds == 0 || max_age_seconds > MAX_REGISTRY_RESPONSE_AGE_SECONDS {
+            return Err(RegistrationError::from_reason(
+                RegistrationErrorReason::InvalidField,
+            ));
+        }
+        let evaluation_time =
+            u64::try_from(evaluation_time.unix_timestamp()).map_err(|_error| {
+                RegistrationError::from_reason(RegistrationErrorReason::ResponseNotFresh)
+            })?;
+        Ok(Self {
+            evaluation_time,
+            max_age_seconds,
+        })
+    }
+
+    fn check(self, issued_at: u64) -> Result<(), RegistrationError> {
+        let latest_issue = self
+            .evaluation_time
+            .checked_add(REGISTRY_CLOCK_SKEW_SECONDS)
+            .ok_or_else(|| {
+                RegistrationError::from_reason(RegistrationErrorReason::ResponseNotFresh)
+            })?;
+        let age = self.evaluation_time.saturating_sub(issued_at);
+        if issued_at > latest_issue || age > self.max_age_seconds {
+            return Err(RegistrationError::from_reason(
+                RegistrationErrorReason::ResponseNotFresh,
+            ));
+        }
+        Ok(())
+    }
+}
 
 pub(super) fn validate_profile_shape(
     profile: ProtocolProfile,
@@ -88,11 +137,12 @@ pub(super) fn decode_compact_payload(
 pub(super) fn parse_selected_payload(
     shape: RegistryPayloadShape,
     bytes: &[u8],
+    freshness: FreshnessPolicy,
 ) -> Result<(RegistryPayload, RegistryMetadata), RegistrationError> {
     match shape {
         RegistryPayloadShape::Ts5SignedWrpArray => {
             let mut envelope: SignedWrpArray = deserialize_strict(bytes)?;
-            let metadata = current_metadata(&envelope.iss, envelope.iat)?;
+            let metadata = current_metadata(&envelope.iss, envelope.iat, freshness)?;
             let records = core::mem::take(&mut envelope.data)
                 .into_iter()
                 .map(RawWalletRelyingParty::validate)
@@ -109,7 +159,7 @@ pub(super) fn parse_selected_payload(
         RegistryPayloadShape::Ts5SignedWrp => {
             let mut envelope: SignedWrp = deserialize_strict(bytes)?;
             let issuer = Zeroizing::new(core::mem::take(&mut envelope.iss));
-            let metadata = current_metadata(&issuer, envelope.iat)?;
+            let metadata = current_metadata(&issuer, envelope.iat, freshness)?;
             Ok((
                 RegistryPayload::Wrp(Box::new(envelope.data.validate()?)),
                 metadata,
@@ -117,7 +167,7 @@ pub(super) fn parse_selected_payload(
         }
         RegistryPayloadShape::Ts5SignedIntendedUseCheck => {
             let envelope: SignedIntendedUseCheck = deserialize_strict(bytes)?;
-            let metadata = current_metadata(&envelope.iss, envelope.iat)?;
+            let metadata = current_metadata(&envelope.iss, envelope.iat, freshness)?;
             let details = envelope
                 .data
                 .details
@@ -133,42 +183,35 @@ pub(super) fn parse_selected_payload(
             ))
         }
         RegistryPayloadShape::LegacyRawWrpArray => {
-            let values: Vec<RawWalletRelyingParty> = deserialize_strict(bytes)?;
-            if values.len() > 128 {
-                return Err(RegistrationError::from_reason(
-                    RegistrationErrorReason::ResourceLimitExceeded,
-                ));
-            }
-            let records = values
-                .into_iter()
-                .map(RawWalletRelyingParty::validate)
-                .collect::<Result<Vec<_>, RegistrationError>>()?;
-            Ok((
-                RegistryPayload::WrpArray {
-                    records,
-                    pagination: None,
-                },
-                RegistryMetadata::LegacyUnavailable,
+            let _values: Vec<RawWalletRelyingParty> = deserialize_strict(bytes)?;
+            Err(RegistrationError::from_reason(
+                RegistrationErrorReason::UnboundLegacyAnswer,
             ))
         }
         RegistryPayloadShape::LegacyRawWrp => {
-            let value: RawWalletRelyingParty = deserialize_strict(bytes)?;
-            Ok((
-                RegistryPayload::Wrp(Box::new(value.validate()?)),
-                RegistryMetadata::LegacyUnavailable,
+            let _value: RawWalletRelyingParty = deserialize_strict(bytes)?;
+            Err(RegistrationError::from_reason(
+                RegistrationErrorReason::UnboundLegacyAnswer,
             ))
         }
         RegistryPayloadShape::LegacyRawBoolean => {
-            let value: bool = deserialize_strict(bytes)?;
-            Ok((
-                RegistryPayload::Boolean(value),
-                RegistryMetadata::LegacyUnavailable,
+            // The legacy Boolean carries no authenticated issuer, issue time,
+            // or echo of the queried identifiers. It is parsed strictly so
+            // malformed input keeps its precise reason, but it never yields an
+            // answer a caller could treat as an authorization decision.
+            let _answer: bool = deserialize_strict(bytes)?;
+            Err(RegistrationError::from_reason(
+                RegistrationErrorReason::UnboundLegacyAnswer,
             ))
         }
     }
 }
 
-fn current_metadata(issuer: &str, issued_at: i64) -> Result<RegistryMetadata, RegistrationError> {
+fn current_metadata(
+    issuer: &str,
+    issued_at: i64,
+    freshness: FreshnessPolicy,
+) -> Result<RegistryMetadata, RegistrationError> {
     if issued_at <= 0 {
         return Err(RegistrationError::from_reason(
             RegistrationErrorReason::InvalidField,
@@ -178,6 +221,7 @@ fn current_metadata(issuer: &str, issued_at: i64) -> Result<RegistryMetadata, Re
     let canonical = Zeroizing::new(canonical_json(&issuer)?);
     let issued_at = u64::try_from(issued_at)
         .map_err(|_error| RegistrationError::from_reason(RegistrationErrorReason::InvalidField))?;
+    freshness.check(issued_at)?;
     Ok(RegistryMetadata::Current {
         issuer_digest: ArtifactDigest::of(&canonical),
         issued_at,

@@ -9,6 +9,8 @@ fn path_length_constraint_violation_has_a_stable_typed_reason() {
     let mut root = mk_intermediate();
     root.subject = "CN=root".to_owned();
     root.issuer = "CN=root".to_owned();
+    root.subject_der = b"CN=root".to_vec();
+    root.issuer_der = b"CN=root".to_vec();
     root.basic_constraints
         .as_mut()
         .expect("test root has basic constraints")

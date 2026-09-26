@@ -63,6 +63,14 @@ fn envelope_profile_reasons_map_to_stable_proto_reasons() {
                 EnvelopeProfileInvalidReason::UnsupportedDidMeCryptosuite,
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_UNSUPPORTED_DID_ME_CRYPTOSUITE,
             ),
+            (
+                EnvelopeProfileInvalidReason::MissingDidMethod,
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_INVALID_DID_ME_BINDING,
+            ),
+            (
+                EnvelopeProfileInvalidReason::MissingDidMeCryptosuite,
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_UNSUPPORTED_DID_ME_CRYPTOSUITE,
+            ),
         ];
 
     for (reason, expected) in cases {

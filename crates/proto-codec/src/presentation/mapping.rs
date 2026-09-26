@@ -14,6 +14,11 @@ use reallyme_vp_core as vp;
 
 use crate::presentation::{VpProtoError, MAX_MDOC_DEVICE_RESPONSE_BYTES};
 
+#[path = "validate_disclosure.rs"]
+mod validate_disclosure;
+
+use validate_disclosure::{validate_disclosure_model, validate_disclosure_value};
+
 /// Convert the Rust VP model to the generated protobuf model.
 #[must_use]
 pub fn presentation_to_proto(presentation_model: &vp::Presentation) -> pb::Presentation {
@@ -58,6 +63,53 @@ pub fn proto_to_presentation(
     }
 }
 
+/// Convert a generated protobuf model to the Rust VP model, moving large
+/// owned fields out of `presentation_model` instead of copying them.
+///
+/// Fields are only moved after every fallible check for the selected variant
+/// has passed, so an error never leaves moved plaintext outside a zeroizing
+/// owner. Remaining material stays in `presentation_model` for its owner to
+/// zeroize.
+pub(crate) fn take_proto_into_presentation(
+    presentation_model: &mut pb::Presentation,
+) -> Result<vp::Presentation, VpProtoError> {
+    match presentation_model
+        .kind
+        .as_mut()
+        .ok_or(VpProtoError::MissingField)?
+    {
+        presentation::Kind::Zk(model) => Ok(vp::Presentation::Zk(Box::new(zk_from_proto(model)?))),
+        presentation::Kind::SdJwtVc(model) => Ok(vp::Presentation::SdJwtVc(Box::new(
+            sd_jwt_take_from_proto(model)?,
+        ))),
+        presentation::Kind::Mdoc(model) => Ok(vp::Presentation::Mdoc(Box::new(
+            mdoc_take_from_proto(model)?,
+        ))),
+    }
+}
+
+/// Validate cross-field semantics of a Rust VP model before encoding.
+///
+/// `presentation_to_proto` maps the first populated disclosure value, so an
+/// inconsistent model must be rejected before it reaches the wire.
+pub(crate) fn validate_presentation_semantics(
+    presentation_model: &vp::Presentation,
+) -> Result<(), VpProtoError> {
+    let vp::Presentation::Zk(model) = presentation_model else {
+        return Ok(());
+    };
+    if matches!(
+        model.credential.status.purpose,
+        vp::StatusPurpose::Unspecified
+    ) {
+        return Err(VpProtoError::InvalidEnumValue);
+    }
+    for disclosure in &model.disclosures {
+        validate_disclosure_model(disclosure)?;
+    }
+    Ok(())
+}
+
 fn mdoc_to_proto(model: &vp::MdocPresentation) -> pb::MdocPresentation {
     pb::MdocPresentation {
         device_response: model.device_response.clone(),
@@ -73,8 +125,22 @@ fn mdoc_from_proto(model: &pb::MdocPresentation) -> Result<vp::MdocPresentation,
     }
     Ok(vp::MdocPresentation {
         device_response: model.device_response.clone(),
-        envelope_hash: optional_vec_to_32(model.envelope_hash.clone())?,
+        envelope_hash: optional_slice_to_32(model.envelope_hash.as_deref())?,
         doc_type: model.doc_type.clone(),
+    })
+}
+
+fn mdoc_take_from_proto(
+    model: &mut pb::MdocPresentation,
+) -> Result<vp::MdocPresentation, VpProtoError> {
+    if model.device_response.len() > MAX_MDOC_DEVICE_RESPONSE_BYTES {
+        return Err(VpProtoError::MdocDeviceResponseTooLarge);
+    }
+    let envelope_hash = optional_slice_to_32(model.envelope_hash.as_deref())?;
+    Ok(vp::MdocPresentation {
+        device_response: core::mem::take(&mut model.device_response),
+        envelope_hash,
+        doc_type: core::mem::take(&mut model.doc_type),
     })
 }
 
@@ -97,7 +163,20 @@ fn sd_jwt_from_proto(
         disclosures: model.disclosures.clone(),
         kb_jwt: model.kb_jwt.clone(),
         vct: model.vct.clone(),
-        envelope_hash: optional_vec_to_32(model.envelope_hash.clone())?,
+        envelope_hash: optional_slice_to_32(model.envelope_hash.as_deref())?,
+    })
+}
+
+fn sd_jwt_take_from_proto(
+    model: &mut pb::SdJwtVcPresentation,
+) -> Result<vp::SdJwtVcPresentation, VpProtoError> {
+    let envelope_hash = optional_slice_to_32(model.envelope_hash.as_deref())?;
+    Ok(vp::SdJwtVcPresentation {
+        sd_jwt: core::mem::take(&mut model.sd_jwt),
+        disclosures: core::mem::take(&mut model.disclosures),
+        kb_jwt: model.kb_jwt.take(),
+        vct: model.vct.take(),
+        envelope_hash,
     })
 }
 
@@ -157,8 +236,8 @@ fn freshness_from_proto(
     model: &pb::PresentationFreshness,
 ) -> Result<vp::PresentationFreshness, VpProtoError> {
     Ok(vp::PresentationFreshness {
-        challenge: vec_to_32(model.challenge.clone())?,
-        audience_hash: vec_to_32(model.audience_hash.clone())?,
+        challenge: slice_to_32(&model.challenge)?,
+        audience_hash: slice_to_32(&model.audience_hash)?,
         expiry_unix: model.expiry_unix,
     })
 }
@@ -178,7 +257,7 @@ fn credential_from_proto(
     let status = model.status.as_option().ok_or(VpProtoError::MissingField)?;
 
     Ok(vp::CredentialReference {
-        envelope_hash: vec_to_32(model.envelope_hash.clone())?,
+        envelope_hash: slice_to_32(&model.envelope_hash)?,
         issuer_did: model.issuer_did.clone(),
         status: status_from_proto(status)?,
     })
@@ -199,7 +278,7 @@ fn status_from_proto(
 ) -> Result<vp::CredentialStatusRef, VpProtoError> {
     Ok(vp::CredentialStatusRef {
         status_list_url: model.status_list_url.clone(),
-        status_list_id: vec_to_32(model.status_list_id.clone())?,
+        status_list_id: slice_to_32(&model.status_list_id)?,
         status_list_index: model.status_list_index,
         purpose: status_purpose_from_proto(model.purpose.to_i32())?,
     })
@@ -215,9 +294,12 @@ fn disclosure_to_proto(model: &vp::ClaimDisclosure) -> pb::ClaimDisclosure {
 }
 
 fn disclosure_from_proto(model: &pb::ClaimDisclosure) -> Result<vp::ClaimDisclosure, VpProtoError> {
+    let mode = disclosure_mode_from_proto(model.mode.to_i32())?;
+    validate_disclosure_value(mode, model.value.as_ref())?;
+
     let mut disclosure = vp::ClaimDisclosure {
         claim_path: model.claim_path.clone(),
-        mode: disclosure_mode_from_proto(model.mode.to_i32())?,
+        mode,
         revealed_value: None,
         threshold: None,
         range: None,
@@ -279,7 +361,11 @@ fn zk_proof_to_proto(model: &vp::ZkProof) -> pb::ZkProof {
         circuit_version: model.circuit_version.clone(),
         vk_id: model.vk_id.clone(),
         proof_bytes: model.proof_bytes.clone(),
-        public_inputs: model.public_inputs.clone().into_iter().collect(),
+        public_inputs: model
+            .public_inputs
+            .iter()
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect(),
         proof_suite: EnumValue::from(match model.proof_suite {
             vp::ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa => {
                 pb::ZkProofSuite::BarretenbergUltrahonkKeccakZkNoIpa
@@ -306,11 +392,11 @@ fn zk_proof_from_proto(model: &pb::ZkProof) -> Result<vp::ZkProof, VpProtoError>
         proof_bytes: model.proof_bytes.clone(),
         public_inputs: model
             .public_inputs
-            .clone()
-            .into_iter()
+            .iter()
+            .map(|(name, value)| (name.clone(), value.clone()))
             .collect::<BTreeMap<_, _>>(),
         proof_suite,
-        artifact_manifest_sha256: vec_to_32(model.artifact_manifest_sha256.clone())?,
+        artifact_manifest_sha256: slice_to_32(&model.artifact_manifest_sha256)?,
     })
 }
 
@@ -326,7 +412,7 @@ fn qeaa_to_proto(model: &vp::QeaaVerifierHints) -> pb::QeaaVerifierHints {
 fn qeaa_from_proto(model: &pb::QeaaVerifierHints) -> Result<vp::QeaaVerifierHints, VpProtoError> {
     Ok(vp::QeaaVerifierHints {
         required: model.required,
-        audit_report_hash: optional_vec_to_32(model.audit_report_hash.clone())?,
+        audit_report_hash: optional_slice_to_32(model.audit_report_hash.as_deref())?,
         max_status_age_seconds: model.max_status_age_seconds,
     })
 }
@@ -342,7 +428,7 @@ fn status_purpose_to_proto(purpose: vp::StatusPurpose) -> credential_pb::StatusP
 fn status_purpose_from_proto(value: i32) -> Result<vp::StatusPurpose, VpProtoError> {
     match credential_pb::StatusPurpose::from_i32(value).ok_or(VpProtoError::InvalidEnumValue)? {
         credential_pb::StatusPurpose::STATUS_PURPOSE_UNSPECIFIED => {
-            Ok(vp::StatusPurpose::Unspecified)
+            Err(VpProtoError::InvalidEnumValue)
         }
         credential_pb::StatusPurpose::STATUS_PURPOSE_REVOCATION => {
             Ok(vp::StatusPurpose::Revocation)
@@ -368,7 +454,7 @@ fn disclosure_mode_to_proto(mode: vp::DisclosureMode) -> pb::DisclosureMode {
 
 fn disclosure_mode_from_proto(value: i32) -> Result<vp::DisclosureMode, VpProtoError> {
     match pb::DisclosureMode::from_i32(value).ok_or(VpProtoError::InvalidEnumValue)? {
-        pb::DisclosureMode::DISCLOSURE_MODE_UNSPECIFIED => Ok(vp::DisclosureMode::Unspecified),
+        pb::DisclosureMode::DISCLOSURE_MODE_UNSPECIFIED => Err(VpProtoError::InvalidEnumValue),
         pb::DisclosureMode::DISCLOSURE_MODE_HIDDEN => Ok(vp::DisclosureMode::Hidden),
         pb::DisclosureMode::DISCLOSURE_MODE_REVEAL => Ok(vp::DisclosureMode::Reveal),
         pb::DisclosureMode::DISCLOSURE_MODE_EQ => Ok(vp::DisclosureMode::Eq),
@@ -379,10 +465,12 @@ fn disclosure_mode_from_proto(value: i32) -> Result<vp::DisclosureMode, VpProtoE
     }
 }
 
-fn optional_vec_to_32(value: Option<Vec<u8>>) -> Result<Option<[u8; 32]>, VpProtoError> {
-    value.map(vec_to_32).transpose()
+fn optional_slice_to_32(value: Option<&[u8]>) -> Result<Option<[u8; 32]>, VpProtoError> {
+    value.map(slice_to_32).transpose()
 }
 
-fn vec_to_32(value: Vec<u8>) -> Result<[u8; 32], VpProtoError> {
+/// Copy a fixed-width field without allocating an intermediate heap buffer
+/// that would otherwise be released without zeroization.
+fn slice_to_32(value: &[u8]) -> Result<[u8; 32], VpProtoError> {
     <[u8; 32]>::try_from(value).map_err(|_| VpProtoError::InvalidBytesLen)
 }

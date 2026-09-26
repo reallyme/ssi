@@ -13,10 +13,10 @@ use zeroize::Zeroize;
 use crate::{RegistrationError, RegistrationErrorReason};
 
 pub(crate) const MAX_JSON_BYTES: usize = 4 * 1_024 * 1_024;
-const MAX_JSON_DEPTH: usize = 24;
-const MAX_JSON_ITEMS: usize = 1_024;
-const MAX_JSON_MEMBERS: usize = 256;
-const MAX_JSON_STRING_BYTES: usize = 16_384;
+pub(crate) const MAX_JSON_DEPTH: usize = 24;
+pub(crate) const MAX_JSON_ITEMS: usize = 1_024;
+pub(crate) const MAX_JSON_MEMBERS: usize = 256;
+pub(crate) const MAX_JSON_STRING_BYTES: usize = 16_384;
 
 thread_local! {
     static PARSE_REASON: Cell<Option<RegistrationErrorReason>> = const { Cell::new(None) };
@@ -101,15 +101,19 @@ pub(crate) fn parse_strict(input: &[u8]) -> Result<StrictValue, RegistrationErro
     Ok(value)
 }
 
+/// Deserializes a closed schema only after the exact input bytes passed the
+/// bounded duplicate-member and resource-limit validation of [`parse_strict`].
+///
+/// The typed decode reads the original bytes directly. Because the strict
+/// pass already rejected duplicate members, oversized strings, excessive
+/// depth, and oversized collections, this is equivalent to decoding a
+/// re-serialized copy of the validated tree without the extra allocation.
 pub(crate) fn deserialize_strict<T>(input: &[u8]) -> Result<T, RegistrationError>
 where
     T: for<'de> Deserialize<'de>,
 {
-    let value = parse_strict(input)?;
-    let encoded = zeroize::Zeroizing::new(serde_json::to_vec(&value).map_err(|_error| {
-        RegistrationError::from_reason(RegistrationErrorReason::SerializationFailed)
-    })?);
-    serde_json::from_slice(&encoded)
+    drop(parse_strict(input)?);
+    serde_json::from_slice(input)
         .map_err(|_error| RegistrationError::from_reason(RegistrationErrorReason::InvalidField))
 }
 

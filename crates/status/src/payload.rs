@@ -4,9 +4,16 @@
 
 use reallyme_codec::cbor::{encode_dag_cbor, CborValue};
 
-use crate::{CredentialStatusError, CredentialStatusInvalidReason, StatusList, StatusPurpose};
+use crate::{
+    CredentialStatusError, CredentialStatusInvalidReason, StatusList, StatusListAlgorithm,
+    StatusPurpose,
+};
 
-/// Deterministically encode the status-list fields covered by issuer signature.
+/// Deterministically encode the version-2 status-list signing payload.
+///
+/// The domain and algorithm are authenticated to prevent interpreting a signature
+/// under different protocol or algorithm metadata. Version-1 signatures must be
+/// reissued; verification deliberately does not fall back to the old encoding.
 pub fn status_list_signing_payload(list: &StatusList) -> Result<Vec<u8>, CredentialStatusError> {
     let issued_at = i64::try_from(list.issued_at).map_err(|_| {
         CredentialStatusError::InvalidInput(CredentialStatusInvalidReason::PayloadEncoding)
@@ -23,6 +30,14 @@ pub fn status_list_signing_payload(list: &StatusList) -> Result<Vec<u8>, Credent
     };
 
     encode_dag_cbor(&CborValue::Map(vec![
+        (
+            "domain".to_owned(),
+            CborValue::String("reallyme.status-list.v2".to_owned()),
+        ),
+        (
+            "alg".to_owned(),
+            CborValue::String(algorithm_label(list.signature.alg).to_owned()),
+        ),
         ("issuer".to_owned(), CborValue::String(list.issuer.clone())),
         (
             "purpose".to_owned(),
@@ -46,5 +61,13 @@ fn purpose_label(purpose: StatusPurpose) -> &'static str {
     match purpose {
         StatusPurpose::Revocation => "revocation",
         StatusPurpose::Suspension => "suspension",
+    }
+}
+
+fn algorithm_label(algorithm: StatusListAlgorithm) -> &'static str {
+    match algorithm {
+        StatusListAlgorithm::Ed25519 => "Ed25519",
+        StatusListAlgorithm::P256 => "ES256",
+        StatusListAlgorithm::Secp256k1 => "ES256K",
     }
 }

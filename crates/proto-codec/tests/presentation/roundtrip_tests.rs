@@ -263,3 +263,166 @@ fn decoded_proto_has_a_non_cloneable_zeroizing_owner() -> Result<(), VpProtoErro
     assert!(decoded.is_cleared());
     Ok(())
 }
+
+fn zk_proto_with<F>(mutate: F) -> Result<Vec<u8>, VpProtoError>
+where
+    F: FnOnce(
+        &mut reallyme_ssi_proto::generated::proto::identity::presentation::v1::ZkPresentation,
+    ) -> Result<(), VpProtoError>,
+{
+    let mut proto =
+        reallyme_ssi_proto_codec::presentation::presentation_to_proto(&zk_presentation());
+    let Some(
+        reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::presentation::Kind::Zk(model),
+    ) = proto.kind.as_mut()
+    else {
+        return Err(VpProtoError::MissingField);
+    };
+    mutate(model)?;
+    Ok(encode_proto(&proto)?.to_vec())
+}
+
+#[test]
+fn disclosure_mode_must_match_value_variant() -> Result<(), VpProtoError> {
+    use buffa::EnumValue;
+    use reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::claim_disclosure;
+    use reallyme_ssi_proto::generated::proto::identity::presentation::v1::DisclosureMode as PbMode;
+
+    let cases: [(PbMode, Option<claim_disclosure::Value>); 5] = [
+        (PbMode::Reveal, Some(claim_disclosure::Value::Threshold(18))),
+        (
+            PbMode::Gte,
+            Some(claim_disclosure::Value::RevealedValue(vec![1])),
+        ),
+        (PbMode::Gte, None),
+        (PbMode::Hidden, Some(claim_disclosure::Value::Threshold(18))),
+        (
+            PbMode::MemberOfSet,
+            Some(claim_disclosure::Value::Threshold(18)),
+        ),
+    ];
+    for (mode, value) in cases {
+        let encoded = zk_proto_with(|model| {
+            let disclosure = model
+                .disclosures
+                .first_mut()
+                .ok_or(VpProtoError::MissingField)?;
+            disclosure.mode = EnumValue::from(mode);
+            disclosure.value = value;
+            Ok(())
+        })?;
+        assert_eq!(
+            decode_presentation_proto(&encoded),
+            Err(VpProtoError::InconsistentDisclosure)
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn inverted_disclosure_range_is_rejected() -> Result<(), VpProtoError> {
+    use reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::claim_disclosure;
+
+    let encoded = zk_proto_with(|model| {
+        let disclosure = model
+            .disclosures
+            .get_mut(2)
+            .ok_or(VpProtoError::MissingField)?;
+        let Some(claim_disclosure::Value::Range(range)) = disclosure.value.as_mut() else {
+            return Err(VpProtoError::MissingField);
+        };
+        range.min = 300;
+        range.max = 200;
+        Ok(())
+    })?;
+
+    assert_eq!(
+        decode_presentation_proto(&encoded),
+        Err(VpProtoError::InconsistentDisclosure)
+    );
+    Ok(())
+}
+
+#[test]
+fn unspecified_disclosure_mode_is_rejected() -> Result<(), VpProtoError> {
+    let encoded = zk_proto_with(|model| {
+        let disclosure = model
+            .disclosures
+            .first_mut()
+            .ok_or(VpProtoError::MissingField)?;
+        disclosure.mode = Default::default();
+        Ok(())
+    })?;
+
+    assert_eq!(
+        decode_presentation_proto(&encoded),
+        Err(VpProtoError::InvalidEnumValue)
+    );
+    Ok(())
+}
+
+#[test]
+fn unspecified_status_purpose_is_rejected() -> Result<(), VpProtoError> {
+    let encoded = zk_proto_with(|model| {
+        let status = model
+            .credential
+            .as_option_mut()
+            .and_then(|credential| credential.status.as_option_mut())
+            .ok_or(VpProtoError::MissingField)?;
+        status.purpose = Default::default();
+        Ok(())
+    })?;
+
+    assert_eq!(
+        decode_presentation_proto(&encoded),
+        Err(VpProtoError::InvalidEnumValue)
+    );
+    Ok(())
+}
+
+#[test]
+fn inconsistent_disclosure_model_is_rejected_before_encoding() {
+    let mut presentation = zk_presentation();
+    let Presentation::Zk(model) = &mut presentation else {
+        return;
+    };
+    if let Some(disclosure) = model.disclosures.first_mut() {
+        disclosure.revealed_value = Some(vec![1]);
+    }
+
+    assert_eq!(
+        encode_presentation_proto(&presentation),
+        Err(VpProtoError::InconsistentDisclosure)
+    );
+    assert_eq!(
+        presentation_to_proto_json(&presentation),
+        Err(VpProtoError::InconsistentDisclosure)
+    );
+}
+
+#[test]
+fn unspecified_status_purpose_model_is_rejected_before_encoding() {
+    let mut presentation = zk_presentation();
+    let Presentation::Zk(model) = &mut presentation else {
+        return;
+    };
+    model.credential.status.purpose = StatusPurpose::Unspecified;
+
+    assert_eq!(
+        encode_presentation_proto(&presentation),
+        Err(VpProtoError::InvalidEnumValue)
+    );
+}
+
+#[test]
+fn mdoc_presentation_round_trips_through_owned_decode() -> Result<(), VpProtoError> {
+    let presentation = Presentation::Mdoc(Box::new(MdocPresentation {
+        device_response: vec![0xA1, 0x01, 0x02],
+        envelope_hash: Some([5_u8; 32]),
+        doc_type: Some("eu.europa.ec.eudi.pid.1".to_owned()),
+    }));
+
+    let encoded = encode_presentation_proto(&presentation)?;
+    assert_eq!(decode_presentation_proto(&encoded)?, presentation);
+    Ok(())
+}

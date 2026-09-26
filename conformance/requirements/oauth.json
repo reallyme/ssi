@@ -83,8 +83,8 @@
   },
   {
     "id": "OAUTH-ATTESTATION-MUST-001",
-    "source": "COMPLIANCE-MAP",
-    "section": "Shared OAuth substrate for protocol crates",
+    "source": "I-D-OAUTH-ATTESTATION-CLIENT-AUTH-11",
+    "section": "4, 5.1, 6, and 7",
     "keyword": "MUST",
     "feature": "attestation_client_authentication_with_cnf_jwk_bound_pop_validation",
     "implementation": ["crates/oauth/src/attestation_client_auth.rs", "crates/oauth/src/attestation_trust_receipt.rs", "crates/oauth/src/attestation_trust_receipt/freshness.rs", "crates/oauth/src/bind_attested_client_key.rs", "crates/oauth/src/jwt.rs", "crates/oauth/src/strict_json.rs"],

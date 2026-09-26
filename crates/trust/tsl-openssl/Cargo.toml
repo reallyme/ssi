@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-trust-tsl-openssl"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -15,7 +15,7 @@ default = []
 # system-library integration and must remain an explicit host-package choice;
 # enabling it implicitly contaminates mobile cross-compilation with host C
 # objects and makes the resulting archive unusable.
-native = ["dep:openssl", "dep:tempfile", "dep:identity-trust-openssl"]
+native = ["dep:openssl", "dep:identity-trust-openssl"]
 xmlsec-ffi = ["dep:identity-trust-tsl-xmlsec", "identity-trust-tsl-xmlsec/xmlsec-ffi"]
 
 
@@ -25,13 +25,13 @@ reallyme-crypto = { workspace = true, features = ["sha2"] }
 thiserror = { workspace = true }
 time = "0.3"
 openssl = { version = "0.10.81", optional = true }
-tempfile = { version = "3", optional = true }
 zeroize = { workspace = true, features = ["derive"] }
 
-identity-trust-tsl-core = { version = "0.1.0", path = "../tsl-core" }
-reallyme-trust-core = { version = "0.1.0", path = "../core" }
-identity-trust-openssl = { version = "0.1.0", path = "../openssl", optional = true }
-identity-trust-tsl-xmlsec = { version = "0.1.0", path = "../tsl-xmlsec", optional = true, default-features = false }
+identity-trust-tsl-core = { version = "0.2.0", path = "../tsl-core" }
+reallyme-trust-core = { version = "0.2.0", path = "../core" }
+identity-revocation-core = { workspace = true }
+identity-trust-openssl = { version = "0.2.0", path = "../openssl", optional = true }
+identity-trust-tsl-xmlsec = { version = "0.2.0", path = "../tsl-xmlsec", optional = true, default-features = false }
 envelopes-x509 = { workspace = true }
 [lints]
 workspace = true

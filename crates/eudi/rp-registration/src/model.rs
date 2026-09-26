@@ -11,6 +11,7 @@ use crate::json::deserialize_strict;
 use crate::{RegistrationError, RegistrationErrorReason};
 
 mod payload;
+mod protocol;
 mod raw;
 mod validation;
 
@@ -19,116 +20,10 @@ pub use payload::{
     PolicyReference, ProvidedAttestation, RegistryPagination, RegistryPayload,
     SupervisoryAuthority,
 };
+pub use protocol::{ProtocolProfile, RegistryPayloadShape, WrpEntitlement};
 pub(crate) use raw::RawWalletRelyingParty;
 
 const MAX_TEXT_BYTES: usize = 2_048;
-
-/// Closed ETSI TS 119 475 Annex A.2 WRP entitlement registry.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Zeroize)]
-pub enum WrpEntitlement {
-    /// General service provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/Service_Provider")]
-    ServiceProvider,
-    /// Qualified EAA provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/QEAA_Provider")]
-    QualifiedEaaProvider,
-    /// Non-qualified EAA provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/Non_Q_EAA_Provider")]
-    NonQualifiedEaaProvider,
-    /// Public-sector EAA provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/PUB_EAA_Provider")]
-    PublicSectorEaaProvider,
-    /// Person-identification-data provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/PID_Provider")]
-    PidProvider,
-    /// Qualified electronic-seal certificate provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/QCert_for_ESeal_Provider")]
-    QualifiedEsealCertificateProvider,
-    /// Qualified electronic-signature certificate provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/QCert_for_ESig_Provider")]
-    QualifiedEsignatureCertificateProvider,
-    /// Remote qualified electronic-seal creation-device provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/rQSealCDs_Provider")]
-    RemoteQualifiedEsealDeviceProvider,
-    /// Remote qualified electronic-signature creation-device provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/rQSigCDs_Provider")]
-    RemoteQualifiedEsignatureDeviceProvider,
-    /// Non-qualified remote electronic-signature or seal creation provider.
-    #[serde(rename = "https://uri.etsi.org/19475/Entitlement/ESig_ESeal_Creation_Provider")]
-    EsignatureEsealCreationProvider,
-}
-
-impl WrpEntitlement {
-    pub(crate) fn parse(value: &str) -> Result<Self, RegistrationError> {
-        match value {
-            "https://uri.etsi.org/19475/Entitlement/Service_Provider" => Ok(Self::ServiceProvider),
-            "https://uri.etsi.org/19475/Entitlement/QEAA_Provider" => {
-                Ok(Self::QualifiedEaaProvider)
-            }
-            "https://uri.etsi.org/19475/Entitlement/Non_Q_EAA_Provider" => {
-                Ok(Self::NonQualifiedEaaProvider)
-            }
-            "https://uri.etsi.org/19475/Entitlement/PUB_EAA_Provider" => {
-                Ok(Self::PublicSectorEaaProvider)
-            }
-            "https://uri.etsi.org/19475/Entitlement/PID_Provider" => Ok(Self::PidProvider),
-            "https://uri.etsi.org/19475/Entitlement/QCert_for_ESeal_Provider" => {
-                Ok(Self::QualifiedEsealCertificateProvider)
-            }
-            "https://uri.etsi.org/19475/Entitlement/QCert_for_ESig_Provider" => {
-                Ok(Self::QualifiedEsignatureCertificateProvider)
-            }
-            "https://uri.etsi.org/19475/Entitlement/rQSealCDs_Provider" => {
-                Ok(Self::RemoteQualifiedEsealDeviceProvider)
-            }
-            "https://uri.etsi.org/19475/Entitlement/rQSigCDs_Provider" => {
-                Ok(Self::RemoteQualifiedEsignatureDeviceProvider)
-            }
-            "https://uri.etsi.org/19475/Entitlement/ESig_ESeal_Creation_Provider" => {
-                Ok(Self::EsignatureEsealCreationProvider)
-            }
-            _ => Err(RegistrationError::from_reason(
-                RegistrationErrorReason::InvalidField,
-            )),
-        }
-    }
-
-    pub(crate) const fn provides_wallet_attestations(self) -> bool {
-        matches!(
-            self,
-            Self::QualifiedEaaProvider
-                | Self::NonQualifiedEaaProvider
-                | Self::PublicSectorEaaProvider
-                | Self::PidProvider
-        )
-    }
-}
-
-/// Pinned registration protocol profile.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Zeroize)]
-pub enum ProtocolProfile {
-    /// EUDI TS5 registrar API v1.5.
-    Ts5V1_5,
-    /// Explicit compatibility profile for the pinned v0.2.2 reference service.
-    EuReferenceLegacyV0_2_2,
-}
-
-/// Caller-selected authenticated payload shape.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
-pub enum RegistryPayloadShape {
-    /// Current `SignedWRPArray` response.
-    Ts5SignedWrpArray,
-    /// Current `SignedWRP` response.
-    Ts5SignedWrp,
-    /// Current signed intended-use-check response.
-    Ts5SignedIntendedUseCheck,
-    /// Explicit legacy raw WRP array.
-    LegacyRawWrpArray,
-    /// Explicit legacy raw WRP object.
-    LegacyRawWrp,
-    /// Explicit legacy raw Boolean.
-    LegacyRawBoolean,
-}
 
 /// Bounded UTF-8 protocol text with redacted diagnostics and drop zeroization.
 #[derive(Eq, PartialEq, Serialize, Zeroize, ZeroizeOnDrop)]
@@ -173,6 +68,51 @@ pub struct CredentialRequest {
 }
 
 impl CredentialRequest {
+    pub(crate) fn try_new(
+        format: String,
+        meta: std::collections::BTreeMap<String, crate::json::StrictValue>,
+        claims: Vec<String>,
+    ) -> Result<Self, RegistrationError> {
+        validation::validate_items(&claims, true)?;
+        let meta = validation::validate_metadata(meta)?;
+        let format = BoundedText::try_from_owned(format)?;
+        let metadata_matches_format = matches!(
+            (format.expose(), &meta),
+            ("dc+sd-jwt", CredentialMetadata::DcSdJwt(_))
+                | ("mso_mdoc", CredentialMetadata::MsoMdoc(_))
+        );
+        if !metadata_matches_format {
+            return Err(RegistrationError::from_reason(
+                RegistrationErrorReason::SemanticBindingMismatch,
+            ));
+        }
+        let claims = claims
+            .into_iter()
+            .map(|path| {
+                validation::validate_claim_path(&path)?;
+                Ok(ClaimPath {
+                    path: BoundedText::try_from_owned(path)?,
+                })
+            })
+            .collect::<Result<Vec<_>, RegistrationError>>()?;
+        let has_duplicate_claim = claims.iter().enumerate().any(|(index, claim)| {
+            claims
+                .iter()
+                .skip(index.saturating_add(1))
+                .any(|other| other.path() == claim.path())
+        });
+        if has_duplicate_claim {
+            return Err(RegistrationError::from_reason(
+                RegistrationErrorReason::InvalidField,
+            ));
+        }
+        Ok(Self {
+            format,
+            meta,
+            claims,
+        })
+    }
+
     /// Returns the registered credential format.
     #[must_use]
     pub fn format(&self) -> &str {
@@ -189,6 +129,31 @@ impl CredentialRequest {
     #[must_use]
     pub fn claims(&self) -> &[ClaimPath] {
         &self.claims
+    }
+
+    pub(crate) fn authorizes(&self, requested: &Self) -> bool {
+        if self.format() != requested.format() {
+            return false;
+        }
+        let metadata_authorized = match (&self.meta, &requested.meta) {
+            (CredentialMetadata::DcSdJwt(registered), CredentialMetadata::DcSdJwt(requested)) => {
+                requested.vct_values.iter().all(|requested_value| {
+                    registered.vct_values.iter().any(|registered_value| {
+                        registered_value.expose() == requested_value.expose()
+                    })
+                })
+            }
+            (CredentialMetadata::MsoMdoc(registered), CredentialMetadata::MsoMdoc(requested)) => {
+                registered.doctype_value.expose() == requested.doctype_value.expose()
+            }
+            _ => false,
+        };
+        metadata_authorized
+            && requested.claims.iter().all(|requested_claim| {
+                self.claims
+                    .iter()
+                    .any(|registered_claim| registered_claim.path() == requested_claim.path())
+            })
     }
 }
 

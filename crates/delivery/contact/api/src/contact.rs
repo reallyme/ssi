@@ -24,11 +24,12 @@ mod error;
 pub use error::ContactApiError;
 
 use identity_presentation_delivery_contact_core::{
-    encode_contact_message_cbor, fragment_message, sha256_bytes, sha256_concat, ContactLimits,
-    ContactMessage, ContactPayloadKind,
+    derive_contact_message_id, derive_contact_session_id, encode_contact_message_cbor,
+    fragment_message, sha256_bytes, ContactLimits, ContactMessage, ContactPayloadKind,
+    MAX_CONTACT_MESSAGE_LIFETIME_SECONDS,
 };
 use identity_presentation_delivery_contact_validator::{
-    validate_contact_frames_cbor, validate_contact_message_cbor, VerifiedContactMessage,
+    validate_contact_frames_cbor, validate_contact_message_cbor, ValidatedContactEnvelope,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -89,6 +90,7 @@ impl core::fmt::Debug for BuiltContactMessage {
 ///
 /// - `session_id` is derived from `sha256(session_transcript_cbor)[0..16]`
 /// - `message_id` is derived from `sha256(session_transcript_cbor || payload || kind_string)[0..4]`
+/// - `ttl_secs` must not exceed `MAX_CONTACT_MESSAGE_LIFETIME_SECONDS`
 pub fn build_contact_message_cbor(
     mut input: BuildContactMessageInput,
     limits: &ContactLimits,
@@ -96,29 +98,17 @@ pub fn build_contact_message_cbor(
     if input.payload.len() > limits.max_message_bytes {
         return Err(ContactApiError::InvalidInput);
     }
-    if input.ttl_secs == 0 {
+    if input.ttl_secs == 0 || input.ttl_secs > MAX_CONTACT_MESSAGE_LIFETIME_SECONDS {
         return Err(ContactApiError::InvalidInput);
     }
+    limits
+        .validate()
+        .map_err(|_| ContactApiError::InvalidInput)?;
 
     let transcript_hash = sha256_bytes(&input.session_transcript_cbor);
-    if limits.session_id_len == 0 || limits.session_id_len > transcript_hash.len() {
-        return Err(ContactApiError::InvalidInput);
-    }
-    let session_id = transcript_hash[0..limits.session_id_len].to_vec();
-
-    // Stable kind bytes for message_id derivation.
-    let kind_str = match input.kind {
-        ContactPayloadKind::Engagement => "engagement",
-        ContactPayloadKind::Request => "request",
-        ContactPayloadKind::Response => "response",
-    };
-
-    let msg_hash = sha256_concat(
-        &input.session_transcript_cbor,
-        &input.payload,
-        kind_str.as_bytes(),
-    )?;
-    let message_id = u32::from_le_bytes([msg_hash[0], msg_hash[1], msg_hash[2], msg_hash[3]]);
+    let session_id = derive_contact_session_id(&input.session_transcript_cbor).to_vec();
+    let message_id =
+        derive_contact_message_id(&input.session_transcript_cbor, &input.payload, input.kind)?;
 
     let msg = ContactMessage {
         version: "1.0".into(),
@@ -168,7 +158,7 @@ pub fn validate_contact_message(
     expected_session_transcript_cbor: &[u8],
     now_unix: u64,
     limits: &ContactLimits,
-) -> Result<VerifiedContactMessage, ContactApiError> {
+) -> Result<ValidatedContactEnvelope, ContactApiError> {
     Ok(validate_contact_message_cbor(
         message_cbor,
         expected_session_transcript_cbor,
@@ -183,7 +173,7 @@ pub fn validate_contact_frames(
     expected_session_transcript_cbor: &[u8],
     now_unix: u64,
     limits: &ContactLimits,
-) -> Result<VerifiedContactMessage, ContactApiError> {
+) -> Result<ValidatedContactEnvelope, ContactApiError> {
     Ok(validate_contact_frames_cbor(
         frames_cbor,
         expected_session_transcript_cbor,

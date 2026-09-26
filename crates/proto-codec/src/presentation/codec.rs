@@ -8,6 +8,8 @@ mod mapping;
 mod own_presentation_proto;
 
 pub use mapping::{presentation_to_proto, proto_to_presentation};
+
+use mapping::{take_proto_into_presentation, validate_presentation_semantics};
 pub use own_presentation_proto::{zeroize_presentation_proto, SensitivePresentationProto};
 
 use buffa::{DecodeOptions, Message};
@@ -73,6 +75,10 @@ pub enum VpProtoError {
     #[error("invalid presentation protobuf enum value")]
     InvalidEnumValue,
 
+    /// A claim disclosure value does not match its declared disclosure mode.
+    #[error("presentation claim disclosure value does not match its mode")]
+    InconsistentDisclosure,
+
     /// Generated protobuf JSON serialization failed.
     #[error("invalid presentation protobuf JSON serialization")]
     JsonSerialize,
@@ -133,8 +139,8 @@ pub fn encode_presentation_proto(
 
 /// Decode generated protobuf bytes into the Rust VP model.
 pub fn decode_presentation_proto(bytes: &[u8]) -> Result<Presentation, VpProtoError> {
-    let proto = decode_proto(bytes)?;
-    proto_to_presentation(proto.as_proto())
+    let mut proto = decode_proto(bytes)?;
+    take_proto_into_presentation(proto.as_proto_mut())
 }
 
 /// Encode a Rust VP model as protobuf bytes and then bounded Brotli.
@@ -198,6 +204,7 @@ pub fn presentation_to_proto_json(
 }
 
 fn validate_presentation_resource_limits(presentation: &Presentation) -> Result<(), VpProtoError> {
+    validate_presentation_semantics(presentation)?;
     if let Presentation::Mdoc(mdoc) = presentation {
         if mdoc.device_response.len() > MAX_MDOC_DEVICE_RESPONSE_BYTES {
             return Err(VpProtoError::MdocDeviceResponseTooLarge);
@@ -217,8 +224,8 @@ fn validate_proto_resource_limits(presentation_model: &PbPresentation) -> Result
 
 /// Deserialize Buffa protobuf JSON into the Rust VP model.
 pub fn proto_json_to_presentation(json: &str) -> Result<Presentation, VpProtoError> {
-    let proto = json_to_proto(json)?;
-    proto_to_presentation(proto.as_proto())
+    let mut proto = json_to_proto(json)?;
+    take_proto_into_presentation(proto.as_proto_mut())
 }
 
 impl From<VpProtoError> for IdentityCoreErrorReason {
@@ -234,6 +241,9 @@ impl From<VpProtoError> for IdentityCoreErrorReason {
             }
             VpProtoError::MissingField => {
                 Self::IDENTITY_CORE_ERROR_REASON_PRESENTATION_INVALID_RESPONSE
+            }
+            VpProtoError::InconsistentDisclosure => {
+                Self::IDENTITY_CORE_ERROR_REASON_CLAIMS_INVALID_DISCLOSURE_MODE
             }
             VpProtoError::MessageTooLarge
             | VpProtoError::MdocDeviceResponseTooLarge

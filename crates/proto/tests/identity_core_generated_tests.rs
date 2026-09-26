@@ -129,3 +129,21 @@ fn identity_core_stack_error_preserves_unknown_reason_code() {
     };
     assert!(IdentityCoreErrorReason::from_i32(decoded_reason_code).is_none());
 }
+
+#[test]
+fn identity_core_stack_error_maps_negative_reason_to_unspecified() {
+    for raw in [-1, i32::MIN] {
+        let stack_error = identity_core_stack_error_from_enum_value(
+            EnumValue::<IdentityCoreErrorReason>::from(raw),
+            "",
+        );
+
+        let expected =
+            u32::try_from(IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_UNSPECIFIED.to_i32());
+        assert_eq!(Ok(stack_error.reason_code), expected);
+        assert_eq!(
+            stack_error.domain.to_i32(),
+            IdentityStackErrorDomain::IDENTITY_STACK_ERROR_DOMAIN_IDENTITY_CORE.to_i32()
+        );
+    }
+}

@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use reallyme_codec::base64url::base64url_to_bytes;
 use reallyme_crypto::jwk::Jwk;
 use reallyme_jose::jwt::{
     decode_verify_jwt_signature_only_with_header_validation, JwtHeaderValidationOptions,
 };
 
-use crate::{validate_jwt_vc_claims, JwtVcEnvelopeError, JwtVcPayload};
+use super::validate_temporal::{validate_jwt_vc_temporal_claims, validate_verification_options};
+use crate::claims::decode_validated_credential_bytes;
+use crate::{JwtVcEnvelopeError, JwtVcPayload};
 
 // `vc+jwt` is the canonical type emitted by this crate. Legacy VC-JWT
 // deployments commonly used the generic `JWT` value, so verification retains
@@ -30,30 +31,44 @@ pub struct VerifiedJwtVc {
     pub credential_proto: Option<Vec<u8>>,
 }
 
-/// Verify a JWT-VC signature and decode its credential bytes.
+/// Verifier policy for JWT-VC temporal claim validation.
+///
+/// There is no default: callers must supply the current time explicitly so a
+/// missing clock can never silently disable expiry checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JwtVcVerificationOptions {
+    /// Current verifier time as UTC seconds since the Unix epoch. Zero is
+    /// rejected with [`JwtVcEnvelopeError::InvalidVerificationTime`].
+    pub now_unix: u64,
+
+    /// Tolerated clock skew in seconds, applied to `exp`, `nbf`, and `iat`.
+    /// Values above [`crate::MAX_JWT_VC_CLOCK_SKEW_SECONDS`] are rejected with
+    /// [`JwtVcEnvelopeError::InvalidVerificationTime`].
+    pub clock_skew_seconds: u64,
+}
+
+/// Verify a JWT-VC signature, its temporal claims against the supplied
+/// verification time, and decode its credential bytes.
 pub fn verify_jwt_vc(
     jwt: &str,
     issuer_jwk: &Jwk,
     issuer_public_key: &[u8],
+    options: &JwtVcVerificationOptions,
 ) -> Result<VerifiedJwtVc, JwtVcEnvelopeError> {
+    validate_verification_options(options)?;
+
     let payload: JwtVcPayload = decode_verify_jwt_signature_only_with_header_validation(
         jwt,
         issuer_jwk,
         issuer_public_key,
         &JwtHeaderValidationOptions::new(false, false, JWT_VC_TYP_VALUES),
     )?;
-    validate_jwt_vc_claims(&payload)?;
-
-    let credential_cbor = base64url_to_bytes(&payload.credential_cbor)?;
-    let credential_proto = payload
-        .credential_proto
-        .as_deref()
-        .map(base64url_to_bytes)
-        .transpose()?;
+    let decoded = decode_validated_credential_bytes(&payload)?;
+    validate_jwt_vc_temporal_claims(&payload, options)?;
 
     Ok(VerifiedJwtVc {
         payload,
-        credential_cbor,
-        credential_proto,
+        credential_cbor: decoded.credential_cbor,
+        credential_proto: decoded.credential_proto,
     })
 }

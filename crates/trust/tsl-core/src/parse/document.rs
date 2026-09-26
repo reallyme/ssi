@@ -173,13 +173,28 @@ fn closed_list_status_is_non_authorizing(status: &TrustServiceStatus) -> bool {
     )
 }
 
-/// Reject an authenticated trusted list whose mandatory re-issuance deadline
-/// has elapsed.
+/// Reject an authenticated trusted list that is not fresh at `now`.
 ///
 /// ETSI TS 119 612 v2.4.1 clause 5.3.15 requires applications to discard an
 /// expired list. A null `NextUpdate` denotes a final closed list and therefore
-/// has no freshness deadline.
+/// has no freshness deadline. A list whose `ListIssueDateTime` lies in the
+/// future beyond [`MAX_TSL_ISSUE_DATE_TIME_CLOCK_SKEW_SECONDS`] is rejected:
+/// such a list asserts facts that were not yet published at the evaluation
+/// time, and accepting it would let a pre-dated document extend its own
+/// freshness window.
 pub fn validate_tsl_freshness(list: &TrustedList, now: OffsetDateTime) -> Result<(), TslError> {
+    let latest_accepted_issue = now
+        .checked_add(Duration::seconds(MAX_TSL_ISSUE_DATE_TIME_CLOCK_SKEW_SECONDS))
+        .ok_or(TslError::InvalidTimestamp)?;
+    if (
+        list.issue_date_time.unix_seconds(),
+        list.issue_date_time.nanosecond(),
+    ) > (
+        latest_accepted_issue.unix_timestamp(),
+        latest_accepted_issue.nanosecond(),
+    ) {
+        return Err(TslError::NotYetIssued);
+    }
     let Some(next_update) = list.next_update else {
         return Ok(());
     };
@@ -187,6 +202,23 @@ pub fn validate_tsl_freshness(list: &TrustedList, now: OffsetDateTime) -> Result
         <= (now.unix_timestamp(), now.nanosecond())
     {
         return Err(TslError::Expired);
+    }
+    Ok(())
+}
+
+/// Reject a trusted list older than one the caller has already accepted.
+///
+/// TS 119 612 clause 5.3.2 requires `TSLSequenceNumber` to increase with each
+/// issued list. Callers that persist the last accepted sequence number for a
+/// list location pass it here after authentication; an authentic but older
+/// (replayed) list is rejected. Equal numbers are admitted so the same
+/// publication can be re-verified.
+pub fn validate_tsl_sequence_number(
+    list: &TrustedList,
+    last_accepted_sequence_number: u64,
+) -> Result<(), TslError> {
+    if list.sequence_number < last_accepted_sequence_number {
+        return Err(TslError::SequenceRollback);
     }
     Ok(())
 }

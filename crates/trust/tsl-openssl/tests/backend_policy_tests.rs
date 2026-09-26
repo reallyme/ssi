@@ -8,14 +8,36 @@
 
 use envelopes_x509::parse_cert_pem;
 use envelopes_x509::policy::X509Policy;
+use identity_revocation_core::{StatusCheckError, StatusChecker};
 use identity_trust_tsl_openssl::{
-    verify_tsl_xml_openssl, TslOpenSslError, TslTrustRootErrorReason, MAX_TSL_TRUST_ROOTS,
-    MAX_TSL_TRUST_ROOT_DER_BYTES,
+    verify_tsl_xml_openssl as verify_tsl_xml_openssl_with_status, TslOpenSslError,
+    TslTrustRootErrorReason, MAX_TSL_TRUST_ROOTS, MAX_TSL_TRUST_ROOT_DER_BYTES,
 };
 use time::OffsetDateTime;
 
 const SIGNED_TSL_XML: &str = include_str!("fixtures/signed_tsl.xml");
 const SIGNER_CERT_PEM: &[u8] = include_bytes!("fixtures/cert.pem");
+
+struct GoodStatus;
+
+impl StatusChecker for GoodStatus {
+    fn check(
+        &self,
+        _cert: &envelopes_x509::X509Certificate,
+        _now_unix: u64,
+    ) -> Result<(), StatusCheckError> {
+        Ok(())
+    }
+}
+
+fn verify_tsl_xml_openssl(
+    xml: &str,
+    trust_roots: &[envelopes_x509::X509Certificate],
+    now: OffsetDateTime,
+    policy: X509Policy,
+) -> Result<identity_trust_tsl_openssl::VerifiedTrustedList, TslOpenSslError> {
+    verify_tsl_xml_openssl_with_status(xml, trust_roots, now, policy, &GoodStatus)
+}
 
 fn signer_certificate() -> envelopes_x509::X509Certificate {
     parse_cert_pem(SIGNER_CERT_PEM).expect("test certificate must parse")

@@ -9,7 +9,13 @@ pub struct TrustServiceHistoryEntry {
     pub service_names: Vec<LocalizedText>,
     pub status: TrustServiceStatus,
     pub status_starting_time: TslTimestamp,
-    pub digital_identity: ServiceDigitalIdentity,
+    /// Historical key identity, or `None` when the authenticated row cannot
+    /// identify a prior key (missing or inconsistent `X509SKI`).
+    ///
+    /// A `None` row is retained as a non-authorizing barrier: it still ends
+    /// the effective interval of every older row, so a restrictive state that
+    /// cannot be matched to a key never lets an older granted state govern.
+    pub digital_identity: Option<ServiceDigitalIdentity>,
     pub qualifications: Vec<ServiceQualification>,
     pub additional_service_information: Vec<AdditionalServiceInformation>,
 }

@@ -16,7 +16,8 @@ use reallyme_credential::committed::{
     model::CredentialEnvelope, signed_envelope::encode_signed_envelope_cbor,
 };
 
-use crate::VcJwtError;
+use crate::validate_temporal::{validate_vc_jwt_temporal_claims, validate_verification_options};
+use crate::{VcJwtError, VcJwtVerificationOptions};
 
 /// VC-JWT payload.
 ///
@@ -35,6 +36,8 @@ pub struct VcJwtPayload {
     pub nbf: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iat: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jti: Option<String>,
 
@@ -66,6 +69,7 @@ pub fn encode_vc_jwt(
         sub: subject_id.to_string(),
         nbf: Some(envelope.valid_from),
         exp: Some(envelope.valid_until),
+        iat: None,
         jti: None,
         vc_se: bytes_to_base64url(&se_bytes),
         vc_proto: vc_proto_bytes.map(bytes_to_base64url),
@@ -90,6 +94,7 @@ pub fn encode_vc_jwt_with_signer(
         sub: subject_id.to_string(),
         nbf: Some(envelope.valid_from),
         exp: Some(envelope.valid_until),
+        iat: None,
         jti: None,
         vc_se: bytes_to_base64url(&se_bytes),
         vc_proto: vc_proto_bytes.map(bytes_to_base64url),
@@ -100,18 +105,24 @@ pub fn encode_vc_jwt_with_signer(
 
 /// Decode + verify a VC-JWT and return the parsed payload plus canonical VC bytes.
 ///
-/// This verifies the JWT signature using `envelopes-jwt` and then returns the
-/// decoded VC payload.
+/// This verifies the JWT signature using `envelopes-jwt`, validates the `exp`,
+/// `nbf`, and `iat` claims against the caller-supplied verification time, and
+/// then returns the decoded VC payload.
 /// (Reconstructing a full `CredentialEnvelope` from canonical bytes is a separate step,
 /// and depends on whether the caller uses a CBOR envelope schema or protobuf schema.)
 pub fn decode_verify_vc_jwt(
     jwt: &str,
     issuer_jwk: &Jwk,
     issuer_public_key: &[u8],
+    options: &VcJwtVerificationOptions,
 ) -> Result<(VcJwtPayload, Vec<u8>), VcJwtError> {
+    validate_verification_options(options)?;
+
     let payload: VcJwtPayload =
         decode_verify_jwt_signature_only(jwt, issuer_jwk, issuer_public_key)
             .map_err(|_| VcJwtError::Jwt)?;
+
+    validate_vc_jwt_temporal_claims(&payload, options)?;
 
     if payload.vc_se.is_empty() {
         return Err(VcJwtError::MissingField);

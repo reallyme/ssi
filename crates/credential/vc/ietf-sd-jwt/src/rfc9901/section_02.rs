@@ -38,9 +38,26 @@ fn issue_rfc9901_sd_jwt_with_rng(
     issuer_private_key: &[u8],
     salt_rng: &mut dyn Rfc9901SaltRng,
 ) -> Result<SdJwtArtifact, IetfSdJwtVcError> {
+    let user_claims = input
+        .user_claims
+        .as_object()
+        .ok_or(IetfSdJwtVcError::InvalidInput)?;
+    // Registered claims come only from the typed input fields so a generic
+    // user claim can never override issuer, subject, validity, type, or
+    // holder binding after they were chosen explicitly.
+    if user_claims.keys().any(|key| is_issuer_owned_claim(key)) {
+        return Err(IetfSdJwtVcError::ReservedClaimKey);
+    }
+    if input.strategy == SelectiveDisclosureStrategy::JsonPaths
+        && input
+            .custom_json_paths
+            .iter()
+            .any(|path| json_path_targets_registered_claim(path))
+    {
+        return Err(IetfSdJwtVcError::ReservedClaimKey);
+    }
     if input.issuer.trim().is_empty()
         || input.issuer.len() > MAX_SD_JWT_ISSUER_BYTES
-        || !input.user_claims.is_object()
         || !json_value_within_limits(&input.user_claims)
         || input.custom_json_paths.len() > MAX_SD_JWT_DISCLOSURES
         || input
@@ -86,7 +103,9 @@ fn issue_rfc9901_sd_jwt_with_rng(
 
     if let Value::Object(m) = transformed_claims {
         for (k, v) in m {
-            payload.insert(k, v);
+            if payload.insert(k, v).is_some() {
+                return Err(IetfSdJwtVcError::ReservedClaimKey);
+            }
         }
     } else {
         return Err(IetfSdJwtVcError::InvalidInput);
@@ -116,8 +135,14 @@ pub fn verify_rfc9901_sd_jwt(
     artifact: &SdJwtArtifact,
     issuer_jwk: &Jwk,
     issuer_public_key: &[u8],
+    temporal_policy: &IetfSdJwtTemporalPolicy,
     kb_verify: Option<KbJwtVerifyParams<'_>>,
 ) -> Result<VerifiedRfc9901, IetfSdJwtVcError> {
+    // Validate every caller-supplied policy bound before any signature work.
+    temporal_policy.validate()?;
+    if let Some(kb) = kb_verify.as_ref() {
+        validate_kb_verify_params(kb)?;
+    }
     validate_artifact(artifact, IetfSdJwtVcError::InvalidCompactFormat)?;
     let payload: Value = decode_verify_jwt_signature_only_with_header_validation(
         &artifact.issuer_signed_jwt,
@@ -146,62 +171,8 @@ pub fn verify_rfc9901_sd_jwt(
         }
     }
 
-    let mut expected = BTreeSet::new();
-    collect_expected_digests(&Value::Object(payload_obj.clone()), &mut expected)?;
-
-    let mut pending: Vec<(String, Value)> = Vec::new();
-    let mut seen_disclosures = BTreeSet::new();
-    for disclosure_b64u in &artifact.disclosures {
-        if !seen_disclosures.insert(disclosure_b64u.as_str()) {
-            return Err(IetfSdJwtVcError::InvalidDisclosure);
-        }
-        let digest_b64u =
-            bytes_to_base64url(sha2_256_digest(disclosure_b64u.as_bytes()).as_bytes());
-        let disclosure_bytes = Zeroizing::new(
-            base64url_to_bytes(disclosure_b64u).map_err(|_| IetfSdJwtVcError::InvalidDisclosure)?,
-        );
-        let disclosure_json: Value = serde_json::from_slice(&disclosure_bytes)
-            .map_err(|_| IetfSdJwtVcError::InvalidDisclosure)?;
-        let arr = disclosure_json
-            .as_array()
-            .ok_or(IetfSdJwtVcError::InvalidDisclosure)?;
-        if arr.len() != 2 && arr.len() != 3 {
-            return Err(IetfSdJwtVcError::InvalidDisclosure);
-        }
-        pending.push((digest_b64u, disclosure_json));
-    }
-
-    let mut provided = Vec::new();
-    let mut progress = true;
-    while progress {
-        progress = false;
-        let mut next_pending = Vec::new();
-
-        for (digest, disclosure_json) in pending {
-            if expected.contains(&digest) {
-                if let Some(arr) = disclosure_json.as_array() {
-                    let nested_value = if arr.len() == 3 {
-                        arr.get(2)
-                    } else {
-                        arr.get(1)
-                    };
-                    if let Some(v) = nested_value {
-                        collect_expected_digests(v, &mut expected)?;
-                    }
-                }
-                provided.push(disclosure_json);
-                progress = true;
-            } else {
-                next_pending.push((digest, disclosure_json));
-            }
-        }
-
-        pending = next_pending;
-    }
-
-    if !pending.is_empty() {
-        return Err(IetfSdJwtVcError::DisclosureDigestMismatch);
-    }
+    let mut processed = process_sd_jwt_disclosures(&payload, &artifact.disclosures)?;
+    validate_credential_temporal_claims(&payload, &processed.resolved, temporal_policy)?;
 
     if let Some(kb) = kb_verify {
         let kb_jwt = artifact
@@ -216,13 +187,8 @@ pub fn verify_rfc9901_sd_jwt(
         )
         .map_err(|_| IetfSdJwtVcError::Verification)?;
 
-        let compact_without_kb = SdJwtArtifact {
-            issuer_signed_jwt: artifact.issuer_signed_jwt.clone(),
-            disclosures: artifact.disclosures.clone(),
-            kb_jwt: None,
-            records: Vec::new(),
-        }
-        .to_compact()?;
+        let compact_without_kb =
+            compact_without_key_binding(&artifact.issuer_signed_jwt, &artifact.disclosures)?;
 
         let expected_sd_hash =
             bytes_to_base64url(sha2_256_digest(compact_without_kb.as_bytes()).as_bytes());
@@ -253,10 +219,57 @@ pub fn verify_rfc9901_sd_jwt(
         }
     }
 
+    let provided_disclosures = processed
+        .disclosures
+        .iter()
+        .map(|disclosure| disclosure.to_json_array())
+        .collect();
     Ok(VerifiedRfc9901 {
         payload,
-        provided_disclosures: provided,
+        resolved_payload: core::mem::take(&mut processed.resolved),
+        provided_disclosures,
     })
+}
+
+/// Serialize `<issuer-jwt>~<disclosure>~...~` for the KB-JWT `sd_hash` input.
+fn compact_without_key_binding(
+    issuer_signed_jwt: &str,
+    disclosures: &[String],
+) -> Result<Zeroizing<String>, IetfSdJwtVcError> {
+    let capacity = compact_capacity(issuer_signed_jwt, disclosures, None)
+        .ok_or(IetfSdJwtVcError::InvalidCompactFormat)?;
+    let mut out = Zeroizing::new(String::with_capacity(capacity));
+    out.push_str(issuer_signed_jwt);
+    out.push('~');
+    for disclosure in disclosures {
+        out.push_str(disclosure);
+        out.push('~');
+    }
+    Ok(out)
+}
+
+/// Reject vacuous or unbounded KB-JWT verification policy.
+fn validate_kb_verify_params(kb: &KbJwtVerifyParams<'_>) -> Result<(), IetfSdJwtVcError> {
+    if kb.expected_audience.is_empty()
+        || kb.expected_nonce.is_empty()
+        || kb.now_unix == 0
+        || kb.max_iat_age_seconds == 0
+        || kb.max_iat_age_seconds > MAX_KB_JWT_AGE_SECONDS
+        || kb.max_future_iat_skew_seconds > MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS
+    {
+        return Err(IetfSdJwtVcError::Verification);
+    }
+    Ok(())
+}
+
+/// Return whether an explicit disclosure path targets a registered claim that
+/// must stay in the issuer payload, or any member nested beneath it.
+fn json_path_targets_registered_claim(path: &str) -> bool {
+    let Some(rest) = path.strip_prefix("$.") else {
+        return false;
+    };
+    let top_level_name = rest.split(['.', '[']).next().unwrap_or(rest);
+    is_non_selectively_disclosable_claim(top_level_name) || is_issuer_owned_claim(top_level_name)
 }
 
 fn validate_kb_jwt_time(

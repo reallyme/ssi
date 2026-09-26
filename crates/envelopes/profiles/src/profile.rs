@@ -167,6 +167,14 @@ pub enum EnvelopeProfileInvalidReason {
     /// did:me Data Integrity proof uses an unsupported cryptosuite.
     #[error("unsupported did:me cryptosuite")]
     UnsupportedDidMeCryptosuite,
+
+    /// did:me profile requires explicit DID method metadata.
+    #[error("missing did:me method metadata")]
+    MissingDidMethod,
+
+    /// did:me Data Integrity envelope did not declare its proof cryptosuite.
+    #[error("missing did:me cryptosuite")]
+    MissingDidMeCryptosuite,
 }
 
 /// Error for envelope profile validation.
@@ -216,10 +224,12 @@ impl From<EnvelopeProfileInvalidReason> for IdentityCoreErrorReason {
             EnvelopeProfileInvalidReason::MissingQeaaMetadata => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_QEAA_METADATA
             }
-            EnvelopeProfileInvalidReason::InvalidDidMeBinding => {
+            EnvelopeProfileInvalidReason::InvalidDidMeBinding
+            | EnvelopeProfileInvalidReason::MissingDidMethod => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_INVALID_DID_ME_BINDING
             }
-            EnvelopeProfileInvalidReason::UnsupportedDidMeCryptosuite => {
+            EnvelopeProfileInvalidReason::UnsupportedDidMeCryptosuite
+            | EnvelopeProfileInvalidReason::MissingDidMeCryptosuite => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_UNSUPPORTED_DID_ME_CRYPTOSUITE
             }
         }
@@ -235,6 +245,7 @@ impl From<EnvelopeProfileError> for IdentityCoreErrorReason {
 }
 
 pub(crate) const DID_ME_METHOD: &str = "did:me";
+pub(crate) const DID_ME_PREFIX: &str = "did:me:";
 pub(crate) const DID_ME_CRYPTOSUITE: &str = "es256-jws-cid-2025";
 pub(crate) const EU_PID_CLAIMSET: &str = "eu.pid.v1";
 pub(crate) const EU_AGE_CLAIMSET: &str = "eu.age.v1";

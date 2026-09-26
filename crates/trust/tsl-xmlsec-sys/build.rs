@@ -13,6 +13,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Shared ABI limits and status codes, rendered into the generated C wrapper.
+mod abi {
+    include!("src/abi.rs");
+}
+
 fn main() {
     if let Err(error) = run() {
         error.emit();
@@ -55,6 +60,7 @@ fn run() -> Result<(), BuildError> {
     println!("cargo:rerun-if-changed=../tsl-xmlsec/schemas/xml.xsd");
     println!("cargo:rerun-if-changed=../tsl-xmlsec/schemas/xmldsig-core-schema.xsd");
     println!("cargo:rerun-if-changed=src/wrapper.c.in");
+    println!("cargo:rerun-if-changed=src/abi.rs");
     println!("cargo:rerun-if-env-changed=CC");
 
     Ok(())
@@ -65,7 +71,8 @@ enum BuildError {
     MissingOutDir,
     WriteWrapper,
     ReadSchema,
-    XmlsecPkgUnavailable,
+    XmlsecOpenSslPkgUnavailable,
+    XmlsecVersionUnsupported,
     PkgConfigUnavailable,
     PkgConfigFailed,
     CompilerUnavailable,
@@ -88,7 +95,12 @@ impl BuildError {
             Self::MissingOutDir => "Cargo did not provide OUT_DIR",
             Self::WriteWrapper => "failed to write the XMLSec C wrapper into OUT_DIR",
             Self::ReadSchema => "failed to read a pinned trusted-list schema",
-            Self::XmlsecPkgUnavailable => "pkg-config could not find xmlsec1-openssl or xmlsec1",
+            Self::XmlsecOpenSslPkgUnavailable => {
+                "pkg-config could not find the required xmlsec1-openssl backend"
+            }
+            Self::XmlsecVersionUnsupported => {
+                "xmlsec1-openssl 1.3.0 or newer is required for the configured signature profile"
+            }
             Self::PkgConfigUnavailable => "failed to execute pkg-config",
             Self::PkgConfigFailed => {
                 "pkg-config reported that the requested package is unavailable"
@@ -115,7 +127,103 @@ fn wrapper_with_pinned_schemas() -> Result<String, BuildError> {
     append_c_byte_array(&mut arrays, "meid_etsi_tsl_xsd", &etsi);
     append_c_byte_array(&mut arrays, "meid_xml_namespace_xsd", &xml);
     append_c_byte_array(&mut arrays, "meid_xmldsig_xsd", &xmldsig);
-    Ok(WRAPPER_C.replace("/*__SCHEMA_BYTES__*/", &arrays))
+    Ok(WRAPPER_C
+        .replace("/*__ABI_DEFINES__*/", &abi_defines())
+        .replace("/*__SCHEMA_BYTES__*/", &arrays))
+}
+
+fn abi_defines() -> String {
+    let limits = [
+        ("MEID_XMLSEC_MAX_XML_BYTES", abi::MEID_XMLSEC_MAX_XML_BYTES),
+        (
+            "MEID_XMLSEC_MAX_TRUSTED_ROOTS",
+            abi::MEID_XMLSEC_MAX_TRUSTED_ROOTS,
+        ),
+        (
+            "MEID_XMLSEC_MAX_TRUSTED_ROOT_DER_BYTES",
+            abi::MEID_XMLSEC_MAX_TRUSTED_ROOT_DER_BYTES,
+        ),
+        (
+            "MEID_XMLSEC_MAX_SIGNER_DER_BYTES",
+            abi::MEID_XMLSEC_MAX_SIGNER_DER_BYTES,
+        ),
+    ];
+    let statuses = [
+        ("MEID_XMLSEC_STATUS_OK", abi::MEID_XMLSEC_STATUS_OK),
+        (
+            "MEID_XMLSEC_STATUS_INVALID_ARGUMENT",
+            abi::MEID_XMLSEC_STATUS_INVALID_ARGUMENT,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_INIT_FAILED",
+            abi::MEID_XMLSEC_STATUS_INIT_FAILED,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_XML_PARSE_FAILED",
+            abi::MEID_XMLSEC_STATUS_XML_PARSE_FAILED,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_MISSING_ROOT",
+            abi::MEID_XMLSEC_STATUS_MISSING_ROOT,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_MISSING_SIGNATURE",
+            abi::MEID_XMLSEC_STATUS_MISSING_SIGNATURE,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_KEYS_MANAGER_CREATE_FAILED",
+            abi::MEID_XMLSEC_STATUS_KEYS_MANAGER_CREATE_FAILED,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_KEYS_MANAGER_INIT_FAILED",
+            abi::MEID_XMLSEC_STATUS_KEYS_MANAGER_INIT_FAILED,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_TRUSTED_ROOT_LOAD_FAILED",
+            abi::MEID_XMLSEC_STATUS_TRUSTED_ROOT_LOAD_FAILED,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_CONTEXT_SETUP_FAILED",
+            abi::MEID_XMLSEC_STATUS_CONTEXT_SETUP_FAILED,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_SIGNATURE_INVALID",
+            abi::MEID_XMLSEC_STATUS_SIGNATURE_INVALID,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_SCHEMA_INIT_FAILED",
+            abi::MEID_XMLSEC_STATUS_SCHEMA_INIT_FAILED,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_SCHEMA_INVALID",
+            abi::MEID_XMLSEC_STATUS_SCHEMA_INVALID,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_VERIFICATION_TIME_UNREPRESENTABLE",
+            abi::MEID_XMLSEC_STATUS_VERIFICATION_TIME_UNREPRESENTABLE,
+        ),
+        (
+            "MEID_XMLSEC_STATUS_POLICY_SETUP_FAILED",
+            abi::MEID_XMLSEC_STATUS_POLICY_SETUP_FAILED,
+        ),
+    ];
+
+    let mut defines = String::new();
+    for (name, value) in limits {
+        defines.push_str("#define ");
+        defines.push_str(name);
+        defines.push_str(" ((size_t)");
+        defines.push_str(&value.to_string());
+        defines.push_str("u)\n");
+    }
+    for (name, value) in statuses {
+        defines.push_str("#define ");
+        defines.push_str(name);
+        defines.push_str(" (");
+        defines.push_str(&value.to_string());
+        defines.push_str(")\n");
+    }
+    defines
 }
 
 fn append_c_byte_array(output: &mut String, name: &str, bytes: &[u8]) {
@@ -141,16 +249,29 @@ struct PkgInfo {
 }
 
 fn probe_xmlsec_pkg() -> Result<PkgInfo, BuildError> {
-    // Homebrew on macOS commonly uses `xmlsec1-openssl`, while some distros use `xmlsec1`.
-    let candidates = ["xmlsec1-openssl", "xmlsec1"];
+    const XMLSEC_OPENSSL_PACKAGE: &str = "xmlsec1-openssl";
+    const MINIMUM_XMLSEC_VERSION: &str = "1.3.0";
 
-    for name in candidates {
-        if let Ok(pkg) = probe_pkg(name) {
-            return Ok(pkg);
-        }
+    if !pkg_config_succeeds(&["--exists", XMLSEC_OPENSSL_PACKAGE])? {
+        return Err(BuildError::XmlsecOpenSslPkgUnavailable);
+    }
+    if !pkg_config_succeeds(&[
+        "--atleast-version",
+        MINIMUM_XMLSEC_VERSION,
+        XMLSEC_OPENSSL_PACKAGE,
+    ])? {
+        return Err(BuildError::XmlsecVersionUnsupported);
     }
 
-    Err(BuildError::XmlsecPkgUnavailable)
+    probe_pkg(XMLSEC_OPENSSL_PACKAGE)
+}
+
+fn pkg_config_succeeds(args: &[&str]) -> Result<bool, BuildError> {
+    Command::new("pkg-config")
+        .args(args)
+        .status()
+        .map(|status| status.success())
+        .map_err(|_| BuildError::PkgConfigUnavailable)
 }
 
 fn probe_pkg(name: &str) -> Result<PkgInfo, BuildError> {
@@ -265,8 +386,11 @@ fn compile_wrapper(c_path: &Path, out_dir: &Path, pkg: &PkgInfo) -> Result<(), B
         cmd.arg(f);
     }
 
-    let out = cmd.output().map_err(|_| BuildError::CompilerUnavailable)?;
-    if !out.status.success() {
+    // Inherit stderr so a platform header/API mismatch remains diagnosable in
+    // CI. The wrapper contains no secrets, and the compiler is invoked only on
+    // repository source plus schemas embedded into Cargo's build directory.
+    let status = cmd.status().map_err(|_| BuildError::CompilerUnavailable)?;
+    if !status.success() {
         return Err(BuildError::CompilerFailed);
     }
 
@@ -274,11 +398,11 @@ fn compile_wrapper(c_path: &Path, out_dir: &Path, pkg: &PkgInfo) -> Result<(), B
     let obj_path = obj.to_str().ok_or(BuildError::NonUtf8Path)?;
 
     // Archive into a static library.
-    let out = Command::new("ar")
+    let status = Command::new("ar")
         .args(["crs", lib_path, obj_path])
-        .output()
+        .status()
         .map_err(|_| BuildError::ArchiverUnavailable)?;
-    if !out.status.success() {
+    if !status.success() {
         return Err(BuildError::ArchiverFailed);
     }
 
@@ -289,7 +413,8 @@ fn compile_wrapper(c_path: &Path, out_dir: &Path, pkg: &PkgInfo) -> Result<(), B
 // - parses XML with libxml2
 // - verifies the first ds:Signature node using xmlsec (OpenSSL backend)
 // - returns the exact X.509 certificate selected as the verification key
-// - returns 0 on success, non-zero on failure
+// - returns MEID_XMLSEC_STATUS_OK on success and a negative status otherwise
 //
-// Intentionally minimal C shim; policy restrictions remain in Rust (same-doc only, no retrieval methods).
+// The Rust profile pre-pass remains the primary policy gate; the shim also
+// restricts xmlsec to the same reference URIs and transforms as defense in depth.
 const WRAPPER_C: &str = include_str!("src/wrapper.c.in");

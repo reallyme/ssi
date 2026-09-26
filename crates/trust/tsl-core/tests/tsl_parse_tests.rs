@@ -5,7 +5,7 @@
 #![allow(missing_docs, clippy::unwrap_used)]
 
 use identity_trust_tsl_core::{
-    parse_tsl_xml, select_effective_service_states, validate_tsl_freshness,
+    parse_tsl_xml, validate_tsl_freshness, validate_tsl_sequence_number,
     AdditionalServiceInformationKind, QualificationCriterion, ServiceDigitalIdentity,
     TrustServiceStatus, TrustServiceType, TslAddressContext, TslAddressFailure, TslError,
     TslMediaType, TslPointerQualifierFailure, TslQualificationFailure, TslRequiredField,
@@ -241,7 +241,12 @@ fn enforces_history_ski_without_a_certificate() {
         "<DigitalId><X509SubjectName>O=Historical</X509SubjectName></DigitalId>",
     );
     let parsed = parse_tsl_xml(&missing_ski).unwrap();
-    assert!(parsed.providers[0].services[0].history.is_empty());
+    // An unidentifiable row is retained as a non-authorizing barrier so that
+    // an older granted row cannot govern the interval it closes.
+    assert_eq!(parsed.providers[0].services[0].history.len(), 1);
+    assert!(parsed.providers[0].services[0].history[0]
+        .digital_identity
+        .is_none());
 
     let historical_certificate = valid.replace(
         "<DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId>",
@@ -250,7 +255,10 @@ fn enforces_history_ski_without_a_certificate() {
         ),
     );
     let parsed = parse_tsl_xml(&historical_certificate).unwrap();
-    let historical_identity = &parsed.providers[0].services[0].history[0].digital_identity;
+    let historical_identity = parsed.providers[0].services[0].history[0]
+        .digital_identity
+        .as_ref()
+        .unwrap();
     assert!(historical_identity.certificates_der().is_empty());
     assert_eq!(
         historical_identity.subject_key_identifier(),
@@ -264,26 +272,142 @@ fn enforces_history_ski_without_a_certificate() {
 }
 
 #[test]
-fn selects_the_authenticated_service_state_effective_at_evaluation_time() {
+fn retains_future_current_state_and_every_history_row_without_projection() {
     let current_certificate = certificate_base64();
     let service = format!(
-        r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>https://future.example/type</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Future service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{current_certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime><ServiceSupplyPoints><ServiceSupplyPoint>https://future.example/status</ServiceSupplyPoint></ServiceSupplyPoints></ServiceInformation><ServiceHistory><ServiceHistoryInstance><ServiceTypeIdentifier>https://future.example/type</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Effective service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn</ServiceStatus><StatusStartingTime>2024-01-01T00:00:00Z</StatusStartingTime></ServiceHistoryInstance></ServiceHistory></TSPService>"#
+        r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>https://future.example/type</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Future service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{current_certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2027-01-01T00:00:00Z</StatusStartingTime><ServiceSupplyPoints><ServiceSupplyPoint>https://future.example/status</ServiceSupplyPoint></ServiceSupplyPoints></ServiceInformation><ServiceHistory><ServiceHistoryInstance><ServiceTypeIdentifier>https://future.example/type</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Effective service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn</ServiceStatus><StatusStartingTime>2024-01-01T00:00:00Z</StatusStartingTime></ServiceHistoryInstance><ServiceHistoryInstance><ServiceTypeIdentifier>https://future.example/other-type</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Other type</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2023-01-01T00:00:00Z</StatusStartingTime></ServiceHistoryInstance></ServiceHistory></TSPService>"#
     );
-    let mut list = parse_tsl_xml(&document(&provider(&service))).unwrap();
-    let evaluation_time = time::OffsetDateTime::from_unix_timestamp(1_719_792_000).unwrap();
+    let list = parse_tsl_xml(&document(&provider(&service))).unwrap();
 
-    select_effective_service_states(&mut list, evaluation_time);
+    // Parsing is non-destructive: the pre-published current state, its
+    // supply points, and every history row (including a row of a different
+    // service type) remain available for time-aware authorization.
+    let service = &list.providers[0].services[0];
+    assert_eq!(service.status, TrustServiceStatus::Granted);
+    assert_eq!(service.status_starting_time.unix_seconds(), 1_798_761_600);
+    assert_eq!(service.supply_points.len(), 1);
+    assert_eq!(service.history.len(), 2);
+    assert_eq!(service.history[0].status, TrustServiceStatus::Withdrawn);
+    assert!(matches!(
+        service.history[1].service_type,
+        TrustServiceType::Other(_)
+    ));
+    assert_ne!(
+        service.history[0].service_type,
+        service.history[1].service_type
+    );
+}
 
-    let selected = &list.providers[0].services[0];
-    assert_eq!(selected.status, TrustServiceStatus::Withdrawn);
-    assert_eq!(selected.status_starting_time.unix_seconds(), 1_704_067_200);
-    assert!(selected.supply_points.is_empty());
-    assert!(selected.history.is_empty());
-    assert_eq!(selected.certificates_der().len(), 1);
+#[test]
+fn conflicting_history_rows_at_one_starting_time_become_a_barrier() {
+    let current_certificate = certificate_base64();
+    let row = |status: &str| {
+        format!(
+            r#"<ServiceHistoryInstance><ServiceTypeIdentifier>https://future.example/type</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Historical</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/{status}</ServiceStatus><StatusStartingTime>2024-01-01T00:00:00Z</StatusStartingTime></ServiceHistoryInstance>"#
+        )
+    };
+    let service = format!(
+        r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>https://future.example/type</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{current_certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceInformation><ServiceHistory>{}{}</ServiceHistory></TSPService>"#,
+        row("granted"),
+        row("withdrawn")
+    );
+    let list = parse_tsl_xml(&document(&provider(&service))).unwrap();
+    let history = &list.providers[0].services[0].history;
+    assert_eq!(history.len(), 1);
+    assert!(history[0].digital_identity.is_none());
+}
 
-    let mut not_yet_effective = parse_tsl_xml(&document_with_service_extension("")).unwrap();
-    select_effective_service_states(&mut not_yet_effective, evaluation_time);
-    assert!(not_yet_effective.services().next().is_none());
+#[test]
+fn older_duplicate_service_state_does_not_widen_the_current_state() {
+    let certificate = certificate_base64();
+    let qualification = r#"<ServiceInformationExtensions><Extension Critical="true"><q:Qualifications xmlns:q="http://uri.etsi.org/TrstSvc/SvcInfoExt/eSigDir-1999-93-EC-TrustedList/#"><q:QualificationElement><q:Qualifiers><q:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCWithQSCD"/></q:Qualifiers><q:CriteriaList assert="all"><q:KeyUsage><q:KeyUsageBit name="digitalSignature">true</q:KeyUsageBit></q:KeyUsage></q:CriteriaList></q:QualificationElement></q:Qualifications></Extension></ServiceInformationExtensions>"#;
+    let service = |start: &str, extensions: &str, supply: &str| {
+        format!(
+            r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/CA/QC</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service {start}</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>{start}</StatusStartingTime>{supply}{extensions}</ServiceInformation></TSPService>"#
+        )
+    };
+    let older = service(
+        "2024-01-01T00:00:00Z",
+        qualification,
+        "<ServiceSupplyPoints><ServiceSupplyPoint>https://old.example/status</ServiceSupplyPoint></ServiceSupplyPoints>",
+    );
+    let newer = service("2025-01-01T00:00:00Z", "", "");
+    for body in [format!("{older}{newer}"), format!("{newer}{older}")] {
+        let list = parse_tsl_xml(&document(&provider(&body))).unwrap();
+        let service = &list.providers[0].services[0];
+        assert_eq!(list.providers[0].services.len(), 1);
+        assert_eq!(service.status_starting_time.unix_seconds(), 1_735_689_600);
+        assert!(service.qualifications.is_empty());
+        assert!(service.supply_points.is_empty());
+        assert_eq!(service.service_names.len(), 1);
+        assert_eq!(service.history.len(), 1);
+        assert_eq!(service.history[0].qualifications.len(), 1);
+        assert_eq!(
+            service.history[0].status_starting_time.unix_seconds(),
+            1_704_067_200
+        );
+    }
+}
+
+#[test]
+fn rejects_unrecognized_qualification_criteria_in_noncritical_extensions() {
+    let criteria = |inner: &str| {
+        format!(
+            r#"<Extension Critical="false"><q:Qualifications xmlns:q="http://uri.etsi.org/TrstSvc/SvcInfoExt/eSigDir-1999-93-EC-TrustedList/#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" xmlns:future="https://future.example/criteria"><q:QualificationElement><q:Qualifiers><q:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCWithQSCD"/></q:Qualifiers><q:CriteriaList assert="all"><q:KeyUsage><q:KeyUsageBit name="digitalSignature">true</q:KeyUsageBit></q:KeyUsage>{inner}</q:CriteriaList></q:QualificationElement></q:Qualifications></Extension>"#
+        )
+    };
+    let known = criteria("");
+    assert!(parse_tsl_xml(&document_with_qualification_extension(&known)).is_ok());
+
+    for inner in [
+        "<q:FutureCriterion/>",
+        "<future:Criterion>value</future:Criterion>",
+        "<q:otherCriteriaList><future:Criterion/></q:otherCriteriaList>",
+        "<q:otherCriteriaList><at:FutureCriterion><at:KeyPurposeId><xades:Identifier>1.2.3</xades:Identifier></at:KeyPurposeId></at:FutureCriterion></q:otherCriteriaList>",
+        // A known element in the wrong position is also not processed by the
+        // typed projection and must not be silently discarded.
+        "<at:ExtendedKeyUsage><at:KeyPurposeId><xades:Identifier>1.2.3</xades:Identifier></at:KeyPurposeId></at:ExtendedKeyUsage>",
+        "<q:KeyUsageBit name=\"nonRepudiation\">true</q:KeyUsageBit>",
+    ] {
+        let extension = criteria(inner);
+        assert_eq!(
+            parse_tsl_xml(&document_with_qualification_extension(&extension)).unwrap_err(),
+            TslError::Qualification(TslQualificationFailure::UnsupportedSemantics),
+            "{inner}"
+        );
+        let critical = extension.replace("Critical=\"false\"", "Critical=\"true\"");
+        // Inside a critical extension a foreign-namespace element is already
+        // rejected by the namespace boundary; both outcomes are typed.
+        assert!(
+            matches!(
+                parse_tsl_xml(&document_with_qualification_extension(&critical)).unwrap_err(),
+                TslError::UnsupportedCriticalExtension
+                    | TslError::Xml(TslXmlFailure::ElementNamespace)
+            ),
+            "{inner}"
+        );
+    }
+}
+
+#[test]
+fn rejects_future_issue_time_and_sequence_rollback() {
+    let list = parse_tsl_xml(&document("")).unwrap();
+    // ListIssueDateTime is 2026-01-01T00:00:00Z (1_767_225_600).
+    let within_skew = time::OffsetDateTime::from_unix_timestamp(1_767_225_600 - 300).unwrap();
+    let beyond_skew = time::OffsetDateTime::from_unix_timestamp(1_767_225_600 - 301).unwrap();
+    assert!(validate_tsl_freshness(&list, within_skew).is_ok());
+    assert_eq!(
+        validate_tsl_freshness(&list, beyond_skew).unwrap_err(),
+        TslError::NotYetIssued
+    );
+
+    // The fixture carries TSLSequenceNumber 12.
+    assert!(validate_tsl_sequence_number(&list, 12).is_ok());
+    assert!(validate_tsl_sequence_number(&list, 11).is_ok());
+    assert_eq!(
+        validate_tsl_sequence_number(&list, 13).unwrap_err(),
+        TslError::SequenceRollback
+    );
 }
 
 #[test]
@@ -515,7 +639,7 @@ fn parses_service_and_history_without_erasing_unknown_uris() {
     assert_eq!(service.history[0].status, TrustServiceStatus::Withdrawn);
     assert!(matches!(
         service.history[0].digital_identity,
-        ServiceDigitalIdentity::Pki(_)
+        Some(ServiceDigitalIdentity::Pki(_))
     ));
     assert_eq!(tsl.providers[0].registration_identifiers[0].value, "C12345");
     assert_eq!(tsl.providers[0].address.electronic_addresses.len(), 2);
@@ -630,155 +754,6 @@ fn rejects_unsupported_version_and_excessive_depth() {
     );
 }
 
-#[test]
-fn rejects_missing_normative_scheme_metadata() {
-    let cases = [
-        (
-            "<SchemeOperatorAddress>",
-            "</SchemeOperatorAddress>",
-            TslRequiredField::SchemeOperatorAddress,
-        ),
-        (
-            "<SchemeInformationURI>",
-            "</SchemeInformationURI>",
-            TslRequiredField::SchemeInformationUri,
-        ),
-        (
-            "<StatusDeterminationApproach>",
-            "</StatusDeterminationApproach>",
-            TslRequiredField::StatusDeterminationApproach,
-        ),
-        (
-            "<SchemeTypeCommunityRules>",
-            "</SchemeTypeCommunityRules>",
-            TslRequiredField::SchemeTypeCommunityRules,
-        ),
-        (
-            "<SchemeTerritory>",
-            "</SchemeTerritory>",
-            TslRequiredField::SchemeTerritory,
-        ),
-        (
-            "<PolicyOrLegalNotice>",
-            "</PolicyOrLegalNotice>",
-            TslRequiredField::PolicyOrLegalNotice,
-        ),
-        (
-            "<HistoricalInformationPeriod>",
-            "</HistoricalInformationPeriod>",
-            TslRequiredField::HistoricalInformationPeriod,
-        ),
-        (
-            "<NextUpdate>",
-            "</NextUpdate>",
-            TslRequiredField::NextUpdate,
-        ),
-    ];
-
-    for (start, end, required_field) in cases {
-        let source = document("");
-        let start_index = source.find(start).unwrap();
-        let end_index = source.find(end).unwrap() + end.len();
-        let mut malformed = source;
-        malformed.replace_range(start_index..end_index, "");
-        assert_eq!(
-            parse_tsl_xml(&malformed).unwrap_err(),
-            TslError::MissingField(required_field)
-        );
-    }
-}
-
-#[test]
-fn rejects_non_normative_history_period_and_missing_eu_pointer() {
-    let wrong_history = document("").replace(
-        "<HistoricalInformationPeriod>65535</HistoricalInformationPeriod>",
-        "<HistoricalInformationPeriod>3653</HistoricalInformationPeriod>",
-    );
-    assert_eq!(
-        parse_tsl_xml(&wrong_history).unwrap_err(),
-        TslError::InvalidStructure(TslStructureFailure::HistoricalInformationPeriod)
-    );
-
-    let eu_list = document("").replace(
-        "https://example.test/type",
-        "http://uri.etsi.org/TrstSvc/TrustedList/TSLType/EUgeneric",
-    );
-    assert_eq!(
-        parse_tsl_xml(&eu_list).unwrap_err(),
-        TslError::MissingField(TslRequiredField::PointersToOtherTsl)
-    );
-}
-
-#[test]
-fn rejects_malformed_scheme_address_and_policy_shapes() {
-    let missing_email =
-        document("").replace("<URI xml:lang=\"en\">mailto:trust@example.test</URI>", "");
-    assert_eq!(
-        parse_tsl_xml(&missing_email).unwrap_err(),
-        TslError::Address(
-            TslAddressContext::SchemeOperator,
-            TslAddressFailure::MissingEmail
-        )
-    );
-
-    let invalid_postal_country = document("").replace(
-        "<CountryName>EU</CountryName>",
-        "<CountryName>eu</CountryName>",
-    );
-    assert_eq!(
-        parse_tsl_xml(&invalid_postal_country).unwrap_err(),
-        TslError::Address(
-            TslAddressContext::SchemeOperator,
-            TslAddressFailure::PostalCountryCode
-        )
-    );
-
-    let mixed_policy_choice = document("").replace(
-        "</PolicyOrLegalNotice>",
-        "<TSLLegalNotice xml:lang=\"en\">Notice</TSLLegalNotice></PolicyOrLegalNotice>",
-    );
-    assert_eq!(
-        parse_tsl_xml(&mixed_policy_choice).unwrap_err(),
-        TslError::InvalidStructure(TslStructureFailure::PolicyOrLegalNotice)
-    );
-}
-
-#[test]
-fn permits_present_next_update_with_null_date_for_closed_list() {
-    let closed = document("").replace(
-        "<NextUpdate><dateTime>2026-02-01T00:00:00Z</dateTime></NextUpdate>",
-        "<NextUpdate/>",
-    );
-    assert!(parse_tsl_xml(&closed).unwrap().next_update.is_none());
-}
-
-#[test]
-fn rejects_null_next_update_when_a_current_service_is_not_expired() {
-    let live_service = document_with_service_extension("").replace(
-        "<NextUpdate><dateTime>2026-02-01T00:00:00Z</dateTime></NextUpdate>",
-        "<NextUpdate/>",
-    );
-
-    assert_eq!(
-        parse_tsl_xml(&live_service).unwrap_err(),
-        TslError::ClosedListNonExpiredService
-    );
-}
-
-#[test]
-fn permits_null_next_update_when_every_current_service_is_expired() {
-    let closed = document_with_service_extension("")
-        .replace(
-            "<NextUpdate><dateTime>2026-02-01T00:00:00Z</dateTime></NextUpdate>",
-            "<NextUpdate/>",
-        )
-        .replace(
-            "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted",
-            "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/expired",
-        );
-
-    assert!(parse_tsl_xml(&closed).unwrap().next_update.is_none());
-}
-
+include!("tsl_parse/scheme_metadata_tests.rs");
 include!("tsl_parse/qualification_edge_tests.rs");
 include!("tsl_parse/etsi_119612_v2_4_1_tests.rs");

@@ -6,6 +6,8 @@
 //!
 //! This module performs **cryptographic** VP/VC verification suitable for verifier-grade deployments:
 //! - SD-JWT VC issuer signature verification
+//! - Credential envelope issuer signature and `sd_hash` envelope binding
+//! - Claimset binding between the selected policy and the signed envelope
 //! - SD-JWT disclosure/Merkle verification against the credential envelope
 //! - SD-JWT KB-JWT holder binding signature (against envelope subject key)
 //! - VP policy evaluation for SSI-owned presentation formats
@@ -21,15 +23,12 @@ use identity_core_primitives::{vc_alg_str_to_alg, Algorithm};
 use identity_credential_claims_core::ClaimsRegistry;
 use identity_presentation_vp_core::model::{Presentation, SdJwtVcPresentation};
 use identity_presentation_vp_policy::{PolicyDecision, StatusContext, VpPolicyError};
-use identity_presentation_vp_sd_jwt::{
-    verify_sd_jwt_vp, verify_sd_jwt_vp_with_binding, ExpectedKbJwtBinding,
-};
+use identity_presentation_vp_sd_jwt::{verify_sd_jwt_vp_with_binding, ExpectedKbJwtBinding};
 
-use codec_base64url;
 use reallyme_credential::committed::model::{
     CredentialEnvelope, HolderBinding, PublicKeyRepresentation,
 };
-use reallyme_crypto::sha2::digest as sha2_256_digest;
+use reallyme_credential::{verify_credential_status, CredentialError, CredentialStatusReason};
 use serde::Deserialize;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
@@ -58,17 +57,22 @@ pub enum WebValidationResult {
 /// IMPORTANT:
 /// - CryptoContext is NOT supplied
 /// - It is derived from the presentation itself
+/// - QEAA evidence and holder-binding results are NOT supplied; they are
+///   derived from the issuer-bound credential envelope and the verified KB-JWT
 pub struct WebValidationInput<'a> {
     /// Presentation received at the delivery boundary.
     pub presentation: &'a Presentation,
     /// Claim registry used to validate disclosed claim semantics.
     pub claims_registry: &'a ClaimsRegistry,
     /// Claimset identifier expected for this verification policy.
+    ///
+    /// The issuer-signed envelope `profile_id` must equal this value.
     pub claimset_id: &'a str,
     /// Optional status context supplied by the caller.
+    ///
+    /// The status list must be the one referenced by the envelope: same
+    /// issuer, purpose, list identifier, and index.
     pub status: Option<StatusContext<'a>>,
-    /// Optional QEAA audit context supplied by the caller.
-    pub qeaa: QeaaContext<'a>,
 
     /// Typed credential envelope for cryptographic verification of SD-JWT and ZK presentations.
     pub credential_envelope: Option<&'a CredentialEnvelope>,
@@ -79,11 +83,12 @@ pub struct WebValidationInput<'a> {
     /// Exact relying-party binding required for a holder-bound SD-JWT VC.
     ///
     /// Audience, nonce, trusted time, and maximum age are verified together
-    /// with the holder signature; omitting this for a holder-bound credential
-    /// fails closed.
+    /// with the holder signature. Web delivery has no other holder-binding
+    /// proof, so omitting this fails closed. `now_unix` must equal
+    /// [`WebValidationInput::now_unix`].
     pub sd_jwt_binding: Option<ExpectedKbJwtBinding<'a>>,
 
-    /// Current verifier time as Unix seconds.
+    /// Current trusted verifier time as Unix seconds.
     pub now_unix: u64,
 }
 
@@ -91,7 +96,7 @@ pub struct WebValidationInput<'a> {
 pub fn validate_web_presentation<'a>(
     input: WebValidationInput<'a>,
 ) -> Result<WebValidationResult, VpValidationError> {
-    verify_presentation_crypto(&input)?;
+    let verified = verify_presentation_crypto(&input)?;
 
     // ---------------------------------------------------------------------
     // 1) Derive cryptographic context from presentation
@@ -107,8 +112,10 @@ pub fn validate_web_presentation<'a>(
         claimset_id: input.claimset_id,
         crypto,
         status: input.status,
-        qeaa: input.qeaa,
-        binding_ok: true, // trusted channel
+        qeaa: QeaaContext {
+            qeaa_from_vc: verified.envelope.qeaa_compliance.as_ref(),
+        },
+        binding_ok: verified.holder_binding_verified,
         now_unix: input.now_unix,
     })?;
 
@@ -118,16 +125,25 @@ pub fn validate_web_presentation<'a>(
     })
 }
 
-fn verify_presentation_crypto(input: &WebValidationInput<'_>) -> Result<(), VpValidationError> {
+/// Facts established by cryptographic verification of the presentation.
+struct VerifiedWebPresentation<'a> {
+    /// Issuer-signed envelope bound to the issuer SD-JWT `sd_hash`.
+    envelope: &'a CredentialEnvelope,
+    /// Whether a KB-JWT was verified against the envelope holder key and the
+    /// relying-party audience, nonce, and trusted time.
+    holder_binding_verified: bool,
+}
+
+fn verify_presentation_crypto<'a>(
+    input: &WebValidationInput<'a>,
+) -> Result<VerifiedWebPresentation<'a>, VpValidationError> {
     match input.presentation {
         Presentation::SdJwtVc(sd) => {
             let env = input
                 .credential_envelope
                 .ok_or(VpValidationError::MissingCredentialEnvelope)?;
 
-            if let Some(status) = input.status.as_ref() {
-                enforce_status_binding_sd_jwt(env, status)?;
-            }
+            enforce_claimset_binding(env, input.claimset_id)?;
 
             let issuer_pk = input
                 .sd_jwt_issuer_public_key
@@ -138,28 +154,47 @@ fn verify_presentation_crypto(input: &WebValidationInput<'_>) -> Result<(), VpVa
 
             let holder_pk = match &env.subject.holder_binding {
                 HolderBinding::CryptographicKey(key) => match &key.public_key {
-                    PublicKeyRepresentation::Raw { bytes, .. } => Some(bytes.as_slice()),
+                    PublicKeyRepresentation::Raw { bytes, .. } => bytes.as_slice(),
                     _ => return Err(policy_misconfig()),
                 },
-                HolderBinding::ClaimsBased(_) | HolderBinding::BearerWithoutBinding => None,
+                // Web delivery can only verify key-based holder binding.
+                // Claims-based binding needs an out-of-band verification this
+                // boundary does not perform, and bearer credentials carry no
+                // relying-party binding at all; neither may be reported as
+                // bound.
+                HolderBinding::ClaimsBased(_) | HolderBinding::BearerWithoutBinding => {
+                    return Err(VpValidationError::InvalidBinding);
+                }
             };
 
-            let verification = match input.sd_jwt_binding {
-                Some(binding) => verify_sd_jwt_vp_with_binding(
-                    sd,
-                    env,
-                    &issuer_jwk,
-                    issuer_pk,
-                    holder_pk,
-                    binding,
-                ),
-                None => verify_sd_jwt_vp(sd, env, &issuer_jwk, issuer_pk, holder_pk),
-            };
-            verification.map_err(|_| {
-                VpValidationError::PolicyRejected(vec![VpPolicyError::ProofInvalid])
-            })?;
+            let binding = input.sd_jwt_binding.ok_or_else(proof_invalid)?;
+            if binding.now_unix != input.now_unix || sd.kb_jwt.is_none() {
+                return Err(proof_invalid());
+            }
 
-            Ok(())
+            // Verifies the issuer SD-JWT, binds `env` to its `sd_hash`,
+            // verifies the envelope issuer signature, the KB-JWT, and every
+            // Merkle disclosure.
+            verify_sd_jwt_vp_with_binding(
+                sd,
+                env,
+                &issuer_jwk,
+                issuer_pk,
+                Some(holder_pk),
+                binding,
+            )
+            .map_err(|_| proof_invalid())?;
+
+            // Status pointer fields are only trusted after the envelope has
+            // been bound to the issuer signature above.
+            if let Some(status) = input.status.as_ref() {
+                enforce_status_binding_sd_jwt(env, status, input.now_unix)?;
+            }
+
+            Ok(VerifiedWebPresentation {
+                envelope: env,
+                holder_binding_verified: true,
+            })
         }
 
         Presentation::Zk(_) => Err(VpValidationError::PolicyRejected(vec![
@@ -170,6 +205,24 @@ fn verify_presentation_crypto(input: &WebValidationInput<'_>) -> Result<(), VpVa
             VpPolicyError::PresentationFormatNotAllowed,
         ])),
     }
+}
+
+fn enforce_claimset_binding(
+    env: &CredentialEnvelope,
+    claimset_id: &str,
+) -> Result<(), VpValidationError> {
+    // The caller-selected claimset chooses the verifier policy; it must be
+    // the claimset the issuer actually signed into the envelope.
+    if env.profile_id != claimset_id || env.claims_commitment.claimset_id != claimset_id {
+        return Err(VpValidationError::PolicyRejected(vec![
+            VpPolicyError::ClaimsetNotAllowed,
+        ]));
+    }
+    Ok(())
+}
+
+fn proof_invalid() -> VpValidationError {
+    VpValidationError::PolicyRejected(vec![VpPolicyError::ProofInvalid])
 }
 
 // -----------------------------------------------------------------------------
@@ -266,51 +319,27 @@ fn jwk_for_algorithm_and_public_key(
     }
 }
 
-fn sha256_32(bytes: &[u8]) -> [u8; 32] {
-    sha2_256_digest(bytes).into_bytes()
-}
-
-fn purpose_matches_status_core(
-    vc_purpose: reallyme_credential::committed::model::StatusPurpose,
-    list_purpose: identity_credential_status_core::StatusPurpose,
-) -> bool {
-    matches!(
-        (vc_purpose, list_purpose),
-        (
-            reallyme_credential::committed::model::StatusPurpose::Revocation,
-            identity_credential_status_core::StatusPurpose::Revocation,
-        ) | (
-            reallyme_credential::committed::model::StatusPurpose::Suspension,
-            identity_credential_status_core::StatusPurpose::Suspension,
-        )
-    )
-}
-
+/// Bind the caller-supplied status list to the envelope's status pointer.
+///
+/// The pointer rule (issuer, purpose, list identifier) is owned by
+/// `reallyme-credential`; revocation and suspension results are left to policy
+/// evaluation so they surface as typed policy rejections.
 fn enforce_status_binding_sd_jwt(
     env: &CredentialEnvelope,
     status: &StatusContext<'_>,
+    now_unix: u64,
 ) -> Result<(), VpValidationError> {
-    let expected_id: [u8; 32] = env
-        .status
-        .status_list_id
-        .as_slice()
-        .try_into()
-        .map_err(|_| VpValidationError::StatusCheckFailed)?;
-
     if status.index != env.status.status_list_index {
         return Err(VpValidationError::StatusCheckFailed);
     }
 
-    if !purpose_matches_status_core(env.status.purpose, status.list.purpose) {
-        return Err(VpValidationError::StatusCheckFailed);
+    match verify_credential_status(env, status.list, now_unix, status.verifier) {
+        Ok(())
+        | Err(CredentialError::Status(
+            CredentialStatusReason::Revoked | CredentialStatusReason::Suspended,
+        )) => Ok(()),
+        Err(_) => Err(VpValidationError::StatusCheckFailed),
     }
-
-    let got_id = sha256_32(&status.list.encoded_list);
-    if got_id != expected_id {
-        return Err(VpValidationError::StatusCheckFailed);
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

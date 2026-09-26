@@ -34,5 +34,5 @@ pub mod checker;
 /// Parsed CRL model consumed by the checker.
 pub mod model;
 
-pub use checker::CrlChecker;
+pub use checker::{CrlChecker, DEFAULT_CRL_ALLOWED_SKEW_SECS};
 pub use model::ParsedCrl;

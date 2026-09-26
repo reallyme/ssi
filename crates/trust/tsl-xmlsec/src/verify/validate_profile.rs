@@ -152,10 +152,10 @@ fn validate_complete_profile(
 
     for reference in &profile.references {
         if !reference.uri.is_empty()
-            && !profile
-                .ids
-                .iter()
-                .any(|id| reference.uri.strip_prefix('#') == Some(id.as_str()))
+            && !reference
+                .uri
+                .strip_prefix('#')
+                .is_some_and(|id| profile.ids.contains(id))
         {
             return Err(profile_violation());
         }
@@ -257,36 +257,85 @@ fn unsupported_algorithm() -> XmlSecError {
 }
 
 #[cfg(feature = "xmlsec-ffi")]
+const _: [(); MAX_XML_BYTES] =
+    [(); identity_trust_tsl_xmlsec_sys::MEID_XMLSEC_MAX_XML_BYTES];
+#[cfg(feature = "xmlsec-ffi")]
+const _: [(); MAX_SIGNER_DER_BYTES] =
+    [(); identity_trust_tsl_xmlsec_sys::MEID_XMLSEC_MAX_SIGNER_DER_BYTES];
+
+/// Run the native XMLSec verification and return the backend-selected signer DER.
+///
+/// `trusted_roots_der` must already have passed `validate_trusted_roots`; the
+/// C shim re-validates every pointer, length, and count against the same
+/// shared ABI limits.
+#[cfg(feature = "xmlsec-ffi")]
 pub(super) fn verify_xmlsec_backend(
     xml: &str,
-    trusted_pem_path: &str,
+    trusted_roots_der: &[&[u8]],
     verification_time_unix: i64,
     allow_trusted_leaf: bool,
 ) -> Result<Vec<u8>, XmlSecError> {
     use std::ffi::CString;
     use std::sync::{Mutex, OnceLock};
 
+    use identity_trust_tsl_xmlsec_sys::{
+        meid_xmlsec_verify_tsl, MEID_XMLSEC_MAX_TRUSTED_ROOTS, MEID_XMLSEC_STATUS_MISSING_SIGNATURE,
+        MEID_XMLSEC_STATUS_OK, MEID_XMLSEC_STATUS_SCHEMA_INVALID,
+        MEID_XMLSEC_STATUS_SIGNATURE_INVALID, MEID_XMLSEC_STATUS_TRUSTED_ROOT_LOAD_FAILED,
+    };
+
+    // Serializes every native verification. Library globals are initialized
+    // once inside the shim; this lock keeps per-call library use single-threaded.
     static XMLSEC_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    let _guard = XMLSEC_LOCK
+
+    if trusted_roots_der.is_empty() || trusted_roots_der.len() > MEID_XMLSEC_MAX_TRUSTED_ROOTS {
+        return Err(XmlSecError::Internal);
+    }
+    let mut root_pointers = [core::ptr::null::<u8>(); MEID_XMLSEC_MAX_TRUSTED_ROOTS];
+    let mut root_lengths = [0_usize; MEID_XMLSEC_MAX_TRUSTED_ROOTS];
+    for ((pointer, length), root) in root_pointers
+        .iter_mut()
+        .zip(root_lengths.iter_mut())
+        .zip(trusted_roots_der.iter())
+    {
+        *pointer = root.as_ptr();
+        *length = root.len();
+    }
+    let root_count = trusted_roots_der.len();
+
+    let xml_c = CString::new(xml).map_err(|_| XmlSecError::Internal)?;
+    let mut signer_der = vec![0_u8; MAX_SIGNER_DER_BYTES];
+    let mut signer_der_len = 0_usize;
+
+    let guard = XMLSEC_LOCK
         .get_or_init(|| Mutex::new(()))
         .lock()
         .map_err(|_| XmlSecError::Internal)?;
 
-    let xml_c = CString::new(xml).map_err(|_| XmlSecError::Internal)?;
-    let pem_c = CString::new(trusted_pem_path).map_err(|_| XmlSecError::Internal)?;
-    let mut signer_der = vec![0_u8; MAX_SIGNER_DER_BYTES];
-    let mut signer_der_len = 0_usize;
-
-    // SAFETY: every pointer is valid for the duration of the serialized call.
-    // The input lengths describe their originating allocations; the output
-    // pointer has exactly `MAX_SIGNER_DER_BYTES` writable bytes; the C shim
-    // checks capacity before encoding and retains no pointer.
+    // SAFETY:
+    // - Pointers: `xml_c`, every `trusted_roots_der[i]`, `root_pointers`,
+    //   `root_lengths`, `signer_der`, and `signer_der_len` are live, non-null
+    //   Rust allocations or stack locals owned or borrowed by this frame.
+    // - Lengths: `xml_c.as_bytes().len()` excludes the NUL terminator and lies
+    //   within the CString allocation; `root_count` elements of both root
+    //   arrays are initialized and each `root_lengths[i]` equals the length of
+    //   the slice behind `root_pointers[i]`; `signer_der.len()` is exactly the
+    //   writable capacity passed to the shim.
+    // - Lifetime: every buffer outlives the call; the shim retains no pointer
+    //   after returning.
+    // - Aliasing: the only mutable buffers, `signer_der` and `signer_der_len`,
+    //   are distinct allocations that no input borrows; the shim also rejects
+    //   overlapping ranges.
+    // - Ownership: inputs are only read and never freed by the shim; output
+    //   buffers remain owned by Rust.
     #[allow(unsafe_code)]
     let rc = unsafe {
-        identity_trust_tsl_xmlsec_sys::meid_xmlsec_verify_tsl(
+        meid_xmlsec_verify_tsl(
             xml_c.as_ptr(),
             xml_c.as_bytes().len(),
-            pem_c.as_ptr(),
+            root_pointers.as_ptr(),
+            root_lengths.as_ptr(),
+            root_count,
             verification_time_unix,
             i32::from(allow_trusted_leaf),
             signer_der.as_mut_ptr(),
@@ -294,11 +343,17 @@ pub(super) fn verify_xmlsec_backend(
             &mut signer_der_len,
         )
     };
+    drop(guard);
 
     let backend_error = match rc {
-        0 => None,
-        -12 => Some(XmlSecError::SchemaValidationFailed),
-        -5 | -10 => Some(XmlSecError::InvalidSignature),
+        MEID_XMLSEC_STATUS_OK => None,
+        MEID_XMLSEC_STATUS_SCHEMA_INVALID => Some(XmlSecError::SchemaValidationFailed),
+        MEID_XMLSEC_STATUS_MISSING_SIGNATURE | MEID_XMLSEC_STATUS_SIGNATURE_INVALID => {
+            Some(XmlSecError::InvalidSignature)
+        }
+        MEID_XMLSEC_STATUS_TRUSTED_ROOT_LOAD_FAILED => Some(XmlSecError::TrustRoots(
+            crate::error::XmlSecTrustRootErrorReason::InvalidCertificateDer,
+        )),
         _ => Some(XmlSecError::Internal),
     };
     if let Some(error) = backend_error {
@@ -317,7 +372,7 @@ pub(super) fn verify_xmlsec_backend(
 #[cfg(not(feature = "xmlsec-ffi"))]
 pub(super) fn verify_xmlsec_backend(
     _xml: &str,
-    _trusted_pem_path: &str,
+    _trusted_roots_der: &[&[u8]],
     _verification_time_unix: i64,
     _allow_trusted_leaf: bool,
 ) -> Result<Vec<u8>, XmlSecError> {

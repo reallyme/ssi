@@ -16,9 +16,9 @@ use identity_revocation_core::{StatusCheckError, StatusChecker};
 use reallyme_trust_core::{
     evaluate_trust, evaluate_trust_decision, CertificatePosition, CertificateStatus,
     CertificateStatusPolicy, DirectTrustEntry, SignatureVerifier, SignatureVerifyError,
-    StatusRequirement, TrustAnchorKind, TrustConfig, TrustError, TrustEvaluationContext,
-    TrustOutcome, TrustPolicyId, TrustPurpose, TrustResourceLimit, TrustSourceEvidence,
-    MAX_DIRECT_TRUST_ENTRIES, MAX_TRUST_ROOTS,
+    StatusRequirement, TrustConfig, TrustError, TrustEvaluationContext, TrustOutcome,
+    TrustPolicyId, TrustPurpose, TrustResourceLimit, TrustSourceEvidence, MAX_DIRECT_TRUST_ENTRIES,
+    MAX_TRUST_ROOTS,
 };
 
 use envelopes_x509::{
@@ -28,6 +28,8 @@ use envelopes_x509::{
 
 use time::OffsetDateTime;
 
+#[path = "trust_eval/direct_trust_tests.rs"]
+mod direct_trust_tests;
 #[path = "trust_eval/path_validation_tests.rs"]
 mod path_validation_tests;
 
@@ -48,6 +50,8 @@ fn mock_cert(
         der: subject.as_bytes().to_vec(),
         subject: subject.to_string(),
         issuer: issuer.to_string(),
+        subject_der: subject.as_bytes().to_vec(),
+        issuer_der: issuer.as_bytes().to_vec(),
         serial: vec![1, 2, 3],
 
         not_before: OffsetDateTime::UNIX_EPOCH,
@@ -370,6 +374,51 @@ fn rejects_revoked_certificate() {
     assert_eq!(err, TrustError::Revoked);
 }
 
+/// Counts status queries so tests can prove status is not consulted.
+struct CountingRevokedStatus {
+    calls: std::cell::Cell<usize>,
+}
+
+impl StatusChecker for CountingRevokedStatus {
+    fn check(&self, _cert: &X509Certificate, _now_unix: u64) -> Result<(), StatusCheckError> {
+        self.calls.set(self.calls.get() + 1);
+        Err(StatusCheckError::Revoked)
+    }
+}
+
+#[test]
+fn signature_failure_is_reported_before_status_is_consulted() {
+    let root_ski = vec![0xAA];
+    let leaf = mock_cert("CN=Leaf", "CN=Root", false, None, Some(root_ski.clone()));
+    let root = mock_cert("CN=Root", "CN=Root", true, Some(root_ski), None);
+    let cfg = config(root);
+    let status = CountingRevokedStatus {
+        calls: std::cell::Cell::new(0),
+    };
+
+    let decision = evaluate_trust_decision(
+        std::slice::from_ref(&leaf),
+        &cfg,
+        &RejectAllSignatures,
+        Some(&status),
+    )
+    .expect("bad signature produces a typed rejection");
+
+    assert_eq!(decision.outcome, TrustOutcome::Rejected);
+    assert!(decision
+        .failures
+        .contains(&reallyme_trust_core::TrustFailureReason::Signature));
+    assert!(!decision
+        .failures
+        .contains(&reallyme_trust_core::TrustFailureReason::StatusRevoked));
+    assert!(decision.evidence.certificate_status.is_empty());
+    assert_eq!(status.calls.get(), 0);
+
+    let err = evaluate_trust(&[leaf], &cfg, &RejectAllSignatures, Some(&status)).unwrap_err();
+    assert_eq!(err, TrustError::InvalidSignature);
+    assert_eq!(status.calls.get(), 0);
+}
+
 #[test]
 fn rejects_leaf_ca_violation() {
     let root_ski = vec![0xAA];
@@ -608,156 +657,4 @@ fn conclusive_revocation_dominates_indeterminate_status_on_the_same_path() {
     assert!(decision
         .failures
         .contains(&reallyme_trust_core::TrustFailureReason::StatusUnknown));
-}
-
-#[test]
-fn direct_end_entity_trust_is_exact_and_context_scoped() {
-    let leaf = mock_cert("CN=Direct", "CN=Direct", false, None, None);
-    let source = TrustSourceEvidence {
-        source_id: [7; 32],
-        snapshot_id: [8; 32],
-    };
-    let cfg = TrustConfig {
-        trust_roots: Vec::new(),
-        now: OffsetDateTime::UNIX_EPOCH,
-        policy: X509Policy::default(),
-        link_policy: Default::default(),
-        evaluation: TrustEvaluationContext {
-            purpose: TrustPurpose::WalletAttestationIssuer,
-            policy_id: TrustPolicyId::WalletAttestationIssuerV1,
-            status_policy: CertificateStatusPolicy {
-                leaf: StatusRequirement::Exempt,
-                intermediates: StatusRequirement::Exempt,
-                trust_anchor: StatusRequirement::Exempt,
-            },
-            source: Some(source),
-        },
-        direct_trust: vec![DirectTrustEntry {
-            certificate: leaf.clone(),
-            purpose: TrustPurpose::WalletAttestationIssuer,
-            policy_id: TrustPolicyId::WalletAttestationIssuerV1,
-            source,
-        }],
-    };
-
-    let decision = evaluate_trust_decision(&[leaf], &cfg, &RejectAllSignatures, None).unwrap();
-
-    assert_eq!(decision.outcome, TrustOutcome::Trusted);
-    assert_eq!(decision.evidence.source, Some(source));
-    assert_eq!(
-        decision.evidence.trust_anchor.unwrap().kind,
-        TrustAnchorKind::DirectEndEntity
-    );
-}
-
-#[test]
-fn direct_end_entity_trust_rejects_a_different_policy_context() {
-    let leaf = mock_cert("CN=Direct", "CN=Direct", false, None, None);
-    let mut cfg = TrustConfig {
-        trust_roots: Vec::new(),
-        now: OffsetDateTime::UNIX_EPOCH,
-        policy: X509Policy::default(),
-        link_policy: Default::default(),
-        evaluation: TrustEvaluationContext {
-            purpose: TrustPurpose::WalletAttestationIssuer,
-            policy_id: TrustPolicyId::WalletAttestationIssuerV1,
-            source: Some(TrustSourceEvidence {
-                source_id: [7; 32],
-                snapshot_id: [8; 32],
-            }),
-            ..Default::default()
-        },
-        direct_trust: vec![DirectTrustEntry {
-            certificate: leaf.clone(),
-            purpose: TrustPurpose::WalletAttestationIssuer,
-            policy_id: TrustPolicyId::WalletAttestationIssuerV1,
-            source: TrustSourceEvidence {
-                source_id: [7; 32],
-                snapshot_id: [8; 32],
-            },
-        }],
-    };
-    cfg.evaluation.policy_id = TrustPolicyId::EuQeaaV1;
-
-    let result =
-        evaluate_trust_decision(std::slice::from_ref(&leaf), &cfg, &AllowAllSignatures, None);
-
-    assert_eq!(result.err(), Some(TrustError::PurposePolicyMismatch));
-}
-
-#[test]
-fn direct_end_entity_trust_does_not_cross_eudi_purpose_boundaries() {
-    let leaf = mock_cert("CN=EUDI", "CN=EUDI", false, None, None);
-    let source = TrustSourceEvidence {
-        source_id: [11; 32],
-        snapshot_id: [12; 32],
-    };
-    let cfg = TrustConfig {
-        trust_roots: Vec::new(),
-        now: OffsetDateTime::UNIX_EPOCH,
-        policy: X509Policy::default(),
-        link_policy: Default::default(),
-        evaluation: TrustEvaluationContext {
-            purpose: TrustPurpose::EudiWalletProviderAttestation,
-            policy_id: TrustPolicyId::EtsiTs1194126WalletProviderV1,
-            status_policy: CertificateStatusPolicy {
-                leaf: StatusRequirement::Exempt,
-                intermediates: StatusRequirement::Exempt,
-                trust_anchor: StatusRequirement::Exempt,
-            },
-            source: Some(source),
-        },
-        direct_trust: vec![DirectTrustEntry {
-            certificate: leaf.clone(),
-            purpose: TrustPurpose::PidIssuance,
-            policy_id: TrustPolicyId::EtsiTs1194126PidProviderV1,
-            source,
-        }],
-    };
-
-    let decision = evaluate_trust_decision(&[leaf], &cfg, &RejectAllSignatures, None).unwrap();
-
-    assert_eq!(decision.outcome, TrustOutcome::Rejected);
-    assert!(!decision.accepted);
-}
-
-#[test]
-fn direct_end_entity_trust_rejects_a_different_source_snapshot() {
-    let leaf = mock_cert("CN=Direct", "CN=Direct", false, None, None);
-    let mut cfg = TrustConfig {
-        trust_roots: Vec::new(),
-        now: OffsetDateTime::UNIX_EPOCH,
-        policy: X509Policy::default(),
-        link_policy: Default::default(),
-        evaluation: TrustEvaluationContext {
-            purpose: TrustPurpose::WalletAttestationIssuer,
-            policy_id: TrustPolicyId::WalletAttestationIssuerV1,
-            source: Some(TrustSourceEvidence {
-                source_id: [7; 32],
-                snapshot_id: [8; 32],
-            }),
-            ..Default::default()
-        },
-        direct_trust: vec![DirectTrustEntry {
-            certificate: leaf.clone(),
-            purpose: TrustPurpose::WalletAttestationIssuer,
-            policy_id: TrustPolicyId::WalletAttestationIssuerV1,
-            source: TrustSourceEvidence {
-                source_id: [7; 32],
-                snapshot_id: [9; 32],
-            },
-        }],
-    };
-
-    let decision =
-        evaluate_trust_decision(std::slice::from_ref(&leaf), &cfg, &AllowAllSignatures, None)
-            .unwrap();
-
-    assert_eq!(decision.outcome, TrustOutcome::Rejected);
-    assert!(!decision.accepted);
-
-    cfg.evaluation.source = None;
-    let decision = evaluate_trust_decision(&[leaf], &cfg, &AllowAllSignatures, None).unwrap();
-    assert_eq!(decision.outcome, TrustOutcome::Rejected);
-    assert!(!decision.accepted);
 }

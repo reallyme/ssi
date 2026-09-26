@@ -28,4 +28,6 @@ pub use build::{
     MAX_SIOP_SCOPE_BYTES, MAX_SIOP_TEXT_BYTES, SIOP_NONCE_BYTES,
 };
 pub use error::SiopDeliveryError;
-pub use model::{SiopAuthenticationRequest, SiopAuthenticationResponse, SiopIdTokenClaims};
+pub use model::{
+    SiopAuthenticationRequest, SiopAuthenticationResponse, SiopIdTokenClaims, SiopSubjectJwk,
+};

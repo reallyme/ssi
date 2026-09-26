@@ -3,6 +3,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! IdentityStackError adapters for identity-core-owned reason codes.
+//!
+//! Buffa can retain unknown signed enum values in memory, while the shared
+//! stack envelope uses an unsigned wire field. Unknown non-negative values
+//! remain intact for forward compatibility. Negative values map to the stable
+//! unspecified code and must be handled as an unknown, fail-closed reason.
 
 use crate::generated::proto::reallyme::identity::common::v1::{
     IdentityStackError, IdentityStackErrorDomain,
@@ -36,7 +41,10 @@ pub fn identity_core_stack_error_with_correlation_id(
 }
 
 /// Converts a Buffa enum value into the stack envelope while preserving unknown
-/// numeric reason codes.
+/// non-negative numeric reason codes.
+///
+/// Negative values are not representable on the wire and are reported as
+/// `IDENTITY_CORE_ERROR_REASON_UNSPECIFIED`.
 ///
 /// This is useful at decode/forwarding boundaries: receivers can fail closed on
 /// an unknown identity-core reason while retaining the exact numeric value for
@@ -54,9 +62,22 @@ pub fn identity_core_stack_error_from_enum_value(
     }
 }
 
+/// Maps a Buffa enum value onto the unsigned wire reason code.
+///
+/// Non-negative values, including unknown future reasons, are preserved
+/// exactly. Negative values cannot be represented in `reason_code` and are
+/// mapped explicitly to `IDENTITY_CORE_ERROR_REASON_UNSPECIFIED`, which
+/// receivers must treat as a fail-closed unknown reason.
 fn reason_code_from_i32(value: i32) -> u32 {
-    u32::try_from(value).unwrap_or_default()
+    match u32::try_from(value) {
+        Ok(code) => code,
+        Err(_) => UNSPECIFIED_REASON_CODE,
+    }
 }
+
+/// Wire value of `IDENTITY_CORE_ERROR_REASON_UNSPECIFIED`; proto3 reserves
+/// zero for the unspecified member of every enum.
+const UNSPECIFIED_REASON_CODE: u32 = 0;
 
 impl From<IdentityCoreErrorReason> for IdentityStackError {
     fn from(reason: IdentityCoreErrorReason) -> Self {

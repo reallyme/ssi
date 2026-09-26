@@ -8,6 +8,11 @@ use reallyme_cose::{
     cose_key_from_slice, cose_key_to_public_bytes, cose_sign1_detached, cose_verify1_detached,
     Algorithm,
 };
+use resolve_device_key_algorithm::resolve_device_key_algorithm;
+use std::cell::Cell;
+
+#[path = "resolve_device_key_algorithm.rs"]
+mod resolve_device_key_algorithm;
 
 /// ISO 18013-5 DeviceAuthentication context string.
 pub const DEVICE_AUTHENTICATION_CONTEXT: &str = "DeviceAuthentication";
@@ -132,6 +137,10 @@ pub fn build_device_authentication_cbor(
 }
 
 /// Validate detached DeviceAuth and return the expected authenticated bytes.
+///
+/// The DeviceAuth COSE algorithm must match the algorithm bound to the MSO
+/// device key's type and curve; a mismatch returns
+/// [`MdocInvalidInputReason::DeviceKeyAlgorithmMismatch`].
 pub fn validate_device_auth(
     input: &DeviceAuthenticationValidationInput<'_>,
 ) -> Result<Vec<u8>, MdocEnvelopeError> {
@@ -141,10 +150,22 @@ pub fn validate_device_auth(
         device_name_spaces_cbor: input.device_name_spaces_cbor,
     })?;
     let public_key = device_public_key_from_cose_key_cbor(input.device_key_cose_key_cbor)?;
-    cose_verify1_detached(input.device_auth, &expected, |_, _| {
-        Some(public_key.clone())
-    })
-    .map_err(|_| MdocEnvelopeError::InvalidDeviceSignature)?;
+    let device_key_algorithm = resolve_device_key_algorithm(input.device_key_cose_key_cbor)?;
+    let algorithm_mismatch = Cell::new(false);
+    let verified = cose_verify1_detached(input.device_auth, &expected, |algorithm, _| {
+        if algorithm == device_key_algorithm {
+            Some(public_key.clone())
+        } else {
+            algorithm_mismatch.set(true);
+            None
+        }
+    });
+    if algorithm_mismatch.get() {
+        return Err(MdocEnvelopeError::InvalidInput(
+            MdocInvalidInputReason::DeviceKeyAlgorithmMismatch,
+        ));
+    }
+    verified.map_err(|_| MdocEnvelopeError::InvalidDeviceSignature)?;
 
     Ok(expected)
 }

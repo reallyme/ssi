@@ -2,8 +2,11 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use reallyme_did_types::DIDDocument;
-use std::collections::HashSet;
+use identity_core_primitives::algorithm_map::alg_str_to_alg;
+use reallyme_did_types::{DIDDocument, VerificationMethod};
+use std::collections::{HashMap, HashSet};
+
+use crate::signing::attestation_crypto_algorithm;
 
 use crate::validate::diagnostic::{DidValidationCode, DidValidationIssue, DidValidationLocation};
 
@@ -24,15 +27,6 @@ fn update_policy_issue() -> DidValidationIssue {
     )
 }
 
-//Helper
-fn normalize_vm_id(did: &str, id: &str) -> String {
-    if id.starts_with('#') {
-        format!("{did}{id}")
-    } else {
-        id.to_string()
-    }
-}
-
 /// Semantic validation of updatePolicy (no crypto).
 ///
 /// Mirrors TS validateUpdatePolicy exactly.
@@ -48,12 +42,9 @@ pub fn validate_update_policy(doc: &DIDDocument) -> UpdatePolicyValidationResult
         }
     };
 
-    // Normalize allowed VM ids
-    let allowed: Vec<String> = up
-        .allowed_verification_methods
-        .iter()
-        .map(|id| normalize_vm_id(&doc.id, id))
-        .collect();
+    // Policy references are compared exactly, in the same fragment-relative
+    // form used by verification method ids and attestation `vm` references.
+    let allowed = &up.allowed_verification_methods;
 
     // --------------------------------------------------
     // 1. allowed must not be empty
@@ -62,21 +53,30 @@ pub fn validate_update_policy(doc: &DIDDocument) -> UpdatePolicyValidationResult
         errors.push(update_policy_issue());
     }
 
-    if allowed.len() != allowed.iter().collect::<HashSet<_>>().len() {
+    if allowed.len() != allowed.iter().collect::<HashSet<_>>().len()
+        || !allowed.iter().all(|id| id.starts_with('#'))
+    {
         errors.push(update_policy_issue());
     }
 
     // --------------------------------------------------
     // 2. allowed must reference real VM IDs
     // --------------------------------------------------
-    let vm_ids: HashSet<String> = doc
+    let vm_by_id: HashMap<&str, &VerificationMethod> = doc
         .verification_method
         .iter()
-        .map(|v| normalize_vm_id(&doc.id, &v.id))
+        .map(|vm| (vm.id.as_str(), vm))
         .collect();
 
-    for vm_id in &allowed {
-        if !vm_ids.contains(vm_id) {
+    for vm_id in allowed {
+        // Allowed methods must exist and use a core attestation algorithm.
+        let attestation_capable = vm_by_id
+            .get(vm_id.as_str())
+            .and_then(|vm| vm.algorithm.as_deref())
+            .and_then(|alg| alg_str_to_alg(alg).ok())
+            .and_then(attestation_crypto_algorithm)
+            .is_some();
+        if !attestation_capable {
             errors.push(update_policy_issue());
         }
     }

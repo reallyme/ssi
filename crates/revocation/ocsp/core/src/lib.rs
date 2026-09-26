@@ -24,6 +24,8 @@
 //!
 //! Backends (OpenSSL, WASM, Swift, Kotlin) produce `ParsedOcspResponse`.
 
+/// Binding of host-produced OCSP results to submitted certificates.
+pub mod bind_response;
 /// Portable OCSP status checker.
 pub mod checker;
 /// Typed OCSP evaluation errors.
@@ -31,6 +33,7 @@ pub mod error;
 /// Parsed OCSP response model and policy knobs.
 pub mod model;
 
+pub use bind_response::bind_response_to_certificates;
 pub use checker::OcspChecker;
 pub use error::OcspError;
 pub use model::{

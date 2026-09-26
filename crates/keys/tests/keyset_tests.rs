@@ -354,3 +354,25 @@ fn debug_output_redacts_private_material() {
     assert!(exported_debug.contains("private_key_count"));
     assert!(!exported_debug.contains("BwgJ"));
 }
+
+#[test]
+fn rejected_put_key_leaves_no_private_material_behind() {
+    let mut key_set = KeySet::new();
+
+    assert_eq!(
+        key_set.put_key("bad id\n", vec![1, 2, 3], public_key(40)),
+        Err(KeySetError::InvalidVerificationMethodId)
+    );
+    assert_eq!(
+        key_set.put_key("#k1", vec![1, 2, 3], "not-a-multikey"),
+        Err(KeySetError::InvalidPublicKeyMultibase)
+    );
+    assert_eq!(
+        key_set.private_key("#k1").map(|_| ()),
+        Err(KeySetError::MissingPrivateKey)
+    );
+    assert_eq!(
+        key_set.public_key("#k1").map(|_| ()),
+        Err(KeySetError::MissingPublicKey)
+    );
+}

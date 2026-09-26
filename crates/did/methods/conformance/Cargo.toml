@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-method-conformance"
-version = "0.1.0"
+version = "0.2.0"
 description = "DID method conformance-vector tests."
 edition.workspace = true
 rust-version.workspace = true
@@ -13,13 +13,13 @@ repository.workspace = true
 publish.workspace = true
 
 [dev-dependencies]
-reallyme-did-method-cheqd = { path = "../cheqd", version = "0.1.0" }
-reallyme-did-method-ebsi = { path = "../ebsi", version = "0.1.0" }
-reallyme-did-method-ion = { path = "../ion", version = "0.1.0" }
-reallyme-did-method-jwk = { path = "../jwk", version = "0.1.0" }
-reallyme-did-method-key = { path = "../key", version = "0.1.0" }
-reallyme-did-method-me = { path = "../me", version = "0.1.0" }
-reallyme-did-method-web = { path = "../web", version = "0.1.0" }
+reallyme-did-method-cheqd = { path = "../cheqd", version = "0.2.0" }
+reallyme-did-method-ebsi = { path = "../ebsi", version = "0.2.0" }
+reallyme-did-method-ion = { path = "../ion", version = "0.2.0" }
+reallyme-did-method-jwk = { path = "../jwk", version = "0.2.0" }
+reallyme-did-method-key = { path = "../key", version = "0.2.0" }
+reallyme-did-method-me = { path = "../me", version = "0.2.0" }
+reallyme-did-method-web = { path = "../web", version = "0.2.0" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 

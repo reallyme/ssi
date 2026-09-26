@@ -5,14 +5,15 @@
 //! Selective-disclosure projection over an already authenticated SD-JWT payload.
 
 use core::fmt;
+use std::collections::HashMap;
 
 use serde_json::Value;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::sensitive::zeroize_json_value;
 use crate::{
-    decode_disclosure, digest_disclosure, Disclosure, DisclosureKind, SdJwtEnvelopeError,
-    SdJwtHashAlgorithm, SdJwtProcessingPolicy, MAX_SD_JWT_DISCLOSURES,
+    decode_disclosure, digest_disclosure, DisclosureKind, SdJwtEnvelopeError, SdJwtHashAlgorithm,
+    SdJwtProcessingPolicy, MAX_SD_JWT_DISCLOSURES,
 };
 
 const SD_CLAIM_NAME: &str = "_sd";
@@ -91,17 +92,38 @@ impl Drop for SelectedSdJwtDisclosures {
 impl ZeroizeOnDrop for SelectedSdJwtDisclosures {}
 
 struct MappedDisclosure {
-    original_index: usize,
-    digest: String,
-    disclosure: Disclosure,
+    encoded: String,
+    kind: DisclosureKind,
     path: Option<Vec<SdJwtClaimPathComponent>>,
 }
 
 impl Drop for MappedDisclosure {
     fn drop(&mut self) {
-        self.digest.zeroize();
+        self.encoded.zeroize();
         self.path.zeroize();
     }
+}
+
+/// Decoded disclosures indexed by digest, in original serialization order.
+struct DisclosureGraph {
+    entries: Vec<MappedDisclosure>,
+    index_by_digest: HashMap<String, usize>,
+}
+
+impl Drop for DisclosureGraph {
+    fn drop(&mut self) {
+        for (mut digest, _) in self.index_by_digest.drain() {
+            digest.zeroize();
+        }
+    }
+}
+
+/// Mutable traversal state shared across the recursive path mapping.
+struct PathMapper<'a> {
+    graph: &'a mut DisclosureGraph,
+    policy: SdJwtProcessingPolicy,
+    nodes: usize,
+    path: Vec<SdJwtClaimPathComponent>,
 }
 
 /// Select the minimal disclosure closure needed for the requested claim paths.
@@ -125,34 +147,42 @@ pub fn select_sd_jwt_disclosures(
     {
         return Err(SdJwtEnvelopeError::InvalidIssuanceInput);
     }
+    let policy = policy.clamped();
     let hash_algorithm = resolve_hash_algorithm(issuer_payload)?;
-    let mut mapped = Vec::with_capacity(encoded_disclosures.len());
+    let mut graph = DisclosureGraph {
+        entries: Vec::with_capacity(encoded_disclosures.len()),
+        index_by_digest: HashMap::with_capacity(encoded_disclosures.len()),
+    };
     for (original_index, encoded) in encoded_disclosures.iter().enumerate() {
         let disclosure = decode_disclosure(encoded)?;
         let digest = digest_disclosure(encoded, hash_algorithm)?;
-        if mapped
-            .iter()
-            .any(|existing: &MappedDisclosure| existing.digest == digest)
+        if graph
+            .index_by_digest
+            .insert(digest, original_index)
+            .is_some()
         {
             return Err(SdJwtEnvelopeError::DuplicateDisclosure);
         }
-        mapped.push(MappedDisclosure {
-            original_index,
-            digest,
-            disclosure,
+        graph.entries.push(MappedDisclosure {
+            encoded: disclosure.encoded().to_owned(),
+            kind: disclosure.into_kind(),
             path: None,
         });
     }
 
-    let mut nodes = 0_usize;
-    map_disclosure_paths(issuer_payload, &[], 0, policy, &mut nodes, &mut mapped)?;
-    if mapped.iter().any(|entry| entry.path.is_none()) {
+    let mut mapper = PathMapper {
+        graph: &mut graph,
+        policy,
+        nodes: 0,
+        path: Vec::new(),
+    };
+    mapper.map_value(issuer_payload, 0)?;
+    if graph.entries.iter().any(|entry| entry.path.is_none()) {
         return Err(SdJwtEnvelopeError::UnmatchedDisclosure);
     }
 
-    mapped.sort_unstable_by_key(|entry| entry.original_index);
     let mut selected = Vec::new();
-    for entry in mapped {
+    for entry in &graph.entries {
         let path = entry
             .path
             .as_deref()
@@ -161,7 +191,7 @@ pub fn select_sd_jwt_disclosures(
             .iter()
             .any(|requested| disclosure_is_required(path, requested))
         {
-            selected.push(entry.disclosure.encoded().to_owned());
+            selected.push(entry.encoded.clone());
         }
     }
     Ok(SelectedSdJwtDisclosures {
@@ -177,121 +207,140 @@ fn resolve_hash_algorithm(payload: &Value) -> Result<SdJwtHashAlgorithm, SdJwtEn
     }
 }
 
-fn map_disclosure_paths(
-    value: &Value,
-    path: &[SdJwtClaimPathComponent],
-    depth: usize,
-    policy: SdJwtProcessingPolicy,
-    nodes: &mut usize,
-    mapped: &mut [MappedDisclosure],
-) -> Result<(), SdJwtEnvelopeError> {
-    if depth > policy.max_depth {
-        return Err(SdJwtEnvelopeError::ProcessingDepthExceeded);
+impl PathMapper<'_> {
+    fn count_node(&mut self, depth: usize) -> Result<(), SdJwtEnvelopeError> {
+        if depth > self.policy.max_depth {
+            return Err(SdJwtEnvelopeError::ProcessingDepthExceeded);
+        }
+        self.nodes = self
+            .nodes
+            .checked_add(1)
+            .ok_or(SdJwtEnvelopeError::ProcessingNodeLimitExceeded)?;
+        if self.nodes > self.policy.max_nodes {
+            return Err(SdJwtEnvelopeError::ProcessingNodeLimitExceeded);
+        }
+        Ok(())
     }
-    *nodes = nodes
-        .checked_add(1)
-        .ok_or(SdJwtEnvelopeError::ProcessingNodeLimitExceeded)?;
-    if *nodes > policy.max_nodes {
-        return Err(SdJwtEnvelopeError::ProcessingNodeLimitExceeded);
-    }
-    match value {
-        Value::Object(object) => {
-            if let Some(digests) = object.get(SD_CLAIM_NAME) {
-                let digests = digests
-                    .as_array()
-                    .ok_or(SdJwtEnvelopeError::InvalidDigestPlaceholder)?;
-                for digest in digests {
-                    let digest = digest
-                        .as_str()
+
+    fn map_value(&mut self, value: &Value, depth: usize) -> Result<(), SdJwtEnvelopeError> {
+        self.count_node(depth)?;
+        let child_depth = depth
+            .checked_add(1)
+            .ok_or(SdJwtEnvelopeError::ProcessingDepthExceeded)?;
+        match value {
+            Value::Object(object) => {
+                if let Some(digests) = object.get(SD_CLAIM_NAME) {
+                    let digests = digests
+                        .as_array()
                         .ok_or(SdJwtEnvelopeError::InvalidDigestPlaceholder)?;
-                    map_object_disclosure(digest, path, depth, policy, nodes, mapped)?;
+                    for digest in digests {
+                        let digest = digest
+                            .as_str()
+                            .ok_or(SdJwtEnvelopeError::InvalidDigestPlaceholder)?;
+                        self.map_object_disclosure(digest, child_depth)?;
+                    }
+                }
+                for (name, child) in object {
+                    if name == SD_CLAIM_NAME || name == SD_ALG_CLAIM_NAME {
+                        continue;
+                    }
+                    self.path.push(SdJwtClaimPathComponent::Name(name.clone()));
+                    let result = self.map_value(child, child_depth);
+                    self.path.pop();
+                    result?;
                 }
             }
-            for (name, child) in object {
-                if name == SD_CLAIM_NAME || name == SD_ALG_CLAIM_NAME {
-                    continue;
+            Value::Array(array) => {
+                for (index, child) in array.iter().enumerate() {
+                    self.path.push(SdJwtClaimPathComponent::Index(index));
+                    let result = match array_disclosure_digest(child)? {
+                        Some(digest) => self.map_array_disclosure(digest, child_depth),
+                        None => self.map_value(child, child_depth),
+                    };
+                    self.path.pop();
+                    result?;
                 }
-                let mut child_path = path.to_vec();
-                child_path.push(SdJwtClaimPathComponent::Name(name.clone()));
-                map_disclosure_paths(child, &child_path, depth + 1, policy, nodes, mapped)?;
             }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
         }
-        Value::Array(array) => {
-            for (index, child) in array.iter().enumerate() {
-                let mut child_path = path.to_vec();
-                child_path.push(SdJwtClaimPathComponent::Index(index));
-                if let Some(digest) = array_disclosure_digest(child)? {
-                    map_array_disclosure(digest, &child_path, depth, policy, nodes, mapped)?;
-                } else {
-                    map_disclosure_paths(child, &child_path, depth + 1, policy, nodes, mapped)?;
-                }
-            }
-        }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+        Ok(())
     }
-    Ok(())
-}
 
-fn map_object_disclosure(
-    digest: &str,
-    parent_path: &[SdJwtClaimPathComponent],
-    depth: usize,
-    policy: SdJwtProcessingPolicy,
-    nodes: &mut usize,
-    mapped: &mut [MappedDisclosure],
-) -> Result<(), SdJwtEnvelopeError> {
-    let Some(index) = mapped.iter().position(|entry| entry.digest == digest) else {
-        return Ok(());
-    };
-    let (claim_name, mut claim_value) = match mapped[index].disclosure.kind() {
-        DisclosureKind::ObjectProperty {
-            claim_name,
-            claim_value,
-        } => (claim_name.clone(), claim_value.clone()),
-        DisclosureKind::ArrayElement { .. } => {
+    fn map_object_disclosure(
+        &mut self,
+        digest: &str,
+        depth: usize,
+    ) -> Result<(), SdJwtEnvelopeError> {
+        let Some(&index) = self.graph.index_by_digest.get(digest) else {
+            return Ok(());
+        };
+        let claim_name = match &self.entry(index)?.kind {
+            DisclosureKind::ObjectProperty { claim_name, .. } => claim_name.clone(),
+            DisclosureKind::ArrayElement { .. } => {
+                return Err(SdJwtEnvelopeError::InvalidDigestPlaceholder);
+            }
+        };
+        self.path.push(SdJwtClaimPathComponent::Name(claim_name));
+        let result = self.map_disclosed_value(index, depth);
+        self.path.pop();
+        result
+    }
+
+    fn map_array_disclosure(
+        &mut self,
+        digest: &str,
+        depth: usize,
+    ) -> Result<(), SdJwtEnvelopeError> {
+        let Some(&index) = self.graph.index_by_digest.get(digest) else {
+            return Ok(());
+        };
+        if matches!(
+            self.entry(index)?.kind,
+            DisclosureKind::ObjectProperty { .. }
+        ) {
             return Err(SdJwtEnvelopeError::InvalidDigestPlaceholder);
         }
-    };
-    let mut child_path = parent_path.to_vec();
-    child_path.push(SdJwtClaimPathComponent::Name(claim_name));
-    set_mapped_path(&mut mapped[index], child_path.clone())?;
-    let result = map_disclosure_paths(&claim_value, &child_path, depth + 1, policy, nodes, mapped);
-    zeroize_json_value(&mut claim_value);
-    result
-}
-
-fn map_array_disclosure(
-    digest: &str,
-    child_path: &[SdJwtClaimPathComponent],
-    depth: usize,
-    policy: SdJwtProcessingPolicy,
-    nodes: &mut usize,
-    mapped: &mut [MappedDisclosure],
-) -> Result<(), SdJwtEnvelopeError> {
-    let Some(index) = mapped.iter().position(|entry| entry.digest == digest) else {
-        return Ok(());
-    };
-    let mut claim_value = match mapped[index].disclosure.kind() {
-        DisclosureKind::ArrayElement { claim_value } => claim_value.clone(),
-        DisclosureKind::ObjectProperty { .. } => {
-            return Err(SdJwtEnvelopeError::InvalidDigestPlaceholder);
-        }
-    };
-    set_mapped_path(&mut mapped[index], child_path.to_vec())?;
-    let result = map_disclosure_paths(&claim_value, child_path, depth + 1, policy, nodes, mapped);
-    zeroize_json_value(&mut claim_value);
-    result
-}
-
-fn set_mapped_path(
-    entry: &mut MappedDisclosure,
-    path: Vec<SdJwtClaimPathComponent>,
-) -> Result<(), SdJwtEnvelopeError> {
-    if entry.path.is_some() {
-        return Err(SdJwtEnvelopeError::DuplicateDigest);
+        self.map_disclosed_value(index, depth)
     }
-    entry.path = Some(path);
-    Ok(())
+
+    /// Record the current path for one disclosure, then walk its value.
+    ///
+    /// Each disclosure is visited at most once (a second visit is a duplicate
+    /// digest), and selection only needs the encoded form afterwards, so the
+    /// plaintext value is moved out and wiped instead of being cloned.
+    fn map_disclosed_value(
+        &mut self,
+        index: usize,
+        depth: usize,
+    ) -> Result<(), SdJwtEnvelopeError> {
+        let path = self.path.clone();
+        let entry = self.entry_mut(index)?;
+        if entry.path.is_some() {
+            return Err(SdJwtEnvelopeError::DuplicateDigest);
+        }
+        entry.path = Some(path);
+        let mut claim_value = match &mut entry.kind {
+            DisclosureKind::ObjectProperty { claim_value, .. }
+            | DisclosureKind::ArrayElement { claim_value } => core::mem::take(claim_value),
+        };
+        let result = self.map_value(&claim_value, depth);
+        zeroize_json_value(&mut claim_value);
+        result
+    }
+
+    fn entry(&self, index: usize) -> Result<&MappedDisclosure, SdJwtEnvelopeError> {
+        self.graph
+            .entries
+            .get(index)
+            .ok_or(SdJwtEnvelopeError::UnmatchedDisclosure)
+    }
+
+    fn entry_mut(&mut self, index: usize) -> Result<&mut MappedDisclosure, SdJwtEnvelopeError> {
+        self.graph
+            .entries
+            .get_mut(index)
+            .ok_or(SdJwtEnvelopeError::UnmatchedDisclosure)
+    }
 }
 
 fn array_disclosure_digest(value: &Value) -> Result<Option<&str>, SdJwtEnvelopeError> {

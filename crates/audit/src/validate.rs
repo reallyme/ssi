@@ -10,6 +10,8 @@ use crate::{
     MAX_STANDARD_COUNT,
 };
 
+use crate::screen_text::contains_unsafe_text_chars;
+
 type Result<T> = core::result::Result<T, QeaaComplianceError>;
 
 /// Validate QEAA compliance evidence using strict verifier defaults.
@@ -47,6 +49,10 @@ fn validate_text(value: &str, field: QeaaField) -> Result<()> {
 
     if value.len() > MAX_QEAA_TEXT_BYTES {
         return Err(invalid(QeaaInvalidReason::FieldTooLarge(field)));
+    }
+
+    if contains_unsafe_text_chars(value) {
+        return Err(invalid(QeaaInvalidReason::InvalidField(field)));
     }
 
     Ok(())

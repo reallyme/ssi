@@ -20,6 +20,7 @@ use reallyme_did_types::DIDDocument;
 const CREATED: &str = "2025-01-01T00:00:00Z";
 const UPDATED: &str = "2025-06-01T00:00:00Z";
 const RETRIEVED: &str = "2026-09-14T12:00:00Z";
+const RETRIEVED_UNIX_SECONDS: i64 = 1_789_387_200;
 
 fn document() -> DIDDocument {
     let config = CreateConfig {
@@ -53,12 +54,14 @@ fn request(doc: &DIDDocument) -> DidResolveRequest {
         assurance: Some(DidResolutionAssurance::ChainVerified),
         freshness: Some(DidResolutionFreshness {
             maximum_staleness_seconds: 60,
+            trusted_now_unix_seconds: RETRIEVED_UNIX_SECONDS,
         }),
     }
 }
 
 fn complete_result(doc: DIDDocument) -> DidResolutionResult {
     DidResolutionResult {
+        history: Vec::new(),
         resolution_metadata: DidResolutionMetadata {
             content_type: Some("application/did+json".into()),
             retrieved_at: Some(RETRIEVED.into()),

@@ -7,6 +7,7 @@ use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityC
 use serde_json::Value;
 use thiserror::Error;
 
+const MAX_ENCODED_JWK_BYTES: usize = 1_398_104;
 const DID_JWK_PREFIX: &str = "did:jwk:";
 const DID_JWK_FRAGMENT: &str = "#0";
 const PRIVATE_JWK_MEMBERS: &[&str] = &["d", "p", "q", "dp", "dq", "qi", "oth", "k"];
@@ -100,6 +101,8 @@ pub fn generate_did_jwk(jwk: &Value) -> Result<String, DidJwkError> {
 /// can preserve that representation instead of depending on map serialization
 /// order from a generic JSON value.
 pub fn generate_did_jwk_from_json_bytes(json: &[u8]) -> Result<String, DidJwkError> {
+    identity_core_primitives::validate_json::validate_json(json)
+        .map_err(|_| DidJwkError::new(DidJwkErrorReason::InvalidJson))?;
     let jwk: Value = serde_json::from_slice(json)
         .map_err(|_| DidJwkError::new(DidJwkErrorReason::InvalidJson))?;
     validate_public_jwk(&jwk)?;
@@ -124,8 +127,14 @@ pub fn parse_did_jwk(did: &str) -> Result<DidJwkIdentifier, DidJwkError> {
         return Err(DidJwkError::new(DidJwkErrorReason::InvalidBase64Url));
     }
 
+    // Bound allocation before decoding an untrusted method-specific identifier.
+    if encoded.len() > MAX_ENCODED_JWK_BYTES {
+        return Err(DidJwkError::new(DidJwkErrorReason::InvalidJson));
+    }
     let decoded = base64url_to_bytes(encoded)
         .map_err(|_| DidJwkError::new(DidJwkErrorReason::InvalidBase64Url))?;
+    identity_core_primitives::validate_json::validate_json(&decoded)
+        .map_err(|_| DidJwkError::new(DidJwkErrorReason::InvalidJson))?;
     let jwk: Value = serde_json::from_slice(&decoded)
         .map_err(|_| DidJwkError::new(DidJwkErrorReason::InvalidJson))?;
     validate_public_jwk(&jwk)?;

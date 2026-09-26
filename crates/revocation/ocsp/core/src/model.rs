@@ -4,11 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Default maximum age for an OCSP `thisUpdate` when no tighter profile is supplied.
-pub const DEFAULT_MAX_OCSP_AGE_SECS: u64 = 86_400;
+pub use identity_revocation_core::{OcspPolicy, DEFAULT_MAX_OCSP_AGE_SECS};
 
 /// Certificate status reported by an OCSP response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OcspCertStatus {
     /// Certificate is not revoked according to the responder.
     Good,
@@ -16,38 +15,6 @@ pub enum OcspCertStatus {
     Revoked,
     /// Responder does not know the certificate status.
     Unknown,
-}
-
-/// OCSP evaluation policy knobs (profile-dependent).
-///
-/// This is intentionally small and portable so it can be used across native/wasm/swift/kotlin.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct OcspPolicy {
-    /// If true, missing `nextUpdate` is treated as invalid for this profile.
-    pub require_next_update: bool,
-
-    /// Maximum allowed age of `thisUpdate` (seconds). If `None`, do not enforce max age.
-    pub max_age_secs: Option<u64>,
-
-    /// Allowed clock skew (seconds) used when comparing `thisUpdate`/`nextUpdate` to `now`.
-    pub allowed_skew_secs: u64,
-
-    /// If true, the OCSP entry must be marked as verified (signature + responder authorization).
-    pub require_verified: bool,
-}
-
-impl Default for OcspPolicy {
-    fn default() -> Self {
-        Self {
-            require_next_update: false,
-            // RFC 6960 §4.2.2.1 permits nextUpdate to be absent, but a relying
-            // party still needs a local freshness ceiling to prevent indefinite
-            // replay of an otherwise valid response.
-            max_age_secs: Some(DEFAULT_MAX_OCSP_AGE_SECS),
-            allowed_skew_secs: 300,
-            require_verified: true,
-        }
-    }
 }
 
 /// Portable parsed OCSP response consumed by the core checker.

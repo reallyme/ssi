@@ -28,6 +28,15 @@ pub enum SiopVerifierError {
     /// The ID token nonce does not match the originating request.
     #[error("nonce mismatch")]
     NonceMismatch,
+
+    /// The verifying key is not bound to the self-issued subject, or
+    /// `iss` differs from `sub`.
+    #[error("subject mismatch")]
+    SubjectMismatch,
+
+    /// The response `state` does not match the value sent with the request.
+    #[error("state mismatch")]
+    StateMismatch,
 }
 
 impl From<SiopVerifierError> for IdentityCoreErrorReason {
@@ -47,6 +56,12 @@ impl From<SiopVerifierError> for IdentityCoreErrorReason {
             }
             SiopVerifierError::NonceMismatch => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SIOP_VERIFIER_NONCE_MISMATCH
+            }
+            SiopVerifierError::SubjectMismatch => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SIOP_VERIFIER_INVALID_SIGNATURE
+            }
+            SiopVerifierError::StateMismatch => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_INVALID_STATE
             }
         }
     }

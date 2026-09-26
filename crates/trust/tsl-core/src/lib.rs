@@ -19,7 +19,6 @@
 //! Parses EU LOTL + national TSLs into a normalized model.
 //! Signature verification is handled by a backend crate (e.g. `*-openssl`).
 //!
-mod effective;
 /// Typed errors for portable TSL parsing.
 pub mod error;
 /// Normalized TSL and trust-service models.
@@ -29,7 +28,6 @@ pub mod parse;
 /// Bounded app-owned LOTL pointer traversal checks.
 pub mod pointer;
 
-pub use effective::select_effective_service_states;
 pub use error::{
     TslAddressContext, TslAddressFailure, TslDigitalIdentityFailure, TslError,
     TslPointerPolicyFailure, TslPointerQualifierFailure, TslProviderFailure,
@@ -48,5 +46,8 @@ pub use model::{
     TspRegistrationIdentifierKind, XmlDsigKeyValue, EU_LOTL_URL, MAX_TSL_OBJECT_IDENTIFIER_BYTES,
     MAX_TSL_URI_BYTES,
 };
-pub use parse::{parse_tsl_xml, validate_tsl_freshness, MAX_TSL_XML_BYTES};
+pub use parse::{
+    parse_tsl_xml, validate_tsl_freshness, validate_tsl_sequence_number,
+    MAX_TSL_ISSUE_DATE_TIME_CLOCK_SKEW_SECONDS, MAX_TSL_XML_BYTES,
+};
 pub use pointer::{validate_pointer_target, validate_pointer_traversal};

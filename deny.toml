@@ -10,7 +10,7 @@ targets = [
     "aarch64-apple-ios",
     "aarch64-linux-android",
 ]
-all-features = false
+all-features = true
 no-default-features = false
 
 [output]
@@ -35,13 +35,26 @@ ignore = true
 registries = []
 
 [bans]
-multiple-versions = "allow"
+multiple-versions = "deny"
 wildcards = "deny"
 highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
 deny = []
-skip = []
+skip = [
+    { crate = "base64@0.22.1", reason = "Reviewed transitive compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "block-buffer@0.10.4", reason = "Reviewed transitive digest compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "cpufeatures@0.2.17", reason = "Reviewed transitive crypto compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "crypto-common@0.1.7", reason = "Reviewed transitive crypto compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "digest@0.10.7", reason = "Reviewed transitive digest compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "generic-array@0.14.7", reason = "Reviewed transitive crypto compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "getrandom@0.2.17", reason = "Reviewed transitive random-source compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "hashbrown@0.15.5", reason = "Reviewed transitive collection compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "keccak@0.1.6", reason = "Reviewed transitive SHA-3 compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "sha3@0.10.9", reason = "Reviewed transitive SHA-3 compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "sha3@0.11.0", reason = "Reviewed transitive SHA-3 compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "syn@2.0.119", reason = "Reviewed procedural-macro compatibility split; deny-by-default prevents additional unreviewed versions." },
+]
 skip-tree = []
 
 [sources]

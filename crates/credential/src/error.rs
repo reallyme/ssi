@@ -78,6 +78,18 @@ pub enum CredentialStatusReason {
     Unavailable,
 }
 
+/// Stable reasons for rejecting a credential outside its own validity window.
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+pub enum CredentialValidityReason {
+    /// The verification time is before the credential's inclusive `valid_from`.
+    #[error("credential not yet valid")]
+    NotYetValid,
+
+    /// The verification time is at or after the credential's exclusive `valid_until`.
+    #[error("credential expired")]
+    Expired,
+}
+
 /// Stable fields used when mapping malformed protobuf inputs.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
 pub enum CredentialProtoField {
@@ -245,6 +257,10 @@ pub enum CredentialError {
     #[error("credential status failed")]
     Status(CredentialStatusReason),
 
+    /// The credential is outside its validity window at the verification time.
+    #[error("credential outside validity window")]
+    Validity(CredentialValidityReason),
+
     /// Generated protobuf boundary input is malformed.
     #[error("invalid credential protobuf")]
     Proto(CredentialProtoReason),
@@ -311,6 +327,16 @@ impl From<CredentialStatusReason> for IdentityCoreErrorReason {
             }
             CredentialStatusReason::Unavailable => {
                 Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_STATUS_UNAVAILABLE
+            }
+        }
+    }
+}
+
+impl From<CredentialValidityReason> for IdentityCoreErrorReason {
+    fn from(reason: CredentialValidityReason) -> Self {
+        match reason {
+            CredentialValidityReason::NotYetValid | CredentialValidityReason::Expired => {
+                Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_VALIDITY_WINDOW
             }
         }
     }
@@ -384,6 +410,7 @@ impl From<CredentialError> for IdentityCoreErrorReason {
             CredentialError::Canonical(reason) => reason.into(),
             CredentialError::Signature(reason) => reason.into(),
             CredentialError::Status(reason) => reason.into(),
+            CredentialError::Validity(reason) => reason.into(),
             CredentialError::Proto(reason) => reason.into(),
         }
     }

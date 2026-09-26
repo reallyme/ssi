@@ -13,6 +13,7 @@
 mod error;
 mod model;
 mod provenance;
+mod screen_text;
 mod validate;
 
 pub use error::{QeaaComplianceError, QeaaField, QeaaInvalidReason};

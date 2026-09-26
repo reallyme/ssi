@@ -149,6 +149,7 @@ fn rejects_wrong_anchor_and_issuer_mismatch() {
     let expected_root = mock_cert("CN=Expected Root", "CN=Expected Root", true, None, None);
     let mut mismatched_leaf = leaf;
     mismatched_leaf.issuer = "CN=Different Issuer".to_owned();
+    mismatched_leaf.issuer_der = b"CN=Different Issuer".to_vec();
     let decision = evaluate_trust_decision(
         &[mismatched_leaf],
         &config(expected_root),

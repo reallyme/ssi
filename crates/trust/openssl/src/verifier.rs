@@ -92,7 +92,8 @@ fn verify_chain_with_backend(
         .get(chain.certs.len() - 2)
         .ok_or(SignatureVerifyError::BackendFailure)?;
 
-    if last.issuer != root.subject {
+    // Exact DER Name equality; rendered display strings are lossy.
+    if last.issuer_der != root.subject_der {
         return Err(SignatureVerifyError::InvalidSignature);
     }
 
@@ -114,6 +115,17 @@ fn verify_chain_with_backend(
 
     let mut verification_parameters =
         X509VerifyParam::new().map_err(|_| SignatureVerifyError::BackendFailure)?;
+    // `X509_V_FLAG_PARTIAL_CHAIN` is deliberately not set. The store below
+    // holds exactly one certificate: the terminal of the candidate path, which
+    // the trust-core evaluator has already matched by exact DER to a
+    // configured trust anchor. Without PARTIAL_CHAIN, OpenSSL additionally
+    // requires the path to end at a self-issued trusted certificate, so a
+    // verified path can only close at a root the relying party configured.
+    // A configured anchor that is not self-issued (for example an
+    // intermediate CA published as a trusted-list service) is therefore
+    // rejected by this lane rather than accepted on the strength of store
+    // membership alone. Enabling PARTIAL_CHAIN would be required to support
+    // such anchors and must be paired with explicit anchor policy.
     verification_parameters
         .set_flags(
             X509VerifyFlags::X509_STRICT
@@ -137,9 +149,13 @@ fn verify_chain_with_backend(
 
     let mut ctx = X509StoreContext::new().map_err(|_| SignatureVerifyError::BackendFailure)?;
 
+    // `init` returns an ErrorStack only when OpenSSL cannot set up or run the
+    // verification context (allocation or internal failure). Ordinary path
+    // rejection is reported as `Ok(false)` below. A setup failure says nothing
+    // about the signature, so it must not be reported as a rejection.
     let verified = ctx
         .init(&store, &leaf_x509, &intermediate_stack, |c| c.verify_cert())
-        .map_err(|_| SignatureVerifyError::InvalidSignature)?;
+        .map_err(|_| SignatureVerifyError::BackendFailure)?;
 
     if verified {
         Ok(())

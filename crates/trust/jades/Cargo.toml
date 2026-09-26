@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-trust-jades"
-version = "0.1.0"
+version = "0.2.0"
 description = "ETSI TS 119 182-1 JAdES Baseline validation for ReallyMe trust decisions."
 edition.workspace = true
 rust-version.workspace = true
@@ -15,11 +15,13 @@ publish = false
 [features]
 default = []
 native = [
+    "reallyme-trust-core/native",
     "reallyme-crypto/native",
     "envelopes-x509/native",
     "identity-revocation-core/native",
 ]
 wasm = [
+    "reallyme-trust-core/wasm",
     "reallyme-crypto/wasm",
     "envelopes-x509/wasm",
     "identity-revocation-core/wasm",
@@ -28,7 +30,7 @@ wasm = [
 [dependencies]
 envelopes-x509 = { workspace = true }
 identity-revocation-core = { workspace = true }
-reallyme-trust-core = { path = "../core", version = "0.1.0" }
+reallyme-trust-core = { path = "../core", version = "0.2.0", default-features = false }
 reallyme-codec = { workspace = true, features = ["base64", "base64url"] }
 reallyme-crypto = { workspace = true, features = ["sha2", "sha3"] }
 reallyme-ssi-proto = { workspace = true }

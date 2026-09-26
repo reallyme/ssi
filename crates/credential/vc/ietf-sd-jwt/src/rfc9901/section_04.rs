@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+const DECOY_ENTROPY_BYTES: usize = 32;
+const MAX_POSITION_SAMPLING_ATTEMPTS: usize = 64;
+
 struct TransformCtx<'a> {
     strategy: SelectiveDisclosureStrategy,
     json_paths: BTreeSet<String>,
@@ -98,8 +101,14 @@ fn transform_object(
     let mut sd_digests = Vec::new();
 
     for (k, v) in map {
-        if k == "_sd" || k == "_sd_alg" {
+        if SD_JWT_STRUCTURAL_CLAIMS.contains(&k.as_str()) {
             return Err(IetfSdJwtVcError::ReservedClaimKey);
+        }
+        if is_root && is_non_selectively_disclosable_claim(k) {
+            // Registered SD-JWT VC claims stay verbatim in the issuer payload;
+            // neither the claim nor any nested member becomes disclosable.
+            out.insert(k.clone(), v.clone());
+            continue;
         }
 
         let child_path = if path == "$" {
@@ -125,7 +134,7 @@ fn transform_object(
     }
 
     for _ in 0..ctx.object_decoys {
-        let rnd = ctx.salt_rng.random_bytes(32)?;
+        let rnd = ctx.salt_rng.random_bytes(DECOY_ENTROPY_BYTES)?;
         let decoy = bytes_to_base64url(sha2_256_digest(&rnd).as_bytes());
         sd_digests.push(decoy);
     }
@@ -149,7 +158,11 @@ fn transform_array(
     path: &str,
     ctx: &mut TransformCtx,
 ) -> Result<Value, IetfSdJwtVcError> {
-    let mut out = Vec::with_capacity(arr.len() + ctx.array_decoys as usize);
+    let capacity = arr
+        .len()
+        .checked_add(usize::from(ctx.array_decoys))
+        .ok_or(IetfSdJwtVcError::InvalidInput)?;
+    let mut out = Vec::with_capacity(capacity);
 
     for (idx, v) in arr.iter().enumerate() {
         let child_path = format!("{path}[{idx}]");
@@ -170,12 +183,39 @@ fn transform_array(
     }
 
     for _ in 0..ctx.array_decoys {
-        let rnd = ctx.salt_rng.random_bytes(32)?;
+        let rnd = ctx.salt_rng.random_bytes(DECOY_ENTROPY_BYTES)?;
         let decoy = bytes_to_base64url(sha2_256_digest(&rnd).as_bytes());
-        out.push(serde_json::json!({"...": decoy}));
+        // RFC 9901 §4.2.5: decoys appended at a fixed position would be
+        // trivially distinguishable from real element placeholders.
+        let position = random_insert_position(ctx.salt_rng, out.len())?;
+        out.insert(position, serde_json::json!({"...": decoy}));
     }
 
     Ok(Value::Array(out))
+}
+
+/// Draw a uniformly distributed insertion index in `0..=len`.
+fn random_insert_position(
+    rng: &mut dyn Rfc9901SaltRng,
+    len: usize,
+) -> Result<usize, IetfSdJwtVcError> {
+    let bound = len
+        .checked_add(1)
+        .and_then(|value| u64::try_from(value).ok())
+        .ok_or(IetfSdJwtVcError::InvalidInput)?;
+    // Rejection sampling removes modulo bias; the acceptance zone is at least
+    // half of the u64 range, so the expected number of draws is below two.
+    let zone = u64::MAX - (u64::MAX % bound);
+    for _ in 0..MAX_POSITION_SAMPLING_ATTEMPTS {
+        let mut sample = [0_u8; 8];
+        rng.fill_bytes(&mut sample)?;
+        let value = u64::from_le_bytes(sample);
+        sample.zeroize();
+        if value < zone {
+            return usize::try_from(value % bound).map_err(|_| IetfSdJwtVcError::InvalidInput);
+        }
+    }
+    Err(IetfSdJwtVcError::InvalidInput)
 }
 
 fn should_disclose(

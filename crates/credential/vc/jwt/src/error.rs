@@ -22,13 +22,35 @@ pub enum VcJwtError {
 
     #[error("missing field")]
     MissingField,
+
+    /// Verification options carried a zero or otherwise invalid current time,
+    /// or a clock skew above the supported maximum.
+    #[error("invalid vc-jwt verification time")]
+    InvalidVerificationTime,
+
+    /// A temporal claim is not a non-negative NumericDate, `exp` does not
+    /// follow `nbf`, or `iat` lies in the future beyond the tolerated skew.
+    #[error("invalid vc-jwt temporal claim")]
+    InvalidTemporalClaim,
+
+    /// The credential `exp` claim is at or before the verification time.
+    #[error("vc-jwt credential expired")]
+    CredentialExpired,
+
+    /// The credential `nbf` claim is after the verification time.
+    #[error("vc-jwt credential not yet valid")]
+    CredentialNotYetValid,
 }
 
 impl From<VcJwtError> for IdentityCoreErrorReason {
     fn from(reason: VcJwtError) -> Self {
         match reason {
             VcJwtError::Jwt => IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_JWT_JWT,
-            VcJwtError::InvalidPayload => {
+            VcJwtError::InvalidPayload
+            | VcJwtError::InvalidVerificationTime
+            | VcJwtError::InvalidTemporalClaim
+            | VcJwtError::CredentialExpired
+            | VcJwtError::CredentialNotYetValid => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_JWT_INVALID_PAYLOAD
             }
             VcJwtError::Base64Url => {

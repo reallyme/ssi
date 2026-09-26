@@ -25,6 +25,29 @@ pub const MAX_TOKEN_STATUS_CWT_BYTES: usize = 700_000;
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub const MAX_STATUS_URI_BYTES: usize = 2_048;
 
+/// Default maximum accepted age of a Token Status List, measured from `iat`.
+pub const DEFAULT_TOKEN_STATUS_LIST_MAX_AGE_SECS: u64 = 86_400;
+
+/// Relying-party freshness ceiling applied when verifying a Token Status List.
+///
+/// `exp` is optional in draft-21, so an authenticated list without `exp`
+/// would otherwise be accepted indefinitely. The verifier rejects a list once
+/// `now >= iat + min(max_age_secs, ttl)`, honoring a shorter issuer-provided
+/// `ttl` while never exceeding the local ceiling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TokenStatusListFreshnessPolicy {
+    /// Maximum accepted age in seconds since `iat`. Must be non-zero.
+    pub max_age_secs: u64,
+}
+
+impl Default for TokenStatusListFreshnessPolicy {
+    fn default() -> Self {
+        Self {
+            max_age_secs: DEFAULT_TOKEN_STATUS_LIST_MAX_AGE_SECS,
+        }
+    }
+}
+
 /// Wire profile selected for Token Status List processing.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 #[non_exhaustive]
@@ -51,6 +74,16 @@ pub enum TokenStatusBits {
 impl TokenStatusBits {
     pub(crate) const fn width(self) -> u8 {
         self as u8
+    }
+
+    pub(crate) const fn from_width(width: u8) -> Option<Self> {
+        match width {
+            1 => Some(Self::One),
+            2 => Some(Self::Two),
+            4 => Some(Self::Four),
+            8 => Some(Self::Eight),
+            _ => None,
+        }
     }
 
     pub(crate) const fn maximum_value(self) -> u8 {
@@ -126,7 +159,8 @@ pub enum TokenStatusListInvalidReason {
     /// The requested status index does not address a packed status value.
     #[error("invalid token status list index")]
     InvalidIndex,
-    /// Expiration precedes issuance or TTL is zero.
+    /// Expiration precedes issuance, TTL is zero, or the freshness window
+    /// cannot be represented.
     #[error("invalid token status time claims")]
     InvalidTimeClaims,
     /// Compressed status bytes are malformed or exceed the resource limit.

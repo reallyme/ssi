@@ -126,7 +126,8 @@ surfaces must not be added under root `bindings/`, `gen/`, `packages/`, or
 
 - `vectors/` owns reusable cross-crate and cross-language vectors.
 - `conformance/fixtures/` owns inputs that exist only for conformance runs.
-- `conformance/results/` owns generated execution evidence.
+- `reallyme/identity-conformance` retains generated release evidence; SSI owns
+  the requirement mappings and the generator that produces the clean bundle.
 - OIDF certification orchestration remains outside this repository in
   `reallyme/identity-conformance`.
 

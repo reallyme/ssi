@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-ssi-fuzz"
-version = "0.0.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 
@@ -20,11 +20,19 @@ non_kebab_case_bins = "allow"
 members = ["."]
 
 [dependencies]
+identity-trust-tsl-xmlsec = { path = "../crates/trust/tsl-xmlsec", default-features = false }
+identity-trust-jades = { path = "../crates/trust/jades", default-features = false, features = ["native"] }
+reallyme-codec = { version = "=0.2.3", default-features = false, features = ["base64url"] }
+reallyme-crypto = { version = "=0.3.9", default-features = false, features = ["native", "jwk"] }
+reallyme-cose = { version = "=0.2.5", default-features = false, features = ["native"] }
+time = "0.3"
 reallyme-mdoc = { path = "../crates/envelopes/mdoc", default-features = false }
 identity-trust-tsl-core = { path = "../crates/trust/tsl-core" }
 libfuzzer-sys = "0.4"
 reallyme-credential-claims = { path = "../crates/claims", default-features = false, features = ["native"] }
 reallyme-credential-status = { path = "../crates/status", default-features = false, features = ["native"] }
+reallyme-sd-jwt = { path = "../crates/envelopes/sd_jwt", default-features = false, features = ["native"] }
+serde_json = "1.0"
 reallyme-trust-x509 = { path = "../crates/trust/x509", default-features = false }
 
 [[bin]]
@@ -52,6 +60,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "fuzz_sd_jwt_processing"
+path = "fuzz_targets/fuzz_sd_jwt_processing.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "fuzz_status_list"
 path = "fuzz_targets/fuzz_status_list.rs"
 test = false
@@ -60,5 +74,23 @@ doc = false
 [[bin]]
 name = "fuzz_x509_trust_der"
 path = "fuzz_targets/fuzz_x509_trust_der.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_xml_signature_profile"
+path = "fuzz_targets/fuzz_xml_signature_profile.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_jades_header"
+path = "fuzz_targets/fuzz_jades_header.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_status_tokens"
+path = "fuzz_targets/fuzz_status_tokens.rs"
 test = false
 doc = false

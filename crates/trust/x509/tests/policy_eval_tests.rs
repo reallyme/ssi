@@ -41,12 +41,13 @@ fn mk_leaf() -> X509Certificate {
         der: vec![],
         subject: "CN=leaf".into(),
         issuer: "CN=iss".into(),
+        subject_der: b"CN=leaf".to_vec(),
+        issuer_der: b"CN=iss".to_vec(),
         serial: vec![1],
         not_before: OffsetDateTime::UNIX_EPOCH,
         not_after: OffsetDateTime::UNIX_EPOCH + time::Duration::days(3650),
         spki_der: vec![],
         signature_algorithm_oid: "1.2.3".into(),
-
         basic_constraints: Some(BasicConstraints {
             ca: false,
             path_len_constraint: None,
@@ -63,7 +64,6 @@ fn mk_leaf() -> X509Certificate {
             decipher_only: false,
         }),
         extended_key_usage: Some(vec![OID_EKU_SERVER_AUTH.to_string()]),
-
         subject_key_identifier: None,
         authority_key_identifier: None,
         san_dns: vec!["example.test".into()],
@@ -222,6 +222,8 @@ fn mk_intermediate() -> X509Certificate {
         der: vec![],
         subject: "CN=iss".into(),
         issuer: "CN=root".into(),
+        subject_der: b"CN=iss".to_vec(),
+        issuer_der: b"CN=root".to_vec(),
         serial: vec![2],
         not_before: OffsetDateTime::UNIX_EPOCH,
         not_after: OffsetDateTime::UNIX_EPOCH + time::Duration::days(3650),
