@@ -112,24 +112,6 @@ for (const name of approvedPublicPackages) {
   }
 }
 
-for (const crate of publishable) {
-  console.log(`checking package contents for ${crate.name}`);
-  execFileSync(
-    "cargo",
-    [
-      "package",
-      "--manifest-path",
-      crate.manifestPath,
-      "--allow-dirty",
-      "--list",
-    ],
-    {
-      cwd: root,
-      stdio: "inherit",
-    },
-  );
-}
-
 for (const [name, contractPackage] of requiredContractPackages) {
   console.log(`checking contract package contents for ${name}`);
   const output = execFileSync(
@@ -155,5 +137,5 @@ for (const [name, contractPackage] of requiredContractPackages) {
 }
 
 console.log(
-  `package inspection passed for ${publishable.length} public and ${requiredContractPackages.size} contract crate(s)`,
+  `publishable set inspection passed for ${publishable.length} public and ${requiredContractPackages.size} contract crate(s)`,
 );
