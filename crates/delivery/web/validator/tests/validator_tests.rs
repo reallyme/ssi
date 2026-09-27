@@ -389,12 +389,6 @@ fn web_accepts_valid_pid() {
 
     let status_ctx = StatusContext {
         list: &status_list,
-        index: 0,
-        expected_index: 0,
-        expected_issuer: ISSUER_DID,
-        expected_signer: reallyme_credential::PartyReference::Did(ISSUER_DID.to_owned()),
-        expected_list_id: STATUS_LIST_ID,
-        expected_purpose: StatusPurpose::Revocation,
         verifier: &verifier,
     };
 
@@ -486,12 +480,6 @@ fn web_rejects_missing_qeaa() {
 
     let status_ctx = StatusContext {
         list: &status_list,
-        index: 0,
-        expected_index: 0,
-        expected_issuer: ISSUER_DID,
-        expected_signer: reallyme_credential::PartyReference::Did(ISSUER_DID.to_owned()),
-        expected_list_id: STATUS_LIST_ID,
-        expected_purpose: StatusPurpose::Revocation,
         verifier: &verifier,
     };
 
@@ -663,12 +651,6 @@ fn web_rejects_envelope_signed_for_a_different_claimset() {
         "eu.pid.baseline.v1",
         Some(StatusContext {
             list: &status_list,
-            index: 0,
-            expected_index: 0,
-            expected_issuer: ISSUER_DID,
-            expected_signer: reallyme_credential::PartyReference::Did(ISSUER_DID.to_owned()),
-            expected_list_id: STATUS_LIST_ID,
-            expected_purpose: StatusPurpose::Revocation,
             verifier: &verifier,
         }),
         Some(expected_sd_jwt_binding(now)),
@@ -698,18 +680,12 @@ fn web_rejects_status_list_not_referenced_by_envelope() {
             "eu.pid.v1",
             Some(StatusContext {
                 list,
-                index: 0,
-                expected_index: 0,
-                expected_issuer: ISSUER_DID,
-                expected_signer: reallyme_credential::PartyReference::Did(ISSUER_DID.to_owned()),
-                expected_list_id: STATUS_LIST_ID,
-                expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,
             }),
             Some(expected_sd_jwt_binding(now)),
             now,
         );
-        assert!(matches!(result, Err(VpValidationError::StatusCheckFailed)));
+        assert!(is_rejected_with(result, VpPolicyError::StatusCheckFailed));
     }
 }
 
@@ -744,12 +720,6 @@ fn web_rejects_binding_evaluated_at_a_different_time() {
         "eu.pid.v1",
         Some(StatusContext {
             list: &status_list,
-            index: 0,
-            expected_index: 0,
-            expected_issuer: ISSUER_DID,
-            expected_signer: reallyme_credential::PartyReference::Did(ISSUER_DID.to_owned()),
-            expected_list_id: STATUS_LIST_ID,
-            expected_purpose: StatusPurpose::Revocation,
             verifier: &verifier,
         }),
         Some(expected_sd_jwt_binding(now + 1)),

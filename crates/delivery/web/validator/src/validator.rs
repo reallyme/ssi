@@ -16,7 +16,8 @@
 //! which composes SSI credential semantics with an injected ZK provider.
 
 use identity_presentation_vp_validator::{
-    evaluate_presentation_policy, CryptoContext, QeaaContext, VpValidationError, VpValidationInput,
+    evaluate_presentation_policy_with_verified_credential, CryptoContext, QeaaContext,
+    VpValidationError, VpValidationInput,
 };
 
 use identity_core_primitives::{vc_alg_str_to_alg, Algorithm};
@@ -28,7 +29,6 @@ use identity_presentation_vp_sd_jwt::{verify_sd_jwt_vp_with_binding, ExpectedKbJ
 use reallyme_credential::committed::model::{
     CredentialEnvelope, HolderBinding, PublicKeyRepresentation,
 };
-use reallyme_credential::{verify_credential_status, CredentialError, CredentialStatusReason};
 use serde::Deserialize;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
@@ -104,18 +104,21 @@ pub fn validate_web_presentation<'a>(
     // ---------------------------------------------------------------------
     // 2) Delegate VP policy verification
     // ---------------------------------------------------------------------
-    let decision = evaluate_presentation_policy(VpValidationInput {
-        presentation: input.presentation,
-        claims_registry: input.claims_registry,
-        claimset_id: input.claimset_id,
-        crypto,
-        status: input.status,
-        qeaa: QeaaContext {
-            qeaa_from_vc: verified.envelope.qeaa_compliance.as_ref(),
+    let decision = evaluate_presentation_policy_with_verified_credential(
+        VpValidationInput {
+            presentation: input.presentation,
+            claims_registry: input.claims_registry,
+            claimset_id: input.claimset_id,
+            crypto,
+            status: input.status,
+            qeaa: QeaaContext {
+                qeaa_from_vc: verified.envelope.qeaa_compliance.as_ref(),
+            },
+            binding_ok: verified.holder_binding_verified,
+            now_unix: input.now_unix,
         },
-        binding_ok: verified.holder_binding_verified,
-        now_unix: input.now_unix,
-    })?;
+        verified.envelope,
+    )?;
 
     Ok(match decision {
         PolicyDecision::Accept => WebValidationResult::Accepted,
@@ -183,12 +186,6 @@ fn verify_presentation_crypto<'a>(
                 binding,
             )
             .map_err(|_| proof_invalid())?;
-
-            // Status pointer fields are only trusted after the envelope has
-            // been bound to the issuer signature above.
-            if let Some(status) = input.status.as_ref() {
-                enforce_status_binding_sd_jwt(env, status, input.now_unix)?;
-            }
 
             Ok(VerifiedWebPresentation {
                 envelope: env,
@@ -321,29 +318,6 @@ fn jwk_for_algorithm_and_public_key(
                 .map_err(|_| policy_misconfig())?,
         )),
         _ => Err(policy_misconfig()),
-    }
-}
-
-/// Bind the caller-supplied status list to the envelope's status pointer.
-///
-/// The pointer rule (issuer, purpose, list identifier) is owned by
-/// `reallyme-credential`; revocation and suspension results are left to policy
-/// evaluation so they surface as typed policy rejections.
-fn enforce_status_binding_sd_jwt(
-    env: &CredentialEnvelope,
-    status: &StatusContext<'_>,
-    now_unix: u64,
-) -> Result<(), VpValidationError> {
-    if status.index != env.status.status_list_index {
-        return Err(VpValidationError::StatusCheckFailed);
-    }
-
-    match verify_credential_status(env, status.list, now_unix, status.verifier) {
-        Ok(())
-        | Err(CredentialError::Status(
-            CredentialStatusReason::Revoked | CredentialStatusReason::Suspended,
-        )) => Ok(()),
-        Err(_) => Err(VpValidationError::StatusCheckFailed),
     }
 }
 
