@@ -24,7 +24,7 @@ WebAssembly environments.
 
 ```toml
 [dependencies]
-reallyme-trust-core = "0.3.0"
+reallyme-trust-core = "0.3.1"
 ```
 
 The default `native` feature selects native dependencies. Disable default
