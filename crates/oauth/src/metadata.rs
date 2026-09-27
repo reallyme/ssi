@@ -5,6 +5,7 @@
 //! RFC 8414 Authorization Server metadata.
 
 use core::fmt;
+use core::num::NonZeroU16;
 use std::net::IpAddr;
 
 use serde::{Deserialize, Serialize};
@@ -28,10 +29,10 @@ pub trait MetadataFetcher {
 
     /// Fetch metadata by connecting only to one of the approved addresses.
     ///
-    /// The adapter must retain `request.host()` for TLS SNI and certificate
-    /// validation and must not perform an independent DNS lookup. Redirects
-    /// require a new validated request and therefore must not be followed
-    /// implicitly by this method.
+    /// The adapter must connect to `request.port()`, retain `request.host()`
+    /// for TLS SNI and certificate validation, and must not perform an
+    /// independent DNS lookup. Redirects require a new validated request and
+    /// therefore must not be followed implicitly by this method.
     fn fetch_metadata_json(&self, request: &MetadataFetchRequest) -> OauthResult<String>;
 }
 
@@ -39,6 +40,7 @@ pub trait MetadataFetcher {
 pub struct MetadataFetchRequest {
     url: String,
     host: String,
+    port: NonZeroU16,
     approved_addresses: Vec<IpAddr>,
 }
 
@@ -53,6 +55,12 @@ impl MetadataFetchRequest {
     #[must_use]
     pub fn host(&self) -> &str {
         &self.host
+    }
+
+    /// Validated destination port for the pinned connection.
+    #[must_use]
+    pub const fn port(&self) -> NonZeroU16 {
+        self.port
     }
 
     /// Public addresses approved for the connection.
@@ -80,6 +88,10 @@ pub fn fetch_authorization_server_metadata(
         .host_str()
         .ok_or_else(|| OauthError::new(Reason::InvalidUrl))?
         .to_owned();
+    let port = parsed
+        .port_or_known_default()
+        .and_then(NonZeroU16::new)
+        .ok_or_else(|| OauthError::new(Reason::InvalidUrl))?;
     let approved_addresses = fetcher.resolve_metadata_host(&host)?;
     if approved_addresses.is_empty()
         || approved_addresses
@@ -91,6 +103,7 @@ pub fn fetch_authorization_server_metadata(
     let request = MetadataFetchRequest {
         url: metadata_url,
         host,
+        port,
         approved_addresses,
     };
     let body = fetcher.fetch_metadata_json(&request)?;
