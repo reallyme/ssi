@@ -67,6 +67,38 @@ fn receipt_requires_explicit_good_status_evidence() {
 }
 
 #[test]
+fn receipt_accepts_only_the_trust_anchor_as_status_exempt() {
+    let valid = [
+        CertificateStatusEvidence {
+            position: CertificatePosition::Leaf,
+            status: CertificateStatus::Good,
+        },
+        CertificateStatusEvidence {
+            position: CertificatePosition::TrustAnchor,
+            status: CertificateStatus::Exempt,
+        },
+    ];
+    assert!(validate_trusted_status_evidence(&valid, valid.len()).is_ok());
+
+    let invalid = [
+        CertificateStatusEvidence {
+            position: CertificatePosition::Leaf,
+            status: CertificateStatus::Exempt,
+        },
+        CertificateStatusEvidence {
+            position: CertificatePosition::TrustAnchor,
+            status: CertificateStatus::Good,
+        },
+    ];
+    assert_eq!(
+        validate_trusted_status_evidence(&invalid, invalid.len())
+            .err()
+            .map(|error| error.reason()),
+        Some(Reason::InvalidAttestationReceipt)
+    );
+}
+
+#[test]
 fn receipt_rejects_status_evidence_above_the_path_limit() {
     let evidence = vec![
         CertificateStatusEvidence {

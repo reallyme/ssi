@@ -119,7 +119,10 @@ fn accepts_complete_tlso_signer_profile() {
     assert!(evidence.basic_constraints_ca_false);
     assert!(evidence.trusted_list_signing_eku_exclusive);
     assert!(evidence.algorithm_has_three_year_resistance);
-    assert_eq!(evidence.issuer_source, TslSignerIssuerSource::SelfSigned);
+    assert_eq!(
+        evidence.issuer_source,
+        TslSignerIssuerSource::CurrentTrustedList
+    );
 }
 
 #[test]
@@ -536,10 +539,14 @@ fn list_with_issuing_service(issuer: &X509) -> identity_trust_tsl_core::TrustedL
     let service = format!(
         "<TrustServiceProviderList><TrustServiceProvider><TSPInformation><TSPName><Name xml:lang=\"en\">Listed TSP</Name></TSPName><TSPTradeName><Name xml:lang=\"en\">NTRMT-C12345</Name></TSPTradeName><TSPAddress><PostalAddresses><PostalAddress xml:lang=\"en\"><StreetAddress>Provider Street 1</StreetAddress><Locality>Provider City</Locality><PostalCode>1000</PostalCode><CountryName>MT</CountryName></PostalAddress></PostalAddresses><ElectronicAddress><URI xml:lang=\"en\">mailto:provider@example.test</URI><URI xml:lang=\"en\">https://example.test/provider</URI></ElectronicAddress></TSPAddress><TSPInformationURI><URI xml:lang=\"en\">https://example.test/provider/information</URI></TSPInformationURI></TSPInformation><TSPServices><TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/CA/QC</ServiceTypeIdentifier><ServiceName><Name xml:lang=\"en\">Listed Issuing Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{issuer_base64}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2026-01-01T00:00:00Z</StatusStartingTime></ServiceInformation></TSPService></TSPServices></TrustServiceProvider></TrustServiceProviderList>"
     );
-    let xml = include_str!("../tests/fixtures/signed_tsl.xml").replacen(
-        "  <ds:Signature Id=",
-        &format!("  {service}\n  <ds:Signature Id="),
-        1,
-    );
+    let mut xml = include_str!("../tests/fixtures/signed_tsl.xml").to_owned();
+    let provider_start = xml
+        .find("<TrustServiceProviderList>")
+        .expect("fixture provider must exist");
+    let provider_end = xml
+        .find("</TrustServiceProviderList>")
+        .and_then(|index| index.checked_add("</TrustServiceProviderList>".len()))
+        .expect("fixture provider end must exist");
+    xml.replace_range(provider_start..provider_end, &service);
     identity_trust_tsl_core::parse_tsl_xml(&xml).expect("issuer-list fixture must parse")
 }

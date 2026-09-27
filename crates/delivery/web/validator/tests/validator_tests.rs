@@ -373,6 +373,26 @@ impl reallyme_credential::CredentialStatusListVerifier for AcceptAllStatusVerifi
     }
 }
 
+struct RevokedStatusVerifier;
+
+impl StatusListVerifier for RevokedStatusVerifier {
+    fn verify_status_list(
+        &self,
+        _issuer_did: &str,
+        _alg: StatusListAlgorithm,
+        _message: &[u8],
+        _sig: &[u8],
+    ) -> Result<(), CredentialStatusError> {
+        Err(CredentialStatusError::Revoked)
+    }
+}
+
+impl reallyme_credential::CredentialStatusListVerifier for RevokedStatusVerifier {
+    fn verified_signer(&self) -> reallyme_credential::PartyReference {
+        reallyme_credential::PartyReference::Did(ISSUER_DID.to_owned())
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Tests
 // -----------------------------------------------------------------------------
@@ -405,6 +425,30 @@ fn web_accepts_valid_pid() {
     .unwrap();
 
     assert!(matches!(result, WebValidationResult::Accepted));
+}
+
+#[test]
+fn web_rejects_authenticated_revoked_status() {
+    let now = 1_720_000_000u64;
+    let (presentation, envelope, issuer_public_key) =
+        real_sd_jwt_presentation_and_crypto_inputs(now);
+    let status_list = bound_status_list();
+    let verifier = RevokedStatusVerifier;
+
+    let result = validate_fixture_with(
+        &presentation,
+        &envelope,
+        &issuer_public_key,
+        "eu.pid.v1",
+        Some(StatusContext {
+            list: &status_list,
+            verifier: &verifier,
+        }),
+        Some(expected_sd_jwt_binding(now)),
+        now,
+    );
+
+    assert!(is_rejected_with(result, VpPolicyError::CredentialRevoked));
 }
 
 #[test]

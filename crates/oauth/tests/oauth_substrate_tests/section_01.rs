@@ -414,7 +414,7 @@ fn attestation_trust_decision_with_root_expiry(
             status_policy: CertificateStatusPolicy {
                 leaf: StatusRequirement::Required,
                 intermediates: StatusRequirement::Required,
-                trust_anchor: StatusRequirement::Required,
+                trust_anchor: StatusRequirement::Exempt,
             },
         },
         direct_trust: Vec::new(),

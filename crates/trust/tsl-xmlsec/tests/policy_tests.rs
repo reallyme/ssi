@@ -212,7 +212,7 @@ fn rejects_missing_or_unbound_xades_signed_properties() {
 #[test]
 fn rejects_missing_duplicate_malformed_and_non_utc_signing_time() {
     let fixture = signed_fixture();
-    let signing_time = "<xades:SigningTime>2026-09-15T01:00:00Z</xades:SigningTime>";
+    let signing_time = "<xades:SigningTime>2026-09-28T01:00:00Z</xades:SigningTime>";
     let missing = fixture.replacen(signing_time, "", 1);
     let duplicate = fixture.replacen(signing_time, &format!("{signing_time}{signing_time}"), 1);
     let malformed = fixture.replacen(
@@ -222,12 +222,12 @@ fn rejects_missing_duplicate_malformed_and_non_utc_signing_time() {
     );
     let non_utc = fixture.replacen(
         signing_time,
-        "<xades:SigningTime>2026-09-15T02:00:00+01:00</xades:SigningTime>",
+        "<xades:SigningTime>2026-09-28T02:00:00+01:00</xades:SigningTime>",
         1,
     );
     let nested = fixture.replacen(
         signing_time,
-        "<xades:SigningTime><xades:CounterSignature/>2026-09-15T01:00:00Z</xades:SigningTime>",
+        "<xades:SigningTime><xades:CounterSignature/>2026-09-28T01:00:00Z</xades:SigningTime>",
         1,
     );
 

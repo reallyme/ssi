@@ -753,6 +753,9 @@ fn property_claim_dates_and_decimals_enforce_canonical_boundaries() {
         assert!(ClaimDateTime::new(value).is_ok());
     }
 
+    let offset = "2026-07-13T11:15:30+01:00";
+    assert_eq!(ClaimDateTime::new(offset).unwrap().as_str(), offset);
+
     for value in [
         "2026-07-13",
         "2026-07-13T10:15:30",

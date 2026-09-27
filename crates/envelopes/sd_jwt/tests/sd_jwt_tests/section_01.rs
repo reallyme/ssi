@@ -10,15 +10,17 @@ use reallyme_sd_jwt::{
     build_key_binding_jwt, create_array_element_disclosure, create_object_property_disclosure,
     decode_disclosure, digest_disclosure, issue_sd_jwt, parse_sd_jwt_compact,
     parse_sd_jwt_json_serialization, parse_sd_jwt_or_kb_compact, process_sd_jwt_payload,
-    serialize_sd_jwt_compact, verify_sd_jwt, verify_sd_jwt_credential,
+    select_sd_jwt_disclosures, serialize_sd_jwt_compact, verify_sd_jwt, verify_sd_jwt_credential,
     verify_sd_jwt_credential_with_x5c, verify_sd_jwt_receipt, verify_sd_jwt_receipt_with_x5c,
     DecoyPolicy, DisclosureKind, KeyBindingJwtBuildOptions, KeyBindingVerificationOptions,
     SdJwtCredentialVerificationPolicy, SdJwtDisclosureStrategy, SdJwtEnvelopeError,
     SdJwtHashAlgorithm, SdJwtIssuanceInput, SdJwtIssuancePolicy, SdJwtOrKbCompact,
     SdJwtIssuerType, SdJwtProcessingPolicy, SdJwtReceiptVerificationPolicy, SdJwtSaltSource,
-    SdJwtVerificationOptions, DEFAULT_SD_JWT_CLOCK_SKEW_SECONDS, MAX_SD_JWT_CLOCK_SKEW_SECONDS,
-    MAX_KB_JWT_AGE_SECONDS, MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS, MAX_SD_JWT_COMPACT_BYTES,
-    MAX_SD_JWT_DISCLOSURES, MAX_SD_JWT_DISCLOSURE_BYTES, MAX_SD_JWT_JSON_SIGNATURES,
+    SdJwtClaimPathComponent, SdJwtVerificationOptions, DEFAULT_SD_JWT_CLOCK_SKEW_SECONDS,
+    MAX_KB_JWT_AGE_SECONDS, MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS, MAX_REQUESTED_SD_JWT_PATHS,
+    MAX_REQUESTED_SD_JWT_PATH_COMPONENTS, MAX_REQUESTED_SD_JWT_PATH_NAME_BYTES,
+    MAX_SD_JWT_CLOCK_SKEW_SECONDS, MAX_SD_JWT_COMPACT_BYTES, MAX_SD_JWT_DISCLOSURES,
+    MAX_SD_JWT_DISCLOSURE_BYTES, MAX_SD_JWT_JSON_SIGNATURES,
 };
 use reallyme_codec::base64url::{base64url_to_bytes, bytes_to_base64url};
 use reallyme_crypto::core::{Algorithm, HashAlgorithm};

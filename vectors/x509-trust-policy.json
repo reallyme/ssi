@@ -1,5 +1,5 @@
 {
-  "schema": "reallyme.identity.conformance.x509_trust_policy.v1",
+  "schema": "reallyme.identity.conformance.x509_trust_policy.v2",
   "source": "RFC5280 projected certificate policy and EUDI trusted-list service policy",
   "certificate_policy_cases": [
     {

@@ -5,7 +5,7 @@
 use crate::{ClaimPath, ClaimPathSegment, ClaimsError, ClaimsInvalidReason};
 use std::collections::BTreeMap;
 use time::format_description::well_known::Rfc3339;
-use time::{Date, Month, OffsetDateTime, UtcOffset};
+use time::{Date, Month, OffsetDateTime};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Maximum UTF-8 bytes accepted for one string-like claim value.
@@ -126,13 +126,12 @@ impl ClaimDateTime {
     /// Construct a date-time after RFC 3339 validation.
     pub fn new(value: impl Into<String>) -> Result<Self, ClaimsError> {
         let submitted = value.into();
-        let parsed = OffsetDateTime::parse(submitted.as_str(), &Rfc3339)
+        OffsetDateTime::parse(submitted.as_str(), &Rfc3339)
             .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidDateTime))?;
-        let rfc3339 = parsed
-            .to_offset(UtcOffset::UTC)
-            .format(&Rfc3339)
-            .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidDateTime))?;
-        Ok(Self { rfc3339 })
+        // Preserve the authenticated lexical form. Normalizing an offset to
+        // UTC would change the V1 commitment bytes for credentials issued by
+        // 0.2.x even though the represented instant is identical.
+        Ok(Self { rfc3339: submitted })
     }
 
     /// Return the RFC 3339 date-time spelling.

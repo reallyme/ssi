@@ -17,6 +17,11 @@ pub enum VcError {
     #[error("invalid credential")]
     InvalidCredential,
 
+    /// A disclosed claim value cannot be represented by the RFC 8785
+    /// canonical JSON profile used by this commitment format.
+    #[error("claim value is outside the canonical JSON profile")]
+    ClaimValueNotCanonical,
+
     /// Unsupported or inconsistent credential profile.
     #[error("unsupported credential profile")]
     UnsupportedProfile,
@@ -51,6 +56,9 @@ impl From<VcError> for IdentityCoreErrorReason {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_CANONICALIZATION
             }
             VcError::InvalidCredential => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_INVALID_CREDENTIAL
+            }
+            VcError::ClaimValueNotCanonical => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_INVALID_CREDENTIAL
             }
             VcError::UnsupportedProfile => {

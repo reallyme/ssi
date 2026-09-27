@@ -21,6 +21,7 @@ use super::{
 
 const SIGNED_TSL_XML: &str = include_str!("../../tests/fixtures/signed_tsl.xml");
 const SIGNER_CERT_PEM: &[u8] = include_bytes!("../../tests/fixtures/cert.pem");
+const TRUST_ROOT_CERT_PEM: &[u8] = include_bytes!("../../tests/fixtures/root-cert.pem");
 const EU_GENERIC_TYPE: &str = "http://uri.etsi.org/TrstSvc/TrustedList/TSLType/EUgeneric";
 
 struct GoodStatus;
@@ -39,11 +40,16 @@ fn signer() -> X509Certificate {
     parse_cert_pem(SIGNER_CERT_PEM).expect("fixture signer certificate is valid")
 }
 
+fn trust_root() -> X509Certificate {
+    parse_cert_pem(TRUST_ROOT_CERT_PEM).expect("fixture trust-root certificate is valid")
+}
+
 fn eu_lotl_parent(pointer_targets_fixture: bool) -> VerifiedTrustedList {
     let signer = signer();
+    let trust_root = trust_root();
     let mut parent = verify_tsl_xml_openssl_with_external_signer(
         SIGNED_TSL_XML,
-        core::slice::from_ref(&signer),
+        core::slice::from_ref(&trust_root),
         &signer,
         verification_time(),
         X509Policy::default(),
@@ -94,14 +100,14 @@ fn verify_child(
     media_type: TslMediaType,
     xml: &str,
 ) -> Result<VerifiedTrustedList, TslOpenSslError> {
-    let signer = signer();
+    let trust_root = trust_root();
     verify_tsl_xml_openssl_from_authenticated_pointer(AuthenticatedPointerVerification {
         parent,
         pointer_index,
         fetched_url,
         fetched_media_type: media_type,
         xml,
-        trust_roots: core::slice::from_ref(&signer),
+        trust_roots: core::slice::from_ref(&trust_root),
         now: verification_time(),
         policy: X509Policy::default(),
         status_checker: &GoodStatus,
@@ -190,9 +196,9 @@ fn pointer_rejects_invalid_index_url_and_media_type() {
 #[test]
 fn pointer_rechecks_eu_lotl_freshness_before_parsing_child_bytes() {
     let parent = eu_lotl_parent(true);
-    let signer = signer();
+    let trust_root = trust_root();
     let at_parent_deadline =
-        OffsetDateTime::from_unix_timestamp(1_805_072_400).expect("fixed deadline is valid");
+        OffsetDateTime::from_unix_timestamp(1_806_195_600).expect("fixed deadline is valid");
     let result =
         verify_tsl_xml_openssl_from_authenticated_pointer(AuthenticatedPointerVerification {
             parent: &parent,
@@ -200,7 +206,7 @@ fn pointer_rechecks_eu_lotl_freshness_before_parsing_child_bytes() {
             fetched_url: "https://example.test/eu-lotl.xml",
             fetched_media_type: TslMediaType::EtsiTrustedListXml,
             xml: "not XML",
-            trust_roots: core::slice::from_ref(&signer),
+            trust_roots: core::slice::from_ref(&trust_root),
             now: at_parent_deadline,
             policy: X509Policy::default(),
             status_checker: &GoodStatus,

@@ -160,11 +160,21 @@ fn normalizes_xades_object_identifier_forms_and_rejects_non_oid_policies() {
     assert_eq!(policies[1].as_str(), "1.2.3.5");
     assert_eq!(policies[2].as_str(), "1.2.3.6");
 
-    let non_oid = extension.replace("urn:oid:1.2.3.4", "https://example.test/policy-id");
+    let non_oid = format!(
+        "{}{}",
+        extension.replace("urn:oid:1.2.3.4", "https://example.test/policy-id"),
+        r#"<Extension Critical="true"><AdditionalServiceInformation><URI xml:lang="en">http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication</URI></AdditionalServiceInformation></Extension>"#,
+    );
     let parsed = parse_tsl_xml(&document_with_qualification_extension(&non_oid)).unwrap();
     let service = parsed.services().next().unwrap();
     assert_eq!(service.status, TrustServiceStatus::Indeterminate);
     assert!(service.qualifications.is_empty());
+    assert!(service.additional_service_information.iter().any(|information| {
+        matches!(
+            information.kind,
+            AdditionalServiceInformationKind::ForWebsiteAuthentication
+        )
+    }));
 }
 
 #[test]

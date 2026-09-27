@@ -45,7 +45,10 @@ changes to authenticate its externally visible projection commitment.
   duplicate service rows, and repeated current-state history rows without
   weakening authorization. Noncanonical SKIs remain non-binding, while a
   conflicting duplicate or malformed policy qualifier makes only that service
-  key indeterminate. A fixed 30-document EU snapshot corpus guards this boundary.
+  key indeterminate. ASi remains independently available when qualification
+  syntax is malformed, and an indeterminate key remains a fail-closed barrier
+  at every evaluation time without erasing its authenticated history. A fixed
+  30-document EU snapshot corpus guards this boundary.
 - Presentation verification requires configured nonce and audience bindings,
   validates ZK expiry, and removes the stateless SIOP response entry point.
   Both disclosure-policy engines share empty-policy, duplicate-path, and exact
@@ -63,8 +66,9 @@ changes to authenticate its externally visible projection commitment.
   global capacity limit, and bounded per-protocol quotas. WebAssembly callers
   inject a clock because the platform has no portable process-monotonic clock.
 - Brotli decoding rejects trailing data and non-RFC large-window streams, caps
-  its window and output storage, and returns zeroizing, right-sized plaintext
-  storage.
+  its RFC decoder window and output storage, and returns zeroizing, right-sized
+  plaintext storage. Standard windows through WBITS=24 remain compatible with
+  0.2.x and other RFC encoders even when the plaintext limit is smaller.
 - SIOP request state values require at least 22 encoded characters, sufficient
   to carry 16 random bytes in unpadded base64url. Device-signed mdoc
   elements require matching MSO key authorizations, and empty authorization
@@ -82,6 +86,11 @@ changes to authenticate its externally visible projection commitment.
   restricted to P-256 with absent `alg` or `ES256`, and secp256k1 with absent
   `alg` or `ES256K`, for the current legal-entity profile. Active EBSI registry
   documents must identify at least one controller.
+- did:me Payment-profile secp256k1 authorities remain valid for authentication,
+  assertion, invocation, and relationship-only updates.
+- did:ion uses the reference-node `test` segment and the typed
+  `IonNetwork::Testnet` variant. The former `testnet3` spelling is rejected as
+  an unsupported network rather than treated as an alias.
 - `did:jwk` rejects RSA public keys below 2,048 bits or above 16,384 bits,
   even moduli, public exponents longer than eight bytes, and fully specified
   algorithm names such as `Ed25519` and `ESP256` where JOSE identifiers are
@@ -102,14 +111,19 @@ changes to authenticate its externally visible projection commitment.
   zeroized on drop.
 - SD-JWT top-level disclosure classifies dotted and URI claim names by
   structure rather than path-string syntax. Presentation selection indexes
-  reconstructed arrays, ignores decoys, and rejects absent requested paths.
+  reconstructed arrays, ignores decoys, rejects absent requested paths, and
+  bounds requested path count, depth, and component size. Unprotected JWS
+  `crit` is rejected because critical parameters must be integrity protected.
   RFC 9901 general JSON serialization accepts ordinary unprotected JWS members
   such as `kid` on every signature while keeping `disclosures` and `kb_jwt`
   exclusive to the first signature. SD-JWT VC issuance rejects missing `vct`
   before signing when the selected media type requires it.
 - Numeric claims normalize equivalent signed and unsigned values before
   commitment while preserving the 0.2.x `RM-CV-JCS-V1` integer tags, and
-  committed-credential salts are zeroized on all paths.
+  committed-credential salts are zeroized on all paths. RFC 3339 date-times
+  retain their authenticated lexical offset so re-issued 0.2.x openings remain
+  byte-compatible. Values outside the RFC 8785 safe-integer range of
+  ±(2^53 - 1) fail with typed `ClaimValueNotCanonical`.
 - Generated conformance evidence records every configured fuzz target and
   fails if an expected target is missing. Local evidence references are checked
   against real test functions and both positive and negative evidence.
@@ -119,8 +133,16 @@ changes to authenticate its externally visible projection commitment.
   trusted-list policy. The X.509 suite records its eight actual cases.
 - Published crate preflight builds and runs tests from each extracted crate
   archive, preventing tests from relying on files outside the package. Preflight
-  also attests the exact reviewed archives, and publication compares both new
-  and resumed crates.io uploads with those archives.
+  also attests the exact reviewed archives. Publication reproduces and compares
+  each archive before invoking `cargo publish`, then verifies both new and
+  resumed crates.io archives against the reviewed bytes.
+
+- Wallet-attestation receipts accept the default revocation-policy exemption
+  only at the authenticated trust anchor; leaves and intermediates still
+  require explicit `Good` evidence. Presentation policy binds a supplied
+  verified credential to the presentation's authenticated `envelope_hash`.
+  Trusted-list sequence rollback preflight reads only bounded sequence metadata
+  from unsigned XML; full semantic projection remains post-authentication.
 
 ### Breaking API changes
 
@@ -132,7 +154,7 @@ changes to authenticate its externally visible projection commitment.
   discriminants, which changed where typed failure variants were added.
 - Typed additions include `KeySetError` reasons,
   `OcspError::Unsupported`, `TslStructureFailure::ServiceHistoryOrder`,
-  `DidValidationCode::TransitionEquivocation`, and
+  `DidValidationCode::TransitionEquivocation`, `VcError::ClaimValueNotCanonical`, and
   `CertificateStatus::NotChecked`. The `KeySetError` protobuf mapping changes
   the stable reason transmitted to Swift, Kotlin, and TypeScript callers.
 - `TrustDecision`, `VerifiedTokenStatusList`, and parsed CRL values can only be
@@ -170,6 +192,10 @@ changes to authenticate its externally visible projection commitment.
   includes distinct trailing-data and oversized-window variants. Both
   `brotli_compress` and Brotli decompression now return
   `Zeroizing<Vec<u8>>`.
+- did:me validation rejects duplicate public-key material under different
+  verification-method identifiers. Existing histories that relied on key-ID
+  aliases must rotate to unique key material before adopting 0.3.0; accepting
+  aliases would let a compromised key survive identifier-based recovery.
 - `CredentialRevocationVerificationInput` and
   `verify_credential_revocation_status` require authenticated credential
   status-list evidence in addition to certificate-revocation evidence.
@@ -218,6 +244,10 @@ changes to authenticate its externally visible projection commitment.
   field are replaced by CA-bound `TslCertificateBinding`,
   `evaluate_tsl_service_policy_for_ca`, and `require_ca_binding`.
   `CertificateIdentityFacts` also adds the canonical `subject_name_der` field.
+  The corresponding portable policy vector is versioned as
+  `reallyme.identity.conformance.x509_trust_policy.v2` because the projected
+  `leaf` and `require_leaf_binding` members became `service_ca` and
+  `require_ca_binding`.
 - X.509 policy evaluation no longer accepts `PublicKeyProfile::Other`, including
   unclassified RSA-PSS and ML-DSA keys, under the default policy. Callers must
   select a policy with an explicitly supported public-key profile.
@@ -242,3 +272,16 @@ changes to authenticate its externally visible projection commitment.
   are pinned by the portable protocol vector suite.
 
 All workspace crates, including source-only internal crates, use version 0.3.0.
+
+### Known limitations
+
+- The checked-in EU trusted-list corpus is a fixed interoperability fixture,
+  not runtime trust data and not a bundled trust service. Deployments must
+  authenticate and freshness-check the lists selected by their trust policy.
+- Native X.509, CRL, OCSP, and XML-signature providers are not silently
+  emulated in WebAssembly. A deployment without an explicitly supported
+  provider fails closed with the corresponding typed unavailable result.
+- An mdoc document-signer certificate is evaluated at the authenticated MSO
+  signing time, while the IACA is evaluated at presentation time. Revocation
+  evidence remains necessary because the issuer-selected signing time is not
+  independent proof of issuance time.

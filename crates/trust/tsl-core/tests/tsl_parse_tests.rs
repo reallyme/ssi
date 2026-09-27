@@ -5,7 +5,7 @@
 #![allow(missing_docs, clippy::indexing_slicing, clippy::unwrap_used)]
 
 use identity_trust_tsl_core::{
-    parse_tsl_xml, validate_tsl_freshness, validate_tsl_sequence_number,
+    parse_tsl_sequence_number, parse_tsl_xml, validate_tsl_freshness, validate_tsl_sequence_number,
     AdditionalServiceInformationKind, QualificationCriterion, ServiceDigitalIdentity,
     TrustServiceStatus, TrustServiceType, TslAddressContext, TslAddressFailure, TslError,
     TslMediaType, TslPointerQualifierFailure, TslQualificationFailure, TslRequiredField,

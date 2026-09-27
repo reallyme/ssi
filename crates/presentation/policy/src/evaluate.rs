@@ -12,7 +12,8 @@ use identity_credential_claims_core::{validate_disclosure, ClaimsRegistry};
 use identity_credential_status_core::{CredentialStatusError, StatusList, StatusPurpose};
 use identity_presentation_vp_core::model::Presentation;
 use reallyme_credential::{
-    CredentialEnvelope, CredentialError, CredentialStatusListVerifier, CredentialStatusReason,
+    credential_envelope_hash, CredentialEnvelope, CredentialError, CredentialStatusListVerifier,
+    CredentialStatusReason,
 };
 use reallyme_credential_audit::QeaaCompliance;
 
@@ -105,7 +106,24 @@ pub fn evaluate_with_verified_credential(
     ctx: &EvaluationContext<'_>,
     credential: &CredentialEnvelope,
 ) -> PolicyDecision {
+    let expected_hash = match credential_envelope_hash(credential) {
+        Ok(hash) => hash,
+        Err(_) => return PolicyDecision::Reject(vec![VpPolicyError::ProofInvalid]),
+    };
+    if !presentation_binds_credential(ctx.presentation, expected_hash) {
+        return PolicyDecision::Reject(vec![VpPolicyError::ProofInvalid]);
+    }
     evaluate_internal(policy, ctx, Some(credential))
+}
+
+fn presentation_binds_credential(presentation: &Presentation, expected_hash: [u8; 32]) -> bool {
+    let presentation_hash = match presentation {
+        Presentation::Zk(presentation) => Some(presentation.credential.envelope_hash),
+        Presentation::SdJwtVc(presentation) => presentation.envelope_hash,
+        Presentation::Mdoc(presentation) => presentation.envelope_hash,
+        _ => None,
+    };
+    presentation_hash == Some(expected_hash)
 }
 
 fn evaluate_internal(
@@ -129,14 +147,12 @@ fn evaluate_internal(
         errors.push(VpPolicyError::PolicyMisconfiguration);
     }
 
-    // ---------------------------------------------------------------------
-    // 1. Don't evaluate the OpenID4VP binding here, just determine if it has been
-    // ---------------------------------------------------------------------
+    // OpenID4VP binding is supplied as an already-verified fact.
     if !ctx.binding_ok {
         errors.push(VpPolicyError::InvalidBinding);
     }
+    crate::disclosure::validate_presentation_freshness(ctx.presentation, ctx.now_unix, &mut errors);
 
-    // ---------------------------------------------------------------------
     // 2. Presentation format
     // ---------------------------------------------------------------------
     match ctx.presentation {
@@ -325,6 +341,10 @@ fn evaluate_internal(
     // ---------------------------------------------------------------------
     finish_decision(errors)
 }
+
+#[cfg(test)]
+#[path = "evaluate_binding_tests.rs"]
+mod binding_tests;
 
 fn validate_verified_credential_status(
     policy: &VpPolicy,

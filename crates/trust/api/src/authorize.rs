@@ -345,6 +345,13 @@ fn effective_service_state(
     service: &TrustService,
     evaluated_at: time::OffsetDateTime,
 ) -> Option<EffectiveServiceState<'_>> {
+    // A parser-isolated anomaly makes this service key unusable for every
+    // decision time. Falling back to an older row would turn malformed or
+    // conflicting authenticated data into authorization and make the result
+    // depend on XML document order.
+    if matches!(service.status, TrustServiceStatus::Indeterminate) {
+        return Some(EffectiveServiceState::Current(service));
+    }
     // TS 119 612 service history is a sequence of effective-dated states. Selecting the
     // newest state first prevents an older certificate or status from remaining authorized
     // after a later rotation, withdrawal, or service-type change.

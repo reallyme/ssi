@@ -172,7 +172,11 @@ fn coalesce_duplicate_current_services(
                 // make every unrelated provider in the authenticated list
                 // unusable. Distinct ASi scopes remain separate keys.
                 existing.status = TrustServiceStatus::Indeterminate;
-                existing.history.clear();
+                // Preserve both timelines. Authorization treats the current
+                // indeterminate state as a barrier at every evaluation time,
+                // while retaining the authenticated history for diagnostics
+                // and preventing document order from erasing a withdrawal.
+                merge_conflicting_history(existing, service)?;
             }
             std::collections::btree_map::Entry::Vacant(entry) => {
                 entry.insert(output.len());
@@ -181,6 +185,31 @@ fn coalesce_duplicate_current_services(
         }
     }
     Ok(output)
+}
+
+fn merge_conflicting_history(
+    existing: &mut TrustService,
+    mut conflicting: TrustService,
+) -> Result<(), TslError> {
+    for history in core::mem::take(&mut conflicting.history) {
+        if existing.history.contains(&history) {
+            continue;
+        }
+        let next_len = existing
+            .history
+            .len()
+            .checked_add(1)
+            .ok_or(TslError::ResourceLimit(TslResourceLimit::History))?;
+        if next_len > MAX_HISTORY_PER_SERVICE {
+            return Err(TslError::ResourceLimit(TslResourceLimit::History));
+        }
+        existing.history.push(history);
+    }
+    existing.history.sort_by(|left, right| {
+        timestamp_order_key(right.status_starting_time)
+            .cmp(&timestamp_order_key(left.status_starting_time))
+    });
+    Ok(())
 }
 
 fn trust_services_are_identical(left: &TrustService, right: &TrustService) -> bool {

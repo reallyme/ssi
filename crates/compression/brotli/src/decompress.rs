@@ -14,7 +14,6 @@ use crate::BrotliError;
 /// still provides a hard memory bound for hostile compressed input.
 pub const DEFAULT_MAX_DECOMPRESSED_BYTES: usize = 16 * 1024 * 1024;
 const INITIAL_OUTPUT_BUFFER_BYTES: usize = 4 * 1024;
-const MINIMUM_DECODER_WINDOW_BYTES: usize = 64 * 1024;
 
 /// Decompress Brotli-compressed bytes with the default output cap.
 ///
@@ -58,7 +57,7 @@ where
     AllocU32: Allocator<u32>,
     AllocHC: Allocator<HuffmanCode>,
 {
-    validate_decoder_window(data, max_output_len)?;
+    validate_decoder_window(data)?;
     let output_limit = max_output_len
         .checked_add(1)
         .ok_or(BrotliError::OutputTooLarge)?;
@@ -115,7 +114,7 @@ where
     }
 }
 
-fn validate_decoder_window(data: &[u8], max_output_len: usize) -> Result<(), BrotliError> {
+fn validate_decoder_window(data: &[u8]) -> Result<(), BrotliError> {
     let first = data
         .first()
         .copied()
@@ -141,11 +140,12 @@ fn validate_decoder_window(data: &[u8], max_output_len: usize) -> Result<(), Bro
             }
         }
     };
-    let decoder_window = 1_usize
-        .checked_shl(window_bits)
-        .ok_or(BrotliError::WindowTooLarge)?;
-    let allowed_window = max_output_len.max(MINIMUM_DECODER_WINDOW_BYTES);
-    if decoder_window > allowed_window {
+    // Strict Brotli accepts the RFC 7932 window range through WBITS=24.
+    // The window is independent of decompressed payload length: standard
+    // encoders commonly use WBITS=22 even for small identity documents. The
+    // explicit output cap bounds plaintext growth, while strict mode bounds
+    // the decoder ring buffer to the protocol maximum of 16 MiB.
+    if window_bits > 24 {
         return Err(BrotliError::WindowTooLarge);
     }
     Ok(())

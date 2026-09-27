@@ -146,6 +146,26 @@ impl reallyme_credential::CredentialStatusListVerifier for AcceptAllStatusVerifi
     }
 }
 
+struct RevokedStatusVerifier;
+
+impl StatusListVerifier for RevokedStatusVerifier {
+    fn verify_status_list(
+        &self,
+        _issuer_did: &str,
+        _alg: StatusListAlgorithm,
+        _message: &[u8],
+        _sig: &[u8],
+    ) -> Result<(), CredentialStatusError> {
+        Err(CredentialStatusError::Revoked)
+    }
+}
+
+impl reallyme_credential::CredentialStatusListVerifier for RevokedStatusVerifier {
+    fn verified_signer(&self) -> reallyme_credential::PartyReference {
+        reallyme_credential::PartyReference::Did("did:test:issuer".to_owned())
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Tests
 // -----------------------------------------------------------------------------
@@ -197,6 +217,53 @@ fn validator_accepts_valid_pid_with_qeaa_and_binding() {
     let decision = validate_presentation(input).unwrap();
 
     assert!(matches!(decision, PolicyDecision::Accept));
+}
+
+#[test]
+fn validator_rejects_authenticated_revoked_status() {
+    let presentation = dummy_presentation();
+    let registry = empty_registry("eu.pid.v1");
+    let qeaa = valid_qeaa();
+    let status_list = StatusList {
+        issuer: "did:test:issuer".into(),
+        purpose: StatusPurpose::Revocation,
+        issued_at: 1_719_990_000,
+        next_update: 1_800_000_000,
+        encoded_list: vec![0_u8],
+        length: 1,
+        list_id: Some([0_u8; 32]),
+        signature: StatusListSignature {
+            alg: StatusListAlgorithm::Ed25519,
+            sig_bytes: vec![1, 2, 3],
+        },
+    };
+    let verifier = RevokedStatusVerifier;
+
+    let error = validate_presentation(VpValidationInput {
+        presentation: &presentation,
+        claims_registry: &registry,
+        claimset_id: "eu.pid.v1",
+        crypto: CryptoContext {
+            issuer_algorithm: Algorithm::Ed25519,
+            holder_algorithm: Algorithm::Ed25519,
+        },
+        status: Some(StatusContext {
+            list: &status_list,
+            verifier: &verifier,
+        }),
+        qeaa: QeaaContext {
+            qeaa_from_vc: Some(&qeaa),
+        },
+        binding_ok: true,
+        now_unix: 1_720_000_000,
+    })
+    .expect_err("revoked status must be terminal at the validator boundary");
+
+    assert!(matches!(
+        error,
+        VpValidationError::PolicyRejected(errors)
+            if errors.contains(&VpPolicyError::CredentialRevoked)
+    ));
 }
 
 #[test]

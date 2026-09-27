@@ -105,7 +105,7 @@ fn assert_safe_claim_name(name: &str) -> Result<(), VcError> {
 fn jcs_utf8_bytes(v: &serde_json::Value) -> Result<Vec<u8>, VcError> {
     reallyme_codec::jcs::canonicalize_trusted_json_value(v)
         .map(String::into_bytes)
-        .map_err(|_| VcError::InvalidCredential)
+        .map_err(|_| VcError::ClaimValueNotCanonical)
 }
 
 // -----------------------------------------------------------------------------

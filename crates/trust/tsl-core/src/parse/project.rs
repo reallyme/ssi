@@ -398,7 +398,6 @@ fn parse_service(raw: RawService) -> Result<TrustService, TslError> {
         // service key. Preserve the remainder of the list and make this key
         // explicitly non-authorizing.
         service.status = TrustServiceStatus::Indeterminate;
-        history.clear();
     }
     service.history = history;
     Ok(service)

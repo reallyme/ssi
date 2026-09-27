@@ -5,9 +5,17 @@
 fn parse_extensions(
     raw: Option<RawExtensions>,
     service_type: &TrustServiceType,
-) -> Result<(Vec<ServiceQualification>, Vec<AdditionalServiceInformation>), TslError> {
+) -> Result<
+    (
+        Vec<ServiceQualification>,
+        Vec<AdditionalServiceInformation>,
+        bool,
+    ),
+    TslError,
+> {
     let mut qualifications = Vec::new();
     let mut additional = Vec::new();
+    let mut invalid_qualifications = false;
     for extension in raw.map(|value| value.extensions).unwrap_or_default() {
         let critical = extension.critical.ok_or(TslError::InvalidStructure(
             TslStructureFailure::Extension,
@@ -49,13 +57,25 @@ fn parse_extensions(
             // malformed would discard that restriction, so recognized
             // qualification syntax always fails closed regardless of the XML
             // extension's critical bit.
-            qualifications.append(&mut parse_qualifications(value, service_type, critical)?);
+            match parse_qualifications(value, service_type, critical) {
+                Ok(mut parsed) => qualifications.append(&mut parsed),
+                Err(TslError::Qualification(
+                    TslQualificationFailure::PolicyIdentifier,
+                )) => {
+                    // Qualification failures are isolated to the authenticated
+                    // service, but ASi is parsed independently. Dropping ASi
+                    // here would let an indeterminate WSA row disappear from
+                    // purpose-scoped authorization and expose a granted sibling.
+                    invalid_qualifications = true;
+                }
+                Err(error) => return Err(error),
+            }
         }
         if let Some(value) = extension.taken_over_by {
             parse_taken_over_by(value, critical)?;
         }
     }
-    Ok((qualifications, additional))
+    Ok((qualifications, additional, invalid_qualifications))
 }
 
 fn parse_service_extensions(
@@ -69,18 +89,7 @@ fn parse_service_extensions(
     ),
     TslError,
 > {
-    match parse_extensions(raw, service_type) {
-        Ok((qualifications, additional)) => Ok((qualifications, additional, false)),
-        Err(TslError::Qualification(
-            TslQualificationFailure::PolicyIdentifier,
-        )) => {
-            // A malformed qualification changes only the authorization state
-            // of its authenticated service. Rejecting the whole national list
-            // would make unrelated providers unavailable.
-            Ok((Vec::new(), Vec::new(), true))
-        }
-        Err(error) => Err(error),
-    }
+    parse_extensions(raw, service_type)
 }
 
 fn parse_qualifications(

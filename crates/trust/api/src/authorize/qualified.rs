@@ -24,7 +24,7 @@ pub(super) fn authorize_qualified_certificate(
     if leaf.not_before.unix_timestamp() < QUALIFIED_TYPE_DETERMINATION_EFFECTIVE_UNIX
         || evaluated_at.unix_timestamp() < QUALIFIED_TYPE_DETERMINATION_EFFECTIVE_UNIX
     {
-        return Err(TrustApiError::ServiceTypeMismatch);
+        return Err(TrustApiError::ServiceStatusUnknown);
     }
 
     let mut matched_key = false;
@@ -51,6 +51,17 @@ pub(super) fn authorize_qualified_certificate(
             continue;
         }
         matched_key = true;
+
+        // An indeterminate row for an authenticated key is a fail-closed
+        // barrier even when malformed qualification data omitted its ASi.
+        // Purpose filtering must never make that ambiguity disappear.
+        if states
+            .iter()
+            .any(|state| matches!(state.status(), TrustServiceStatus::Indeterminate))
+        {
+            unknown_status = true;
+            continue;
+        }
 
         let scoped_states = states
             .iter()
@@ -79,16 +90,13 @@ pub(super) fn authorize_qualified_certificate(
             inactive_scope = true;
             continue;
         }
-        if scoped_states.iter().any(|state| {
-            matches!(
-                state.status(),
-                TrustServiceStatus::Indeterminate | TrustServiceStatus::Other(_)
-            )
-        }) {
+        if scoped_states
+            .iter()
+            .any(|state| matches!(state.status(), TrustServiceStatus::Other(_)))
+        {
             unknown_status = true;
             continue;
         }
-
         let matching_qualifiers = scoped_states
             .iter()
             .flat_map(|state| {

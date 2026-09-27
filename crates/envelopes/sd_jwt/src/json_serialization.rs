@@ -221,6 +221,12 @@ fn validate_unprotected_header(
     let object = header
         .as_object()
         .ok_or(SdJwtEnvelopeError::InvalidJsonSerialization)?;
+    // RFC 7515 section 4.1.11 requires `crit` to be integrity protected.
+    // Accepting it from the unprotected header would let an intermediary alter
+    // which extension parameters a verifier believes are mandatory.
+    if object.contains_key("crit") {
+        return Err(SdJwtEnvelopeError::InvalidJsonSerialization);
+    }
     // JWS permits application-defined unprotected parameters such as `kid`.
     // Only the two SD-JWT serialization parameters are position-sensitive:
     // RFC 9901 carries them on the first signature entry so they cannot be

@@ -11,6 +11,18 @@ use identity_presentation_vp_core::model::{
 use crate::error::VpPolicyError;
 use crate::evaluate::MAX_POLICY_DISCLOSURES;
 
+pub(crate) fn validate_presentation_freshness(
+    presentation: &Presentation,
+    now_unix: u64,
+    errors: &mut Vec<VpPolicyError>,
+) {
+    if let Presentation::Zk(presentation) = presentation {
+        if now_unix >= presentation.freshness.expiry_unix {
+            errors.push(VpPolicyError::Expired);
+        }
+    }
+}
+
 /// A policy-relevant disclosure intent extracted from a presentation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DisclosedClaim {

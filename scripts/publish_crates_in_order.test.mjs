@@ -58,6 +58,7 @@ import { dirname, join } from "node:path";
 const calls = [];
 const scenario = ${JSON.stringify(scenario)};
 let attempts = 0;
+let packageAttempts = 0;
 const writeArchive = (packageName) => {
   const archive = join(
     ${JSON.stringify(directory)},
@@ -159,6 +160,14 @@ childProcess.spawnSync = (command, args) => {
     ],
   }) };
   if (args[0] === "package") {
+    packageAttempts += 1;
+    if (scenario === "package-index-lag" && packageAttempts === 2) {
+      return {
+        ...ok,
+        status: 101,
+        stderr: 'failed to select a version for the requirement \`reallyme-compression-brotli = "=0.1.0"\`',
+      };
+    }
     writeArchive(args[args.indexOf("-p") + 1]);
     return ok;
   }
@@ -215,6 +224,15 @@ test("successful publication respects dependency order", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.calls.filter((call) => call[1] === "publish").map((call) => call[3]),
     publishedPackages);
+  for (const packageName of publishedPackages) {
+    const packageIndex = result.calls.findIndex(
+      (call) => call[1] === "package" && call[3] === packageName,
+    );
+    const publishIndex = result.calls.findIndex(
+      (call) => call[1] === "publish" && call[3] === packageName,
+    );
+    assert.ok(packageIndex >= 0 && publishIndex > packageIndex);
+  }
   assert.equal(result.ledger.state, "completed");
   assert.equal(result.ledger.source_commit, "0123456789abcdef0123456789abcdef01234567");
   assert.ok(result.ledger.crates.every((entry) => entry.state === "published"));
@@ -236,7 +254,7 @@ test("resumed publication rebuilds each existing archive before comparing crates
     const nextCurlIndex = result.calls.findIndex(
       (call, index) => index > packageIndex && call[0] === "curl",
     );
-    assert.ok(publishIndex >= 0 && packageIndex > publishIndex && nextCurlIndex > packageIndex);
+    assert.ok(packageIndex >= 0 && publishIndex > packageIndex && nextCurlIndex > publishIndex);
     assert.ok(packageCall.includes("--no-verify"));
     assert.ok(packageCall.includes("--locked"));
   }
@@ -247,7 +265,7 @@ test("publication stops when rebuilt bytes differ from the reviewed archive", ()
   const result = runFixture({ scenario: "reviewed-mismatch" });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /package bytes differ from reviewed preflight/u);
-  assert.equal(result.calls.filter((call) => call[1] === "publish").length, 1);
+  assert.equal(result.calls.filter((call) => call[1] === "publish").length, 0);
   assert.equal(result.calls.filter((call) => call[0] === "curl").length, 0);
 });
 
@@ -279,6 +297,14 @@ test("exact-version registry index lag retries before publishing dependent crate
   const result = runFixture({ scenario: "index-lag" });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.calls.filter((call) => call[0] === "wait"), [["wait", 15000]]);
+});
+
+test("reviewed archive reproduction retries while a dependency reaches the index", () => {
+  const result = runFixture({ scenario: "package-index-lag" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.calls.filter((call) => call[0] === "wait"), [["wait", 15000]]);
+  const packages = result.calls.filter((call) => call[1] === "package");
+  assert.equal(packages[1][3], packages[2][3]);
 });
 
 test("non-retryable publication errors fail immediately", () => {

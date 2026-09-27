@@ -550,10 +550,12 @@ function inspectPackage(pkg) {
 }
 
 function publishPackage(pkg) {
-  // Archive construction and extracted-archive verification are release
-  // preflight responsibilities. Rebuilding here would execute dependency
-  // build scripts while a registry credential is present and would also fail
-  // outside the retry loop while a newly-published dependency propagates.
+  // Rebuild and compare before invoking `cargo publish`: detecting a mismatch
+  // after Cargo uploads would be an audit signal, not a release control.
+  // The release job receives only reviewed archives from preflight, and this
+  // check proves the source checkout still reproduces those exact bytes.
+  packageForPublishedComparison(pkg);
+  const reviewedChecksum = verifyLocalPackageMatchesReviewed(pkg);
   const args = ["publish", "-p", pkg.name, "--locked", "--no-verify"];
 
   for (let attempt = 1; attempt <= MAX_PUBLISH_ATTEMPTS; attempt += 1) {
@@ -562,14 +564,13 @@ function publishPackage(pkg) {
     process.stderr.write(result.stderr);
 
     if (result.status === 0) {
-      verifyPublishedPackageMatches(pkg);
+      verifyPublishedPackageMatches(pkg, reviewedChecksum);
       return "published";
     }
 
     const combined = `${result.stdout}\n${result.stderr}`;
     if (combined.includes("already uploaded") || combined.includes("already exists")) {
-      packageForPublishedComparison(pkg);
-      verifyPublishedPackageMatches(pkg);
+      verifyPublishedPackageMatches(pkg, reviewedChecksum);
       console.log(`${pkg.name} ${pkg.version} is already published; continuing.`);
       return "verified_existing";
     }
@@ -648,15 +649,30 @@ function archiveSha256(pkg) {
 }
 
 function packageForPublishedComparison(pkg) {
-  const result = run(
-    "cargo",
-    ["package", "-p", pkg.name, "--no-verify", "--locked"],
-    { capture: true },
-  );
-  process.stdout.write(result.stdout);
-  process.stderr.write(result.stderr);
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+  for (let attempt = 1; attempt <= MAX_PUBLISH_ATTEMPTS; attempt += 1) {
+    const result = run(
+      "cargo",
+      ["package", "-p", pkg.name, "--no-verify", "--locked"],
+      { capture: true },
+    );
+    process.stdout.write(result.stdout);
+    process.stderr.write(result.stderr);
+    if (result.status === 0) {
+      return;
+    }
+
+    const combined = `${result.stdout}\n${result.stderr}`;
+    const registryIndexIsStale =
+      combined.includes("no matching package named") ||
+      combined.includes("failed to select a version for the requirement");
+    if (!registryIndexIsStale || attempt === MAX_PUBLISH_ATTEMPTS) {
+      process.exit(result.status ?? 1);
+    }
+    const delayMs = attempt * CRATES_IO_INDEX_RETRY_BASE_MS;
+    console.log(
+      `crates.io index has not observed a dependency needed to reproduce ${pkg.name}; retrying in ${delayMs / 1000}s...`,
+    );
+    sleepMs(delayMs);
   }
 }
 
@@ -665,7 +681,7 @@ if (mode === MODE_PUBLISH) {
   writePublicationLedger();
 }
 
-function verifyPublishedPackageMatches(pkg) {
+function verifyLocalPackageMatchesReviewed(pkg) {
   const localArchive = path.join(packageDirectory, `${pkg.name}-${pkg.version}.crate`);
   if (!fs.existsSync(localArchive)) {
     console.error(`${pkg.name} ${pkg.version} local package archive is missing`);
@@ -690,6 +706,10 @@ function verifyPublishedPackageMatches(pkg) {
     process.exit(1);
   }
 
+  return reviewedChecksum;
+}
+
+function verifyPublishedPackageMatches(pkg, reviewedChecksum) {
   const comparisonDirectory = fs.mkdtempSync(path.join(packageDirectory, "published-"));
   const publishedArchive = path.join(comparisonDirectory, `${pkg.name}-${pkg.version}.crate`);
   const packageName = encodeURIComponent(pkg.name);

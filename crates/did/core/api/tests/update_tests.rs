@@ -255,6 +255,49 @@ fn set_key_relationships_assigns_existing_methods_without_rotation() {
 }
 
 #[test]
+fn payment_profile_can_reassign_its_secp256k1_signing_relationships() {
+    let (document, key_set) = create_did(
+        CreateConfig {
+            profile: Some(DidProfile::Payment),
+            also_known_as: None,
+            hardware_bound: None,
+            biometric_protected: None,
+            user_verification_method: None,
+            device_model: None,
+            services: None,
+            update_policy: None,
+            domain_verification: None,
+            verification_methods: None,
+            authentication: None,
+            assertion: None,
+            invocation: None,
+            key_agreement: None,
+            created: None,
+        },
+        "did:me:payment-relationships",
+    )
+    .expect("create Payment-profile DID");
+
+    let (updated, _) = set_key_relationships(
+        &document,
+        &key_set,
+        RelationshipAssignmentConfig {
+            authentication: Some(vec!["#k1".into()]),
+            assertion: Some(vec!["#k1".into()]),
+            invocation: Some(vec!["#k1".into()]),
+            key_agreement: None,
+            threshold: None,
+            created: None,
+        },
+    )
+    .expect("Payment-profile secp256k1 relationships remain valid after update");
+
+    assert_eq!(updated.authentication, vec!["#k1"]);
+    assert_eq!(updated.assertion_method, vec!["#k1"]);
+    assert_eq!(updated.capability_invocation, vec!["#k1"]);
+}
+
+#[test]
 fn set_key_relationships_rejects_duplicate_relationship_refs() {
     let did = "did:me:set-relationships-duplicate";
 

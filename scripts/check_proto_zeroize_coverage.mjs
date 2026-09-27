@@ -26,7 +26,7 @@ const COVERAGE_SOURCE_BY_PROTO = new Map([
 // accidentally removed. Annotation-driven discovery alone cannot detect that
 // regression.
 const REQUIRED_REDACTED_FIELDS_BY_PROTO = new Map([
-  ["identity/credential/v1/subject_bundle.proto", ["salt"]],
+  ["identity/credential/v1/subject_bundle.proto", ["salt", "value"]],
 ]);
 
 const ONEOF_VARIANT_FIELDS = new Set([

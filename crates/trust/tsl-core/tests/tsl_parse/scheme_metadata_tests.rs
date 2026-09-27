@@ -3,6 +3,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[test]
+fn sequence_preflight_does_not_semantically_parse_unsigned_services() {
+    let malformed_service =
+        "<TrustServiceProviderList><TrustServiceProvider/></TrustServiceProviderList>";
+    let xml = document(malformed_service);
+
+    assert_eq!(parse_tsl_sequence_number(&xml), Ok(12));
+    assert!(parse_tsl_xml(&xml).is_err());
+}
+
+#[test]
 fn rejects_missing_normative_scheme_metadata() {
     let cases = [
         (

@@ -189,6 +189,7 @@ pub fn verify_trust_list_xml_native(
     policy: envelopes_x509::policy::X509Policy,
     status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
+    validate_trust_roots_preflight(trust_roots)?;
     validate_trust_list_sequence_preflight(xml, last_accepted_sequence_number)?;
     let verified = identity_trust_tsl_openssl::verify_tsl_xml_openssl(
         xml,
@@ -225,6 +226,7 @@ pub fn verify_trust_list_xml_native_with_external_signer(
     policy: envelopes_x509::policy::X509Policy,
     status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
+    validate_trust_roots_preflight(trust_roots)?;
     validate_trust_list_sequence_preflight(xml, last_accepted_sequence_number)?;
     let verified = identity_trust_tsl_openssl::verify_tsl_xml_openssl_with_external_signer(
         xml,
@@ -399,6 +401,7 @@ pub fn verify_trust_list_xml_native_with_community_lists(
     policy: envelopes_x509::policy::X509Policy,
     status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
+    validate_trust_roots_preflight(trust_roots)?;
     validate_trust_list_sequence_preflight(xml, last_accepted_sequence_number)?;
     let verified = identity_trust_tsl_openssl::verify_tsl_xml_openssl_with_community_lists(
         xml,
@@ -429,9 +432,33 @@ fn validate_trust_list_sequence_preflight(
     xml: &str,
     last_accepted_sequence_number: u64,
 ) -> TrustApiResult<()> {
-    let list = parse_tsl_xml(xml).map_err(map_tsl_parse_error)?;
-    identity_trust_tsl_core::validate_tsl_sequence_number(&list, last_accepted_sequence_number)
-        .map_err(map_tsl_parse_error)
+    let sequence =
+        identity_trust_tsl_core::parse_tsl_sequence_number(xml).map_err(map_tsl_parse_error)?;
+    if sequence < last_accepted_sequence_number {
+        return Err(map_tsl_parse_error(
+            identity_trust_tsl_core::TslError::SequenceRollback,
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(all(
+    feature = "native",
+    not(any(
+        target_os = "android",
+        target_os = "ios",
+        target_os = "tvos",
+        target_os = "watchos",
+        target_os = "visionos"
+    ))
+))]
+fn validate_trust_roots_preflight(
+    trust_roots: &[envelopes_x509::X509Certificate],
+) -> TrustApiResult<()> {
+    // Resource limits must be enforced before parsing attacker-controlled XML.
+    // The OpenSSL verifier repeats this validation at its own public boundary;
+    // retaining both checks keeps each layer safe when called independently.
+    identity_trust_tsl_openssl::validate_tsl_trust_roots(trust_roots).map_err(map_tsl_openssl_error)
 }
 
 #[cfg(all(
