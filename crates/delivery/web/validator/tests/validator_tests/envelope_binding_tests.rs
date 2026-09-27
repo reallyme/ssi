@@ -4,7 +4,10 @@
 
 //! Envelope-binding regression tests for web presentation validation.
 
-use super::*;
+use super::{
+    expected_sd_jwt_binding, is_rejected_with, issue_fixture, issuer_sd_jwt, validate_fixture_with,
+    FixtureHolderBinding, Presentation, VpPolicyError,
+};
 
 #[test]
 fn web_rejects_issuer_sd_jwt_that_does_not_commit_to_envelope() {

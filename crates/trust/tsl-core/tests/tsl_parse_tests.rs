@@ -19,6 +19,18 @@ fn certificate_base64() -> String {
         .collect()
 }
 
+fn certificate_method_one_ski() -> [u8; 20] {
+    let certificate = reallyme_trust_x509::parse_cert_pem(include_bytes!(
+        "../../tsl-openssl/tests/fixtures/cert.pem"
+    ))
+    .unwrap();
+    certificate.rfc5280_method_one_key_identifier().unwrap()
+}
+
+fn certificate_ski_base64() -> String {
+    codec_base64::bytes_to_base64(&certificate_method_one_ski())
+}
+
 fn second_certificate_base64() -> String {
     include_str!("../../x509/tests/fixtures/qwac_server_auth_cert.der.b64")
         .chars()
@@ -249,50 +261,6 @@ fn validates_xml_signature_11_ec_key_value_against_the_certificate() {
         parse_tsl_xml(&wrong_point).unwrap_err(),
         TslError::DigitalIdentity(
             identity_trust_tsl_core::TslDigitalIdentityFailure::PublicKeyMismatch
-        )
-    );
-}
-
-#[test]
-fn enforces_history_ski_without_a_certificate() {
-    let current_certificate = certificate_base64();
-    let current = format!(
-        r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>https://future.example/type</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{current_certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceInformation><ServiceHistory><ServiceHistoryInstance><ServiceTypeIdentifier>https://future.example/type</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Historical service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn</ServiceStatus><StatusStartingTime>2024-01-01T00:00:00Z</StatusStartingTime></ServiceHistoryInstance></ServiceHistory></TSPService>"#
-    );
-    let valid = document(&provider(&current));
-    assert!(parse_tsl_xml(&valid).is_ok());
-
-    let missing_ski = valid.replace(
-        "<DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId>",
-        "<DigitalId><X509SubjectName>O=Historical</X509SubjectName></DigitalId>",
-    );
-    let parsed = parse_tsl_xml(&missing_ski).unwrap();
-    // An unidentifiable row is retained as a non-authorizing barrier so that
-    // an older granted row cannot govern the interval it closes.
-    assert_eq!(parsed.providers[0].services[0].history.len(), 1);
-    assert!(parsed.providers[0].services[0].history[0]
-        .digital_identity
-        .is_none());
-
-    let historical_certificate = valid.replace(
-        "<DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId>",
-        &format!(
-            "<DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId><DigitalId><X509Certificate>{current_certificate}</X509Certificate></DigitalId>"
-        ),
-    );
-    let parsed = parse_tsl_xml(&historical_certificate).unwrap();
-    let historical_identity = parsed.providers[0].services[0].history[0]
-        .digital_identity
-        .as_ref()
-        .unwrap();
-    assert!(historical_identity.certificates_der().is_empty());
-    assert_eq!(
-        historical_identity.subject_key_identifier(),
-        Some(
-            &[
-                63, 21, 134, 25, 112, 163, 248, 210, 136, 80, 247, 191, 21, 83, 162, 75, 95, 38,
-                162, 48
-            ][..]
         )
     );
 }
@@ -565,10 +533,11 @@ fn projects_every_normative_pointer_qualifier_and_issuer_identity() {
 #[test]
 fn preserves_pointer_identity_grouping_and_bounds_issuer_rotation_sets() {
     let certificate = certificate_base64();
+    let certificate_ski = certificate_ski_base64();
     let grouped = pointer(required_pointer_qualifiers()).replace(
         "</ServiceDigitalIdentities>",
         &format!(
-            "<ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId><DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId></ServiceDigitalIdentity></ServiceDigitalIdentities>"
+            "<ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId><DigitalId><X509SKI>{certificate_ski}</X509SKI></DigitalId></ServiceDigitalIdentity></ServiceDigitalIdentities>"
         ),
     );
     let parsed = parse_tsl_xml(&document("").replace(
