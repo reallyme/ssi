@@ -154,6 +154,7 @@ fn validator_accepts_valid_pid_with_qeaa_and_binding() {
         index: 0,
         expected_index: 0,
         expected_issuer: "did:test:issuer",
+        expected_signer: reallyme_credential::PartyReference::Did("did:test:issuer".to_owned()),
         expected_list_id: [0_u8; 32],
         expected_purpose: StatusPurpose::Revocation,
         verifier: &verifier,

@@ -538,6 +538,40 @@ fn verification_rejects_tampered_issuer_signed_item() {
 }
 
 #[test]
+fn verification_rejects_authenticated_duplicate_digest_identifier() {
+    let (issuer_public_key, issuer_private_key) = issuer_keys();
+    let kid = b"issuer-kid-1".to_vec();
+    let signer = CoseIssuerAuthSigner {
+        alg: Algorithm::Ed25519,
+        private_key: issuer_private_key.as_slice(),
+        kid: Some(kid.as_slice()),
+    };
+    let (mut document, _) = build_mso_mdoc(&valid_config(), &sample_elements(), &signer).unwrap();
+    let items = document
+        .issuer_signed
+        .name_spaces
+        .as_mut()
+        .unwrap()
+        .get_mut("org.iso.18013.5.1")
+        .unwrap();
+    items.push(items[0].clone());
+
+    let error = verify_issuer_signed_mdoc(
+        &document,
+        resolver_for_kid(kid, issuer_public_key),
+        1_700_000_001,
+    )
+    .err();
+
+    assert_eq!(
+        error,
+        Some(MdocEnvelopeError::InvalidInput(
+            MdocInvalidInputReason::DuplicateDigestIdentifier,
+        ))
+    );
+}
+
+#[test]
 fn verification_rejects_wrong_issuer_namespace() {
     let (issuer_public_key, issuer_private_key) = issuer_keys();
     let kid = b"issuer-kid-1".to_vec();

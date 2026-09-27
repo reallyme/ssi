@@ -129,13 +129,11 @@ pub fn ingest_eu_trusted_list(
         xml,
         trust_anchors.roots(),
         externally_authorized_signer,
+        last_accepted_sequence_number,
         now,
         envelopes_x509::tsl_signer_policy(),
         status_checker,
     )?;
-    verified
-        .validate_sequence_number(last_accepted_sequence_number)
-        .map_err(map_tsl_openssl_error)?;
     Ok(verified)
 }
 
@@ -164,13 +162,11 @@ pub fn ingest_trusted_list_xml(
     let verified = verify_trust_list_xml_native(
         xml,
         trust_anchors.roots(),
+        last_accepted_sequence_number,
         now,
         envelopes_x509::tsl_signer_policy(),
         status_checker,
     )?;
-    verified
-        .validate_sequence_number(last_accepted_sequence_number)
-        .map_err(map_tsl_openssl_error)?;
     Ok(verified)
 }
 
@@ -188,18 +184,24 @@ pub fn ingest_trusted_list_xml(
 pub fn verify_trust_list_xml_native(
     xml: &str,
     trust_roots: &[envelopes_x509::X509Certificate],
+    last_accepted_sequence_number: u64,
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
     status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
-    identity_trust_tsl_openssl::verify_tsl_xml_openssl(
+    validate_trust_list_sequence_preflight(xml, last_accepted_sequence_number)?;
+    let verified = identity_trust_tsl_openssl::verify_tsl_xml_openssl(
         xml,
         trust_roots,
         now,
         policy,
         status_checker,
     )
-    .map_err(map_tsl_openssl_error)
+    .map_err(map_tsl_openssl_error)?;
+    verified
+        .validate_sequence_number(last_accepted_sequence_number)
+        .map_err(map_tsl_openssl_error)?;
+    Ok(verified)
 }
 
 /// Verify an EU LOTL against the exact signing certificate authenticated from
@@ -218,11 +220,13 @@ pub fn verify_trust_list_xml_native_with_external_signer(
     xml: &str,
     trust_roots: &[envelopes_x509::X509Certificate],
     externally_authorized_signer: &envelopes_x509::X509Certificate,
+    last_accepted_sequence_number: u64,
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
     status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
-    identity_trust_tsl_openssl::verify_tsl_xml_openssl_with_external_signer(
+    validate_trust_list_sequence_preflight(xml, last_accepted_sequence_number)?;
+    let verified = identity_trust_tsl_openssl::verify_tsl_xml_openssl_with_external_signer(
         xml,
         trust_roots,
         externally_authorized_signer,
@@ -230,7 +234,11 @@ pub fn verify_trust_list_xml_native_with_external_signer(
         policy,
         status_checker,
     )
-    .map_err(map_tsl_openssl_error)
+    .map_err(map_tsl_openssl_error)?;
+    verified
+        .validate_sequence_number(last_accepted_sequence_number)
+        .map_err(map_tsl_openssl_error)?;
+    Ok(verified)
 }
 
 #[cfg(all(
@@ -386,11 +394,13 @@ pub fn verify_trust_list_xml_native_with_community_lists(
     xml: &str,
     trust_roots: &[envelopes_x509::X509Certificate],
     community_lists: &[&VerifiedTrustedList],
+    last_accepted_sequence_number: u64,
     now: time::OffsetDateTime,
     policy: envelopes_x509::policy::X509Policy,
     status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
-    identity_trust_tsl_openssl::verify_tsl_xml_openssl_with_community_lists(
+    validate_trust_list_sequence_preflight(xml, last_accepted_sequence_number)?;
+    let verified = identity_trust_tsl_openssl::verify_tsl_xml_openssl_with_community_lists(
         xml,
         trust_roots,
         community_lists,
@@ -398,7 +408,30 @@ pub fn verify_trust_list_xml_native_with_community_lists(
         policy,
         status_checker,
     )
-    .map_err(map_tsl_openssl_error)
+    .map_err(map_tsl_openssl_error)?;
+    verified
+        .validate_sequence_number(last_accepted_sequence_number)
+        .map_err(map_tsl_openssl_error)?;
+    Ok(verified)
+}
+
+#[cfg(all(
+    feature = "native",
+    not(any(
+        target_os = "android",
+        target_os = "ios",
+        target_os = "tvos",
+        target_os = "watchos",
+        target_os = "visionos"
+    ))
+))]
+fn validate_trust_list_sequence_preflight(
+    xml: &str,
+    last_accepted_sequence_number: u64,
+) -> TrustApiResult<()> {
+    let list = parse_tsl_xml(xml).map_err(map_tsl_parse_error)?;
+    identity_trust_tsl_core::validate_tsl_sequence_number(&list, last_accepted_sequence_number)
+        .map_err(map_tsl_parse_error)
 }
 
 #[cfg(all(

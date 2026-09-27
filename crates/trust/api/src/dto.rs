@@ -15,13 +15,39 @@ const MAX_TRUST_DECISION_PATH_CERTIFICATES: usize = 10;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustDecision {
     /// Whether the trust decision accepted the chain and policy.
-    pub accepted: bool,
+    pub(crate) accepted: bool,
     /// Authoritative three-state outcome.
-    pub outcome: TrustDecisionOutcome,
+    pub(crate) outcome: TrustDecisionOutcome,
     /// Fixed, non-secret failure reasons.
-    pub failures: Vec<TrustDecisionFailure>,
+    pub(crate) failures: Vec<TrustDecisionFailure>,
     /// Reproducible, non-secret trust evidence.
-    pub evidence: TrustDecisionEvidence,
+    pub(crate) evidence: TrustDecisionEvidence,
+}
+
+impl TrustDecision {
+    /// Whether the authoritative outcome is trusted.
+    #[must_use]
+    pub const fn is_accepted(&self) -> bool {
+        self.accepted
+    }
+
+    /// Return the authoritative three-state outcome.
+    #[must_use]
+    pub const fn outcome(&self) -> TrustDecisionOutcome {
+        self.outcome
+    }
+
+    /// Borrow the fixed failure reasons.
+    #[must_use]
+    pub fn failures(&self) -> &[TrustDecisionFailure] {
+        self.failures.as_slice()
+    }
+
+    /// Borrow the reproducible decision evidence.
+    #[must_use]
+    pub const fn evidence(&self) -> &TrustDecisionEvidence {
+        &self.evidence
+    }
 }
 
 /// Authoritative three-state trust outcome.

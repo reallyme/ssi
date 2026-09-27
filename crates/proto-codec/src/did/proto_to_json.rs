@@ -51,7 +51,11 @@ pub fn proto_to_json(p: &PbDIDDocument) -> Result<DIDDocument, DidProtoCodecErro
             .iter()
             .map(service_from_proto)
             .collect::<Result<_, _>>()?,
-        update_policy: p.update_policy.as_option().map(update_policy_from_proto),
+        update_policy: Some(update_policy_from_proto(
+            p.update_policy
+                .as_option()
+                .ok_or(DidProtoCodecError::MissingRequiredField)?,
+        )),
         attestations: p
             .attestations
             .iter()

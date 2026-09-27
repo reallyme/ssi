@@ -125,7 +125,12 @@ impl SingleUseState {
                     continue;
                 };
                 if key.is_recorded() && value.expires_at_unix > unix_now {
-                    deferred.push((deadline, key));
+                    let remaining = value.expires_at_unix.saturating_sub(unix_now);
+                    let next_deadline = monotonic_now.saturating_add(remaining);
+                    if let Some(entry) = self.entries.get_mut(&key) {
+                        entry.monotonic_deadline = next_deadline;
+                    }
+                    deferred.push((next_deadline, key));
                     continue;
                 }
                 let _removed_entry = self.remove_entry(&key);
@@ -157,7 +162,12 @@ impl SingleUseState {
                     continue;
                 };
                 if key.is_recorded() && value.monotonic_deadline > monotonic_now {
-                    deferred.push((deadline, key));
+                    let remaining = value.monotonic_deadline.saturating_sub(monotonic_now);
+                    let next_deadline = unix_now.saturating_add(remaining);
+                    if let Some(entry) = self.entries.get_mut(&key) {
+                        entry.expires_at_unix = next_deadline;
+                    }
+                    deferred.push((next_deadline, key));
                     continue;
                 }
                 let _removed_entry = self.remove_entry(&key);
@@ -190,5 +200,39 @@ fn remove_scheduled_key(
     };
     if remove_bucket {
         expirations.remove(&deadline);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        SingleUseKeyKind, SingleUseNamespace, SingleUseState, StoredExpiration, StoredKey,
+    };
+
+    #[test]
+    fn clock_rollback_reschedules_recorded_key_beyond_current_time() {
+        let mut state = SingleUseState::default();
+        let key = StoredKey::new(
+            SingleUseNamespace::Application,
+            SingleUseKeyKind::Recorded,
+            "recorded",
+        );
+        let expiration = StoredExpiration {
+            expires_at_unix: 2_000,
+            monotonic_deadline: 1_000,
+        };
+        state.entries.insert(key.clone(), expiration);
+        let namespace_index = super::namespace_index(SingleUseNamespace::Application);
+        assert!(state.namespace_counts.get(namespace_index).is_some());
+        if let Some(count) = state.namespace_counts.get_mut(namespace_index) {
+            *count = 1;
+        }
+        state.schedule_expiration(&key, expiration);
+
+        state.prune(1_000, 1_500);
+
+        assert!(state.entries.contains_key(&key));
+        assert!(!state.monotonic_expirations.contains_key(&1_000));
+        assert!(state.monotonic_expirations.contains_key(&1_500));
     }
 }

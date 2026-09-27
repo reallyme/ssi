@@ -90,6 +90,7 @@ pub use crate::tsl::parse_trust_list_xml;
 ))]
 pub use crate::tsl::{
     ingest_eu_trusted_list, ingest_trusted_list_xml,
+    verify_trust_list_xml_native_with_community_lists,
     verify_trust_list_xml_native_with_external_signer, TrustedListAnchors, VerifiedTrustedList,
 };
 

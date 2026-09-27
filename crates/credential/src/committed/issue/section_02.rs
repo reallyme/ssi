@@ -101,32 +101,11 @@ fn assert_safe_claim_name(name: &str) -> Result<(), VcError> {
     Ok(())
 }
 
-/// TS-compatible “JCS-like” canonical JSON bytes:
-/// - objects: keys sorted recursively
-/// - arrays: order preserved
-/// - primitives: unchanged
+/// Produce RFC 8785 JSON Canonicalization Scheme bytes for one claim value.
 fn jcs_utf8_bytes(v: &serde_json::Value) -> Result<Vec<u8>, VcError> {
-    let norm = normalize_json_value(v);
-    serde_json::to_vec(&norm).map_err(|_| VcError::InvalidCredential)
-}
-
-fn normalize_json_value(v: &serde_json::Value) -> serde_json::Value {
-    match v {
-        serde_json::Value::Array(arr) => {
-            serde_json::Value::Array(arr.iter().map(normalize_json_value).collect())
-        }
-        serde_json::Value::Object(map) => {
-            let mut out = serde_json::Map::new();
-            // serde_json::Map preserves insertion order, so insert in sorted key order
-            let mut keys: Vec<&String> = map.keys().collect();
-            keys.sort();
-            for k in keys {
-                out.insert(k.clone(), normalize_json_value(&map[k]));
-            }
-            serde_json::Value::Object(out)
-        }
-        other => other.clone(),
-    }
+    reallyme_codec::jcs::canonicalize_trusted_json_value(v)
+        .map(String::into_bytes)
+        .map_err(|_| VcError::InvalidCredential)
 }
 
 // -----------------------------------------------------------------------------
@@ -148,42 +127,6 @@ impl SaltRng for OsSaltRng {
     }
 }
 
-/// Deterministic salt source reserved for reproducible conformance vectors.
-#[cfg(feature = "conformance-vectors")]
-pub struct DeterministicRng {
-    state: u64,
-}
-
-#[cfg(feature = "conformance-vectors")]
-impl DeterministicRng {
-    /// Creates a deterministic test-vector generator.
-    ///
-    /// This generator is reproducible and MUST NOT be used for production
-    /// credential issuance. Production callers should use [`OsSaltRng`].
-    pub fn new(seed: u64) -> Self {
-        Self {
-            state: if seed == 0 {
-                0x9E37_79B9_7F4A_7C15
-            } else {
-                seed
-            },
-        }
-    }
-}
-
-#[cfg(feature = "conformance-vectors")]
-impl SaltRng for DeterministicRng {
-    fn fill_bytes(&mut self, out: &mut [u8]) -> Result<(), VcError> {
-        for b in out.iter_mut() {
-            self.state ^= self.state << 13;
-            self.state ^= self.state >> 7;
-            self.state ^= self.state << 17;
-            *b = (self.state & 0xff) as u8;
-        }
-        Ok(())
-    }
-}
-
 fn generate_nonzero_salt<R: SaltRng + ?Sized>(
     rng: &mut R,
     len: usize,
@@ -196,4 +139,26 @@ fn generate_nonzero_salt<R: SaltRng + ?Sized>(
         }
     }
     Err(VcError::EntropyUnavailable)
+}
+
+#[cfg(test)]
+mod jcs_tests {
+    use super::jcs_utf8_bytes;
+
+    #[test]
+    fn claim_values_use_rfc8785_number_and_utf16_key_ordering() {
+        let value = serde_json::json!({
+            "\u{1f600}": 333_333_333.333_333_3,
+            "\u{fffd}": true
+        });
+
+        let canonical = jcs_utf8_bytes(&value);
+        assert!(canonical.is_ok());
+        if let Ok(canonical) = canonical {
+            assert_eq!(
+                canonical,
+                "{\"😀\":333333333.3333333,\"�\":true}".as_bytes()
+            );
+        }
+    }
 }

@@ -136,6 +136,11 @@ impl RevocationEvidenceCache for InMemoryRevocationCache {
         if expires_at_unix <= meta.fetched_at_unix {
             return Err(RevocationCacheError::InvalidExpiry);
         }
+        // Capacity applies only to reusable evidence. Purging against the
+        // authenticated fetch timestamp keeps a full cache from becoming
+        // permanently unusable after all of its evidence expires.
+        self.entries
+            .retain(|_, outcome| outcome.expires_at_unix > meta.fetched_at_unix);
         let key = CacheKey::for_certificate(cert);
         if self.entries.len() >= self.max_entries && !self.entries.contains_key(&key) {
             return Err(RevocationCacheError::CapacityExceeded);

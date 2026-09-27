@@ -412,6 +412,30 @@ fn standalone_opening_rejects_path_length_not_matching_depth() {
 }
 
 #[test]
+fn standalone_opening_rejects_salts_outside_public_bounds() {
+    let registry = simple_registry();
+    let payload = simple_payload();
+    let built = build_claims_commitment(
+        build_input(&registry, &payload),
+        &mut DeterministicSaltSource { next: 5 },
+    )
+    .unwrap();
+
+    for salt_len in [1_u32, 65_u32] {
+        let mut commitment = built.commitment.clone();
+        commitment.limits.salt_len = salt_len;
+        let mut opening = duplicate_opening(&built.bundle.claims[0]);
+        opening.salt = vec![7_u8; usize::try_from(salt_len).unwrap()];
+        assert_eq!(
+            verify_claim_opening(&commitment, &built.bundle.tree, &opening),
+            Err(ClaimsError::InvalidInput(
+                ClaimsInvalidReason::InvalidCommitmentMaterial
+            ))
+        );
+    }
+}
+
+#[test]
 fn integer_claims_commit_to_declared_variant_regardless_of_input_variant() {
     let registry = three_claim_registry();
     let canonical = three_claim_payload();

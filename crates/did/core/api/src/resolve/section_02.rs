@@ -6,7 +6,7 @@ fn validate_present_resolution(
     request: &DidResolveRequest,
     result: &DidResolutionResult,
     expected_deactivated: bool,
-) -> Result<(), DidApiError> {
+) -> Result<Vec<DidValidationIssue>, DidApiError> {
     let resolution_metadata = &result.resolution_metadata;
     if resolution_metadata.error.is_some()
         || !resolution_metadata
@@ -87,7 +87,7 @@ fn validate_present_resolution(
     if result.history.len() != expected_history_len {
         return Err(DidApiError::ResolutionResultInvalid);
     }
-    let validation = validate_did_with_history(
+    let mut validation = validate_did_with_history(
         &result.history,
         doc,
         DomainVerificationEnv {
@@ -99,7 +99,7 @@ fn validate_present_resolution(
         return Err(DidApiError::ResolutionResultInvalid);
     }
 
-    Ok(())
+    Ok(validation.take_warnings())
 }
 
 /// Enforce the caller's staleness bound against a caller-trusted clock.

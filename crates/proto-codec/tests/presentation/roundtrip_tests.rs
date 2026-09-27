@@ -12,9 +12,9 @@ use std::collections::BTreeMap;
 use reallyme_ssi_proto_codec::presentation::{
     decode_presentation_proto, decode_presentation_proto_brotli, decode_proto,
     encode_presentation_proto, encode_presentation_proto_brotli, encode_proto, json_to_proto,
-    presentation_to_proto_json, proto_json_to_presentation, proto_to_presentation, VpProtoError,
-    MAX_MDOC_DEVICE_RESPONSE_BYTES, MAX_PRESENTATION_PROTO_JSON_BYTES,
-    MAX_PRESENTATION_PROTO_MESSAGE_BYTES,
+    presentation_to_proto, presentation_to_proto_json, proto_json_to_presentation,
+    proto_to_presentation, VpProtoError, MAX_MDOC_DEVICE_RESPONSE_BYTES,
+    MAX_PRESENTATION_PROTO_JSON_BYTES, MAX_PRESENTATION_PROTO_MESSAGE_BYTES,
 };
 use reallyme_vp_core::{
     ClaimDisclosure, CredentialReference, CredentialStatusRef, DisclosureMode, MdocPresentation,
@@ -398,6 +398,40 @@ fn inconsistent_disclosure_model_is_rejected_before_encoding() {
         presentation_to_proto_json(&presentation),
         Err(VpProtoError::InconsistentDisclosure)
     );
+    assert_eq!(
+        presentation_to_proto(&presentation),
+        Err(VpProtoError::InconsistentDisclosure)
+    );
+}
+
+#[test]
+fn proto_json_rejects_duplicate_members_and_accepts_original_names_and_null() {
+    let duplicate = r#"{"mdoc":{"deviceResponse":"AQ=="},"mdoc":{"deviceResponse":"Ag=="}}"#;
+    assert!(matches!(
+        json_to_proto(duplicate),
+        Err(VpProtoError::JsonDeserialize)
+    ));
+
+    let Ok(json) = presentation_to_proto_json(&zk_presentation()) else {
+        panic!("valid ZK presentation must serialize as ProtoJSON");
+    };
+    let original_name = json.replace("\"zkProof\"", "\"zk_proof\"");
+    assert!(json_to_proto(&original_name).is_ok());
+
+    let Ok(mut parsed) = serde_json::from_str::<serde_json::Value>(&json) else {
+        panic!("generated ProtoJSON must parse");
+    };
+    let Some(zk) = parsed
+        .get_mut("zk")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        panic!("generated ZK ProtoJSON must contain a ZK object");
+    };
+    zk.insert("qeaa".to_owned(), serde_json::Value::Null);
+    let Ok(with_null_qeaa) = serde_json::to_string(&parsed) else {
+        panic!("ProtoJSON with a null QEAA value must serialize");
+    };
+    assert!(json_to_proto(&with_null_qeaa).is_ok());
 }
 
 #[test]

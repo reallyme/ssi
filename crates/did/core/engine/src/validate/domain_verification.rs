@@ -8,6 +8,7 @@ use zeroize::Zeroizing;
 
 /// Domain verification failures exposed by the core validator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum DomainVerificationError {
     /// DNS verification was requested but the DID document omitted its DNS binding.
     #[error("dns binding missing")]

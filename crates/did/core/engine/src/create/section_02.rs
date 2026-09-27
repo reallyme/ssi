@@ -78,7 +78,7 @@ pub fn create_engine(
         vms.iter().any(|vm| vm.id == id)
     }
 
-    // authentication: Ed25519 | ML-DSA-87 | P-256
+    // authentication: Ed25519 | ML-DSA-87 | P-256 | secp256k1
     for k in &opts.authentication {
         if !vm_exists(k, &core_controller_keys) {
             return Err(DidCoreError::InvalidCanonicalState(
@@ -87,7 +87,12 @@ pub fn create_engine(
         }
 
         match vm_algorithm(k, &core_controller_keys) {
-            Some(Algorithm::Ed25519 | Algorithm::MlDsa87 | Algorithm::P256) => {}
+            Some(
+                Algorithm::Ed25519
+                | Algorithm::MlDsa87
+                | Algorithm::P256
+                | Algorithm::Secp256k1,
+            ) => {}
             _ => {
                 return Err(DidCoreError::InvalidCanonicalState(
                     CanonicalStateViolation::InvalidAuthenticationAlgorithm,

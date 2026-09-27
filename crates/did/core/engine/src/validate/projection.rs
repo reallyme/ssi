@@ -131,9 +131,16 @@ pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionVal
     }
 
     // Algorithm + multikey consistency
+    let mut public_key_material = HashSet::with_capacity(doc.verification_method.len());
     for vm in &doc.verification_method {
         match parse_multikey(&vm.public_key_multibase) {
             Ok(parsed) => {
+                if !public_key_material.insert(parsed.public_key) {
+                    errors.push(DidValidationIssue::new(
+                        DidValidationCode::VerificationMethodInvalid,
+                        DidValidationLocation::VerificationMethod,
+                    ));
+                }
                 if let Some(alg) = &vm.algorithm {
                     if alg != parsed.alg {
                         errors.push(projection_issue(DidValidationLocation::VerificationMethod));
@@ -346,7 +353,7 @@ fn check_rel(
             (purpose, method.algorithm.as_deref()),
             (
                 RelationshipPurpose::Signing,
-                Some("Ed25519" | "ML-DSA-87" | "P-256")
+                Some("Ed25519" | "ML-DSA-87" | "P-256" | "secp256k1")
             ) | (
                 RelationshipPurpose::KeyAgreement,
                 Some("X25519" | "ML-KEM-768" | "ML-KEM-1024")

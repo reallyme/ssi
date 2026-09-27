@@ -78,6 +78,33 @@ fn json_to_proto_missing_algorithm_fails() {
 }
 
 #[test]
+fn proto_to_json_rejects_unknown_algorithm_instead_of_dropping_it() {
+    let algorithm = CryptoAlgorithmIdentifier {
+        algorithm: Some(crypto_algorithm_identifier::Algorithm::Signature(
+            EnumValue::Unknown(999),
+        )),
+        ..CryptoAlgorithmIdentifier::default()
+    };
+    let proto = PbVM {
+        algorithm: MessageField::some(algorithm),
+        ..PbVM::default()
+    };
+
+    assert_eq!(
+        vm_from_proto(&proto),
+        Err(DidProtoCodecError::UnsupportedAlgorithm)
+    );
+}
+
+#[test]
+fn proto_to_json_rejects_missing_algorithm() {
+    assert_eq!(
+        vm_from_proto(&PbVM::default()),
+        Err(DidProtoCodecError::MissingRequiredField)
+    );
+}
+
+#[test]
 fn roundtrip_json_proto_json() {
     let original = VerificationMethod {
         id: "#key-1".to_string(),

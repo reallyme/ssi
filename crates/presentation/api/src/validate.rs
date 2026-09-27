@@ -29,6 +29,6 @@ pub fn validate_vp_strict(
 ) -> Result<(), VpApiError> {
     match validate_vp(policy, ctx) {
         report if report.is_accepted() => Ok(()),
-        report => Err(VpApiError::PolicyRejected(report.errors)),
+        report => Err(VpApiError::PolicyRejected(report.into_errors())),
     }
 }

@@ -54,6 +54,7 @@ pub(crate) fn validate_public_jwk(
             | DidJwkErrorReason::InvalidPrefix
             | DidJwkErrorReason::EmptyIdentifier
             | DidJwkErrorReason::SerializationFailed => DidEbsiErrorReason::InvalidDocument,
+            _ => DidEbsiErrorReason::InvalidDocument,
         };
         DidEbsiError::new(reason)
     })?;

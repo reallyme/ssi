@@ -37,6 +37,47 @@
     }
 
     #[test]
+    fn raw_sec1_keys_require_a_valid_curve_point() {
+        for (algorithm, crypto_algorithm) in [
+            (CredentialAlgorithm::P256, Algorithm::P256),
+            (CredentialAlgorithm::Secp256k1, Algorithm::Secp256k1),
+        ] {
+            let (public_key, _private_key) = generate_keypair(crypto_algorithm)
+                .expect("test key generation must succeed");
+            let serialization = match public_key.len() {
+                33 => RawPublicKeySerialization::Sec1Compressed,
+                65 => RawPublicKeySerialization::Sec1Uncompressed,
+                _ => RawPublicKeySerialization::Sec1Compressed,
+            };
+            assert!(validate_public_key_representation(
+                algorithm,
+                &PublicKeyRepresentation::Raw {
+                    serialization,
+                    bytes: public_key,
+                },
+            )
+            .is_ok());
+
+            for (serialization, bytes) in [
+                (RawPublicKeySerialization::Sec1Compressed, vec![0_u8; 33]),
+                (
+                    RawPublicKeySerialization::Sec1Uncompressed,
+                    vec![0_u8; 65],
+                ),
+            ] {
+                assert!(validate_public_key_representation(
+                    algorithm,
+                    &PublicKeyRepresentation::Raw {
+                        serialization,
+                        bytes,
+                    },
+                )
+                .is_err());
+            }
+        }
+    }
+
+    #[test]
     fn jwk_policy_members_are_consistent_and_duplicate_members_fail_closed() {
         assert!(validate_public_key_representation(
             CredentialAlgorithm::Ed25519,

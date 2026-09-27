@@ -24,7 +24,9 @@ use crate::commands::{
 };
 use crate::error::DidApiError;
 use crate::parse::parse_did_url;
-use crate::validate::{validate_did_with_history, DomainVerificationEnv};
+use crate::validate::{
+    validate_did_with_history, DidValidationIssue, DomainVerificationEnv,
+};
 
 /// Maximum DID or requested version identifier accepted by resolution.
 pub const MAX_DID_RESOLUTION_IDENTIFIER_BYTES: usize = 4 * 1024;
@@ -112,6 +114,7 @@ pub enum DidDeactivationStatus {
 
 /// Fixed resolution failure codes. Dynamic resolver text is intentionally not carried.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidResolutionErrorCode {
     /// Resolver found no document for the DID.
     NotFound,
@@ -186,6 +189,12 @@ pub struct DidResolutionResult {
 
     /// Document metadata. Required whenever `document` is present.
     pub document_metadata: Option<DidDocumentMetadata>,
+
+    /// Stable, privacy-safe warnings produced while validating the resolved document.
+    ///
+    /// Provider-supplied contents are replaced by [`resolve_did_with_provider`];
+    /// callers therefore only observe diagnostics produced by this crate.
+    pub validation_warnings: Vec<DidValidationIssue>,
 }
 
 /// Provider result for a did:web HTTPS resolution.
@@ -255,6 +264,7 @@ impl Zeroize for SensitiveDidResolutionResult {
             metadata.valid_until.zeroize();
         }
         self.inner.document_metadata = None;
+        self.inner.validation_warnings.clear();
     }
 }
 

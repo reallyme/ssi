@@ -61,6 +61,7 @@ fn request(doc: &DIDDocument) -> DidResolveRequest {
 
 fn complete_result(doc: DIDDocument) -> DidResolutionResult {
     DidResolutionResult {
+        validation_warnings: Vec::new(),
         history: Vec::new(),
         resolution_metadata: DidResolutionMetadata {
             content_type: Some("application/did+json".into()),

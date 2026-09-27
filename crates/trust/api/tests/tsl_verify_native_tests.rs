@@ -19,7 +19,9 @@ use identity_credential_trust_api::{
 };
 #[cfg(feature = "xmlsec-ffi")]
 use identity_credential_trust_api::{
-    TrustedListPolicyErrorReason, TrustedListSignatureProfileErrorReason,
+    verify_trust_list_xml_native_with_community_lists,
+    verify_trust_list_xml_native_with_external_signer, TrustedListPolicyErrorReason,
+    TrustedListSignatureProfileErrorReason,
 };
 use identity_revocation_core::{StatusCheckError, StatusChecker};
 use identity_trust_tsl_openssl::{MAX_TSL_TRUST_ROOTS, MAX_TSL_TRUST_ROOT_DER_BYTES};
@@ -46,7 +48,7 @@ fn verify_trust_list_xml_native(
     now: OffsetDateTime,
     policy: X509Policy,
 ) -> Result<VerifiedTrustedList, TrustApiError> {
-    verify_trust_list_xml_native_with_status(xml, trust_roots, now, policy, &GoodStatus)
+    verify_trust_list_xml_native_with_status(xml, trust_roots, 0, now, policy, &GoodStatus)
 }
 
 fn ingest_eu_trusted_list(
@@ -86,6 +88,57 @@ fn api_verifies_signed_tsl_native() {
 
     assert_eq!(tsl.list().name, "MT:Test Trusted List");
     assert!(tsl.signer_trust().evidence().source.is_some());
+}
+
+#[test]
+#[cfg(feature = "xmlsec-ffi")]
+fn every_public_native_verifier_rejects_sequence_rollback() {
+    let signer = signer_cert();
+    let parsed = identity_credential_trust_api::parse_trust_list_xml(SIGNED_TSL_XML)
+        .expect("fixture XML must parse");
+    let rejected_sequence = parsed
+        .sequence_number
+        .checked_add(1)
+        .expect("fixture sequence leaves headroom");
+
+    let errors = [
+        verify_trust_list_xml_native_with_status(
+            SIGNED_TSL_XML,
+            core::slice::from_ref(&signer),
+            rejected_sequence,
+            verification_time(),
+            X509Policy::default(),
+            &GoodStatus,
+        )
+        .expect_err("native verifier must reject rollback"),
+        verify_trust_list_xml_native_with_external_signer(
+            SIGNED_TSL_XML,
+            core::slice::from_ref(&signer),
+            &signer,
+            rejected_sequence,
+            verification_time(),
+            X509Policy::default(),
+            &GoodStatus,
+        )
+        .expect_err("external-signer verifier must reject rollback"),
+        verify_trust_list_xml_native_with_community_lists(
+            SIGNED_TSL_XML,
+            core::slice::from_ref(&signer),
+            &[],
+            rejected_sequence,
+            verification_time(),
+            X509Policy::default(),
+            &GoodStatus,
+        )
+        .expect_err("community-list verifier must reject rollback"),
+    ];
+
+    for error in errors {
+        assert!(matches!(
+            error,
+            TrustApiError::TrustedList(identity_trust_tsl_core::TslError::SequenceRollback)
+        ));
+    }
 }
 
 #[test]

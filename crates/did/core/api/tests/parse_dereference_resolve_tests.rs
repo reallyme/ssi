@@ -22,6 +22,9 @@ use reallyme_did_api::{
     update::deactivate_did_validated,
     CreateConfig,
 };
+use reallyme_did_core::{
+    validate::DidValidationCode, DomainVerificationInput, DomainVerificationPreset,
+};
 use reallyme_did_types::{DIDDocument, Service};
 use serde_json::json;
 use zeroize::Zeroize;
@@ -48,6 +51,7 @@ fn create_config() -> CreateConfig {
 
 fn active_resolution(doc: DIDDocument) -> DidResolutionResult {
     DidResolutionResult {
+        validation_warnings: Vec::new(),
         history: Vec::new(),
         resolution_metadata: DidResolutionMetadata {
             content_type: Some("application/did+json".into()),
@@ -280,6 +284,7 @@ fn validate_resolution_result_requires_typed_not_found_for_absent_result() {
         freshness: None,
     };
     let result = DidResolutionResult {
+        validation_warnings: Vec::new(),
         history: Vec::new(),
         document: None,
         resolution_metadata: DidResolutionMetadata {
@@ -310,6 +315,7 @@ fn validate_resolution_result_rejects_oversized_request_before_provider_use() {
         freshness: None,
     };
     let result = DidResolutionResult {
+        validation_warnings: Vec::new(),
         history: Vec::new(),
         document: None,
         resolution_metadata: DidResolutionMetadata {
@@ -419,6 +425,7 @@ fn validate_resolution_result_accepts_deactivation_document() {
         freshness: None,
     };
     let result = DidResolutionResult {
+        validation_warnings: Vec::new(),
         history: vec![doc],
         resolution_metadata: DidResolutionMetadata {
             content_type: Some("application/did+json".into()),
@@ -475,6 +482,35 @@ fn resolve_did_with_provider_validates_provider_result() {
         result.resolution_metadata.deactivation_status,
         DidDeactivationStatus::Active
     );
+}
+
+#[test]
+fn resolve_did_with_provider_preserves_domain_verification_warning() {
+    let mut config = create_config();
+    config.domain_verification = Some(vec![DomainVerificationInput {
+        method: "dns".to_string(),
+        domain: "example.com".to_string(),
+        preset: Some(DomainVerificationPreset::DidMeDefault),
+    }]);
+    let (doc, _) = create_did(config, "did:me:resolve-warning").expect("create failed");
+    let request = DidResolveRequest {
+        did: doc.id.clone(),
+        version_id: None,
+        version_time: None,
+        minimum_version_sequence: None,
+        assurance: None,
+        freshness: None,
+    };
+    let provider = StaticProvider {
+        result: active_resolution(doc),
+    };
+
+    let result = resolve_did_with_provider(&provider, request).expect("resolve failed");
+
+    assert!(result
+        .validation_warnings
+        .iter()
+        .any(|warning| warning.code == DidValidationCode::DomainVerificationSkipped));
 }
 
 #[test]

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use reallyme_codec::base64url::base64url_to_bytes;
-use reallyme_codec::cbor::{decode_dag_cbor, verify_dag_cbor_cid, CborValue};
+use reallyme_codec::cbor::{compute_cid_dag_cbor, decode_dag_cbor, CborValue};
 
 use reallyme_did_types::Controller;
 
@@ -145,8 +145,7 @@ pub fn validate_core_snapshot(doc: DidMeDocCoreView<'_>) -> CoreValidationResult
     // ---------------------------------------------------------------------
     // 3. Recompute CID and compare with currentCore
     // ---------------------------------------------------------------------
-    let (cid_ok, _expected, _actual) = verify_dag_cbor_cid(doc.current_core, &cbor_bytes);
-    if !cid_ok {
+    if compute_cid_dag_cbor(&cbor_bytes) != doc.current_core {
         errors.push(issue(
             DidValidationCode::CoreCidMismatch,
             DidValidationLocation::Core,

@@ -66,6 +66,38 @@ pub(crate) fn validated_response_produced_at(response_der: &[u8]) -> Result<&[u8
     Ok(fields.produced_at)
 }
 
+/// Return the exact DER encodings of responder certificates embedded in a
+/// BasicOCSPResponse. These certificates are authenticated by the response
+/// signature but still require responder-policy screening before OpenSSL may
+/// use them for path construction.
+pub(crate) fn embedded_responder_certificates(
+    response_der: &[u8],
+) -> Result<Vec<&[u8]>, OcspError> {
+    let fields = response_data_fields(response_der)?;
+    let Some(mut certificates) = fields.certificates else {
+        return Ok(Vec::new());
+    };
+    let mut result = Vec::new();
+    while !certificates.is_empty() {
+        if result.len() >= 16 {
+            return Err(OcspError::InvalidResponse);
+        }
+        let before = certificates;
+        let (_, remaining) = read_tlv(before, 0x30)?;
+        let encoded_len = before
+            .len()
+            .checked_sub(remaining.len())
+            .ok_or(OcspError::InvalidResponse)?;
+        result.push(
+            before
+                .get(..encoded_len)
+                .ok_or(OcspError::InvalidResponse)?,
+        );
+        certificates = remaining;
+    }
+    Ok(result)
+}
+
 #[derive(Clone, Copy)]
 enum ResponseExtensionError {
     InvalidResponse,
@@ -146,15 +178,14 @@ fn authenticated_response_nonce_inner(
 }
 
 /// Parse a response nonce according to whether the corresponding request used
-/// one. A malformed optional nonce is ignored only when no nonce binding was
-/// requested; required nonce processing remains strict.
+/// one. A present malformed nonce always fails closed, even when the request
+/// did not carry a nonce, because it is part of the authenticated response.
 pub(crate) fn response_nonce_for_request(
     response_der: &[u8],
-    nonce_was_requested: bool,
+    _nonce_was_requested: bool,
 ) -> Result<Option<Vec<u8>>, OcspError> {
     match authenticated_response_nonce_inner(response_der) {
         Ok(nonce) => Ok(nonce),
-        Err(ResponseExtensionError::InvalidNonce) if !nonce_was_requested => Ok(None),
         Err(ResponseExtensionError::InvalidNonce | ResponseExtensionError::InvalidResponse) => {
             Err(OcspError::InvalidResponse)
         }
@@ -345,6 +376,7 @@ struct ResponseDataFields<'a> {
     extensions: Option<&'a [u8]>,
     produced_at: &'a [u8],
     signature_algorithm_oid: &'a [u8],
+    certificates: Option<&'a [u8]>,
 }
 
 fn response_data_fields(response_der: &[u8]) -> Result<ResponseDataFields<'_>, OcspError> {
@@ -377,12 +409,19 @@ fn response_data_fields(response_der: &[u8]) -> Result<ResponseDataFields<'_>, O
     let (signature_algorithm, basic_rest) = read_tlv(basic_rest, 0x30)?;
     let (signature_algorithm_oid, _) = read_tlv(signature_algorithm, 0x06)?;
     let (_, basic_rest) = read_tlv(basic_rest, 0x03)?;
-    if !basic_rest.is_empty() {
-        let (_, trailing) = read_tlv(basic_rest, 0xa0)?;
+    let certificates = if !basic_rest.is_empty() {
+        let (explicit, trailing) = read_tlv(basic_rest, 0xa0)?;
         if !trailing.is_empty() {
             return Err(OcspError::InvalidResponse);
         }
-    }
+        let (certificates, trailing) = read_tlv(explicit, 0x30)?;
+        if !trailing.is_empty() {
+            return Err(OcspError::InvalidResponse);
+        }
+        Some(certificates)
+    } else {
+        None
+    };
     let mut rest = response_data;
     if rest.first() == Some(&0xa0) {
         let (_, remaining) = read_tlv(rest, 0xa0)?;
@@ -413,6 +452,7 @@ fn response_data_fields(response_der: &[u8]) -> Result<ResponseDataFields<'_>, O
         extensions,
         produced_at,
         signature_algorithm_oid,
+        certificates,
     })
 }
 

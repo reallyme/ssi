@@ -105,21 +105,17 @@ fn valid_public_key_representation(
                     RawPublicKeySerialization::FixedWidth,
                 ) => bytes.len() == 32,
                 (
-                    CredentialAlgorithm::P256 | CredentialAlgorithm::Secp256k1,
+                    CredentialAlgorithm::P256
+                    | CredentialAlgorithm::Secp256k1
+                    | CredentialAlgorithm::Es256kRecovery,
                     RawPublicKeySerialization::Sec1Compressed,
-                ) => bytes.len() == 33,
+                ) => valid_sec1_public_key(algorithm, bytes) && bytes.len() == 33,
                 (
-                    CredentialAlgorithm::P256 | CredentialAlgorithm::Secp256k1,
+                    CredentialAlgorithm::P256
+                    | CredentialAlgorithm::Secp256k1
+                    | CredentialAlgorithm::Es256kRecovery,
                     RawPublicKeySerialization::Sec1Uncompressed,
-                ) => bytes.len() == 65,
-                (
-                    CredentialAlgorithm::Es256kRecovery,
-                    RawPublicKeySerialization::Sec1Compressed,
-                ) => bytes.len() == 33,
-                (
-                    CredentialAlgorithm::Es256kRecovery,
-                    RawPublicKeySerialization::Sec1Uncompressed,
-                ) => bytes.len() == 65,
+                ) => valid_sec1_public_key(algorithm, bytes) && bytes.len() == 65,
                 (CredentialAlgorithm::MlDsa44, RawPublicKeySerialization::FixedWidth) => {
                     bytes.len() == 1_312
                 }
@@ -276,13 +272,33 @@ fn public_key_shape_matches(algorithm: CredentialAlgorithm, value: &[u8]) -> boo
         CredentialAlgorithm::Ed25519 | CredentialAlgorithm::X25519 => value.len() == 32,
         CredentialAlgorithm::P256
         | CredentialAlgorithm::Secp256k1
-        | CredentialAlgorithm::Es256kRecovery => value.len() == 33 || value.len() == 65,
+        | CredentialAlgorithm::Es256kRecovery => valid_sec1_public_key(algorithm, value),
         CredentialAlgorithm::MlDsa44 => value.len() == 1_312,
         CredentialAlgorithm::MlDsa65 => value.len() == 1_952,
         CredentialAlgorithm::MlDsa87 => value.len() == 2_592,
         CredentialAlgorithm::MlKem768 => value.len() == 1_184,
         CredentialAlgorithm::MlKem1024 => value.len() == 1_568,
         CredentialAlgorithm::Unspecified => false,
+    }
+}
+
+fn valid_sec1_public_key(algorithm: CredentialAlgorithm, value: &[u8]) -> bool {
+    #[cfg(any(feature = "native", feature = "wasm"))]
+    match algorithm {
+        CredentialAlgorithm::P256 => match value.len() {
+            33 => reallyme_crypto::p256::decompress_public_key(value).is_ok(),
+            65 => reallyme_crypto::p256::compress_public_key(value).is_ok(),
+            _ => false,
+        },
+        CredentialAlgorithm::Secp256k1 | CredentialAlgorithm::Es256kRecovery => {
+            reallyme_crypto::secp256k1::decode_public_key(value).is_ok()
+        }
+        _ => false,
+    }
+    #[cfg(not(any(feature = "native", feature = "wasm")))]
+    {
+        let _ = (algorithm, value);
+        false
     }
 }
 
@@ -343,6 +359,7 @@ pub fn validate_claim_opening(
     commitment: &ClaimsCommitment,
     opening: &ClaimOpening,
 ) -> Result<(), ClaimsError> {
+    validate_commitment_limits(commitment.limits)?;
     parse_claim_path(opening.claim_path.as_str())?;
     let max_value_len = usize::try_from(commitment.limits.max_value_len)
         .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidCommitmentMaterial))?;

@@ -12,6 +12,7 @@ use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityC
 
 /// Reason a single domain binding did not validate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum SingleDomainValidationError {
     /// The binding resolved successfully but did not match the DID document claim.
     #[error("domain verification failed")]

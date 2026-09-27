@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Errors that can occur while applying an authorized DID core update.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum UpdateError {
     /// The proposed document sequence does not advance exactly once.
     #[error("invalid update sequence")]

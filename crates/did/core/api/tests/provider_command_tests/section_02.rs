@@ -180,6 +180,33 @@ fn compromised_key_replacement_rejects_malformed_or_unauthorized_requests() {
         );
     }
 
+    let mut aliased_document = old_document.clone();
+    let compromised_material = aliased_document
+        .verification_method
+        .iter()
+        .find(|method| method.id == "#ed25519")
+        .expect("profile must contain Ed25519 authority")
+        .public_key_multibase
+        .clone();
+    aliased_document
+        .verification_method
+        .iter_mut()
+        .find(|method| method.id == "#mldsa87-root")
+        .expect("profile must contain backup authority")
+        .public_key_multibase = compromised_material;
+    let aliased_authority = replace_compromised_did_keys_with_provider(
+        &provider,
+        DidReplaceCompromisedKeysRequest {
+            document: aliased_document,
+            compromised_verification_method_ids: vec!["#ed25519".to_owned()],
+            created: Some("2026-01-02T00:00:00Z".to_owned()),
+        },
+    );
+    assert_eq!(
+        aliased_authority,
+        Err(DidApiError::CompromisedKeyReplacementRequestInvalid)
+    );
+
     let unsatisfied = replace_compromised_did_keys_with_provider(
         &provider,
         DidReplaceCompromisedKeysRequest {

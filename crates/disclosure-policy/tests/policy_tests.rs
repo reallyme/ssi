@@ -19,7 +19,11 @@ use reallyme_disclosure_policy::{
     EvaluationContext, ExtractedDisclosure, PolicyDecision, QeaaContext, SatisfactionPlan,
     StatusContext, VpPolicy, VpPolicyError, MAX_EVALUATED_DISCLOSURES,
 };
-use reallyme_vp_core::{DisclosureMode, Presentation, SdJwtVcPresentation};
+use reallyme_vp_core::{
+    CredentialReference, CredentialStatusRef, DisclosureMode, Presentation, PresentationFreshness,
+    SdJwtVcPresentation, StatusPurpose, ZkPresentation, ZkProof, ZkProofSuite,
+};
+use std::collections::BTreeMap;
 
 struct RegistryPolicyCase {
     claimset_id: &'static str,
@@ -36,6 +40,65 @@ fn sd_jwt_presentation() -> Presentation {
         vct: Some("eu.pid.v1".into()),
         envelope_hash: None,
     }))
+}
+
+fn zk_presentation(expiry_unix: u64) -> Presentation {
+    Presentation::Zk(Box::new(ZkPresentation {
+        freshness: PresentationFreshness {
+            challenge: [1_u8; 32],
+            audience_hash: [2_u8; 32],
+            expiry_unix,
+        },
+        credential: CredentialReference {
+            envelope_hash: [3_u8; 32],
+            issuer_did: "did:example:issuer".to_string(),
+            status: CredentialStatusRef {
+                status_list_url: "https://example.com/status".to_string(),
+                status_list_id: [4_u8; 32],
+                status_list_index: 0,
+                purpose: StatusPurpose::Revocation,
+            },
+        },
+        disclosures: Vec::new(),
+        zk_proof: ZkProof {
+            circuit_id: "circuit".to_string(),
+            circuit_version: "1".to_string(),
+            vk_id: "vk".to_string(),
+            proof_bytes: vec![1],
+            public_inputs: BTreeMap::new(),
+            proof_suite: ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
+            artifact_manifest_sha256: [5_u8; 32],
+        },
+        qeaa: None,
+    }))
+}
+
+#[test]
+fn zk_presentation_expiry_is_exclusive_at_trusted_now() {
+    let presentation = zk_presentation(1_700_000_000);
+    let policy = VpPolicy {
+        require_status: false,
+        ..VpPolicy::default()
+    };
+    let decision = evaluate(
+        &policy,
+        &EvaluationContext {
+            binding_ok: true,
+            now_unix: 1_700_000_000,
+            presentation: &presentation,
+            issuer_algorithm: Algorithm::P256,
+            holder_algorithm: Algorithm::P256,
+            claimset_id: "claims-v1",
+            disclosures: &[],
+            status: None,
+            qeaa: None,
+        },
+    );
+
+    assert_eq!(
+        decision,
+        PolicyDecision::Reject(vec![VpPolicyError::Expired])
+    );
 }
 
 #[test]

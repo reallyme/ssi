@@ -378,7 +378,7 @@ pub fn evaluate_presentation_policy(
         qeaa,
     };
     let policy_report = validate_vp(&request.policy, &ctx);
-    if policy_report.outcome == VpVerificationOutcome::Accepted {
+    if policy_report.outcome() == VpVerificationOutcome::Accepted {
         checks.push(pass(PresentationCheckName::VerifierPolicy, true));
     } else {
         checks.push(fail(
@@ -407,7 +407,7 @@ pub fn evaluate_presentation_policy(
         presentation_checks: checks,
         credential_results: vec![PresentationCredentialResult {
             claimset_id,
-            policy_satisfied: policy_report.outcome == VpVerificationOutcome::Accepted,
+            policy_satisfied: policy_report.outcome() == VpVerificationOutcome::Accepted,
         }],
         disclosed_claims,
         warnings: Vec::new(),

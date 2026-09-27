@@ -33,6 +33,7 @@ const PRIVATE_JWK_MEMBERS: &[&str] = &[
 
 /// Audit-safe did:jwk failure reasons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidJwkErrorReason {
     /// The DID did not start with `did:jwk:`.
     InvalidPrefix,

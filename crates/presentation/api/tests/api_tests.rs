@@ -58,8 +58,8 @@ fn validate_vp_returns_truth_first_acceptance_report() {
 
     let report = validate_vp(&policy, &ctx);
 
-    assert_eq!(report.outcome, VpVerificationOutcome::Accepted);
-    assert!(report.errors.is_empty());
+    assert_eq!(report.outcome(), VpVerificationOutcome::Accepted);
+    assert!(report.errors().is_empty());
     assert!(validate_vp_strict(&policy, &ctx).is_ok());
 }
 
@@ -89,7 +89,7 @@ fn validate_vp_preserves_all_policy_rejection_classes() {
     let report = validate_vp(&policy, &ctx);
     let classes = report.failure_classes();
 
-    assert_eq!(report.outcome, VpVerificationOutcome::Rejected);
+    assert_eq!(report.outcome(), VpVerificationOutcome::Rejected);
     assert!(classes.contains(&VpFailureClass::Binding));
     assert!(classes.contains(&VpFailureClass::Algorithm));
     assert!(classes.contains(&VpFailureClass::Claims));

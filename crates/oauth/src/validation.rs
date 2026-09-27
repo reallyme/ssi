@@ -166,6 +166,7 @@ pub(crate) fn is_public_ip(address: IpAddr) -> bool {
                     && third == 0
                     && !matches!(address.octets()[3], 9 | 10))
                 || (first == 192 && second == 88 && third == 99)
+                || (first == 192 && matches!((second, third), (31, 196) | (52, 193) | (175, 48)))
                 || (first == 198 && (second == 18 || second == 19))
                 || first >= 240)
         }
@@ -191,6 +192,7 @@ pub(crate) fn is_public_ip(address: IpAddr) -> bool {
             let deprecated_eid = segments[0] == 0x2001 && segments[1] == 0x0005;
             let pcp_anycast = segments == [0x2001, 0x0001, 0, 0, 0, 0, 0, 1];
             let as112 = segments[0] == 0x2001 && segments[1] == 0x0004 && segments[2] == 0x0112;
+            let as112_v6 = segments[0] == 0x2620 && segments[1] == 0x004f && segments[2] == 0x8000;
             global_unicast
                 && !(address.is_unspecified()
                     || address.is_loopback()
@@ -204,6 +206,7 @@ pub(crate) fn is_public_ip(address: IpAddr) -> bool {
                     || deprecated_eid
                     || pcp_anycast
                     || as112
+                    || as112_v6
                     || (segments[0] & 0xfe00) == 0xfc00
                     || (segments[0] & 0xffc0) == 0xfe80
                     || (segments[0] & 0xffc0) == 0xfec0
