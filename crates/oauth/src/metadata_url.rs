@@ -18,6 +18,20 @@ pub fn authorization_server_metadata_url(issuer: &str) -> OauthResult<String> {
         return Err(invalid_metadata());
     }
     validate_issuer_identifier(issuer).map_err(|_| invalid_metadata())?;
+    authorization_server_metadata_url_for_validated_issuer(issuer)
+}
+
+/// Builds the well-known URL after the caller has applied its address policy.
+///
+/// Keeping URL construction separate from destination classification allows
+/// the metadata fetch boundary to support an explicitly authenticated
+/// loopback-only mode without weakening the public issuer validator.
+pub(crate) fn authorization_server_metadata_url_for_validated_issuer(
+    issuer: &str,
+) -> OauthResult<String> {
+    if issuer.is_empty() || issuer.len() > MAX_ISSUER_IDENTIFIER_BYTES {
+        return Err(invalid_metadata());
+    }
     let mut url = Url::parse(issuer).map_err(|_| invalid_metadata())?;
     if url.scheme() != "https"
         || url.host_str().is_none()

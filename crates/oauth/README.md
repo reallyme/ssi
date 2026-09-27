@@ -21,11 +21,21 @@ components without duplicating OAuth validation logic.
 | Authorization-server metadata retrieval boundary | Application authorization policy |
 | Attestation-based client authentication | Wallet and issuer lifecycle management |
 
+Metadata discovery uses `MetadataAddressPolicy::PublicInternet` by default and
+requires every resolved address and the connected peer to remain publicly
+routable. `LoopbackOnly` is an explicit HTTPS-only exception for authenticated
+local OIDF self-assessment. It accepts only all-loopback DNS results and retains
+the issuer hostname for TLS SNI and certificate validation; it does not permit
+private, link-local, or mixed address sets. Every adapter must disable redirects,
+pin the connection to the approved addresses and exact port, enforce the supplied
+response-size bound, and return connection evidence for validation before JSON is
+parsed.
+
 ## Install
 
 ```toml
 [dependencies]
-reallyme-openid-oauth = "0.3.1"
+reallyme-openid-oauth = "0.3.2"
 ```
 
 The default `native` feature selects native trust dependencies. Disable

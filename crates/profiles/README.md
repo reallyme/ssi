@@ -26,7 +26,7 @@ defining incompatible identities for the same interoperability profile.
 
 ```toml
 [dependencies]
-reallyme-openid4vc-profiles = "0.3.1"
+reallyme-openid4vc-profiles = "0.3.2"
 ```
 
 ## Usage

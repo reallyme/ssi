@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-mdoc"
-version = "0.3.1"
+version = "0.3.2"
 description = "ISO/IEC 18013-5 mdoc issuance, presentation, and verification primitives."
 edition.workspace = true
 rust-version.workspace = true
@@ -54,7 +54,7 @@ zeroize = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 envelopes-x509 = { workspace = true, features = ["native"] }
-reallyme-credential-claims = { path = "../../claims", version = "0.3.1" }
+reallyme-credential-claims = { path = "../../claims", version = "0.3.2" }
 reallyme-ssi-proto = { workspace = true }
 reallyme-ssi-proto-codec = { workspace = true }
 

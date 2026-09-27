@@ -6,7 +6,11 @@ use std::cell::Cell;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::num::NonZeroU16;
 
-use super::{fetch_authorization_server_metadata, MetadataFetchRequest, MetadataFetcher};
+use super::{
+    fetch_authorization_server_metadata, fetch_authorization_server_metadata_with_policy,
+    MetadataAddressPolicy, MetadataConnectionEvidence, MetadataFetchRequest, MetadataFetchResponse,
+    MetadataFetcher,
+};
 use crate::{OauthResult, Reason};
 
 struct StaticMetadata(&'static str);
@@ -16,8 +20,15 @@ impl MetadataFetcher for StaticMetadata {
         Ok(vec![IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34))])
     }
 
-    fn fetch_metadata_json(&self, _request: &MetadataFetchRequest) -> OauthResult<String> {
-        Ok(self.0.to_owned())
+    fn fetch_metadata_response(
+        &self,
+        request: &MetadataFetchRequest,
+    ) -> OauthResult<MetadataFetchResponse> {
+        bound_response(
+            request,
+            self.0.as_bytes().to_vec(),
+            IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34)),
+        )
     }
 }
 
@@ -36,9 +47,16 @@ impl MetadataFetcher for PortCapturingMetadata {
         Ok(vec![IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34))])
     }
 
-    fn fetch_metadata_json(&self, request: &MetadataFetchRequest) -> OauthResult<String> {
+    fn fetch_metadata_response(
+        &self,
+        request: &MetadataFetchRequest,
+    ) -> OauthResult<MetadataFetchResponse> {
         self.observed_port.set(Some(request.port()));
-        Ok(self.body.to_owned())
+        bound_response(
+            request,
+            self.body.as_bytes().to_vec(),
+            IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34)),
+        )
     }
 }
 
@@ -47,9 +65,206 @@ impl MetadataFetcher for AddressMetadata {
         Ok(self.addresses.clone())
     }
 
-    fn fetch_metadata_json(&self, _request: &MetadataFetchRequest) -> OauthResult<String> {
+    fn fetch_metadata_response(
+        &self,
+        _request: &MetadataFetchRequest,
+    ) -> OauthResult<MetadataFetchResponse> {
         self.fetch_called.set(true);
         Err(crate::OauthError::new(Reason::InvalidMetadata))
+    }
+}
+
+fn bound_response(
+    request: &MetadataFetchRequest,
+    body: Vec<u8>,
+    peer_address: IpAddr,
+) -> OauthResult<MetadataFetchResponse> {
+    let content_length = u64::try_from(body.len())
+        .map_err(|_| crate::OauthError::new(Reason::MetadataResponseTooLarge))?;
+    Ok(MetadataFetchResponse::new(
+        200,
+        Some("application/json".to_owned()),
+        Some(content_length),
+        None,
+        body,
+        MetadataConnectionEvidence::new(
+            peer_address,
+            request.port(),
+            request.host().to_owned(),
+            request.url().to_owned(),
+        ),
+    ))
+}
+
+#[derive(Clone, Copy)]
+enum HardenedResponse {
+    Valid,
+    ValidLocalEndpoints,
+    CrossHostEndpoint,
+    MissingMediaType,
+    HttpFailure,
+    DeclaredLengthMismatch,
+    WrongPeer,
+    WrongPort,
+    WrongHostname,
+    RedirectStatus,
+    RedirectLocation,
+    ChangedEffectiveUrl,
+    WrongMediaType,
+    OversizedBody,
+    OversizedDeclaredLength,
+    IssuerMismatch,
+    TlsFailure,
+}
+
+struct HardenedMetadata {
+    addresses: Vec<IpAddr>,
+    issuer: &'static str,
+    response: HardenedResponse,
+    fetch_called: Cell<bool>,
+    observed_port: Cell<Option<NonZeroU16>>,
+    observed_policy: Cell<Option<MetadataAddressPolicy>>,
+    observed_redirects_allowed: Cell<Option<bool>>,
+    observed_max_response_bytes: Cell<Option<usize>>,
+}
+
+impl HardenedMetadata {
+    fn new(addresses: Vec<IpAddr>, issuer: &'static str, response: HardenedResponse) -> Self {
+        Self {
+            addresses,
+            issuer,
+            response,
+            fetch_called: Cell::new(false),
+            observed_port: Cell::new(None),
+            observed_policy: Cell::new(None),
+            observed_redirects_allowed: Cell::new(None),
+            observed_max_response_bytes: Cell::new(None),
+        }
+    }
+}
+
+impl MetadataFetcher for HardenedMetadata {
+    fn resolve_metadata_host(&self, _host: &str) -> OauthResult<Vec<IpAddr>> {
+        Ok(self.addresses.clone())
+    }
+
+    fn fetch_metadata_response(
+        &self,
+        request: &MetadataFetchRequest,
+    ) -> OauthResult<MetadataFetchResponse> {
+        self.fetch_called.set(true);
+        self.observed_port.set(Some(request.port()));
+        self.observed_policy.set(Some(request.address_policy()));
+        self.observed_redirects_allowed
+            .set(Some(request.redirects_allowed()));
+        self.observed_max_response_bytes
+            .set(Some(request.max_response_bytes()));
+        if matches!(self.response, HardenedResponse::TlsFailure) {
+            return Err(crate::OauthError::new(Reason::MetadataTlsFailure));
+        }
+
+        let mut peer_address = request
+            .approved_addresses()
+            .first()
+            .copied()
+            .ok_or_else(|| crate::OauthError::new(Reason::InvalidUrl))?;
+        let mut peer_port = request.port();
+        let mut authenticated_host = request.host().to_owned();
+        let mut effective_url = request.url().to_owned();
+        let mut status = 200;
+        let mut content_type = Some("application/json; charset=utf-8".to_owned());
+        let mut redirect_location = None;
+        let mut body = format!(r#"{{"issuer":"{}"}}"#, self.issuer).into_bytes();
+        let mut content_length = u64::try_from(body.len()).ok();
+
+        match self.response {
+            HardenedResponse::Valid | HardenedResponse::TlsFailure => {}
+            HardenedResponse::ValidLocalEndpoints => {
+                body = format!(
+                    r#"{{"issuer":"{}","authorization_endpoint":"https://localhost:9443/authorize","token_endpoint":"https://localhost:9443/token"}}"#,
+                    self.issuer,
+                )
+                .into_bytes();
+                content_length = u64::try_from(body.len()).ok();
+            }
+            HardenedResponse::CrossHostEndpoint => {
+                body = format!(
+                    r#"{{"issuer":"{}","token_endpoint":"https://10.0.0.1/token"}}"#,
+                    self.issuer,
+                )
+                .into_bytes();
+                content_length = u64::try_from(body.len()).ok();
+            }
+            HardenedResponse::MissingMediaType => {
+                content_type = None;
+            }
+            HardenedResponse::HttpFailure => {
+                status = 500;
+            }
+            HardenedResponse::DeclaredLengthMismatch => {
+                content_length = content_length.and_then(|length| length.checked_add(1));
+            }
+            HardenedResponse::WrongPeer => {
+                peer_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2));
+            }
+            HardenedResponse::WrongPort => {
+                peer_port = NonZeroU16::new(request.port().get().saturating_add(1))
+                    .ok_or_else(|| crate::OauthError::new(Reason::InvalidUrl))?;
+            }
+            HardenedResponse::WrongHostname => {
+                authenticated_host = "other.example".to_owned();
+            }
+            HardenedResponse::RedirectStatus => {
+                status = 302;
+                redirect_location = Some("https://other.example/metadata".to_owned());
+                body.clear();
+                content_length = Some(0);
+            }
+            HardenedResponse::RedirectLocation => {
+                redirect_location = Some(request.url().to_owned());
+            }
+            HardenedResponse::ChangedEffectiveUrl => {
+                effective_url = "https://other.example/metadata".to_owned();
+            }
+            HardenedResponse::WrongMediaType => {
+                content_type = Some("text/html".to_owned());
+            }
+            HardenedResponse::OversizedBody => {
+                body = vec![b' '; request.max_response_bytes().saturating_add(1)];
+                content_length = u64::try_from(body.len()).ok();
+            }
+            HardenedResponse::OversizedDeclaredLength => {
+                content_length = u64::try_from(request.max_response_bytes())
+                    .ok()
+                    .and_then(|length| length.checked_add(1));
+            }
+            HardenedResponse::IssuerMismatch => {
+                body = br#"{"issuer":"https://other.example"}"#.to_vec();
+                content_length = u64::try_from(body.len()).ok();
+            }
+        }
+
+        Ok(MetadataFetchResponse::new(
+            status,
+            content_type,
+            content_length,
+            redirect_location,
+            body,
+            MetadataConnectionEvidence::new(
+                peer_address,
+                peer_port,
+                authenticated_host,
+                effective_url,
+            ),
+        ))
+    }
+}
+
+struct ResolverOnlyMetadata;
+
+impl MetadataFetcher for ResolverOnlyMetadata {
+    fn resolve_metadata_host(&self, _host: &str) -> OauthResult<Vec<IpAddr>> {
+        Ok(vec![IpAddr::V4(Ipv4Addr::LOCALHOST)])
     }
 }
 
@@ -90,6 +305,253 @@ fn rejects_an_explicit_zero_port_before_fetching() {
 
     assert!(matches!(result, Err(error) if error.reason() == Reason::InvalidUrl));
     assert!(!fetcher.fetch_called.get());
+}
+
+#[test]
+fn loopback_policy_accepts_https_ipv4_and_ipv6_and_preserves_the_exact_port() -> OauthResult<()> {
+    for (issuer, address, expected_port) in [
+        (
+            "https://127.0.0.1:8443",
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            8443,
+        ),
+        ("https://[::1]:9443", IpAddr::V6(Ipv6Addr::LOCALHOST), 9443),
+    ] {
+        let fetcher = HardenedMetadata::new(vec![address], issuer, HardenedResponse::Valid);
+        let metadata = fetch_authorization_server_metadata_with_policy(
+            &fetcher,
+            issuer,
+            MetadataAddressPolicy::LoopbackOnly,
+        )?;
+
+        assert_eq!(metadata.issuer, issuer);
+        assert_eq!(
+            fetcher.observed_port.get().map(NonZeroU16::get),
+            Some(expected_port),
+        );
+        assert_eq!(
+            fetcher.observed_policy.get(),
+            Some(MetadataAddressPolicy::LoopbackOnly),
+        );
+        assert_eq!(fetcher.observed_redirects_allowed.get(), Some(false));
+        assert_eq!(
+            fetcher.observed_max_response_bytes.get(),
+            Some(crate::validation::MAX_JSON_BYTES),
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn loopback_policy_rejects_empty_mixed_and_non_loopback_resolution_before_fetch() {
+    let rejected = [
+        Vec::new(),
+        vec![
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34)),
+        ],
+        vec![IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34))],
+        vec![IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))],
+    ];
+    for addresses in rejected {
+        let fetcher =
+            HardenedMetadata::new(addresses, "https://localhost:8443", HardenedResponse::Valid);
+        let result = fetch_authorization_server_metadata_with_policy(
+            &fetcher,
+            "https://localhost:8443",
+            MetadataAddressPolicy::LoopbackOnly,
+        );
+        assert!(matches!(result, Err(error) if error.reason() == Reason::InvalidUrl));
+        assert!(!fetcher.fetch_called.get());
+    }
+}
+
+#[test]
+fn loopback_policy_still_requires_https() {
+    let fetcher = HardenedMetadata::new(
+        vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+        "http://localhost:8443",
+        HardenedResponse::Valid,
+    );
+    let result = fetch_authorization_server_metadata_with_policy(
+        &fetcher,
+        "http://localhost:8443",
+        MetadataAddressPolicy::LoopbackOnly,
+    );
+    assert!(matches!(result, Err(error) if error.reason() == Reason::InvalidUrl));
+    assert!(!fetcher.fetch_called.get());
+}
+
+#[test]
+fn loopback_policy_rejects_wrong_peer_address_port_and_authenticated_hostname() {
+    for (response, expected) in [
+        (
+            HardenedResponse::WrongPeer,
+            Reason::MetadataConnectionBindingFailed,
+        ),
+        (
+            HardenedResponse::WrongPort,
+            Reason::MetadataConnectionBindingFailed,
+        ),
+        (
+            HardenedResponse::WrongHostname,
+            Reason::MetadataConnectionBindingFailed,
+        ),
+    ] {
+        let fetcher = HardenedMetadata::new(
+            vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            "https://localhost:8443",
+            response,
+        );
+        let result = fetch_authorization_server_metadata_with_policy(
+            &fetcher,
+            "https://localhost:8443",
+            MetadataAddressPolicy::LoopbackOnly,
+        );
+        assert!(matches!(result, Err(error) if error.reason() == expected));
+    }
+}
+
+#[test]
+fn loopback_policy_rejects_redirects_in_every_reported_form() {
+    for response in [
+        HardenedResponse::RedirectStatus,
+        HardenedResponse::RedirectLocation,
+        HardenedResponse::ChangedEffectiveUrl,
+    ] {
+        let fetcher = HardenedMetadata::new(
+            vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            "https://localhost:8443",
+            response,
+        );
+        let result = fetch_authorization_server_metadata_with_policy(
+            &fetcher,
+            "https://localhost:8443",
+            MetadataAddressPolicy::LoopbackOnly,
+        );
+        assert!(matches!(
+            result,
+            Err(error) if error.reason() == Reason::MetadataRedirectRejected
+        ));
+    }
+}
+
+#[test]
+fn loopback_policy_rejects_tls_certificate_and_hostname_failures() {
+    let fetcher = HardenedMetadata::new(
+        vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+        "https://localhost:8443",
+        HardenedResponse::TlsFailure,
+    );
+    let result = fetch_authorization_server_metadata_with_policy(
+        &fetcher,
+        "https://localhost:8443",
+        MetadataAddressPolicy::LoopbackOnly,
+    );
+    assert!(matches!(
+        result,
+        Err(error) if error.reason() == Reason::MetadataTlsFailure
+    ));
+}
+
+#[test]
+fn loopback_policy_rejects_wrong_media_type_and_oversized_documents() {
+    for (response, expected) in [
+        (
+            HardenedResponse::MissingMediaType,
+            Reason::MetadataMediaTypeRejected,
+        ),
+        (
+            HardenedResponse::WrongMediaType,
+            Reason::MetadataMediaTypeRejected,
+        ),
+        (
+            HardenedResponse::HttpFailure,
+            Reason::MetadataHttpStatusRejected,
+        ),
+        (
+            HardenedResponse::DeclaredLengthMismatch,
+            Reason::MetadataResponseTooLarge,
+        ),
+        (
+            HardenedResponse::OversizedBody,
+            Reason::MetadataResponseTooLarge,
+        ),
+        (
+            HardenedResponse::OversizedDeclaredLength,
+            Reason::MetadataResponseTooLarge,
+        ),
+    ] {
+        let fetcher = HardenedMetadata::new(
+            vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            "https://localhost:8443",
+            response,
+        );
+        let result = fetch_authorization_server_metadata_with_policy(
+            &fetcher,
+            "https://localhost:8443",
+            MetadataAddressPolicy::LoopbackOnly,
+        );
+        assert!(matches!(result, Err(error) if error.reason() == expected));
+    }
+}
+
+#[test]
+fn discovery_fails_closed_when_the_adapter_lacks_the_hardened_transport_hook() {
+    let result = fetch_authorization_server_metadata_with_policy(
+        &ResolverOnlyMetadata,
+        "https://localhost:8443",
+        MetadataAddressPolicy::LoopbackOnly,
+    );
+    assert!(matches!(
+        result,
+        Err(error) if error.reason() == Reason::MetadataTransportPolicyUnsupported
+    ));
+}
+
+#[test]
+fn loopback_policy_binds_the_authenticated_metadata_issuer_exactly() {
+    let fetcher = HardenedMetadata::new(
+        vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+        "https://localhost:8443",
+        HardenedResponse::IssuerMismatch,
+    );
+    let result = fetch_authorization_server_metadata_with_policy(
+        &fetcher,
+        "https://localhost:8443",
+        MetadataAddressPolicy::LoopbackOnly,
+    );
+    assert!(matches!(
+        result,
+        Err(error) if error.reason() == Reason::AuthorizationServerIssuerMismatch
+    ));
+}
+
+#[test]
+fn loopback_policy_keeps_advertised_endpoints_on_the_authenticated_host() -> OauthResult<()> {
+    let accepted = HardenedMetadata::new(
+        vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+        "https://localhost:8443",
+        HardenedResponse::ValidLocalEndpoints,
+    );
+    fetch_authorization_server_metadata_with_policy(
+        &accepted,
+        "https://localhost:8443",
+        MetadataAddressPolicy::LoopbackOnly,
+    )?;
+
+    let rejected = HardenedMetadata::new(
+        vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+        "https://localhost:8443",
+        HardenedResponse::CrossHostEndpoint,
+    );
+    let result = fetch_authorization_server_metadata_with_policy(
+        &rejected,
+        "https://localhost:8443",
+        MetadataAddressPolicy::LoopbackOnly,
+    );
+    assert!(matches!(result, Err(error) if error.reason() == Reason::InvalidUrl));
+    Ok(())
 }
 
 #[test]
