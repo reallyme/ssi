@@ -95,9 +95,9 @@ operation from verified to unverified or silently enable fallback behavior.
 
 Unsupported providers fail closed with a typed error. There is no silent
 provider fallback. The `crates/envelopes/mdoc` implementation owns
-issuer-signed mdoc issuance and verification plus ISO/IEC 18013-5
-DeviceResponse and DeviceAuth verification. OpenID handover and transport state
-remain in the protocol repositories.
+construction and verification of issuer-signed mdoc documents plus ISO/IEC
+18013-5 DeviceResponse and DeviceAuth verification. OpenID handover and
+transport state remain in the protocol repositories.
 
 A composed application embeds one ReallyMe Rust binary or Wasm module. Handles
 and state do not cross independent Wasm instances. Final FFI, JNI, Swift,
