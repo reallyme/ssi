@@ -78,6 +78,12 @@ fn parse_crl(der: &[u8], issuer_cert: X509) -> Result<ParsedOpenSslCrl, CrlError
         return Err(CrlError::TooLarge);
     }
     inspect_crl_extensions(parsed.extensions())?;
+    // Screen entry extensions before OpenSSL parses the same encoding. Some
+    // OpenSSL releases reject certificateIssuer themselves, but doing this
+    // first preserves our stable UnsupportedScope result across backends.
+    for entry in parsed.iter_revoked_certificates() {
+        inspect_entry_extensions(entry.extensions())?;
+    }
 
     let issuer_der = issuer_cert.to_der().map_err(|_| CrlError::InvalidCrl)?;
     let (issuer_remaining, parsed_issuer) =
@@ -160,7 +166,6 @@ fn parse_crl(der: &[u8], issuer_cert: X509) -> Result<ParsedOpenSslCrl, CrlError
     let mut revoked_serials = Vec::with_capacity(entry_count);
     let mut suspended_serials = Vec::new();
     for entry in parsed.iter_revoked_certificates() {
-        inspect_entry_extensions(entry.extensions())?;
         let serial = normalize_serial(entry.raw_serial()).to_vec();
         match entry.reason_code().map(|(_, reason)| reason) {
             Some(ReasonCode::CertificateHold) => suspended_serials.push(serial),

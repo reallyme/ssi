@@ -29,3 +29,10 @@ fedba28d1feb892ad7dcc0814d485df0177c2ec4:vectors/sd-jwt-compact.json:jwt:949
 fedba28d1feb892ad7dcc0814d485df0177c2ec4:vectors/sd-jwt-compact.json:jwt:1111
 fedba28d1feb892ad7dcc0814d485df0177c2ec4:vectors/sd-jwt-rfc9901/complex_eidas.json:jwt:9
 fedba28d1feb892ad7dcc0814d485df0177c2ec4:vectors/sd-jwt-rfc9901/complex_ekyc.json:jwt:9
+
+# Reviewed public fixture copies and DID test inputs introduced by v0.3.0.
+2bf141d3b88be9f7be249266c6051330f3cc534c:crates/credential/tests/fixtures/canonical.json:generic-api-key:67
+2bf141d3b88be9f7be249266c6051330f3cc534c:crates/did/methods/key/src/lib_tests.rs:generic-api-key:67
+2bf141d3b88be9f7be249266c6051330f3cc534c:crates/did/core/api/tests/parse_dereference_resolve_tests.rs:generic-api-key:105
+2bf141d3b88be9f7be249266c6051330f3cc534c:crates/envelopes/sd_jwt/tests/vectors/sd-jwt-rfc9901/complex_ekyc.json:jwt:9
+2bf141d3b88be9f7be249266c6051330f3cc534c:crates/envelopes/sd_jwt/tests/vectors/sd-jwt-rfc9901/complex_eidas.json:jwt:9
