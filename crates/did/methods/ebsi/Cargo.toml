@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-method-ebsi"
-version = "0.3.1"
+version = "0.3.2"
 description = "did:ebsi versioned base58btc identifier helpers."
 edition.workspace = true
 rust-version.workspace = true
@@ -19,7 +19,7 @@ wasm = ["reallyme-did-method-jwk/wasm"]
 
 [dependencies]
 identity-core-primitives = { workspace = true }
-reallyme-did-method-jwk = { path = "../jwk", version = "0.3.1", default-features = false }
+reallyme-did-method-jwk = { path = "../jwk", version = "0.3.2", default-features = false }
 reallyme-ssi-proto = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

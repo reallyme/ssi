@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.2
+
+This patch release hardens OAuth Authorization Server metadata discovery for
+authenticated local OIDF self-assessment without weakening the default public
+Internet destination policy.
+
+### Metadata transport hardening
+
+- `MetadataAddressPolicy` makes the destination class explicit. The default
+  `PublicInternet` policy retains the existing public-address SSRF and DNS
+  rebinding defenses; `LoopbackOnly` accepts only non-empty, all-loopback DNS
+  results and still requires HTTPS.
+- Metadata transports now return bounded response and connection evidence.
+  Discovery verifies the connected peer, exact `NonZeroU16` port, authenticated
+  TLS hostname, effective URL, redirect-free status, JSON media type, response
+  length, strict JSON shape, and exact metadata issuer before accepting a
+  document.
+- The 0.3.1 `MetadataFetcher::fetch_metadata_json` hook remains for source
+  compatibility but is not used by discovery. Adapters must implement
+  `fetch_metadata_response` to satisfy the hardened contract.
+- All workspace crates, including source-only internal crates, advance in
+  lockstep to version 0.3.2.
+
 ## 0.3.1
 
 This patch release exposes the already-validated metadata connection port at

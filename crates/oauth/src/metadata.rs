@@ -5,113 +5,43 @@
 //! RFC 8414 Authorization Server metadata.
 
 use core::fmt;
-use core::num::NonZeroU16;
-use std::net::IpAddr;
 
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::authorization_server_metadata_url;
 use crate::error::{OauthError, OauthResult, Reason};
 use crate::par::GrantType;
 use crate::sensitive::{zeroize_option, zeroize_string_list};
 use crate::strict_json::validate_strict_json;
 use crate::validation::{
-    is_public_ip, validate_issuer_identifier, validate_optional_string_list,
+    validate_https_url, validate_issuer_identifier, validate_optional_string_list,
     validate_public_https_url, MAX_JSON_BYTES,
 };
 
-/// Authorization Server metadata fetcher injected by HTTP adapters.
-pub trait MetadataFetcher {
-    /// Resolve every address that may be used for this metadata request.
-    /// Empty or non-public results are rejected before any HTTP request.
-    fn resolve_metadata_host(&self, host: &str) -> OauthResult<Vec<IpAddr>>;
+#[path = "metadata_transport.rs"]
+mod transport;
+pub use transport::{
+    fetch_authorization_server_metadata, fetch_authorization_server_metadata_with_policy,
+    MetadataAddressPolicy, MetadataConnectionEvidence, MetadataFetchRequest, MetadataFetchResponse,
+    MetadataFetcher,
+};
 
-    /// Fetch metadata by connecting only to one of the approved addresses.
-    ///
-    /// The adapter must connect to `request.port()`, retain `request.host()`
-    /// for TLS SNI and certificate validation, and must not perform an
-    /// independent DNS lookup. Redirects require a new validated request and
-    /// therefore must not be followed implicitly by this method.
-    fn fetch_metadata_json(&self, request: &MetadataFetchRequest) -> OauthResult<String>;
-}
-
-/// Validated, DNS-bound RFC 8414 metadata request passed to an HTTP adapter.
-pub struct MetadataFetchRequest {
-    url: String,
-    host: String,
-    port: NonZeroU16,
-    approved_addresses: Vec<IpAddr>,
-}
-
-impl MetadataFetchRequest {
-    /// Exact well-known URL to request without following redirects.
-    #[must_use]
-    pub fn url(&self) -> &str {
-        &self.url
-    }
-
-    /// Hostname retained for TLS SNI and certificate verification.
-    #[must_use]
-    pub fn host(&self) -> &str {
-        &self.host
-    }
-
-    /// Validated destination port for the pinned connection.
-    #[must_use]
-    pub const fn port(&self) -> NonZeroU16 {
-        self.port
-    }
-
-    /// Public addresses approved for the connection.
-    #[must_use]
-    pub fn approved_addresses(&self) -> &[IpAddr] {
-        &self.approved_addresses
-    }
-}
-
-impl fmt::Debug for MetadataFetchRequest {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("MetadataFetchRequest([REDACTED])")
-    }
-}
-
-/// Fetches and validates RFC 8414 Authorization Server metadata.
-pub fn fetch_authorization_server_metadata(
-    fetcher: &dyn MetadataFetcher,
+fn validate_metadata_issuer(
     issuer: &str,
-) -> OauthResult<AuthorizationServerMetadata> {
-    validate_issuer_identifier(issuer)?;
-    let metadata_url = authorization_server_metadata_url(issuer)?;
-    let parsed = url::Url::parse(&metadata_url).map_err(|_| OauthError::new(Reason::InvalidUrl))?;
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| OauthError::new(Reason::InvalidUrl))?
-        .to_owned();
-    let port = parsed
-        .port_or_known_default()
-        .and_then(NonZeroU16::new)
-        .ok_or_else(|| OauthError::new(Reason::InvalidUrl))?;
-    let approved_addresses = fetcher.resolve_metadata_host(&host)?;
-    if approved_addresses.is_empty()
-        || approved_addresses
-            .iter()
-            .any(|address| !is_public_ip(*address))
-    {
-        return Err(OauthError::new(Reason::InvalidUrl));
+    address_policy: MetadataAddressPolicy,
+) -> OauthResult<()> {
+    match address_policy {
+        MetadataAddressPolicy::PublicInternet => validate_issuer_identifier(issuer),
+        MetadataAddressPolicy::LoopbackOnly => {
+            validate_https_url(issuer, false)?;
+            let parsed =
+                url::Url::parse(issuer).map_err(|_| OauthError::new(Reason::InvalidUrl))?;
+            if parsed.query().is_some() || parsed.fragment().is_some() {
+                return Err(OauthError::new(Reason::InvalidUrl));
+            }
+            Ok(())
+        }
     }
-    let request = MetadataFetchRequest {
-        url: metadata_url,
-        host,
-        port,
-        approved_addresses,
-    };
-    let body = fetcher.fetch_metadata_json(&request)?;
-    let metadata = AuthorizationServerMetadata::parse_json(&body)?;
-    if metadata.issuer != issuer {
-        return Err(OauthError::new(Reason::AuthorizationServerIssuerMismatch));
-    }
-    Ok(metadata)
 }
 
 /// OAuth Authorization Server Metadata.
@@ -284,6 +214,13 @@ impl AuthorizationServerMetadata {
 
     /// Parses and validates metadata JSON.
     pub fn parse_json(body: &str) -> OauthResult<Self> {
+        Self::parse_json_with_address_policy(body, MetadataAddressPolicy::PublicInternet)
+    }
+
+    fn parse_json_with_address_policy(
+        body: &str,
+        address_policy: MetadataAddressPolicy,
+    ) -> OauthResult<Self> {
         if body.len() > MAX_JSON_BYTES {
             return Err(OauthError::new(Reason::InvalidJson));
         }
@@ -293,7 +230,7 @@ impl AuthorizationServerMetadata {
         let wire: AuthorizationServerMetadataWire =
             serde_json::from_str(body).map_err(|_| OauthError::new(Reason::InvalidJson))?;
         let metadata = Self::from(wire);
-        metadata.validate()?;
+        metadata.validate_with_address_policy(address_policy)?;
         Ok(metadata)
     }
 
@@ -305,7 +242,14 @@ impl AuthorizationServerMetadata {
 
     /// Validates RFC 8414 metadata plus PAR/DPoP/PKCE extensions used here.
     pub fn validate(&self) -> OauthResult<()> {
-        validate_issuer_identifier(&self.issuer)?;
+        self.validate_with_address_policy(MetadataAddressPolicy::PublicInternet)
+    }
+
+    fn validate_with_address_policy(
+        &self,
+        address_policy: MetadataAddressPolicy,
+    ) -> OauthResult<()> {
+        validate_metadata_issuer(&self.issuer, address_policy)?;
         for endpoint in [
             self.authorization_endpoint.as_deref(),
             self.token_endpoint.as_deref(),
@@ -316,7 +260,7 @@ impl AuthorizationServerMetadata {
         .into_iter()
         .flatten()
         {
-            validate_public_https_url(endpoint)?;
+            validate_metadata_endpoint(endpoint, &self.issuer, address_policy)?;
         }
         if let Some(grants) = &self.grant_types_supported {
             if grants.is_empty() {
@@ -338,4 +282,25 @@ impl AuthorizationServerMetadata {
         validate_optional_string_list(&self.client_attestation_pop_signing_alg_values_supported)?;
         Ok(())
     }
+}
+
+fn validate_metadata_endpoint(
+    endpoint: &str,
+    issuer: &str,
+    address_policy: MetadataAddressPolicy,
+) -> OauthResult<()> {
+    if address_policy == MetadataAddressPolicy::PublicInternet {
+        return validate_public_https_url(endpoint);
+    }
+    validate_https_url(endpoint, false)?;
+    let endpoint_url =
+        url::Url::parse(endpoint).map_err(|_| OauthError::new(Reason::InvalidUrl))?;
+    let issuer_url = url::Url::parse(issuer).map_err(|_| OauthError::new(Reason::InvalidUrl))?;
+    // The exceptional local lane must not turn metadata validation into a
+    // general private-network URL allowlist. Endpoint ports may legitimately
+    // differ, but the authenticated issuer hostname remains the boundary.
+    if endpoint_url.host_str() != issuer_url.host_str() {
+        return Err(OauthError::new(Reason::InvalidUrl));
+    }
+    Ok(())
 }

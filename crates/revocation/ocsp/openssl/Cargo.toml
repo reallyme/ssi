@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-revocation-ocsp-openssl"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -18,7 +18,7 @@ thiserror = { workspace = true }
 time = "0.3"
 subtle = "2.6"
 
-identity-revocation-ocsp-core = { version = "0.3.1", path = "../core" }
+identity-revocation-ocsp-core = { version = "0.3.2", path = "../core" }
 reallyme-ssi-proto = { workspace = true }
 reallyme-crypto = { workspace = true }
 envelopes-x509 = { workspace = true }

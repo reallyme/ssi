@@ -41,8 +41,9 @@ pub use dpop::{
 pub use error::{OauthError, OauthResult, Reason};
 pub use jwt::{CompactJwt, JwtSigner, JwtVerifier};
 pub use metadata::{
-    fetch_authorization_server_metadata, AuthorizationServerMetadata, MetadataFetchRequest,
-    MetadataFetcher,
+    fetch_authorization_server_metadata, fetch_authorization_server_metadata_with_policy,
+    AuthorizationServerMetadata, MetadataAddressPolicy, MetadataConnectionEvidence,
+    MetadataFetchRequest, MetadataFetchResponse, MetadataFetcher,
 };
 pub use metadata_url::authorization_server_metadata_url;
 pub use par::{GrantType, ParRequest, ParResponse};

@@ -34,7 +34,7 @@ produces a terminal result.
 
 ```toml
 [dependencies]
-reallyme-revocation = "0.3.1"
+reallyme-revocation = "0.3.2"
 ```
 
 ## License

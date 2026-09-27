@@ -4,7 +4,7 @@
 
 [package]
 name = "envelopes-profiles"
-version = "0.3.1"
+version = "0.3.2"
 description = "Identity envelope profile policy constraints for ReallyMe identity."
 edition.workspace = true
 rust-version.workspace = true

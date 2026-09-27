@@ -60,6 +60,20 @@ pub enum Reason {
     SigningFailed,
     /// Cryptographic verification failed.
     VerificationFailed,
+    /// The adapter cannot satisfy the hardened metadata transport contract.
+    MetadataTransportPolicyUnsupported,
+    /// The reported metadata connection did not match the validated authority.
+    MetadataConnectionBindingFailed,
+    /// Metadata retrieval encountered a TLS certificate or hostname failure.
+    MetadataTlsFailure,
+    /// A metadata redirect or changed effective URL was observed.
+    MetadataRedirectRejected,
+    /// The metadata endpoint returned a non-success HTTP status.
+    MetadataHttpStatusRejected,
+    /// The metadata response did not use the required JSON media type.
+    MetadataMediaTypeRejected,
+    /// The metadata response exceeded its byte bound or declared a bad length.
+    MetadataResponseTooLarge,
 }
 
 impl Display for Reason {
@@ -76,6 +90,13 @@ impl Display for Reason {
             Self::DpopReplay => "dpop_replay",
             Self::InvalidMetadata => "invalid_metadata",
             Self::AuthorizationServerIssuerMismatch => "authorization_server_issuer_mismatch",
+            Self::MetadataTransportPolicyUnsupported => "metadata_transport_policy_unsupported",
+            Self::MetadataConnectionBindingFailed => "metadata_connection_binding_failed",
+            Self::MetadataTlsFailure => "metadata_tls_failure",
+            Self::MetadataRedirectRejected => "metadata_redirect_rejected",
+            Self::MetadataHttpStatusRejected => "metadata_http_status_rejected",
+            Self::MetadataMediaTypeRejected => "metadata_media_type_rejected",
+            Self::MetadataResponseTooLarge => "metadata_response_too_large",
             Self::InvalidClientAttestation => "invalid_client_attestation",
             Self::AttestationClientIdMismatch => "attestation_client_id_mismatch",
             Self::AttestationKeyBindingFailed => "attestation_key_binding_failed",
