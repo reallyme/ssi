@@ -41,7 +41,10 @@ fn ffi_rejects_modified_signature_value() {
 
     // Flip one base64 character to force signature failure while keeping XML well-formed.
     let mut bytes = sig.as_bytes().to_vec();
-    bytes[0] = if bytes[0] == b'A' { b'B' } else { b'A' };
+    let first = bytes
+        .first_mut()
+        .expect("fixture signature was asserted to be non-empty");
+    *first = if *first == b'A' { b'B' } else { b'A' };
     let sig2 = String::from_utf8(bytes).unwrap();
 
     let mutated = format!(
