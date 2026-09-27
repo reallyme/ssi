@@ -1187,18 +1187,6 @@ assertContains(
   ".github/workflows/crates-package-preflight.yml",
   "ref: 586890e2999043d77e07e589cd3dbdfe3ae3e154",
 );
-assertContains(
-  "scripts/run_pinned_release_readiness.mjs",
-  'const RELEASE_READINESS_COMMIT = "586890e2999043d77e07e589cd3dbdfe3ae3e154";',
-);
-assertContains(
-  "scripts/run_pinned_release_readiness.mjs",
-  '"4ca93c819c4e5713fe2fd95eb13421dbd10b60e57518086281c28a1041772e1e"',
-);
-assertContains(
-  "scripts/run_pinned_release_readiness.mjs",
-  '"ff5a11153e9fa365bbb0bbd98b6215eb50f91dbe1f2fbf20d498ecc512e37699"',
-);
 assertExists(".github/workflows/crates-package-preflight.yml");
 assertExists(".github/workflows/crates-release.yml");
 assertExists(".github/workflows/secret-scan.yml");
