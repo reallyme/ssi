@@ -84,7 +84,7 @@ function assertFixtureCopies() {
 
 shared.assertReallyMeReleasePackagePolicy({
   scriptPath: "scripts/check_release_readiness.mjs",
-  version: "0.6.5",
+  version: "0.6.6",
 });
 shared.assertWorkflowActionsPinned();
 shared.assertWorkflowPolicy({
@@ -1181,11 +1181,11 @@ assertContains(
 );
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "ref: 586890e2999043d77e07e589cd3dbdfe3ae3e154",
+  "ref: bdedc88f3f25fcc14242730d4dec6ce6a0c75531",
 );
 assertContains(
   ".github/workflows/crates-package-preflight.yml",
-  "ref: 586890e2999043d77e07e589cd3dbdfe3ae3e154",
+  "ref: bdedc88f3f25fcc14242730d4dec6ce6a0c75531",
 );
 assertExists(".github/workflows/crates-package-preflight.yml");
 assertExists(".github/workflows/crates-release.yml");
