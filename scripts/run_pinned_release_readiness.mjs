@@ -7,9 +7,9 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { lstatSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
-const RELEASE_READINESS_COMMIT = "985cf16f866bcdbd384edd8a9b6f332b38c5eb52";
+const RELEASE_READINESS_COMMIT = "3e66f9ecae25bbe3bd5fe21b1b5c7b7f182bce44";
 const RELEASE_READINESS_CORE_SHA256 =
-  "6bf50e9e5e55805191217c39e4291067d227a197ea46ab3d371d308f3f878a20";
+  "df73ee8fbbd9c6cbe90fc7dc94a880bfa48fa7ebb0a902d5862c9de393cc9d41";
 const RELEASE_READINESS_CORE_URL =
   `https://raw.githubusercontent.com/reallyme/release-readiness/${RELEASE_READINESS_COMMIT}/core.mjs`;
 const VENDORED_CORE_PATH = "scripts/release-readiness/core.mjs";

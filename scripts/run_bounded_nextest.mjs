@@ -46,6 +46,7 @@ const list = spawnSync(
   [
     "nextest",
     "list",
+    "--locked",
     "--workspace",
     ...selectedLaneArguments,
     "--list-type",
@@ -117,6 +118,7 @@ for (let offset = 0; offset < binaryIds.length; offset += BINARIES_PER_BATCH) {
     [
       "nextest",
       "run",
+      "--locked",
       "--workspace",
       ...selectedLaneArguments,
       "--test-threads",

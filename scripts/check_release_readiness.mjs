@@ -57,7 +57,7 @@ function assertFixtureCopies() {
 
 shared.assertReallyMeVendoredCorePolicy({
   scriptPath: "scripts/check_release_readiness.mjs",
-  version: "0.6.2",
+  version: "0.6.3",
 });
 shared.assertWorkflowActionsPinned();
 shared.assertWorkflowPolicy({
@@ -125,6 +125,7 @@ shared.assertWorkflowPolicy({
   jobs: {
     "verify-source-sha": { needs: [] },
     "crates-package": { needs: ["verify-source-sha"] },
+    "attest-reviewed-evidence": { needs: ["verify-source-sha", "crates-package"] },
   },
   runSteps: [
     {
@@ -140,6 +141,18 @@ shared.assertWorkflowPolicy({
       workingDirectory: "reallyme/ssi",
     },
   ],
+});
+shared.assertWorkflowPermissionsPolicy({
+  path: ".github/workflows/crates-package-preflight.yml",
+  workflow: { actions: "read", contents: "read" },
+  jobs: {
+    "attest-reviewed-evidence": {
+      actions: "read",
+      attestations: "write",
+      contents: "read",
+      "id-token": "write",
+    },
+  },
 });
 shared.assertWorkflowPolicy({
   path: ".github/workflows/crates-release.yml",
@@ -436,6 +449,7 @@ const requiredBoundedNextestNeedles = [
   '"list",',
   '"binaries-only",',
   '"run",',
+  '"--locked",',
   '"--test-threads",',
   '"--no-tests",',
   "const MACOS_CONCURRENCY = 1;",
@@ -1075,7 +1089,7 @@ const rustCiWorkflow = ".github/workflows/rust-ci.yml";
 assertContains(rustCiWorkflow, "toolchain: 1.96.0");
 assertContains(
   rustCiWorkflow,
-  "cargo check --locked --workspace --no-default-features --features native",
+  "cargo +1.96.0 check --locked --workspace --no-default-features --features native",
 );
 assertContains(rustCiWorkflow, "cargo +nightly-2026-09-01 fuzz build");
 assertContains(rustCiWorkflow, "cargo-mutants@${{ env.CARGO_MUTANTS_VERSION }}");
@@ -1095,29 +1109,36 @@ assertExists("scripts/check-protos-breaking.sh");
 assertContains("scripts/check-protos-breaking.sh", '"WIRE_JSON"');
 assertExists(".github/workflows/repository-security.yml");
 assertContains(".github/workflows/repository-security.yml", "schedule:");
-assertContains(
-  ".github/workflows/repository-security.yml",
-  'gh api "repos/${GITHUB_REPOSITORY}/private-vulnerability-reporting"',
-);
+shared.assertWorkflowPolicy({
+  path: ".github/workflows/repository-security.yml",
+  jobs: { "private-vulnerability-reporting": { needs: [] } },
+  runSteps: [
+    {
+      job: "private-vulnerability-reporting",
+      name: "Verify private vulnerability reporting",
+      run: 'gh api "repos/${GITHUB_REPOSITORY}/private-vulnerability-reporting" --jq \'.enabled\' | grep -qx true',
+    },
+  ],
+});
 assertContains(
   ".github/workflows/rust-ci.yml",
   "repository: reallyme/release-readiness",
 );
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "ref: 985cf16f866bcdbd384edd8a9b6f332b38c5eb52",
+  "ref: 3e66f9ecae25bbe3bd5fe21b1b5c7b7f182bce44",
 );
 assertContains(
   ".github/workflows/crates-package-preflight.yml",
-  "ref: 985cf16f866bcdbd384edd8a9b6f332b38c5eb52",
+  "ref: 3e66f9ecae25bbe3bd5fe21b1b5c7b7f182bce44",
 );
 assertContains(
   "scripts/run_pinned_release_readiness.mjs",
-  'const RELEASE_READINESS_COMMIT = "985cf16f866bcdbd384edd8a9b6f332b38c5eb52";',
+  'const RELEASE_READINESS_COMMIT = "3e66f9ecae25bbe3bd5fe21b1b5c7b7f182bce44";',
 );
 assertContains(
   "scripts/run_pinned_release_readiness.mjs",
-  '"6bf50e9e5e55805191217c39e4291067d227a197ea46ab3d371d308f3f878a20"',
+  '"df73ee8fbbd9c6cbe90fc7dc94a880bfa48fa7ebb0a902d5862c9de393cc9d41"',
 );
 assertExists(".github/workflows/crates-package-preflight.yml");
 assertExists(".github/workflows/crates-release.yml");
@@ -1252,6 +1273,9 @@ assertContains(
 );
 assertContains(packagePreflightWorkflow, "attestations: write");
 assertContains(packagePreflightWorkflow, "id-token: write");
+assertContains(packagePreflightWorkflow, "attest-reviewed-evidence:");
+assertContains(packagePreflightWorkflow, "reallyme-ssi-crate-archives-${{");
+assertContains(packagePreflightWorkflow, "subject-path: reviewed-crates/*.crate");
 assertContains(
   packagePreflightWorkflow,
   "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
@@ -1265,6 +1289,17 @@ assertContains(releaseWorkflow, "gh attestation verify release-attestation/crate
 assertContains(releaseWorkflow, "--source-digest \"$RELEASE_SHA\"");
 assertContains(releaseWorkflow, "--source-ref refs/heads/main");
 assertContains(releaseWorkflow, "--deny-self-hosted-runners");
+assertContains(
+  releaseWorkflow,
+  '--signer-workflow "$GITHUB_REPOSITORY/.github/workflows/crates-package-preflight.yml"',
+);
+assertNotContains(
+  releaseWorkflow,
+  '"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/.github/workflows/crates-package-preflight.yml"',
+);
+assertContains(releaseWorkflow, "reallyme-ssi-crate-archives-${{");
+assertContains(releaseWorkflow, "REVIEWED_CRATE_ARCHIVES_DIRECTORY: reviewed-crates");
+assertContains(releaseWorkflow, 'test "$archive_count" -eq 18');
 assertContains(
   releaseWorkflow,
   "node scripts/publish_crates_in_order.mjs publish",
@@ -1291,6 +1326,14 @@ assertContains("scripts/publish_crates_in_order.mjs", "retryAfterMs");
 assertContains(
   "scripts/publish_crates_in_order.mjs",
   "verifyPublishedPackageMatches(pkg)",
+);
+assertContains(
+  "scripts/publish_crates_in_order.mjs",
+  '["package", "-p", pkg.name, "--no-verify", "--locked"]',
+);
+assertContains(
+  "scripts/publish_crates_in_order.mjs",
+  "published bytes differ from reviewed preflight",
 );
 assertContains(
   "scripts/publish_crates_in_order.mjs",
@@ -1489,6 +1532,7 @@ assertContains("crates/proto/proto/identity/trust/v1/trust.proto", "enum Authori
 assertContains("crates/trust/api/src/dto.rs", "TryFrom<EnumValue<trust_pb::TrustDecisionFailure>>");
 assertContains("crates/trust/api/src/dto.rs", "impl From<&TrustDecision> for trust_pb::TrustDecision");
 assertContains("scripts/check-protos-fresh.sh", "scripts/generate-protos.sh");
+assertContains("scripts/check-protos-fresh.sh", 'GENERATED_STATUS="$(git -C');
 assertContains("scripts/check-protos-fresh.sh", "crates/proto/src/generated/buffa");
 assertContains(
   "crates/proto/src/stack_error.rs",

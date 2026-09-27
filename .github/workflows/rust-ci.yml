@@ -41,7 +41,7 @@ jobs:
 
       - name: Check the native workspace at the declared MSRV
         working-directory: reallyme/ssi
-        run: cargo check --locked --workspace --no-default-features --features native
+        run: cargo +1.96.0 check --locked --workspace --no-default-features --features native
 
   fuzz-build:
     name: Build fuzz targets
@@ -193,7 +193,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: reallyme/release-readiness
-          ref: 985cf16f866bcdbd384edd8a9b6f332b38c5eb52
+          ref: 3e66f9ecae25bbe3bd5fe21b1b5c7b7f182bce44
           path: reallyme/ssi/.release-readiness
           persist-credentials: false
 

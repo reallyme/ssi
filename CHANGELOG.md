@@ -76,7 +76,9 @@ changes to authenticate its externally visible projection commitment.
   fails if an expected target is missing. Local evidence references are checked
   against real test functions and both positive and negative evidence.
 - Published crate preflight builds and runs tests from each extracted crate
-  archive, preventing tests from relying on files outside the package.
+  archive, preventing tests from relying on files outside the package. Preflight
+  also attests the exact reviewed archives, and publication compares both new
+  and resumed crates.io uploads with those archives.
 
 ### Breaking API changes
 
