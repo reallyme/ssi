@@ -4,6 +4,7 @@
 
 use std::cell::Cell;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::num::NonZeroU16;
 
 use super::{fetch_authorization_server_metadata, MetadataFetchRequest, MetadataFetcher};
 use crate::{OauthResult, Reason};
@@ -25,6 +26,22 @@ struct AddressMetadata {
     fetch_called: Cell<bool>,
 }
 
+struct PortCapturingMetadata {
+    body: &'static str,
+    observed_port: Cell<Option<NonZeroU16>>,
+}
+
+impl MetadataFetcher for PortCapturingMetadata {
+    fn resolve_metadata_host(&self, _host: &str) -> OauthResult<Vec<IpAddr>> {
+        Ok(vec![IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34))])
+    }
+
+    fn fetch_metadata_json(&self, request: &MetadataFetchRequest) -> OauthResult<String> {
+        self.observed_port.set(Some(request.port()));
+        Ok(self.body.to_owned())
+    }
+}
+
 impl MetadataFetcher for AddressMetadata {
     fn resolve_metadata_host(&self, _host: &str) -> OauthResult<Vec<IpAddr>> {
         Ok(self.addresses.clone())
@@ -34,6 +51,45 @@ impl MetadataFetcher for AddressMetadata {
         self.fetch_called.set(true);
         Err(crate::OauthError::new(Reason::InvalidMetadata))
     }
+}
+
+#[test]
+fn passes_the_default_https_port_to_the_fetcher() -> OauthResult<()> {
+    let fetcher = PortCapturingMetadata {
+        body: r#"{"issuer":"https://issuer.example"}"#,
+        observed_port: Cell::new(None),
+    };
+
+    fetch_authorization_server_metadata(&fetcher, "https://issuer.example")?;
+
+    assert_eq!(fetcher.observed_port.get().map(NonZeroU16::get), Some(443));
+    Ok(())
+}
+
+#[test]
+fn preserves_an_explicit_https_port_for_the_fetcher() -> OauthResult<()> {
+    let fetcher = PortCapturingMetadata {
+        body: r#"{"issuer":"https://issuer.example:8443"}"#,
+        observed_port: Cell::new(None),
+    };
+
+    fetch_authorization_server_metadata(&fetcher, "https://issuer.example:8443")?;
+
+    assert_eq!(fetcher.observed_port.get().map(NonZeroU16::get), Some(8443));
+    Ok(())
+}
+
+#[test]
+fn rejects_an_explicit_zero_port_before_fetching() {
+    let fetcher = AddressMetadata {
+        addresses: vec![IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34))],
+        fetch_called: Cell::new(false),
+    };
+
+    let result = fetch_authorization_server_metadata(&fetcher, "https://issuer.example:0");
+
+    assert!(matches!(result, Err(error) if error.reason() == Reason::InvalidUrl));
+    assert!(!fetcher.fetch_called.get());
 }
 
 #[test]
