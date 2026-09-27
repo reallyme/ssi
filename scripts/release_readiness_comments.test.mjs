@@ -5,7 +5,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { scrubCommentsForAssertion } from "./release-readiness/core.mjs";
+const coreUrl =
+  process.env.RELEASE_READINESS_CORE_URL ??
+  new URL("../.release-readiness/core.mjs", import.meta.url).href;
+const { scrubCommentsForAssertion } = await import(coreUrl);
 
 test("readiness assertions ignore shell controls preserved only in comments", () => {
   const source = `
