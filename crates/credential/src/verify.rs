@@ -184,14 +184,24 @@ pub fn verify_credential_status(
     verifier: &dyn CredentialStatusListVerifier,
 ) -> Result<(), CredentialError> {
     validate_credential_envelope(envelope)?;
-    validate_status_pointer(envelope, status_list, verifier)?;
+    validate_status_pointer(envelope, status_list)?;
     verify_status(
         status_list,
         envelope.status.status_list_index,
         now_unix,
         verifier,
     )
-    .map_err(map_status_error)
+    .map_err(map_status_error)?;
+    // Some verifier implementations resolve and retain the authenticated
+    // signer as part of signature verification. Querying this capability only
+    // after `verify_status` prevents stale state from a previous operation from
+    // being accepted as the identity for this status list.
+    if verifier.verified_signer() != envelope.issuer_reference {
+        return Err(CredentialError::Status(
+            CredentialStatusReason::StatusPointerMismatch,
+        ));
+    }
+    Ok(())
 }
 
 /// Verify both credential status and issuer-certificate revocation state.
@@ -310,7 +320,6 @@ fn verify_credential_validity_window(
 fn validate_status_pointer(
     envelope: &CredentialEnvelope,
     status_list: &StatusList,
-    verifier: &dyn CredentialStatusListVerifier,
 ) -> Result<(), CredentialError> {
     let textual_issuer_matches = match &envelope.issuer_reference {
         crate::PartyReference::Did(value)
@@ -321,7 +330,6 @@ fn validate_status_pointer(
         crate::PartyReference::Absent => false,
     };
     if !textual_issuer_matches
-        || verifier.verified_signer() != envelope.issuer_reference
         || status_list.purpose != envelope.status.purpose
         || status_list.list_id != Some(envelope.status.status_list_id)
     {

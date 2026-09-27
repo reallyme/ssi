@@ -98,6 +98,10 @@ pub struct ValidatedX5ChainIssuerAuth {
     pub certificate_not_before_unix: u64,
     /// Inclusive certificate validity end selected by the trust resolver.
     pub certificate_not_after_unix: u64,
+    /// Inclusive IACA trust-anchor validity start selected by the resolver.
+    pub iaca_not_before_unix: u64,
+    /// Inclusive IACA trust-anchor validity end selected by the resolver.
+    pub iaca_not_after_unix: u64,
 }
 
 /// Trust-resolver output bound to a document-signer path validated at the
@@ -109,32 +113,45 @@ pub struct MdocCertificatePathValidation {
     pub not_before_unix: u64,
     /// Inclusive certificate validity end as Unix seconds.
     pub not_after_unix: u64,
+    /// Inclusive IACA trust-anchor validity start as Unix seconds.
+    pub iaca_not_before_unix: u64,
+    /// Inclusive IACA trust-anchor validity end as Unix seconds.
+    pub iaca_not_after_unix: u64,
 }
 
 /// Validate an ES256 issuerAuth using its RFC 9360 certificate path.
 ///
 /// The resolver is responsible for certificate parsing, path validation,
-/// document-signer profile policy, and returning the leaf P-256 public key. It
-/// receives the MSO signing time so certificate validity can be evaluated when
-/// the document was signed rather than when it is presented. The time is read
-/// before signature verification, but this function accepts the result only
-/// after the same payload and timestamp have been authenticated.
+/// document-signer profile policy, and returning the leaf P-256 public key plus
+/// both the leaf and IACA validity windows. It receives the MSO signing time so
+/// leaf validity can be evaluated when the document was signed rather than
+/// when it is presented. Presentation APIs independently require the IACA to be
+/// valid at the caller's current time. The signing time is read before
+/// signature verification, but this function accepts the result only after the
+/// same payload and timestamp have been authenticated.
 pub fn validate_x5chain_issuer_auth(
     issuer_auth: &[u8],
     trust_resolver: impl FnOnce(&[Vec<u8>], u64) -> Option<MdocCertificatePathValidation>,
 ) -> Result<ValidatedX5ChainIssuerAuth, MdocEnvelopeError> {
     let mso_signing_time_unix = unverified_mso_signing_time(issuer_auth)?;
     let policy = CosePolicy::new().allow_cose_algorithm(CoseSignatureAlgorithm::Es256);
-    let mut certificate_window = None;
+    let mut certificate_windows = None;
     let verified = cose_verify1_with_x5chain(issuer_auth, &policy, |algorithm, certificates| {
         if algorithm != Algorithm::P256 {
             return None;
         }
         let validated = trust_resolver(certificates, mso_signing_time_unix)?;
-        if validated.not_before_unix > validated.not_after_unix {
+        if validated.not_before_unix > validated.not_after_unix
+            || validated.iaca_not_before_unix > validated.iaca_not_after_unix
+        {
             return None;
         }
-        certificate_window = Some((validated.not_before_unix, validated.not_after_unix));
+        certificate_windows = Some((
+            validated.not_before_unix,
+            validated.not_after_unix,
+            validated.iaca_not_before_unix,
+            validated.iaca_not_after_unix,
+        ));
         Some(validated.public_key)
     })
     .map_err(|_| MdocEnvelopeError::InvalidSignature)?;
@@ -147,8 +164,12 @@ pub fn validate_x5chain_issuer_auth(
     // Validate its intrinsic window before applying certificate-time policy so
     // malformed signed data retains the stable, domain-specific error.
     crate::validity::validate_validity_window(&authenticated_mso.validity_info)?;
-    let (certificate_not_before_unix, certificate_not_after_unix) =
-        certificate_window.ok_or(MdocEnvelopeError::InvalidSignature)?;
+    let (
+        certificate_not_before_unix,
+        certificate_not_after_unix,
+        iaca_not_before_unix,
+        iaca_not_after_unix,
+    ) = certificate_windows.ok_or(MdocEnvelopeError::InvalidSignature)?;
     if mso_signing_time_unix < certificate_not_before_unix
         || mso_signing_time_unix > certificate_not_after_unix
     {
@@ -159,6 +180,8 @@ pub fn validate_x5chain_issuer_auth(
         x5chain_der: verified.x5chain_der,
         certificate_not_before_unix,
         certificate_not_after_unix,
+        iaca_not_before_unix,
+        iaca_not_after_unix,
     })
 }
 

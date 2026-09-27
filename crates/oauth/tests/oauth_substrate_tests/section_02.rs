@@ -412,6 +412,106 @@ fn attestation_client_authentication_validation_enforces_replay_hook() -> Result
 }
 
 #[test]
+fn attestation_client_authentication_accepts_x5c_header_and_omitted_iat(
+) -> Result<(), OauthError> {
+    let public_jwk = test_client_instance_jwk(TestP256Key::Primary);
+    let key_thumbprint = jwk_thumbprint(&public_jwk)?;
+    let pop = AttestationPopRequest {
+        audience: "https://as.example".to_owned(),
+        jti: "pop-x5c-header".to_owned(),
+        iat: 1_700_000_000,
+        challenge: Some("challenge".to_owned()),
+    }
+    .sign(&KeyBoundSigner {
+        key_thumbprint: key_thumbprint.clone(),
+    })?;
+    let attestation = client_attestation_with_header_and_claims(
+        json!({
+            "typ": "oauth-client-attestation+jwt",
+            "alg": "ES256",
+            "kid": "attester-key",
+            "x5c": ["MIIB-test-certificate"],
+        }),
+        json!({
+            "sub": "wallet-client",
+            "exp": 1_700_001_000_i64,
+            "cnf": { "jwk": public_jwk.clone() },
+        }),
+    )?;
+    let authentication = AttestationClientAuthentication::new(
+        attestation.as_str().to_owned(),
+        pop.as_str().to_owned(),
+    )?;
+    let verifier = KeyBoundAttestationVerifier::new();
+
+    let verified = validate_attestation_client_authentication(
+        &authentication,
+        &AttestationClientAuthenticationValidationContext {
+            expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "wallet-client".to_owned(),
+            expected_challenge: Some("challenge".to_owned()),
+            earliest_iat: 1_699_999_990,
+            latest_iat: 1_700_000_010,
+            current_time: 1_700_000_000,
+            max_trust_evidence_age_seconds: 30,
+        },
+        &verifier,
+    )?;
+
+    assert_eq!(verified.client_id(), "wallet-client");
+    assert_eq!(verified.client_instance_key_thumbprint(), key_thumbprint);
+    assert!(verifier.pop_signature_checked.get());
+    assert!(verifier.replay_checked.get());
+
+    for header in [
+        json!({
+            "typ": "oauth-client-attestation+jwt",
+            "alg": "ES256",
+            "kid": "attester-key",
+            "crit": ["b64"],
+        }),
+        json!({
+            "typ": "oauth-client-attestation+jwt",
+            "alg": "ES256",
+            "kid": "attester-key",
+            "b64": false,
+        }),
+    ] {
+        let rejected_attestation = client_attestation_with_header_and_claims(
+            header,
+            json!({
+                "sub": "wallet-client",
+                "exp": 1_700_001_000_i64,
+                "cnf": { "jwk": public_jwk.clone() },
+            }),
+        )?;
+        let rejected = AttestationClientAuthentication::new(
+            rejected_attestation.as_str().to_owned(),
+            pop.as_str().to_owned(),
+        )?;
+        assert_eq!(
+            validate_attestation_client_authentication(
+                &rejected,
+                &AttestationClientAuthenticationValidationContext {
+                    expected_audience: "https://as.example".to_owned(),
+                    expected_client_id: "wallet-client".to_owned(),
+                    expected_challenge: Some("challenge".to_owned()),
+                    earliest_iat: 1_699_999_990,
+                    latest_iat: 1_700_000_010,
+                    current_time: 1_700_000_000,
+                    max_trust_evidence_age_seconds: 30,
+                },
+                &KeyBoundAttestationVerifier::new(),
+            )
+            .err()
+            .map(|error| error.reason()),
+            Some(Reason::InvalidClientAttestation)
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn attestation_client_authentication_rejects_pop_signed_by_different_key() -> Result<(), OauthError>
 {
     let attested_jwk = test_client_instance_jwk(TestP256Key::Primary);

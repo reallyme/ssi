@@ -15,7 +15,7 @@ use reallyme_sd_jwt::{
     DecoyPolicy, DisclosureKind, KeyBindingJwtBuildOptions, KeyBindingVerificationOptions,
     SdJwtCredentialVerificationPolicy, SdJwtDisclosureStrategy, SdJwtEnvelopeError,
     SdJwtHashAlgorithm, SdJwtIssuanceInput, SdJwtIssuancePolicy, SdJwtOrKbCompact,
-    SdJwtProcessingPolicy, SdJwtReceiptVerificationPolicy, SdJwtSaltSource,
+    SdJwtIssuerType, SdJwtProcessingPolicy, SdJwtReceiptVerificationPolicy, SdJwtSaltSource,
     SdJwtVerificationOptions, DEFAULT_SD_JWT_CLOCK_SKEW_SECONDS, MAX_SD_JWT_CLOCK_SKEW_SECONDS,
     MAX_KB_JWT_AGE_SECONDS, MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS, MAX_SD_JWT_COMPACT_BYTES,
     MAX_SD_JWT_DISCLOSURES, MAX_SD_JWT_DISCLOSURE_BYTES, MAX_SD_JWT_JSON_SIGNATURES,
@@ -558,14 +558,6 @@ fn jws_json_serialization_vectors_parse_and_process() {
         let presentation_json = fs::read_to_string(case_dir.join("sd_jwt_presentation.json"))
             .unwrap_or_else(|err| panic!("{case_name}: read presentation JSON: {err}"));
         let sanitized_json = sanitize_json_for_parsing(&presentation_json);
-        if case_name == "json_serialization_general" {
-            assert_eq!(
-                parse_sd_jwt_json_serialization(&sanitized_json).err(),
-                Some(SdJwtEnvelopeError::InvalidJsonSerialization),
-                "unprotected key-selection metadata must be rejected",
-            );
-            continue;
-        }
         let parsed = parse_sd_jwt_json_serialization(&sanitized_json)
             .unwrap_or_else(|err| panic!("{case_name}: parse JSON serialization: {err}"));
         assert!(
@@ -712,6 +704,7 @@ fn issue_sd_jwt_rejects_reserved_claim_names() {
         SdJwtIssuanceInput {
             claims: json!({
                 "iss": "https://example.com/issuer",
+                "vct": "https://example.com/credentials/example",
                 "_sd": [],
             }),
             issuer_jwk: &issuer.jwk,

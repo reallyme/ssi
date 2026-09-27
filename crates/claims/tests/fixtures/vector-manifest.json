@@ -42,7 +42,13 @@
       "id": "x509-trust-policy",
       "source": "RFC5280 projected certificate policy and EUDI trusted-list service policy",
       "path": "x509-trust-policy.json",
-      "case_count": 0
+      "case_count": 8
+    },
+    {
+      "id": "protocol-wire-formats",
+      "source": "ReallyMe v0.3 protocol wire contracts",
+      "path": "protocol-wire-formats.json",
+      "case_count": 4
     },
     {
       "id": "resource-limits",

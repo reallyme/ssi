@@ -419,6 +419,8 @@ fn issuer_signed_transport_embeds_es256_x5chain_cose() {
                     public_key: issuer_public_key.clone(),
                     not_before_unix: 1_600_000_000,
                     not_after_unix: 1_699_999_999,
+                    iaca_not_before_unix: 1_600_000_000,
+                    iaca_not_after_unix: 1_900_000_000,
                 }
             })
         },
@@ -438,6 +440,23 @@ fn issuer_signed_transport_embeds_es256_x5chain_cose() {
     )
     .unwrap();
     assert_eq!(verified_receipt.doc_type(), "eu.europa.ec.eudi.pid.1");
+    let expired_iaca = verify_issuer_signed_mdoc_receipt_with_x5chain(
+        &document,
+        |presented_certificates, signing_time_unix| {
+            assert_eq!(signing_time_unix, 1_700_000_000);
+            (presented_certificates == certificates.as_slice()).then(|| {
+                MdocCertificatePathValidation {
+                    public_key: issuer_public_key.clone(),
+                    not_before_unix: 1_600_000_000,
+                    not_after_unix: 1_710_000_000,
+                    iaca_not_before_unix: 1_600_000_000,
+                    iaca_not_after_unix: 1_740_000_000,
+                }
+            })
+        },
+        1_750_000_000,
+    );
+    assert_eq!(expired_iaca.err(), Some(MdocEnvelopeError::InvalidSignature));
     assert_eq!(
         verify_issuer_signed_mdoc_receipt_with_x5chain(
             &document,

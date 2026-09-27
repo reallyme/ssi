@@ -20,6 +20,16 @@ identity-owned claim definition.
 This keeps verifier policy from carrying malformed claim paths, stale profile
 claim names, or unsupported predicate modes into OpenID4VP or ZK proof assembly.
 
+## Evaluation Semantics
+
+An empty `required_claims` list does not create an implicit deny-list for
+verified disclosures. Once a policy declares one or more required claims,
+disclosures outside that list are rejected. Required paths and extracted paths
+must each be unique, and predicate acceptance binds both the disclosure mode
+and its exact public operand. These rules intentionally match the internal
+presentation-policy engine so callers cannot receive different decisions from
+the two policy entry points.
+
 ## Built-In Profiles
 
 `policy_for_claimset` maps supported predefined claimset identifiers to

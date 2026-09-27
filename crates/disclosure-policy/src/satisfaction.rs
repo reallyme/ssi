@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{RequiredClaim, VpPolicy, VpPolicyError};
+use crate::{PredicateOperand, RequiredClaim, VpPolicy, VpPolicyError};
 use reallyme_vp_core::DisclosureMode;
 
 /// A single semantic input the OpenID4VP format layer must turn into circuit
@@ -14,6 +14,9 @@ pub struct DerivationInput {
 
     /// Disclosure operation a proof mechanism must prove for this claim.
     pub mode: DisclosureMode,
+
+    /// Exact public predicate operand to bind into the proof.
+    pub operand: PredicateOperand,
 }
 
 /// Derivation plan selected by policy.
@@ -55,6 +58,7 @@ pub fn plan_satisfaction(policy: &VpPolicy) -> Result<SatisfactionPlan, VpPolicy
             .map(|claim| DerivationInput {
                 claim_path: claim.claim_path.clone(),
                 mode: claim.mode,
+                operand: claim.operand.clone(),
             })
             .collect(),
     }))

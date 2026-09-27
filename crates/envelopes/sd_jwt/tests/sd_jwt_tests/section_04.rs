@@ -276,7 +276,11 @@ fn issuance_rejects_explicit_paths_into_registered_claims() {
         let mut salts = DeterministicSaltSource::new();
         let error = issue_sd_jwt(
             SdJwtIssuanceInput {
-                claims: json!({"iss": "https://issuer.example", "cnf": {"jwk": {}}}),
+                claims: json!({
+                    "iss": "https://issuer.example",
+                    "vct": "https://issuer.example/credentials/example",
+                    "cnf": {"jwk": {}}
+                }),
                 issuer_jwk: &issuer.jwk,
                 issuer_private_key: &issuer.private,
                 policy: SdJwtIssuancePolicy {
@@ -452,7 +456,11 @@ fn array_decoys_are_not_pinned_to_the_end_of_the_array() {
     let issuer = gen_ed25519();
     let issued = issue_sd_jwt(
         SdJwtIssuanceInput {
-            claims: json!({"iss": "https://issuer.example", "roles": ["driver", "resident"]}),
+            claims: json!({
+                "iss": "https://issuer.example",
+                "vct": "https://issuer.example/credentials/example",
+                "roles": ["driver", "resident"]
+            }),
             issuer_jwk: &issuer.jwk,
             issuer_private_key: &issuer.private,
             policy: SdJwtIssuancePolicy {

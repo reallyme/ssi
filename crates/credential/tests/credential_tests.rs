@@ -6,4 +6,5 @@
 //! Test coverage for this crate.
 
 include!("credential_tests/section_01.rs");
+include!("credential_tests/status_signer_order_tests.rs");
 include!("credential_tests/section_02.rs");

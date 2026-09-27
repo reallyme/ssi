@@ -38,6 +38,9 @@ Current suites:
   policy vectors for certificate policy/QCStatement screening, territory,
   status freshness, and certificate binding behavior. These are structured
   policy vectors, not raw certification-chain fixtures.
+- `protocol-wire-formats.json`: explicit versioned wire vectors for legacy
+  SD-JWT key binding, did:me data-integrity proof payloads, deterministic
+  contact CBOR, and the CA-bound X.509 trusted-list policy shape.
 - `resource-limits.json`: shared resource-limit constants used by SDK
   lanes and conformance reports.
 - `did-methods.json`: language-neutral DID method syntax and generation

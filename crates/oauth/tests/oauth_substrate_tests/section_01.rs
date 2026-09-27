@@ -524,12 +524,22 @@ fn client_attestation(public_jwk: Value) -> Result<CompactJwt, OauthError> {
 }
 
 fn client_attestation_with_claims(claims: Value) -> Result<CompactJwt, OauthError> {
-    sign_compact_jwt(
-        &json!({
+    client_attestation_with_header_and_claims(
+        json!({
             "typ": "oauth-client-attestation+jwt",
             "alg": "ES256",
             "kid": "attester-key",
         }),
+        claims,
+    )
+}
+
+fn client_attestation_with_header_and_claims(
+    header: Value,
+    claims: Value,
+) -> Result<CompactJwt, OauthError> {
+    sign_compact_jwt(
+        &header,
         &claims,
         &TestSigner,
     )

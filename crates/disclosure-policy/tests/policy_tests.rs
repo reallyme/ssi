@@ -16,8 +16,8 @@ use reallyme_credential_claims::profiles::{
 use reallyme_credential_claims::ClaimsRegistry;
 use reallyme_disclosure_policy::{
     evaluate, plan_satisfaction, policy_for_claimset, validate_policy_claims_against_registry,
-    EvaluationContext, ExtractedDisclosure, PolicyDecision, QeaaContext, SatisfactionPlan,
-    StatusContext, VpPolicy, VpPolicyError, MAX_EVALUATED_DISCLOSURES,
+    EvaluationContext, ExtractedDisclosure, PolicyDecision, PredicateOperand, QeaaContext,
+    SatisfactionPlan, StatusContext, VpPolicy, VpPolicyError, MAX_EVALUATED_DISCLOSURES,
 };
 use reallyme_vp_core::{
     CredentialReference, CredentialStatusRef, DisclosureMode, Presentation, PresentationFreshness,
@@ -136,6 +136,7 @@ fn pid_policy_accepts_valid_qeaa_sd_jwt_context() {
     let disclosures = [ExtractedDisclosure {
         claim_path: "/claims/family_name".into(),
         mode: DisclosureMode::Reveal,
+        operand: PredicateOperand::None,
     }];
 
     let decision = evaluate(
@@ -600,6 +601,7 @@ fn evaluation_rejects_oversized_disclosure_sets() {
         ExtractedDisclosure {
             claim_path: "/claims/family_name".into(),
             mode: DisclosureMode::Reveal,
+            operand: PredicateOperand::None,
         };
         MAX_EVALUATED_DISCLOSURES + 1
     ];
@@ -630,10 +632,12 @@ fn evaluation_rejects_disclosures_outside_the_policy_allow_list() {
         ExtractedDisclosure {
             claim_path: "/claims/family_name".into(),
             mode: DisclosureMode::Reveal,
+            operand: PredicateOperand::None,
         },
         ExtractedDisclosure {
             claim_path: "/claims/unrequested".into(),
             mode: DisclosureMode::Reveal,
+            operand: PredicateOperand::None,
         },
     ];
     let status = StatusContext {
@@ -651,4 +655,106 @@ fn evaluation_rejects_disclosures_outside_the_policy_allow_list() {
         decision,
         PolicyDecision::Reject(errors) if errors.contains(&VpPolicyError::UnexpectedDisclosure)
     ));
+}
+
+#[test]
+fn empty_required_claims_do_not_create_an_implicit_disclosure_deny_list() {
+    let policy = reallyme_disclosure_policy::eu_age_policy();
+    let presentation = sd_jwt_presentation();
+    let disclosures = [ExtractedDisclosure {
+        claim_path: "/claims/age".into(),
+        mode: DisclosureMode::Reveal,
+        operand: PredicateOperand::None,
+    }];
+
+    let decision = evaluate(
+        &policy,
+        &EvaluationContext {
+            binding_ok: true,
+            now_unix: 1_700_000_000,
+            presentation: &presentation,
+            issuer_algorithm: Algorithm::P256,
+            holder_algorithm: Algorithm::P256,
+            claimset_id: "eu.age.v1",
+            disclosures: &disclosures,
+            status: None,
+            qeaa: None,
+        },
+    );
+
+    assert_eq!(decision, PolicyDecision::Accept);
+}
+
+#[test]
+fn evaluation_rejects_duplicate_disclosure_paths() {
+    let policy = reallyme_disclosure_policy::eu_age_policy()
+        .require_claim("/claims/age", DisclosureMode::Reveal);
+    let presentation = sd_jwt_presentation();
+    let disclosures = [
+        ExtractedDisclosure {
+            claim_path: "/claims/age".into(),
+            mode: DisclosureMode::Reveal,
+            operand: PredicateOperand::None,
+        },
+        ExtractedDisclosure {
+            claim_path: "/claims/age".into(),
+            mode: DisclosureMode::Reveal,
+            operand: PredicateOperand::None,
+        },
+    ];
+
+    let decision = evaluate(
+        &policy,
+        &EvaluationContext {
+            binding_ok: true,
+            now_unix: 1_700_000_000,
+            presentation: &presentation,
+            issuer_algorithm: Algorithm::P256,
+            holder_algorithm: Algorithm::P256,
+            claimset_id: "eu.age.v1",
+            disclosures: &disclosures,
+            status: None,
+            qeaa: None,
+        },
+    );
+
+    assert!(matches!(
+        decision,
+        PolicyDecision::Reject(errors) if errors.contains(&VpPolicyError::ProofInvalid)
+    ));
+}
+
+#[test]
+fn evaluation_binds_predicate_operands() {
+    let policy = reallyme_disclosure_policy::eu_age_policy().require_claim_with_operand(
+        "/claims/age",
+        DisclosureMode::Gte,
+        PredicateOperand::Threshold(18),
+    );
+    let presentation = zk_presentation(1_700_000_001);
+    let disclosures = [ExtractedDisclosure {
+        claim_path: "/claims/age".into(),
+        mode: DisclosureMode::Gte,
+        operand: PredicateOperand::Threshold(21),
+    }];
+
+    let decision = evaluate(
+        &policy,
+        &EvaluationContext {
+            binding_ok: true,
+            now_unix: 1_700_000_000,
+            presentation: &presentation,
+            issuer_algorithm: Algorithm::P256,
+            holder_algorithm: Algorithm::P256,
+            claimset_id: "eu.age.v1",
+            disclosures: &disclosures,
+            status: None,
+            qeaa: None,
+        },
+    );
+
+    assert_eq!(
+        decision,
+        PolicyDecision::Reject(vec![VpPolicyError::PredicateNotSatisfied])
+    );
 }

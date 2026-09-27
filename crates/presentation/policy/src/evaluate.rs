@@ -78,18 +78,6 @@ pub struct EvaluationContext<'a> {
 pub struct StatusContext<'a> {
     /// Status list used for the credential.
     pub list: &'a StatusList,
-    /// Credential index in the status list.
-    pub index: u64,
-    /// Status index authenticated by the credential envelope.
-    pub expected_index: u64,
-    /// Issuer identifier authenticated by the credential envelope.
-    pub expected_issuer: &'a str,
-    /// Exact signer identity authenticated by the credential envelope.
-    pub expected_signer: reallyme_credential::PartyReference,
-    /// Status-list identifier authenticated by the credential envelope.
-    pub expected_list_id: [u8; 32],
-    /// Status purpose authenticated by the credential envelope.
-    pub expected_purpose: StatusPurpose,
     /// Injected verifier for status-list signatures and freshness.
     pub verifier: &'a dyn CredentialStatusListVerifier,
 }
@@ -261,38 +249,10 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
     // ---------------------------------------------------------------------
     match &ctx.status {
         Some(sc) => {
-            if sc.index != sc.expected_index
-                || sc.list.issuer != sc.expected_issuer
-                || sc.verifier.verified_signer() != sc.expected_signer
-                || sc.list.list_id != Some(sc.expected_list_id)
-                || sc.list.purpose != sc.expected_purpose
-            {
-                errors.push(VpPolicyError::StatusCheckFailed);
+            if let Some(reference) = presentation_status_reference(ctx.presentation) {
+                validate_bound_status(policy, ctx, sc, &reference, &mut errors);
             } else {
-                match identity_credential_status_core::verify_status(
-                    sc.list,
-                    sc.index,
-                    ctx.now_unix,
-                    sc.verifier,
-                ) {
-                    Ok(()) => {
-                        if !status_age_within_policy(policy, sc, ctx.now_unix) {
-                            errors.push(VpPolicyError::StatusTooOld);
-                        }
-                    }
-                    Err(CredentialStatusError::Revoked) => {
-                        errors.push(VpPolicyError::CredentialRevoked);
-                    }
-                    Err(CredentialStatusError::Suspended) => {
-                        errors.push(VpPolicyError::CredentialSuspended);
-                    }
-                    Err(CredentialStatusError::Expired) => {
-                        errors.push(VpPolicyError::StatusTooOld);
-                    }
-                    Err(_) => {
-                        errors.push(VpPolicyError::StatusCheckFailed);
-                    }
-                }
+                errors.push(VpPolicyError::StatusCheckFailed);
             }
         }
         None => {
@@ -337,6 +297,95 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
     // ---------------------------------------------------------------------
     // Final decision
     // ---------------------------------------------------------------------
+    finish_decision(errors)
+}
+
+struct PresentationStatusReference<'a> {
+    issuer_did: &'a str,
+    status_list_id: [u8; 32],
+    status_list_index: u64,
+    purpose: identity_presentation_vp_core::model::StatusPurpose,
+}
+
+fn validate_bound_status(
+    policy: &VpPolicy,
+    ctx: &EvaluationContext<'_>,
+    status: &StatusContext<'_>,
+    reference: &PresentationStatusReference<'_>,
+    errors: &mut Vec<VpPolicyError>,
+) {
+    let expected_purpose = map_status_purpose(reference.purpose);
+    if status.list.issuer != reference.issuer_did
+        || status.list.list_id != Some(reference.status_list_id)
+        || expected_purpose.is_none_or(|purpose| status.list.purpose != purpose)
+    {
+        errors.push(VpPolicyError::StatusCheckFailed);
+        return;
+    }
+    match identity_credential_status_core::verify_status(
+        status.list,
+        reference.status_list_index,
+        ctx.now_unix,
+        status.verifier,
+    ) {
+        Ok(()) => {
+            let signer_matches = matches!(
+                status.verifier.verified_signer(),
+                reallyme_credential::PartyReference::Did(ref signer)
+                    if signer == reference.issuer_did
+            );
+            if !signer_matches {
+                errors.push(VpPolicyError::StatusCheckFailed);
+            } else if !status_age_within_policy(policy, status, ctx.now_unix) {
+                errors.push(VpPolicyError::StatusTooOld);
+            }
+        }
+        Err(CredentialStatusError::Revoked) => {
+            errors.push(VpPolicyError::CredentialRevoked);
+        }
+        Err(CredentialStatusError::Suspended) => {
+            errors.push(VpPolicyError::CredentialSuspended);
+        }
+        Err(CredentialStatusError::Expired) => {
+            errors.push(VpPolicyError::StatusTooOld);
+        }
+        Err(_) => {
+            errors.push(VpPolicyError::StatusCheckFailed);
+        }
+    }
+}
+
+fn presentation_status_reference(
+    presentation: &Presentation,
+) -> Option<PresentationStatusReference<'_>> {
+    match presentation {
+        Presentation::Zk(presentation) => Some(PresentationStatusReference {
+            issuer_did: presentation.credential.issuer_did.as_str(),
+            status_list_id: presentation.credential.status.status_list_id,
+            status_list_index: presentation.credential.status.status_list_index,
+            purpose: presentation.credential.status.purpose,
+        }),
+        Presentation::SdJwtVc(_) | Presentation::Mdoc(_) => None,
+        _ => None,
+    }
+}
+
+fn map_status_purpose(
+    purpose: identity_presentation_vp_core::model::StatusPurpose,
+) -> Option<StatusPurpose> {
+    match purpose {
+        identity_presentation_vp_core::model::StatusPurpose::Revocation => {
+            Some(StatusPurpose::Revocation)
+        }
+        identity_presentation_vp_core::model::StatusPurpose::Suspension => {
+            Some(StatusPurpose::Suspension)
+        }
+        identity_presentation_vp_core::model::StatusPurpose::Unspecified => None,
+        _ => None,
+    }
+}
+
+fn finish_decision(errors: Vec<VpPolicyError>) -> PolicyDecision {
     if errors.is_empty() {
         PolicyDecision::Accept
     } else {

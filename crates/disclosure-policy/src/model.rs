@@ -82,6 +82,22 @@ impl VpPolicy {
         self.required_claims.push(RequiredClaim {
             claim_path: claim_path.into(),
             mode,
+            operand: PredicateOperand::None,
+        });
+        self
+    }
+
+    /// Add a required claim constraint with an exact public predicate operand.
+    pub fn require_claim_with_operand(
+        mut self,
+        claim_path: impl Into<String>,
+        mode: DisclosureMode,
+        operand: PredicateOperand,
+    ) -> Self {
+        self.required_claims.push(RequiredClaim {
+            claim_path: claim_path.into(),
+            mode,
+            operand,
         });
         self
     }
@@ -95,4 +111,28 @@ pub struct RequiredClaim {
 
     /// Required disclosure mode.
     pub mode: DisclosureMode,
+
+    /// Exact public operand that the presentation must bind for predicate modes.
+    pub operand: PredicateOperand,
+}
+
+/// Public operand bound to a verifier's disclosure requirement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum PredicateOperand {
+    /// No operand; valid for reveal and hidden modes.
+    None,
+    /// Exact bytes used by equality predicates.
+    Value(Vec<u8>),
+    /// Numeric threshold used by comparison predicates.
+    Threshold(u64),
+    /// Inclusive numeric range.
+    Range {
+        /// Inclusive minimum.
+        min: u64,
+        /// Inclusive maximum.
+        max: u64,
+    },
+    /// Exact accepted byte-value set.
+    Set(Vec<Vec<u8>>),
 }
