@@ -114,16 +114,22 @@ fn validate_recovery_authority(
     let invalid = DidApiError::CompromisedKeyReplacementRequestInvalid;
     let policy = request.document.update_policy.as_ref().ok_or(invalid)?;
     let threshold = usize::try_from(policy.threshold.unwrap_or(1)).map_err(|_| invalid)?;
+    let compromised_material = compromised_public_key_material(request, invalid)?;
     let remaining_authorities = policy
         .allowed_verification_methods
         .iter()
         .filter(|allowed| {
-            !request
+            let compromised_id = request
                 .compromised_verification_method_ids
                 .iter()
                 .any(|compromised| {
                     verification_method_references_match(&request.document.id, allowed, compromised)
-                })
+                });
+            let compromised_key = verification_method_for_reference(&request.document, allowed)
+                .is_some_and(|method| {
+                    compromised_material.contains(&method.public_key_multibase.as_str())
+                });
+            !compromised_id && !compromised_key
         })
         .count();
     if threshold == 0 || remaining_authorities < threshold {
@@ -139,8 +145,9 @@ fn validate_recovery_attestations(
     let invalid = DidApiError::CompromisedKeyReplacementResultInvalid;
     let policy = request.document.update_policy.as_ref().ok_or(invalid)?;
     let threshold = usize::try_from(policy.threshold.unwrap_or(1)).map_err(|_| invalid)?;
+    let compromised_material = compromised_public_key_material(request, invalid)?;
     for (index, attestation) in document.attestations.iter().enumerate() {
-        let compromised_signer =
+        let compromised_signer_id =
             request
                 .compromised_verification_method_ids
                 .iter()
@@ -151,6 +158,12 @@ fn validate_recovery_attestations(
                         compromised,
                     )
                 });
+        let compromised_signer_material =
+            verification_method_for_reference(&request.document, &attestation.vm).is_some_and(
+                |method| {
+                    compromised_material.contains(&method.public_key_multibase.as_str())
+                },
+            );
         let authorized_signer = policy.allowed_verification_methods.iter().any(|allowed| {
             verification_method_references_match(&request.document.id, &attestation.vm, allowed)
         });
@@ -163,7 +176,11 @@ fn validate_recovery_attestations(
                 )
             })
         });
-        if compromised_signer || !authorized_signer || duplicate_signer {
+        if compromised_signer_id
+            || compromised_signer_material
+            || !authorized_signer
+            || duplicate_signer
+        {
             return Err(invalid);
         }
     }
@@ -171,6 +188,30 @@ fn validate_recovery_attestations(
         return Err(invalid);
     }
     Ok(())
+}
+
+fn compromised_public_key_material(
+    request: &DidReplaceCompromisedKeysRequest,
+    invalid: DidApiError,
+) -> Result<Vec<&str>, DidApiError> {
+    request
+        .compromised_verification_method_ids
+        .iter()
+        .map(|reference| {
+            verification_method_for_reference(&request.document, reference)
+                .map(|method| method.public_key_multibase.as_str())
+                .ok_or(invalid)
+        })
+        .collect()
+}
+
+fn verification_method_for_reference<'a>(
+    document: &'a DIDDocument,
+    reference: &str,
+) -> Option<&'a reallyme_did_types::VerificationMethod> {
+    document.verification_method.iter().find(|method| {
+        verification_method_references_match(&document.id, &method.id, reference)
+    })
 }
 
 fn verification_method_references_match(did: &str, left: &str, right: &str) -> bool {

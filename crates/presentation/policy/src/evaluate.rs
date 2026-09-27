@@ -84,6 +84,8 @@ pub struct StatusContext<'a> {
     pub expected_index: u64,
     /// Issuer identifier authenticated by the credential envelope.
     pub expected_issuer: &'a str,
+    /// Exact signer identity authenticated by the credential envelope.
+    pub expected_signer: reallyme_credential::PartyReference,
     /// Status-list identifier authenticated by the credential envelope.
     pub expected_list_id: [u8; 32],
     /// Status purpose authenticated by the credential envelope.
@@ -261,6 +263,7 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
         Some(sc) => {
             if sc.index != sc.expected_index
                 || sc.list.issuer != sc.expected_issuer
+                || sc.verifier.verified_signer() != sc.expected_signer
                 || sc.list.list_id != Some(sc.expected_list_id)
                 || sc.list.purpose != sc.expected_purpose
             {

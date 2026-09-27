@@ -82,6 +82,9 @@ fn rejects_private_metadata_targets_before_fetch() {
         IpAddr::V4(Ipv4Addr::new(100, 64, 0, 1)),
         IpAddr::V4(Ipv4Addr::new(169, 254, 1, 1)),
         IpAddr::V4(Ipv4Addr::new(192, 88, 99, 1)),
+        IpAddr::V4(Ipv4Addr::new(192, 31, 196, 1)),
+        IpAddr::V4(Ipv4Addr::new(192, 52, 193, 1)),
+        IpAddr::V4(Ipv4Addr::new(192, 175, 48, 1)),
         IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0xc000, 0x0201)),
         IpAddr::V6(Ipv6Addr::new(0x0064, 0xff9b, 0, 0, 0, 0, 0x7f00, 1)),
         IpAddr::V6(Ipv6Addr::new(0x0064, 0xff9b, 1, 0, 0, 0, 0xa9fe, 0xa9fe)),
@@ -91,6 +94,7 @@ fn rejects_private_metadata_targets_before_fetch() {
         IpAddr::V6(Ipv6Addr::new(0x2001, 0x0020, 0, 0, 0, 0, 0, 1)),
         IpAddr::V6(Ipv6Addr::new(0x2001, 0x0002, 0, 0, 0, 0, 0, 1)),
         IpAddr::V6(Ipv6Addr::new(0x3fff, 0x0001, 0, 0, 0, 0, 0, 1)),
+        IpAddr::V6(Ipv6Addr::new(0x2620, 0x004f, 0x8000, 0, 0, 0, 0, 1)),
         IpAddr::V6(Ipv6Addr::new(0x5f00, 0, 0, 0, 0, 0, 0, 1)),
         IpAddr::V6(Ipv6Addr::new(0x0100, 0, 0, 0, 0, 0, 0, 1)),
     ];

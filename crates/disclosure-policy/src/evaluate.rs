@@ -98,6 +98,11 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext<'_>) -> PolicyDecisio
     if !ctx.binding_ok {
         errors.push(VpPolicyError::InvalidBinding);
     }
+    if let Presentation::Zk(presentation) = ctx.presentation {
+        if ctx.now_unix >= presentation.freshness.expiry_unix {
+            errors.push(VpPolicyError::Expired);
+        }
+    }
 
     validate_format(policy, ctx.presentation, &mut errors);
     validate_algorithms(policy, ctx, &mut errors);

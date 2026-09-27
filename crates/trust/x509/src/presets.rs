@@ -64,6 +64,7 @@ pub fn eu_policy(p: EuPreset) -> X509Policy {
             reject_unknown_critical_extensions: true,
             require_leaf_not_ca: true,
             require_intermediate_ca: true,
+            trust_anchor_requirement: TrustAnchorRequirement::Rfc5280Ca,
 
             // A QWAC authenticates a TLS website and therefore requires the
             // serverAuth extended-key-usage purpose.
@@ -100,6 +101,7 @@ pub fn eu_policy(p: EuPreset) -> X509Policy {
             reject_unknown_critical_extensions: true,
             require_leaf_not_ca: true,
             require_intermediate_ca: true,
+            trust_anchor_requirement: TrustAnchorRequirement::Rfc5280Ca,
 
             // Electronic seals require the leaf key to permit signatures.
             require_leaf_digital_signature: true,

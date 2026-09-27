@@ -7,8 +7,8 @@ pub fn resolve_did_with_provider<P: DidProvider + ?Sized>(
     provider: &P,
     request: DidResolveRequest,
 ) -> Result<DidResolutionResult, DidApiError> {
-    let result = provider.resolve_did(request.clone())?;
-    validate_resolution_result(&request, &result)?;
+    let mut result = provider.resolve_did(request.clone())?;
+    result.validation_warnings = validate_resolution_result_internal(&request, &result)?;
     Ok(result)
 }
 
@@ -26,6 +26,13 @@ pub fn validate_resolution_result(
     request: &DidResolveRequest,
     result: &DidResolutionResult,
 ) -> Result<(), DidApiError> {
+    validate_resolution_result_internal(request, result).map(|_| ())
+}
+
+fn validate_resolution_result_internal(
+    request: &DidResolveRequest,
+    result: &DidResolutionResult,
+) -> Result<Vec<DidValidationIssue>, DidApiError> {
     validate_resolution_request(request)?;
     let parsed = parse_did_url(&request.did)?;
     if parsed.is_did_url {
@@ -41,7 +48,10 @@ pub fn validate_resolution_result(
     }
 
     match result.resolution_metadata.deactivation_status {
-        DidDeactivationStatus::Absent => validate_absent_resolution(request, result),
+        DidDeactivationStatus::Absent => {
+            validate_absent_resolution(request, result)?;
+            Ok(Vec::new())
+        }
         DidDeactivationStatus::Active => validate_present_resolution(request, result, false),
         DidDeactivationStatus::Deactivated => validate_present_resolution(request, result, true),
     }

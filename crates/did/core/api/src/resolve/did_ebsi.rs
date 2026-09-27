@@ -125,5 +125,6 @@ fn map_did_ebsi_error(error: reallyme_did_method_ebsi::DidEbsiError) -> DidApiEr
         | reallyme_did_method_ebsi::DidEbsiErrorReason::CapabilityInvocationMissing => {
             DidApiError::DidEbsiDocumentInvalid
         }
+        _ => DidApiError::DidEbsiDocumentInvalid,
     }
 }

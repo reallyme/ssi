@@ -153,7 +153,7 @@ fn verify_sd_jwt_vp_inner(
     // The issuer SD-JWT only commits to the envelope through `sd_hash`, so the
     // envelope must be recomputed and compared here; otherwise any validly
     // signed SD-JWT could be paired with an attacker-chosen envelope.
-    let envelope_hash = verify_envelope_issuer_signature(vc, issuer_public_key)?;
+    let envelope_hash = verify_envelope_issuer_signature(vc, issuer_jwk, issuer_public_key)?;
     if !constant_time_equal(envelope_hash.as_slice(), sd_hash.as_slice()) {
         return Err(SdJwtVpError::EnvelopeBindingMismatch);
     }
@@ -170,9 +170,10 @@ fn verify_sd_jwt_vp_inner(
             .as_ref()
             .ok_or(SdJwtVpError::MissingKeyBinding)?;
         let holder_pk = holder_public_key.ok_or(SdJwtVpError::Crypto)?;
-        validate_envelope_holder_key(vc, holder_pk)?;
+        let holder_algorithm = validate_envelope_holder_key(vc, holder_pk)?;
 
-        let holder_jwk = jwk_for_public_key_for_jwt_alg(kb_jwt, holder_pk)?;
+        let holder_jwk =
+            jwk_for_public_key_for_jwt_alg(kb_jwt, holder_pk, holder_algorithm)?;
 
         let kb_payload: serde_json::Value =
             decode_verify_jwt_signature_only_with_header_validation(
@@ -254,10 +255,10 @@ fn verify_sd_jwt_vp_inner(
 fn validate_envelope_holder_key(
     credential: &CredentialEnvelope,
     supplied_public_key: &[u8],
-) -> Result<(), SdJwtVpError> {
-    let envelope_public_key = match &credential.subject.holder_binding {
+) -> Result<CredentialAlgorithm, SdJwtVpError> {
+    let (envelope_public_key, algorithm) = match &credential.subject.holder_binding {
         HolderBinding::CryptographicKey(key) => match &key.public_key {
-            PublicKeyRepresentation::Raw { bytes, .. } => bytes.as_slice(),
+            PublicKeyRepresentation::Raw { bytes, .. } => (bytes.as_slice(), key.alg),
             _ => return Err(SdJwtVpError::Crypto),
         },
         HolderBinding::ClaimsBased(_) | HolderBinding::BearerWithoutBinding => {
@@ -273,7 +274,7 @@ fn validate_envelope_holder_key(
         return Err(SdJwtVpError::Crypto);
     }
 
-    Ok(())
+    Ok(algorithm)
 }
 
 /// Verify the envelope issuer signature and return the envelope hash.
@@ -284,23 +285,32 @@ fn validate_envelope_holder_key(
 /// issuance as the subject bundle `envelope_hash`.
 fn verify_envelope_issuer_signature(
     credential: &CredentialEnvelope,
+    issuer_jwk: &Jwk,
     issuer_public_key: &[u8],
 ) -> Result<[u8; SD_HASH_BYTES], SdJwtVpError> {
-    let issuer_crypto_alg =
-        envelope_issuer_crypto_algorithm(credential.issuer_signature.verification_key.alg)?;
+    let (issuer_algorithm, issuer_crypto_alg) = issuer_algorithms_from_jwk(issuer_jwk)?;
+    if credential.issuer_signature.verification_key.alg != issuer_algorithm {
+        return Err(SdJwtVpError::Crypto);
+    }
     let verified =
         verify_committed_credential(credential, issuer_crypto_alg, issuer_public_key, None)
             .map_err(|_| SdJwtVpError::Crypto)?;
     Ok(verified.envelope_hash)
 }
 
-fn envelope_issuer_crypto_algorithm(
-    algorithm: CredentialAlgorithm,
-) -> Result<CryptoAlg, SdJwtVpError> {
-    match algorithm {
-        CredentialAlgorithm::Ed25519 => Ok(CryptoAlg::Ed25519),
-        CredentialAlgorithm::P256 => Ok(CryptoAlg::P256),
-        CredentialAlgorithm::Secp256k1 => Ok(CryptoAlg::Secp256k1),
+fn issuer_algorithms_from_jwk(
+    issuer_jwk: &Jwk,
+) -> Result<(CredentialAlgorithm, CryptoAlg), SdJwtVpError> {
+    match issuer_jwk {
+        Jwk::Okp(value) if value.crv == "Ed25519" => {
+            Ok((CredentialAlgorithm::Ed25519, CryptoAlg::Ed25519))
+        }
+        Jwk::Ec(value) if value.crv == "P-256" => {
+            Ok((CredentialAlgorithm::P256, CryptoAlg::P256))
+        }
+        Jwk::Ec(value) if value.crv == "secp256k1" => {
+            Ok((CredentialAlgorithm::Secp256k1, CryptoAlg::Secp256k1))
+        }
         _ => Err(SdJwtVpError::Crypto),
     }
 }
@@ -309,7 +319,11 @@ fn envelope_issuer_crypto_algorithm(
 // Hash primitives (must match VC issue/verify)
 // -----------------------------------------------------------------------------
 
-fn jwk_for_public_key_for_jwt_alg(jwt: &str, public_key: &[u8]) -> Result<Jwk, SdJwtVpError> {
+fn jwk_for_public_key_for_jwt_alg(
+    jwt: &str,
+    public_key: &[u8],
+    expected_algorithm: CredentialAlgorithm,
+) -> Result<Jwk, SdJwtVpError> {
     if jwt.len() > MAX_KB_JWT_BYTES {
         return Err(SdJwtVpError::ResourceLimit);
     }
@@ -345,16 +359,16 @@ fn jwk_for_public_key_for_jwt_alg(jwt: &str, public_key: &[u8]) -> Result<Jwk, S
             .map(|s| s.to_string()),
     };
 
-    match alg {
-        "EdDSA" => Ok(Jwk::Okp(
+    match (expected_algorithm, alg) {
+        (CredentialAlgorithm::Ed25519, "EdDSA") => Ok(Jwk::Okp(
             ed25519_public_key_to_jwk(public_key, options)
                 .map_err(|_| SdJwtVpError::Crypto)?
                 .into(),
         )),
-        "ES256" => Ok(Jwk::Ec(
+        (CredentialAlgorithm::P256, "ES256") => Ok(Jwk::Ec(
             p256_public_key_to_jwk(public_key, options).map_err(|_| SdJwtVpError::Crypto)?,
         )),
-        "ES256K" => Ok(Jwk::Ec(
+        (CredentialAlgorithm::Secp256k1, "ES256K") => Ok(Jwk::Ec(
             secp256k1_public_key_to_jwk(public_key, options).map_err(|_| SdJwtVpError::Crypto)?,
         )),
         _ => Err(SdJwtVpError::Crypto),

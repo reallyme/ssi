@@ -14,6 +14,7 @@ const DID_RESOURCE_CONTENT_TYPE: &str = "application/did+json;resource=fragment"
 
 /// Typed, non-PII failures produced by local DID URL resource selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum DidDereferenceError {
     /// The input does not have a valid DID URL structure.
     #[error("invalid DID URL")]

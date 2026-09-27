@@ -189,6 +189,23 @@ fn missing_verification_method_in_json_fails() {
 }
 
 #[test]
+fn duplicate_key_material_under_distinct_ids_is_rejected() {
+    let (core, mut doc) = make_valid_core_and_doc();
+    let mut alias = doc.verification_method[0].clone();
+    alias.id = "#alias".to_string();
+    doc.verification_method.push(alias);
+
+    let result = validate_projection(&doc, &core);
+
+    assert!(!result.ok);
+    assert!(has_issue(
+        &result.errors,
+        DidValidationCode::VerificationMethodInvalid,
+        DidValidationLocation::VerificationMethod,
+    ));
+}
+
+#[test]
 fn extra_verification_method_in_json_fails() {
     let (core, mut doc) = make_valid_core_and_doc();
 

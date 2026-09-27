@@ -48,6 +48,7 @@ pub enum DidEbsiRegistryOperation {
 
 /// Stable provider failures that never carry access tokens or registry text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidEbsiRegistryProviderErrorReason {
     /// The configured registry endpoint or adapter is unavailable.
     Unavailable,

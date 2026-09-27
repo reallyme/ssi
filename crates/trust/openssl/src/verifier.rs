@@ -151,15 +151,41 @@ fn verify_chain_with_backend(
     // verification context (allocation or internal failure). Ordinary path
     // rejection is reported as `Ok(false)` below. A setup failure says nothing
     // about the signature, so it must not be reported as a rejection.
+    let mut verified_chain_der = None;
     let verified = ctx
-        .init(&store, &leaf_x509, &intermediate_stack, |c| c.verify_cert())
+        .init(&store, &leaf_x509, &intermediate_stack, |context| {
+            let accepted = context.verify_cert()?;
+            if accepted {
+                let chain_der = context
+                    .chain()
+                    .ok_or_else(openssl::error::ErrorStack::get)?
+                    .iter()
+                    .map(|certificate| certificate.to_der())
+                    .collect::<Result<Vec<_>, _>>()?;
+                verified_chain_der = Some(chain_der);
+            }
+            Ok(accepted)
+        })
         .map_err(|_| SignatureVerifyError::BackendFailure)?;
 
-    if verified {
-        Ok(())
-    } else {
+    if !verified {
         // OpenSSL reports ordinary path-validation rejection as `Ok(false)`;
         // accepting that value would bypass time, signature, and constraint checks.
-        Err(SignatureVerifyError::InvalidSignature)
+        return Err(SignatureVerifyError::InvalidSignature);
     }
+
+    // OpenSSL may build a different valid path from certificates in its
+    // context. Policy evaluation screened the caller-supplied path, so success
+    // is valid only when the cryptographic backend verified that exact path.
+    let verified_chain = verified_chain_der.ok_or(SignatureVerifyError::BackendFailure)?;
+    if verified_chain.len() != chain.certs.len() {
+        return Err(SignatureVerifyError::InvalidSignature);
+    }
+    for (verified_der, screened_certificate) in verified_chain.iter().zip(chain.certs.iter()) {
+        if *verified_der != screened_certificate.der {
+            return Err(SignatureVerifyError::InvalidSignature);
+        }
+    }
+
+    Ok(())
 }

@@ -110,6 +110,7 @@ pub enum CanonicalStateViolation {
 
 /// Errors related to DID core construction, canonicalization, and CID handling.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum DidCoreError {
     /// Canonical DID core construction failed for a typed, non-secret reason.
     #[error("invalid canonical DID core state: {0}")]

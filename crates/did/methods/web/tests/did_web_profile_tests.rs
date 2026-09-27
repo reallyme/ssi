@@ -700,6 +700,28 @@ fn resolver_rejects_ipv6_transition_prefixes_embedding_private_ipv4(
 }
 
 #[test]
+fn resolver_rejects_as112_special_purpose_destinations() -> Result<(), Box<dyn std::error::Error>> {
+    for address in [
+        "192.31.196.1",
+        "192.52.193.1",
+        "192.175.48.1",
+        "2620:4f:8000::1",
+    ] {
+        let address: IpAddr = address.parse()?;
+        let network = MockNetwork::new(
+            vec![vec![address]],
+            vec![success_response(document_json(DID), address)],
+        );
+        assert_resolution_reason(
+            &network,
+            &NeverCancelled,
+            DidWebErrorReason::DestinationDenied,
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn resolver_parses_media_type_case_insensitively() -> Result<(), Box<dyn std::error::Error>> {
     for content_type in [
         "Application/DID+JSON",

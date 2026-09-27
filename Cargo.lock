@@ -3099,6 +3099,7 @@ dependencies = [
 name = "reallyme-did-types"
 version = "0.3.0"
 dependencies = [
+ "reallyme-ssi-core",
  "serde",
  "serde_json",
  "zeroize",

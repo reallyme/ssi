@@ -208,10 +208,10 @@
       "notes": "X.509 signature, QCStatements, QWAC/QSeal/QSig presets, TSL policy, and wasm fail-closed vectors."
     },
     {
-      "source": "W3C-VC-DM-2.0/status",
+      "source": "CONTRACT/reallyme/status-list-v1",
       "path": "crates/status/tests/status_tests.rs",
       "local_equivalent": "cargo test -p reallyme-credential-status",
-      "notes": "Local status-list validation vectors; fetching remains outside identity."
+      "notes": "ReallyMe legacy status-list contract vectors; these are not W3C VC Data Model conformance vectors. Fetching remains outside identity."
     },
     {
       "source": "CONTRACT/did:me/data-integrity",

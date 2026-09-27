@@ -406,6 +406,58 @@ fn replace_compromised_keys_uses_remaining_update_authority() {
 }
 
 #[test]
+fn replace_compromised_keys_excludes_aliases_of_compromised_material() {
+    let (mut document, key_set) = create_did(
+        CreateConfig {
+            profile: Some(DidProfile::CoreIdentity),
+            also_known_as: None,
+            hardware_bound: None,
+            biometric_protected: None,
+            user_verification_method: None,
+            device_model: None,
+            services: None,
+            update_policy: None,
+            domain_verification: None,
+            verification_methods: None,
+            authentication: None,
+            assertion: None,
+            invocation: None,
+            key_agreement: None,
+            created: Some("2025-01-01T00:00:00Z".to_string()),
+        },
+        "did:me:replace-compromised-alias",
+    )
+    .expect("create_did failed");
+    document.update_policy = Some(reallyme_did_types::UpdatePolicy {
+        allowed_verification_methods: vec!["#ed25519".to_string(), "#mldsa87-root".to_string()],
+        threshold: Some(1),
+    });
+    let compromised_material = document
+        .verification_method
+        .iter()
+        .find(|method| method.id == "#ed25519")
+        .expect("profile must contain Ed25519 authority")
+        .public_key_multibase
+        .clone();
+    document
+        .verification_method
+        .iter_mut()
+        .find(|method| method.id == "#mldsa87-root")
+        .expect("profile must contain backup authority")
+        .public_key_multibase = compromised_material;
+
+    let error = replace_compromised_keys(
+        &document,
+        &key_set,
+        &["#ed25519".to_string()],
+        Some("2025-01-02T00:00:00Z".to_string()),
+    )
+    .expect_err("an alias of compromised material cannot authorize recovery");
+
+    assert_eq!(error, DidApiError::UpdateRejected);
+}
+
+#[test]
 fn rotate_keys_rejects_empty_explicit_selection() {
     let did = "did:me:rotate-empty";
 

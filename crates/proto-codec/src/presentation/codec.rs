@@ -15,6 +15,8 @@ pub use own_presentation_proto::{zeroize_presentation_proto, SensitivePresentati
 use buffa::{DecodeOptions, Message};
 use reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::presentation;
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
+use serde::de::{MapAccess, SeqAccess, Visitor};
+use serde::Deserialize;
 use std::io::Write;
 use thiserror::Error;
 use zeroize::Zeroizing;
@@ -232,8 +234,9 @@ pub fn json_to_proto(json: &str) -> Result<SensitivePresentationProto, VpProtoEr
         return Err(VpProtoError::JsonTooLarge);
     }
 
-    let value: serde_json::Value =
-        serde_json::from_str(json).map_err(|_| VpProtoError::JsonDeserialize)?;
+    let value = serde_json::from_str::<DuplicateRejectingJsonValue>(json)
+        .map_err(|_| VpProtoError::JsonDeserialize)?
+        .0;
     validate_json_resource_limits(&value)?;
     validate_proto_json_shape(&value)?;
     let presentation: PbPresentation =
@@ -285,7 +288,14 @@ fn validate_proto_json_shape(value: &serde_json::Value) -> Result<(), VpProtoErr
 fn validate_zk_json(value: &serde_json::Value) -> Result<(), VpProtoError> {
     let zk = json_object_with_keys(
         value,
-        &["freshness", "credential", "disclosures", "zkProof", "qeaa"],
+        &[
+            "freshness",
+            "credential",
+            "disclosures",
+            "zkProof",
+            "zk_proof",
+            "qeaa",
+        ],
     )?;
     if let Some(value) = zk.get("freshness") {
         json_object_with_keys(
@@ -350,7 +360,7 @@ fn validate_zk_json(value: &serde_json::Value) -> Result<(), VpProtoError> {
     } else if zk.contains_key("disclosures") {
         return Err(VpProtoError::JsonDeserialize);
     }
-    if let Some(value) = zk.get("zkProof") {
+    if let Some(value) = zk.get("zkProof").or_else(|| zk.get("zk_proof")) {
         let proof = json_object_with_keys(
             value,
             &[
@@ -378,7 +388,7 @@ fn validate_zk_json(value: &serde_json::Value) -> Result<(), VpProtoError> {
             return Err(VpProtoError::JsonDeserialize);
         }
     }
-    if let Some(value) = zk.get("qeaa") {
+    if let Some(value) = zk.get("qeaa").filter(|value| !value.is_null()) {
         json_object_with_keys(
             value,
             &[
@@ -391,6 +401,101 @@ fn validate_zk_json(value: &serde_json::Value) -> Result<(), VpProtoError> {
         )?;
     }
     Ok(())
+}
+
+struct DuplicateRejectingJsonValue(serde_json::Value);
+
+impl<'de> Deserialize<'de> for DuplicateRejectingJsonValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(DuplicateRejectingJsonVisitor)
+    }
+}
+
+struct DuplicateRejectingJsonVisitor;
+
+impl<'de> Visitor<'de> for DuplicateRejectingJsonVisitor {
+    type Value = DuplicateRejectingJsonValue;
+
+    fn expecting(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("a JSON value without duplicate object members")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(DuplicateRejectingJsonValue(serde_json::Value::Bool(value)))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(DuplicateRejectingJsonValue(serde_json::Value::Number(
+            value.into(),
+        )))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(DuplicateRejectingJsonValue(serde_json::Value::Number(
+            value.into(),
+        )))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        serde_json::Number::from_f64(value)
+            .map(serde_json::Value::Number)
+            .map(DuplicateRejectingJsonValue)
+            .ok_or_else(|| E::custom("non-finite JSON number"))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(DuplicateRejectingJsonValue(serde_json::Value::String(
+            value.to_owned(),
+        )))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(DuplicateRejectingJsonValue(serde_json::Value::String(
+            value,
+        )))
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E> {
+        Ok(DuplicateRejectingJsonValue(serde_json::Value::Null))
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(DuplicateRejectingJsonValue(serde_json::Value::Null))
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut values = Vec::new();
+        while let Some(value) = sequence.next_element::<DuplicateRejectingJsonValue>()? {
+            values.push(value.0);
+        }
+        Ok(DuplicateRejectingJsonValue(serde_json::Value::Array(
+            values,
+        )))
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut values = serde_json::Map::new();
+        while let Some((key, value)) = map.next_entry::<String, DuplicateRejectingJsonValue>()? {
+            if values.insert(key, value.0).is_some() {
+                return Err(serde::de::Error::custom("duplicate JSON object member"));
+            }
+        }
+        Ok(DuplicateRejectingJsonValue(serde_json::Value::Object(
+            values,
+        )))
+    }
 }
 
 fn json_object_with_keys<'a>(

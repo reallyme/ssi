@@ -310,6 +310,12 @@ fn method_operations_reject_changes_to_non_target_methods() {
         serde_json::from_slice(&two_method_document(true, false)).unwrap();
     proposed["verificationMethod"][0]["publicKeyJwk"]["x"] =
         serde_json::Value::String(P256_X_B.to_owned());
+    proposed["verificationMethod"][0]["publicKeyJwk"]["y"] =
+        serde_json::Value::String(P256_Y_B.to_owned());
+    proposed["verificationMethod"][1]["publicKeyJwk"]["x"] =
+        serde_json::Value::String(P256_X_A.to_owned());
+    proposed["verificationMethod"][1]["publicKeyJwk"]["y"] =
+        serde_json::Value::String(P256_Y_A.to_owned());
     let proposed = serde_json::to_vec(&proposed).unwrap();
     let provider = FixtureProvider {
         authenticated: true,

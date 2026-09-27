@@ -7,7 +7,7 @@
 
 use reallyme_trust_x509::{
     presets::{eu_policy, EuPreset},
-    CertificatePolicyId, QcStatementId, QcType,
+    CertificatePolicyId, QcStatementId, QcType, TrustAnchorRequirement,
 };
 
 #[test]
@@ -28,6 +28,10 @@ fn qwac_preset_contains_expected_oids() {
     assert!(p
         .required_qc_type_any_of
         .contains(&QcType::WebAuthentication));
+    assert_eq!(
+        p.trust_anchor_requirement,
+        TrustAnchorRequirement::Rfc5280Ca
+    );
 }
 
 #[test]
@@ -38,6 +42,10 @@ fn qsealc_preset_contains_expected_oids() {
         .required_policy_any_of
         .contains(&CertificatePolicyId::QcpLegalPerson));
     assert!(p.required_qc_type_any_of.contains(&QcType::ElectronicSeal));
+    assert_eq!(
+        p.trust_anchor_requirement,
+        TrustAnchorRequirement::Rfc5280Ca
+    );
 }
 
 #[test]

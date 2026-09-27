@@ -96,7 +96,7 @@ fn default_api_enforces_leaf_signature_usage_and_ca_anchor() {
     )
     .expect("bounded valid path returns a decision");
     assert_eq!(
-        trusted.outcome,
+        trusted.outcome(),
         TrustDecisionOutcome::Trusted,
         "unexpected trust decision: {trusted:?}"
     );
@@ -115,7 +115,7 @@ fn default_api_enforces_leaf_signature_usage_and_ca_anchor() {
         OffsetDateTime::UNIX_EPOCH,
     )
     .expect("policy failure returns a typed decision");
-    assert_eq!(rejected_leaf.outcome, TrustDecisionOutcome::Rejected);
+    assert_eq!(rejected_leaf.outcome(), TrustDecisionOutcome::Rejected);
 
     let non_ca_root = certificate("CN=Root", "CN=Root", false);
     let rejected_anchor = evaluate_trust_api(
@@ -126,5 +126,5 @@ fn default_api_enforces_leaf_signature_usage_and_ca_anchor() {
         OffsetDateTime::UNIX_EPOCH,
     )
     .expect("anchor policy failure returns a typed decision");
-    assert_eq!(rejected_anchor.outcome, TrustDecisionOutcome::Rejected);
+    assert_eq!(rejected_anchor.outcome(), TrustDecisionOutcome::Rejected);
 }

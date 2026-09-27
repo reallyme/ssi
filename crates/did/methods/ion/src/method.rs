@@ -20,6 +20,7 @@ pub enum IonNetwork {
 
 /// Audit-safe did:ion failure reasons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidIonErrorReason {
     /// The DID did not start with `did:ion:`.
     InvalidPrefix,

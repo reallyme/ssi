@@ -56,18 +56,12 @@ impl IetfSdJwtHashAlgorithm {
 pub enum IetfSdJwtJwtType {
     /// IETF Digital Credentials `dc+sd-jwt` media type.
     DcSdJwt,
-    /// Legacy `vc+sd-jwt` media type accepted by the profile.
-    VcSdJwt,
-    /// Generic `JWT` type for explicitly configured compatibility.
-    Jwt,
 }
 
 impl IetfSdJwtJwtType {
     fn as_str(self) -> &'static str {
         match self {
             Self::DcSdJwt => "dc+sd-jwt",
-            Self::VcSdJwt => "vc+sd-jwt",
-            Self::Jwt => "JWT",
         }
     }
 }

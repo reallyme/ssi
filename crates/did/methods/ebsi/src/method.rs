@@ -46,6 +46,7 @@ impl EbsiDidVersion {
 
 /// Audit-safe did:ebsi failure reasons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidEbsiErrorReason {
     /// The DID did not start with `did:ebsi:`.
     InvalidPrefix,

@@ -171,6 +171,25 @@ fn cid_mismatch_is_detected() {
 }
 
 #[test]
+fn noncanonical_multibase_alias_of_core_cid_is_rejected() {
+    let (core, cid) = make_valid_core(1, None);
+    let cbor_b64 = bytes_to_base64url(&core.canonical_cbor().unwrap());
+    let alias = format!("B{}", cid[1..].to_ascii_uppercase());
+
+    let result = validate_core_snapshot(DidMeDocCoreView {
+        id: &core.id,
+        controller: &Controller::Single(core.id.clone()),
+        sequence: 1,
+        prev: None,
+        current_core: &alias,
+        core_cbor: &cbor_b64,
+    });
+
+    assert!(!result.ok);
+    assert!(has_code(&result.errors, DidValidationCode::CoreCidMismatch));
+}
+
+#[test]
 fn sequence_mismatch_is_detected() {
     let (core, cid) = make_valid_core(1, None);
     let cbor_b64 = bytes_to_base64url(&core.canonical_cbor().unwrap());

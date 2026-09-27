@@ -142,25 +142,42 @@ impl TryFrom<EnumValue<presentation_pb::VpVerificationOutcome>> for VpVerificati
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VpVerificationReport {
     /// Overall decision.
-    pub outcome: VpVerificationOutcome,
+    outcome: VpVerificationOutcome,
 
     /// Fixed, non-PII policy errors collected during evaluation.
-    pub errors: Vec<VpPolicyError>,
+    errors: Vec<VpPolicyError>,
 }
 
 impl VpVerificationReport {
-    /// Build an accepted report.
+    /// Return the authoritative verification outcome.
     #[must_use]
-    pub fn accepted() -> Self {
+    pub const fn outcome(&self) -> VpVerificationOutcome {
+        self.outcome
+    }
+
+    /// Borrow the fixed policy failures collected during evaluation.
+    #[must_use]
+    pub fn errors(&self) -> &[VpPolicyError] {
+        self.errors.as_slice()
+    }
+
+    /// Consume the report and return its fixed policy failures.
+    #[must_use]
+    pub fn into_errors(self) -> Vec<VpPolicyError> {
+        self.errors
+    }
+    /// Build an accepted report inside the verification pipeline.
+    #[must_use]
+    pub(crate) fn accepted() -> Self {
         Self {
             outcome: VpVerificationOutcome::Accepted,
             errors: Vec::new(),
         }
     }
 
-    /// Build a rejected report with all collected failures.
+    /// Build a rejected report inside the verification pipeline.
     #[must_use]
-    pub fn rejected(errors: Vec<VpPolicyError>) -> Self {
+    pub(crate) fn rejected(errors: Vec<VpPolicyError>) -> Self {
         Self {
             outcome: VpVerificationOutcome::Rejected,
             errors,

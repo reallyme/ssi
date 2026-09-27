@@ -6,6 +6,7 @@ use thiserror::Error;
 
 /// Closed, non-sensitive reasons an EUDI registration artifact is rejected.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum RegistrationErrorReason {
     /// Input was empty.
     EmptyInput,
@@ -63,6 +64,7 @@ pub enum RegistrationErrorReason {
 
 /// Audit-safe EUDI registration error.
 #[derive(Clone, Copy, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum RegistrationError {
     /// The artifact was rejected for a stable validation reason.
     #[error("EUDI registration artifact validation failed")]

@@ -9,7 +9,8 @@ use reallyme_crypto::{
 use x509_parser::{certificate::X509Certificate as ParsedCertificate, prelude::FromDer};
 
 use crate::{
-    X509Chain, X509Error, X509ResourceLimit, X509SignatureFailure, MAX_X509_CHAIN_CERTIFICATES,
+    CertificateExtensionKind, X509Chain, X509Error, X509ResourceLimit, X509SignatureFailure,
+    MAX_X509_CHAIN_CERTIFICATES,
 };
 
 mod algorithm_identifier;
@@ -68,6 +69,13 @@ pub fn verify_chain_signatures_pure_rust(chain: &X509Chain) -> Result<(), X509Er
 
     let mut parsed = Vec::with_capacity(chain.certs.len());
     for certificate in &chain.certs {
+        if certificate.profile.extensions.iter().any(|extension| {
+            extension.critical && matches!(extension.kind, CertificateExtensionKind::Other(_))
+        }) {
+            return Err(X509Error::SignatureFailed(
+                X509SignatureFailure::UnsupportedPathConstraint,
+            ));
+        }
         let parsed_certificate = parse_certificate(certificate.der.as_slice())?;
         reject_unprocessed_path_constraints(&parsed_certificate)?;
         require_matching_signature_algorithm_identifiers(certificate.der.as_slice())?;
@@ -94,6 +102,35 @@ pub fn verify_chain_signatures_pure_rust(chain: &X509Chain) -> Result<(), X509Er
         ))?;
         verify_child_signed_by_issuer(parsed_child, parsed_issuer)?;
     }
+
+    for authority in chain.intermediates().chain(chain.trust_anchor()) {
+        if !authority
+            .basic_constraints
+            .as_ref()
+            .is_some_and(|constraints| constraints.ca)
+            || !authority
+                .key_usage
+                .as_ref()
+                .is_some_and(|usage| usage.key_cert_sign)
+        {
+            return Err(X509Error::SignatureFailed(
+                X509SignatureFailure::UnsupportedPathConstraint,
+            ));
+        }
+    }
+
+    let anchor = chain.trust_anchor().ok_or(X509Error::SignatureFailed(
+        X509SignatureFailure::ChainTooShort,
+    ))?;
+    if anchor.subject_der != anchor.issuer_der {
+        return Err(X509Error::SignatureFailed(
+            X509SignatureFailure::ChainIssuerMismatch,
+        ));
+    }
+    let parsed_anchor = parsed.last().ok_or(X509Error::SignatureFailed(
+        X509SignatureFailure::BackendFailure,
+    ))?;
+    verify_child_signed_by_issuer(parsed_anchor, parsed_anchor)?;
 
     Ok(())
 }

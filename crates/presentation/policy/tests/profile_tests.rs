@@ -184,6 +184,9 @@ fn pid_profile_accepts_valid_qeaa() {
                 index: 0,
                 expected_index: 0,
                 expected_issuer: "did:test:issuer",
+                expected_signer: reallyme_credential::PartyReference::Did(
+                    "did:test:issuer".to_owned(),
+                ),
                 expected_list_id: [7; 32],
                 expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,
@@ -234,6 +237,9 @@ fn pid_profile_rejects_low_loip() {
                 index: 0,
                 expected_index: 0,
                 expected_issuer: "did:test:issuer",
+                expected_signer: reallyme_credential::PartyReference::Did(
+                    "did:test:issuer".to_owned(),
+                ),
                 expected_list_id: [7; 32],
                 expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,
@@ -287,6 +293,9 @@ fn evaluate_pid_at(
                 index: 0,
                 expected_index: 0,
                 expected_issuer: "did:test:issuer",
+                expected_signer: reallyme_credential::PartyReference::Did(
+                    "did:test:issuer".to_owned(),
+                ),
                 expected_list_id: [7; 32],
                 expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,
@@ -387,6 +396,9 @@ fn evaluation_rejects_disclosure_sets_over_the_policy_cap() {
                 index: 0,
                 expected_index: 0,
                 expected_issuer: "did:test:issuer",
+                expected_signer: reallyme_credential::PartyReference::Did(
+                    "did:test:issuer".to_owned(),
+                ),
                 expected_list_id: [7; 32],
                 expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,

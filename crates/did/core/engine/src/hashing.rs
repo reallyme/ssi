@@ -5,7 +5,7 @@ use crate::canonical::Canonical;
 use crate::core::DidCore;
 use crate::error::{CanonicalStateViolation, DidCoreError};
 
-use reallyme_codec::cbor::{compute_cid_dag_cbor, verify_dag_cbor_cid};
+use reallyme_codec::cbor::compute_cid_dag_cbor;
 
 /// Compute the CID (CIDv1, dag-cbor, sha2-256) for a DID core object.
 ///
@@ -31,5 +31,6 @@ pub fn verify_core_cid(cid: &str, core: &DidCore) -> Result<(bool, String, Strin
             CanonicalStateViolation::EmptyCoreCbor,
         ));
     }
-    Ok(verify_dag_cbor_cid(cid, &bytes))
+    let expected = compute_cid_dag_cbor(&bytes);
+    Ok((cid == expected, expected, cid.to_owned()))
 }

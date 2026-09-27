@@ -20,6 +20,7 @@ const JSON_SCHEMA_MEDIA_TYPE: &str = "application/json-schema";
 
 /// Stable failure reasons for TS11 catalogue validation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CatalogueErrorReason {
     /// Input is empty.
     EmptyInput,

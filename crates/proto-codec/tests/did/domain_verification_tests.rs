@@ -15,6 +15,7 @@ use reallyme_ssi_proto::generated::proto::meid::did::v1::{
 use reallyme_ssi_proto_codec::did::mapping::domain_verification::{
     domain_from_proto, domain_to_proto,
 };
+use reallyme_ssi_proto_codec::did::DidProtoCodecError;
 
 #[test]
 fn json_to_proto_dns_binding() {
@@ -146,5 +147,41 @@ fn roundtrip_dns_binding() {
     assert_eq!(
         decoded.dns.as_ref().unwrap().txt_value,
         original.dns.as_ref().unwrap().txt_value
+    );
+}
+
+#[test]
+fn json_to_proto_rejects_ambiguous_bindings() {
+    let ambiguous = DomainVerification {
+        verification_type: "DnsTxtVerification".to_string(),
+        method: "dns".to_string(),
+        domain: "example.com".to_string(),
+        dns: Some(DNSBinding {
+            record_name: "_did".to_string(),
+            txt_value: "did:me:123".to_string(),
+        }),
+        wellknown: Some(WellKnownBinding {
+            uri: "/.well-known/did-configuration.json".to_string(),
+            content: "did:me:123".to_string(),
+        }),
+    };
+
+    assert_eq!(
+        domain_to_proto(&ambiguous),
+        Err(DidProtoCodecError::InvalidDomainVerification)
+    );
+}
+
+#[test]
+fn proto_to_json_rejects_binding_that_disagrees_with_method() {
+    let mismatched = PbDomainVerification {
+        method: "dns".to_string(),
+        binding: Some(Binding::WellKnown(Box::default())),
+        ..PbDomainVerification::default()
+    };
+
+    assert_eq!(
+        domain_from_proto(&mismatched),
+        Err(DidProtoCodecError::InvalidDomainVerification)
     );
 }

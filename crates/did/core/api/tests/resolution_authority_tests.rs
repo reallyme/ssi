@@ -89,6 +89,7 @@ fn request(doc: &DIDDocument) -> DidResolveRequest {
 
 fn resolution(doc: DIDDocument, history: Vec<DIDDocument>) -> DidResolutionResult {
     DidResolutionResult {
+        validation_warnings: Vec::new(),
         history,
         resolution_metadata: DidResolutionMetadata {
             content_type: Some("application/did+json".into()),
@@ -223,6 +224,7 @@ fn freshness_rejects_stale_and_future_observations() {
 
     // Absent results are subject to the same bound.
     let absent = DidResolutionResult {
+        validation_warnings: Vec::new(),
         history: Vec::new(),
         document: None,
         document_metadata: None,
@@ -334,6 +336,7 @@ fn minimum_sequence_and_provider_sequence_metadata_are_enforced() {
 #[test]
 fn generic_resolution_rejects_other_methods_as_unsupported() {
     let absent = DidResolutionResult {
+        validation_warnings: Vec::new(),
         history: Vec::new(),
         document: None,
         document_metadata: None,

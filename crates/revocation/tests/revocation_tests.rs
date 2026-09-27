@@ -405,6 +405,39 @@ fn cache_rejects_entries_beyond_configured_capacity() {
 }
 
 #[test]
+fn cache_evicts_expired_entries_before_enforcing_capacity() {
+    let mut cache = InMemoryRevocationCache::with_max_entries(1).unwrap();
+    let first = cert();
+    let mut second = cert();
+    second.der = vec![9];
+    cache
+        .store(
+            &first,
+            RevocationEvidenceMeta {
+                fetched_at_unix: 1_700_000_000,
+                expires_at_unix: Some(1_700_000_010),
+                source: RevocationSource::Crl,
+            },
+            Ok(()),
+        )
+        .unwrap();
+
+    assert_eq!(
+        cache.store(
+            &second,
+            RevocationEvidenceMeta {
+                fetched_at_unix: 1_700_000_010,
+                expires_at_unix: Some(1_700_000_020),
+                source: RevocationSource::Crl,
+            },
+            Ok(()),
+        ),
+        Ok(())
+    );
+    assert_eq!(cache.lookup(&second, 1_700_000_011), Ok(Some(())));
+}
+
+#[test]
 fn cache_does_not_replay_transient_errors() {
     let mut cache = InMemoryRevocationCache::new();
     let cert = cert();

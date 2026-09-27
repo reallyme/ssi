@@ -16,6 +16,7 @@ pub fn domain_to_proto(d: &DomainVerification) -> Result<PbDomainVerification, D
         "dns" => d
             .dns
             .as_ref()
+            .filter(|_| d.wellknown.is_none())
             .map(|dns| {
                 Binding::Dns(Box::new(PbDnsBinding {
                     record_name: dns.record_name.clone(),
@@ -27,6 +28,7 @@ pub fn domain_to_proto(d: &DomainVerification) -> Result<PbDomainVerification, D
         "wellknown" => d
             .wellknown
             .as_ref()
+            .filter(|_| d.dns.is_none())
             .map(|wellknown| {
                 Binding::WellKnown(Box::new(PbWellKnownBinding {
                     uri: wellknown.uri.clone(),
@@ -51,32 +53,29 @@ pub fn domain_to_proto(d: &DomainVerification) -> Result<PbDomainVerification, D
 pub fn domain_from_proto(
     p: &PbDomainVerification,
 ) -> Result<DomainVerification, DidProtoCodecError> {
-    let (dns, wellknown) = match p.binding.as_ref() {
-        Some(Binding::Dns(dns)) => (
+    let (dns, wellknown) = match (p.method.as_str(), p.binding.as_ref()) {
+        ("dns", Some(Binding::Dns(dns))) => (
             Some(DNSBinding {
                 record_name: dns.record_name.clone(),
                 txt_value: dns.txt_value.clone(),
             }),
             None,
         ),
-        Some(Binding::WellKnown(wellknown)) => (
+        ("wellknown", Some(Binding::WellKnown(wellknown))) => (
             None,
             Some(WellKnownBinding {
                 uri: wellknown.uri.clone(),
                 content: wellknown.content.clone(),
             }),
         ),
-        None => return Err(DidProtoCodecError::InvalidDomainVerification),
+        _ => return Err(DidProtoCodecError::InvalidDomainVerification),
     };
 
-    match p.method.as_str() {
-        "dns" | "wellknown" => Ok(DomainVerification {
-            verification_type: p.r#type.clone(),
-            method: p.method.clone(),
-            domain: p.domain.clone(),
-            dns,
-            wellknown,
-        }),
-        _ => Err(DidProtoCodecError::InvalidDomainVerification),
-    }
+    Ok(DomainVerification {
+        verification_type: p.r#type.clone(),
+        method: p.method.clone(),
+        domain: p.domain.clone(),
+        dns,
+        wellknown,
+    })
 }

@@ -33,12 +33,17 @@ pub fn vm_to_proto(vm: &JsonVM) -> Result<PbVM, DidProtoCodecError> {
 
 /// did:me protobuf verification method to JSON-domain model.
 pub fn vm_from_proto(p: &PbVM) -> Result<JsonVM, DidProtoCodecError> {
+    let algorithm = p
+        .algorithm
+        .as_option()
+        .ok_or(DidProtoCodecError::MissingRequiredField)
+        .and_then(algorithm_from_proto)?;
     Ok(JsonVM {
         id: p.id.clone(),
         vm_type: p.r#type.clone(),
         controller: p.controller.clone(),
         public_key_multibase: p.public_key_multibase.clone(),
-        algorithm: p.algorithm.as_option().and_then(algorithm_from_proto),
+        algorithm: Some(algorithm),
     })
 }
 
@@ -77,40 +82,44 @@ pub(crate) fn algorithm_to_proto(
     })
 }
 
-fn algorithm_from_proto(value: &CryptoAlgorithmIdentifier) -> Option<String> {
-    let semantic = match value.algorithm.as_ref()? {
-        crypto_algorithm_identifier::Algorithm::Signature(sig) => match sig.as_known()? {
-            SignatureAlgorithm::Ed25519 => Algorithm::Ed25519,
-            SignatureAlgorithm::EcdsaP256Sha256 => Algorithm::P256,
-            SignatureAlgorithm::EcdsaSecp256k1Sha256 => Algorithm::Secp256k1,
-            SignatureAlgorithm::MlDsa87 => Algorithm::MlDsa87,
-            _ => return None,
+fn algorithm_from_proto(value: &CryptoAlgorithmIdentifier) -> Result<String, DidProtoCodecError> {
+    let algorithm = value
+        .algorithm
+        .as_ref()
+        .ok_or(DidProtoCodecError::MissingRequiredField)?;
+    let semantic = match algorithm {
+        crypto_algorithm_identifier::Algorithm::Signature(sig) => match sig.as_known() {
+            Some(SignatureAlgorithm::Ed25519) => Algorithm::Ed25519,
+            Some(SignatureAlgorithm::EcdsaP256Sha256) => Algorithm::P256,
+            Some(SignatureAlgorithm::EcdsaSecp256k1Sha256) => Algorithm::Secp256k1,
+            Some(SignatureAlgorithm::MlDsa87) => Algorithm::MlDsa87,
+            _ => return Err(DidProtoCodecError::UnsupportedAlgorithm),
         },
         crypto_algorithm_identifier::Algorithm::KeyAgreement(agreement) => {
-            match agreement.as_known()? {
-                KeyAgreementAlgorithm::X25519 => Algorithm::X25519,
-                _ => return None,
+            match agreement.as_known() {
+                Some(KeyAgreementAlgorithm::X25519) => Algorithm::X25519,
+                _ => return Err(DidProtoCodecError::UnsupportedAlgorithm),
             }
         }
-        crypto_algorithm_identifier::Algorithm::Kem(kem) => match kem.as_known()? {
-            KemAlgorithm::MlKem768 => Algorithm::MlKem768,
-            KemAlgorithm::MlKem1024 => Algorithm::MlKem1024,
-            _ => return None,
+        crypto_algorithm_identifier::Algorithm::Kem(kem) => match kem.as_known() {
+            Some(KemAlgorithm::MlKem768) => Algorithm::MlKem768,
+            Some(KemAlgorithm::MlKem1024) => Algorithm::MlKem1024,
+            _ => return Err(DidProtoCodecError::UnsupportedAlgorithm),
         },
         crypto_algorithm_identifier::Algorithm::MulticodecKey(multicodec) => {
-            match multicodec.as_known()? {
-                MulticodecKeyAlgorithm::Ed25519Pub => Algorithm::Ed25519,
-                MulticodecKeyAlgorithm::X25519Pub => Algorithm::X25519,
-                MulticodecKeyAlgorithm::Secp256k1Pub => Algorithm::Secp256k1,
-                MulticodecKeyAlgorithm::P256Pub => Algorithm::P256,
-                MulticodecKeyAlgorithm::MlKem768Pub => Algorithm::MlKem768,
-                MulticodecKeyAlgorithm::MlKem1024Pub => Algorithm::MlKem1024,
-                MulticodecKeyAlgorithm::MlDsa87Pub => Algorithm::MlDsa87,
-                _ => return None,
+            match multicodec.as_known() {
+                Some(MulticodecKeyAlgorithm::Ed25519Pub) => Algorithm::Ed25519,
+                Some(MulticodecKeyAlgorithm::X25519Pub) => Algorithm::X25519,
+                Some(MulticodecKeyAlgorithm::Secp256k1Pub) => Algorithm::Secp256k1,
+                Some(MulticodecKeyAlgorithm::P256Pub) => Algorithm::P256,
+                Some(MulticodecKeyAlgorithm::MlKem768Pub) => Algorithm::MlKem768,
+                Some(MulticodecKeyAlgorithm::MlKem1024Pub) => Algorithm::MlKem1024,
+                Some(MulticodecKeyAlgorithm::MlDsa87Pub) => Algorithm::MlDsa87,
+                _ => return Err(DidProtoCodecError::UnsupportedAlgorithm),
             }
         }
-        _ => return None,
+        _ => return Err(DidProtoCodecError::UnsupportedAlgorithm),
     };
 
-    Some(alg_to_did_alg_str(semantic).to_owned())
+    Ok(alg_to_did_alg_str(semantic).to_owned())
 }

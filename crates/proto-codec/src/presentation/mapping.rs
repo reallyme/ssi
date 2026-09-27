@@ -23,6 +23,7 @@ use validate_disclosure::{validate_disclosure_model, validate_disclosure_value};
 pub fn presentation_to_proto(
     presentation_model: &vp::Presentation,
 ) -> Result<pb::Presentation, VpProtoError> {
+    validate_presentation_semantics(presentation_model)?;
     match presentation_model {
         vp::Presentation::Zk(presentation_model) => Ok(pb::Presentation {
             kind: Some(presentation::Kind::Zk(Box::new(zk_to_proto(

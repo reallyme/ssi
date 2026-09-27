@@ -14,8 +14,9 @@ pub struct GoogleWalletJwtSignerImpl<'a> {
     /// Issuer identifier (service account email or issuer identifier)
     pub issuer: &'a str,
 
-    /// JWK describing the signing key. Google Wallet save JWT deployments
-    /// conventionally use an RS256-capable service-account key.
+    /// JWK describing a signing key supported by the bundled JOSE backend.
+    /// Deployments that require an RSA service-account key must implement the
+    /// injected [`GoogleWalletJwtSigner`] boundary with an RSA-capable signer.
     pub jwk: &'a Jwk,
 
     /// Raw private key bytes

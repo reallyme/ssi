@@ -30,6 +30,7 @@ pub const GENESIS_NONCE_LEN: usize = 16;
 
 /// Non-secret reason codes for did:me method identifier failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidMeErrorReason {
     /// The DID did not start with the required method prefix.
     InvalidPrefix,

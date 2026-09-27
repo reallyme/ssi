@@ -528,6 +528,33 @@ fn path_entry_normalization_rejects_duplicate_and_conflicting_paths() {
             ClaimsInvalidReason::ParentChildClaimPathConflict
         ))
     );
+
+    let array_path = parse_claim_path("/claims/values/0").unwrap();
+    assert_eq!(
+        claim_value_from_path_entries([
+            ClaimPathEntry {
+                path: array_path.clone(),
+                value: ClaimValue::Null,
+            },
+            ClaimPathEntry {
+                path: array_path,
+                value: ClaimValue::String("replacement".to_owned()),
+            },
+        ]),
+        Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::DuplicateClaimPath
+        ))
+    );
+
+    assert_eq!(
+        claim_value_from_path_entries([ClaimPathEntry {
+            path: parse_claim_path("/claims/nаme").unwrap(),
+            value: ClaimValue::String("value".to_owned()),
+        }]),
+        Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::ConfusableClaimName
+        ))
+    );
 }
 
 #[test]

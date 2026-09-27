@@ -10,6 +10,8 @@ use super::{
 };
 use identity_revocation_ocsp_core::OcspError;
 
+const OID_SHA256_WITH_RSA: &[u8] = &[0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b];
+
 fn tlv(tag: u8, value: &[u8]) -> Vec<u8> {
     assert!(value.len() < 128);
     let mut encoded = Vec::with_capacity(value.len() + 2);
@@ -17,6 +19,16 @@ fn tlv(tag: u8, value: &[u8]) -> Vec<u8> {
     encoded.push(u8::try_from(value.len()).unwrap());
     encoded.extend_from_slice(value);
     encoded
+}
+
+fn basic_response(response_data: &[u8]) -> Vec<u8> {
+    let mut algorithm = tlv(0x06, OID_SHA256_WITH_RSA);
+    algorithm.extend_from_slice(&tlv(0x05, &[]));
+    let mut basic = tlv(0x30, response_data);
+    basic.extend_from_slice(&tlv(0x30, &algorithm));
+    // DER BIT STRING content begins with the unused-bit count.
+    basic.extend_from_slice(&tlv(0x03, &[0]));
+    tlv(0x30, &basic)
 }
 
 fn single_response_with_extensions(
@@ -69,7 +81,7 @@ fn response_with_nonce_extension(extension_value: &[u8]) -> Vec<u8> {
     response_data.extend_from_slice(&tlv(0x18, b"20260101000000Z"));
     response_data.extend_from_slice(&tlv(0x30, &[]));
     response_data.extend_from_slice(&tlv(0xa1, &extensions));
-    let basic_response = tlv(0x30, &tlv(0x30, &response_data));
+    let basic_response = basic_response(&response_data);
 
     let mut response_bytes = tlv(0x06, OID_BASIC_OCSP_RESPONSE);
     response_bytes.extend_from_slice(&tlv(0x04, &basic_response));
@@ -90,7 +102,7 @@ fn response_with_extension(oid: &[u8], critical: bool, extension_value: &[u8]) -
     response_data.extend_from_slice(&tlv(0x18, b"20260101000000Z"));
     response_data.extend_from_slice(&tlv(0x30, &[]));
     response_data.extend_from_slice(&tlv(0xa1, &extensions));
-    let basic_response = tlv(0x30, &tlv(0x30, &response_data));
+    let basic_response = basic_response(&response_data);
     let mut response_bytes = tlv(0x06, OID_BASIC_OCSP_RESPONSE);
     response_bytes.extend_from_slice(&tlv(0x04, &basic_response));
     let mut response = tlv(0x0a, &[0]);
@@ -104,7 +116,7 @@ fn response_with_encoded_extensions(encoded_extensions: &[u8]) -> Vec<u8> {
     response_data.extend_from_slice(&tlv(0x18, b"20260101000000Z"));
     response_data.extend_from_slice(&tlv(0x30, &[]));
     response_data.extend_from_slice(&tlv(0xa1, &extensions));
-    let basic_response = tlv(0x30, &tlv(0x30, &response_data));
+    let basic_response = basic_response(&response_data);
     let mut response_bytes = tlv(0x06, OID_BASIC_OCSP_RESPONSE);
     response_bytes.extend_from_slice(&tlv(0x04, &basic_response));
     let mut response = tlv(0x0a, &[0]);

@@ -277,10 +277,19 @@ fn issuer_typ_requires_vct(compact_jwt: &str) -> Result<bool, SdJwtEnvelopeError
         .map_err(|_| SdJwtEnvelopeError::InvalidIssuerJwt)?;
     let header: Value =
         serde_json::from_slice(&header_bytes).map_err(|_| SdJwtEnvelopeError::InvalidIssuerJwt)?;
-    Ok(matches!(
-        header.get("typ").and_then(Value::as_str),
-        Some("dc+sd-jwt" | "vc+sd-jwt")
-    ))
+    let Some(media_type) = header.get("typ").and_then(Value::as_str) else {
+        return Ok(false);
+    };
+    const APPLICATION_PREFIX: &str = "application/";
+    let normalized = media_type
+        .get(..APPLICATION_PREFIX.len())
+        .filter(|prefix| prefix.eq_ignore_ascii_case(APPLICATION_PREFIX))
+        .and_then(|_| media_type.get(APPLICATION_PREFIX.len()..))
+        .unwrap_or(media_type);
+    Ok(
+        normalized.eq_ignore_ascii_case("dc+sd-jwt")
+            || normalized.eq_ignore_ascii_case("vc+sd-jwt"),
+    )
 }
 
 /// Verifies an SD-JWT JSON serialization under the same policy as compact input.

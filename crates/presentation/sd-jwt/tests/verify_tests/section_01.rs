@@ -588,6 +588,42 @@ fn sd_jwt_vp_fails_if_sd_jwt_is_expired() {
 }
 
 #[test]
+fn sd_jwt_vp_rejects_unsigned_issuer_algorithm_substitution() {
+    let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
+    let (holder_pub, _) = generate_keypair(Algorithm::Ed25519).unwrap();
+    let issuer_jwk = ed25519_issuer_jwk(&issuer_pub);
+    let mut issued = issue_age_credential(
+        holder_pub,
+        issuer_pub.clone(),
+        &issuer_priv,
+        42,
+    );
+    let issuer_sd_jwt = issuer_sd_jwt_for_issued(&issued, &issuer_jwk, &issuer_priv);
+    let presentation = build_sd_jwt_presentation(
+        &issued.subject_bundle,
+        issuer_sd_jwt,
+        &["/claims/age".to_string()],
+    )
+    .unwrap();
+
+    // This legacy field is outside the issuer signing payload. The verifier
+    // must derive the algorithm from the caller-trusted JWK, not from here.
+    issued.envelope.issuer_signature.verification_key.alg = CredentialAlgorithm::P256;
+
+    let error = verify_sd_jwt_vp(
+        &presentation,
+        &issued.envelope,
+        &issuer_jwk,
+        &issuer_pub,
+        None,
+        TEST_NOW_UNIX,
+    )
+    .expect_err("unsigned issuer algorithm substitution must fail closed");
+
+    assert!(matches!(error, SdJwtVpError::Crypto));
+}
+
+#[test]
 fn sd_jwt_vp_with_binding_rejects_stale_kb_jwt() {
     let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
     let (holder_pub, holder_priv) = generate_keypair(Algorithm::Ed25519).unwrap();

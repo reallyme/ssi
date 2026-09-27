@@ -6,6 +6,7 @@ use thiserror::Error;
 
 /// Typed conformance failures. Variants intentionally contain no credential data.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum ConformanceError {
     /// The attestation type identifier is absent or invalid.
     #[error("attestation type identifier is invalid")]

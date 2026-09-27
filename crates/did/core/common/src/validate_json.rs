@@ -32,14 +32,23 @@ pub struct JsonBoundaryError {
     pub reason: JsonBoundaryErrorReason,
 }
 
+impl JsonBoundaryError {
+    /// Construct the stable error returned when typed deserialization fails
+    /// after the structural boundary scan succeeds.
+    #[must_use]
+    pub const fn invalid_document() -> Self {
+        Self {
+            reason: JsonBoundaryErrorReason::InvalidDocument,
+        }
+    }
+}
+
 /// Reject duplicate names at every nesting level, trailing input, and resource abuse.
 ///
 /// This preflight retains only object names. Scalar contents remain borrowed, and
 /// allocated names are scrubbed on every return path, including parser failure.
 pub fn validate_json(bytes: &[u8]) -> Result<(), JsonBoundaryError> {
-    let invalid = || JsonBoundaryError {
-        reason: JsonBoundaryErrorReason::InvalidDocument,
-    };
+    let invalid = JsonBoundaryError::invalid_document;
     if bytes.is_empty() || bytes.len() > MAX_BYTES {
         return Err(invalid());
     }

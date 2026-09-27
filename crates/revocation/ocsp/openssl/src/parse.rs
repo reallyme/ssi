@@ -19,14 +19,21 @@ use openssl::x509::verify::{X509VerifyFlags, X509VerifyParam};
 use openssl::x509::X509;
 
 use crate::cert_id_match::{
-    response_nonce_for_request, unique_matching_digest, validated_response_produced_at,
-    MatchingDigest,
+    embedded_responder_certificates, response_nonce_for_request, unique_matching_digest,
+    validated_response_produced_at, MatchingDigest,
 };
 
 const MAX_OCSP_RESPONSE_DER_BYTES: usize = 1_048_576;
 const MAX_OCSP_EXTRA_CERTIFICATES: usize = 16;
 const MAX_OCSP_PRODUCED_AT_FUTURE_SKEW_SECONDS: u64 = 300;
 const OID_EKU_OCSP_SIGNING: &str = "1.3.6.1.5.5.7.3.9";
+const WEAK_CERTIFICATE_SIGNATURE_OIDS: &[&str] = &[
+    "1.2.840.113549.1.1.4",
+    "1.2.840.113549.1.1.5",
+    "1.2.840.10045.4.1",
+    "1.2.840.10040.4.3",
+    "1.3.14.3.2.29",
+];
 
 /// Parse an OCSP response (DER) using OpenSSL.
 ///
@@ -69,6 +76,9 @@ pub fn parse_ocsp_response_der_with_nonce(
         validate_delegated_responder_key_usage(extra_der)?;
         extra_certs.push(X509::from_der(extra_der).map_err(|_| OcspError::InvalidResponse)?);
     }
+    for embedded_der in embedded_responder_certificates(der)? {
+        validate_delegated_responder_key_usage(embedded_der)?;
+    }
     // Decode response
     let resp = OcspResponse::from_der(der).map_err(|_| OcspError::InvalidResponse)?;
 
@@ -93,9 +103,8 @@ pub fn parse_ocsp_response_der_with_nonce(
         return Err(OcspError::InvalidResponse);
     }
     // A nonce is an optional, non-critical response extension. If the request
-    // did not carry one, malformed nonce contents cannot weaken binding and
-    // are ignored. Signature verification below still authenticates the
-    // complete response.
+    // did not carry one, a malformed authenticated extension still fails
+    // closed rather than being reinterpreted as absence.
     let response_nonce = response_nonce_for_request(der, expected_nonce.is_some())?;
     identity_revocation_ocsp_core::validate_response_nonce(
         response_nonce.as_deref(),
@@ -226,6 +235,9 @@ fn parse_der_generalized_time(value: &[u8]) -> Option<u64> {
 
 fn validate_delegated_responder_key_usage(cert_der: &[u8]) -> Result<(), OcspError> {
     let certificate = parse_cert_der(cert_der).map_err(|_| OcspError::InvalidResponse)?;
+    if WEAK_CERTIFICATE_SIGNATURE_OIDS.contains(&certificate.signature_algorithm_oid.as_str()) {
+        return Err(OcspError::UntrustedResponder);
+    }
     let is_ocsp_responder = certificate
         .extended_key_usage
         .as_ref()

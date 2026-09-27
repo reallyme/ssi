@@ -11,7 +11,9 @@ use buffa_types::google::protobuf::{value::Kind, ListValue, Value};
 use reallyme_codec::base64url::{base64url_to_bytes, bytes_to_base64url};
 use reallyme_codec::cbor::{encode_dag_cbor, CborValue};
 use reallyme_did_types::{Controller, DIDDocument, Service, UpdatePolicy};
-use reallyme_ssi_proto::generated::proto::meid::did::v1::DIDDocument as PbDIDDocument;
+use reallyme_ssi_proto::generated::proto::meid::did::v1::{
+    DIDDocument as PbDIDDocument, UpdatePolicy as PbUpdatePolicy,
+};
 use reallyme_ssi_proto_codec::did::{
     decode_proto, encode_proto, json_to_proto, proto_to_json, DidProtoCodecError,
     MAX_DID_PROTO_MESSAGE_BYTES,
@@ -53,6 +55,7 @@ fn proto_defaults_become_json_none() {
     let proto = PbDIDDocument {
         id: "did:me:123".into(),
         controller: controller_value("did:me:123").into(),
+        update_policy: PbUpdatePolicy::default().into(),
         ..Default::default()
     };
 
@@ -91,6 +94,7 @@ fn unknown_user_verification_string_is_preserved() {
         id: "did:me:123".into(),
         controller: controller_value("did:me:123").into(),
         user_verification_method: "future-method".into(),
+        update_policy: PbUpdatePolicy::default().into(),
         ..Default::default()
     };
 
@@ -98,6 +102,20 @@ fn unknown_user_verification_string_is_preserved() {
     assert_eq!(
         json.user_verification_method.as_deref(),
         Some("future-method")
+    );
+}
+
+#[test]
+fn missing_update_policy_is_rejected_symmetrically() {
+    let proto = PbDIDDocument {
+        id: "did:me:123".into(),
+        controller: controller_value("did:me:123").into(),
+        ..Default::default()
+    };
+
+    assert_eq!(
+        proto_to_json(&proto),
+        Err(DidProtoCodecError::MissingRequiredField)
     );
 }
 
@@ -160,6 +178,7 @@ fn minimal_proto_document_decodes() {
     let proto = PbDIDDocument {
         id: "did:me:min".into(),
         controller: controller_value("did:me:min").into(),
+        update_policy: PbUpdatePolicy::default().into(),
         ..Default::default()
     };
 

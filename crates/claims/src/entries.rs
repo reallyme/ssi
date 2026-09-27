@@ -6,7 +6,7 @@ use crate::{
     ClaimPath, ClaimPathSegment, ClaimValue, ClaimsError, ClaimsInvalidReason,
     MAX_CLAIM_ARRAY_ITEMS, MAX_CLAIM_OBJECT_PROPERTIES,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// One normalized claim value addressed by canonical claim path.
 ///
@@ -29,7 +29,16 @@ where
     I: IntoIterator<Item = ClaimPathEntry>,
 {
     let mut root = ClaimValue::Object(BTreeMap::new());
+    let mut observed_paths = BTreeSet::new();
     for entry in entries {
+        let claim_id = entry.path.claim_id().ok_or(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidClaimPath,
+        ))?;
+        if !observed_paths.insert(claim_id) {
+            return Err(ClaimsError::InvalidInput(
+                ClaimsInvalidReason::DuplicateClaimPath,
+            ));
+        }
         insert_entry(&mut root, entry.path.segments(), entry.value)?;
     }
     Ok(root)
@@ -58,6 +67,11 @@ fn insert_field(
     rest: &[ClaimPathSegment],
     value: ClaimValue,
 ) -> Result<(), ClaimsError> {
+    if !field.is_ascii() {
+        return Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::ConfusableClaimName,
+        ));
+    }
     let ClaimValue::Object(object) = current else {
         return Err(ClaimsError::InvalidInput(
             ClaimsInvalidReason::ParentChildClaimPathConflict,

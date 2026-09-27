@@ -426,6 +426,7 @@ fn is_public_ipv4(address: Ipv4Addr) -> bool {
         || (a == 192 && b == 0 && c == 0)
         || (a == 192 && b == 0 && c == 2)
         || (a == 192 && b == 88 && c == 99)
+        || (a == 192 && matches!((b, c), (31, 196) | (52, 193) | (175, 48)))
         || (a == 192 && b == 168)
         || (a == 198 && (b == 18 || b == 19))
         || (a == 198 && b == 51 && c == 100)
@@ -452,6 +453,7 @@ fn is_public_ipv6(address: Ipv6Addr) -> bool {
     let is_deprecated_eid = segments[0] == 0x2001 && segments[1] == 0x0005;
     let is_pcp_anycast = segments == [0x2001, 0x0001, 0, 0, 0, 0, 0, 1];
     let is_as112 = segments[0] == 0x2001 && segments[1] == 0x0004 && segments[2] == 0x0112;
+    let is_as112_v6 = segments[0] == 0x2620 && segments[1] == 0x004f && segments[2] == 0x8000;
     let is_documentation_2 = segments[0] == 0x3fff && segments[1] & 0xf000 == 0;
     let is_nat64 = (segments[0] == 0x0064
         && segments[1] == 0xff9b
@@ -467,6 +469,7 @@ fn is_public_ipv6(address: Ipv6Addr) -> bool {
         && !is_deprecated_eid
         && !is_pcp_anycast
         && !is_as112
+        && !is_as112_v6
         && !is_documentation_2
         && !is_nat64
 }

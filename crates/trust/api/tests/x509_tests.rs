@@ -230,15 +230,15 @@ fn structural_chain_screening_never_returns_trusted_without_crypto() {
 
     // RFC 5280 §6: even exact anchor bytes do not authenticate the child
     // until every child-to-issuer signature has been verified.
-    assert!(!decision.accepted);
-    assert_eq!(decision.outcome, TrustDecisionOutcome::Indeterminate);
+    assert!(!decision.is_accepted());
+    assert_eq!(decision.outcome(), TrustDecisionOutcome::Indeterminate);
     assert_eq!(
-        decision.failures,
-        vec![TrustDecisionFailure::SignatureIndeterminate]
+        decision.failures(),
+        &[TrustDecisionFailure::SignatureIndeterminate]
     );
-    assert!(decision.evidence.trust_anchor.is_none());
+    assert!(decision.evidence().trust_anchor.is_none());
     assert!(decision
-        .evidence
+        .evidence()
         .selected_path_certificate_sha256
         .is_empty());
 }

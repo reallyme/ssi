@@ -257,6 +257,27 @@ fn trim_to_vms_removes_unlisted_keys() {
 }
 
 #[test]
+fn trim_to_vms_resolves_absolute_did_url_to_local_fragment() {
+    let mut key_set = KeySet::new();
+    key_set
+        .put_key("#k1", private_key(1), public_key(1))
+        .expect("valid key should insert");
+    key_set
+        .put_key("#k2", private_key(2), public_key(2))
+        .expect("valid key should insert");
+
+    key_set
+        .trim_to_vms(&["did:me:example#k1".to_owned()])
+        .expect("absolute DID URL should select local fragment");
+
+    assert!(key_set.get_private("#k1").is_ok());
+    assert_eq!(
+        key_set.get_private("#k2"),
+        Err(KeySetError::MissingPrivateKey)
+    );
+}
+
+#[test]
 fn export_and_import_roundtrip() {
     let mut original = KeySet::new();
     let public_1 = public_key(1);

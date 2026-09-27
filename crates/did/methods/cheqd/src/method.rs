@@ -25,6 +25,7 @@ pub enum CheqdIdentifierKind {
 
 /// Audit-safe did:cheqd failure reasons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidCheqdErrorReason {
     /// The DID did not start with `did:cheqd:`.
     InvalidPrefix,

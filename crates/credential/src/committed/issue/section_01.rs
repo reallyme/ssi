@@ -114,8 +114,7 @@ impl CredentialPayloadSigner for CryptoSignerAdapter<'_> {
 
 /// Issues a credential whose signed envelope authenticates a Merkle commitment.
 ///
-/// - Values are encoded using a deterministic JSON canonicalization compatible with the TS JCS rules
-///   (object keys sorted recursively; arrays preserved; primitives unchanged).
+/// - Values are encoded using RFC 8785 JSON Canonicalization Scheme bytes.
 /// - Inner digest: SHA-256( CLM_TAG || u64be(len(value)) || value || salt )
 /// - Leaf digest: SHA-256( LEAF_TAG || SHA-256(path_utf8) || inner_digest )
 /// - Node digest: SHA-256( NODE_TAG || left || right )
