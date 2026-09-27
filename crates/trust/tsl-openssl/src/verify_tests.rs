@@ -2,6 +2,11 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+// These tests exercise the native provider and use its optional OpenSSL
+// dependency directly. Keep the default lane testable without accidentally
+// enabling a provider through the test target.
+#![cfg(feature = "native")]
+
 use crate::TslSignatureAlgorithm;
 use crate::{
     signer_profile::{

@@ -498,6 +498,14 @@ fn integer_claims_reject_out_of_range_cross_variant_values() {
 
 #[test]
 fn number_claims_normalize_nonnegative_integer_storage_variants() {
+    // Recorded from the 0.2.0 RM-CV-JCS-V1 implementation. This vector keeps
+    // 0.2.x credential openings verifiable after upgrading the verifier.
+    const V0_2_NUMBER_VALUE: &[u8] = br#"{"t":"unsigned","v":42}"#;
+    const V0_2_NUMBER_ROOT: [u8; 32] = [
+        78, 118, 103, 161, 125, 101, 188, 172, 116, 32, 48, 38, 135, 230, 23, 129, 226, 76, 92, 43,
+        229, 137, 12, 246, 168, 159, 189, 182, 233, 148, 157, 185,
+    ];
+
     let mut definitions = BTreeMap::new();
     definitions.insert("value".to_owned(), definition("value", ClaimType::Number));
     let registry = ClaimsRegistry {
@@ -528,4 +536,6 @@ fn number_claims_normalize_nonnegative_integer_storage_variants() {
         signed.bundle.claims[0].value,
         unsigned.bundle.claims[0].value
     );
+    assert_eq!(signed.bundle.claims[0].value, V0_2_NUMBER_VALUE);
+    assert_eq!(signed.commitment.merkle_root, V0_2_NUMBER_ROOT);
 }

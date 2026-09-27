@@ -138,11 +138,15 @@ pub fn validate_x5chain_issuer_auth(
         Some(validated.public_key)
     })
     .map_err(|_| MdocEnvelopeError::InvalidSignature)?;
-    let authenticated_mso = crate::cbor::decode_mso_cbor(&verified.payload)
-        .map_err(|_| MdocEnvelopeError::InvalidSignature)?;
+    let authenticated_mso = crate::cbor::decode_mso_cbor(&verified.payload)?;
     if authenticated_mso.validity_info.signed != mso_signing_time_unix {
         return Err(MdocEnvelopeError::InvalidSignature);
     }
+    // The certificate callback needs the unverified signing time to choose a
+    // path, but only the authenticated MSO may determine semantic validity.
+    // Validate its intrinsic window before applying certificate-time policy so
+    // malformed signed data retains the stable, domain-specific error.
+    crate::validity::validate_validity_window(&authenticated_mso.validity_info)?;
     let (certificate_not_before_unix, certificate_not_after_unix) =
         certificate_window.ok_or(MdocEnvelopeError::InvalidSignature)?;
     if mso_signing_time_unix < certificate_not_before_unix

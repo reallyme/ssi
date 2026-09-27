@@ -70,7 +70,8 @@ changes to authenticate its externally visible projection commitment.
 - mdoc digest identifiers are randomized, and projected mdoc JSON values are
   zeroized on drop.
 - Numeric claims normalize equivalent signed and unsigned values before
-  commitment, and committed-credential salts are zeroized on all paths.
+  commitment while preserving the 0.2.x `RM-CV-JCS-V1` integer tags, and
+  committed-credential salts are zeroized on all paths.
 - Generated conformance evidence records every configured fuzz target and
   fails if an expected target is missing. Local evidence references are checked
   against real test functions and both positive and negative evidence.
@@ -81,14 +82,30 @@ changes to authenticate its externally visible projection commitment.
 
 - Public security error enums are marked `#[non_exhaustive]` where downstream
   exhaustive matching would prevent compatible typed-state additions.
+- Public enums across the credential, claims, status, mdoc, OAuth, SD-JWT,
+  revocation, trust, X.509, and presentation crates are now non-exhaustive.
+  Callers must use wildcard match arms and must not rely on implicit numeric
+  discriminants, which changed where typed failure variants were added.
 - `TrustDecision`, `VerifiedTokenStatusList`, and parsed CRL values can only be
   created by their verification or parsing pipelines. Callers use read-only
   accessors instead of constructing these security capabilities directly.
-- The standalone CRL core crate has been removed. Use the OpenSSL CRL parser
-  and checker from `identity-revocation-crl-openssl`.
+- `VerifiedSdJwt`, `VerifiedMdoc`, and `VerifiedMdocDeviceResponse` likewise
+  expose authenticated state through accessors instead of public fields.
+  Verified mdoc values and several presentation-domain models no longer
+  implement `Clone` so sensitive authenticated projections are not duplicated
+  implicitly.
+- The standalone CRL core crate has been removed. The published
+  `reallyme-revocation` crate accepts CRL decisions through the portable
+  `StatusChecker` boundary; its OpenSSL parser and checker remain a
+  source-workspace implementation and are not published in 0.3.0.
 - SIOP authentication response verification takes the expected state in its
   only public protocol entry point.
 - Committed-credential proof binding requires the trusted issuer public key.
+  The unauthenticated `verify_merkle_only` entry point has been removed.
+- QEAA validation is represented by the typed verification-provenance and
+  compliance pipeline; the former `QeaaValidationPolicy`,
+  `validate_qeaa_compliance`, and `validate_qeaa_compliance_with_policy` APIs
+  have been removed.
 - `SingleUseStore` operations require a `SingleUseNamespace`, no longer accept
   caller-supplied current time, and use the store's `SingleUseClock`. That clock
   now returns paired wall and monotonic readings through `SingleUseTime`.
@@ -97,14 +114,28 @@ changes to authenticate its externally visible projection commitment.
   expiry deadlines instead. Constructors backed by the system clock are not
   available on `wasm32-unknown-unknown`; WebAssembly callers inject a clock.
 - `DidCore` includes its signed projection commitment, and `BrotliError`
-  includes a distinct trailing-data variant. Brotli decompression now returns
-  `Zeroizing<Vec<u8>>`.
+  includes a distinct trailing-data variant. Both `brotli_compress` and Brotli
+  decompression now return `Zeroizing<Vec<u8>>`.
 - The OpenSSL OCSP parser accepts certificate DER instead of OpenSSL handles;
   nonce-aware verification is available through
   `parse_ocsp_response_der_with_nonce`, and sealed `ParsedOcspResponse`
   receipts expose the authenticated response nonce through accessors.
 - `AuthorizationServerMetadata` is non-exhaustive, includes `jwks_uri`, and is
-  constructed with `AuthorizationServerMetadata::new`.
+  constructed with `AuthorizationServerMetadata::new`. Attestation validation
+  contexts add the expected client identity, trust-evidence construction now
+  requires the authenticated compact attestation and verification time, and
+  verified attestation PoP claims are exposed through accessors.
+- SD-JWT verification policies add required-expiration controls, and verified
+  SD-JWT payloads, disclosures, and key-binding data are exposed through
+  accessors rather than public fields.
+- mdoc validity carries optional `expectedUpdate`; issue configuration carries
+  device-key authorizations and bounded key information; x5chain verification
+  returns the authenticated signer-certificate interval. The former
+  `MdocEnvelopeStatus` enum is replaced by typed envelope errors.
+- Status-list verification seals `VerifiedTokenStatusList`; use its accessors
+  instead of the removed `status_bit` and `token_status_value` helpers.
+  Revocation composition no longer exposes mutable `statuslist` or
+  `require_verified` policy fields.
 - `DidApiError` carries did:web failures through the typed
   `DidWeb(DidWebErrorReason)` variant. The corresponding protobuf reasons now
   preserve individual did:web transport and document-validation failures.
@@ -114,7 +145,14 @@ changes to authenticate its externally visible projection commitment.
   authenticated rollback before returning a verified list.
 - The X.509 trusted-list helper is now explicitly a policy-only projection,
   binds CA/QC service identities to a CA certificate rather than an end-entity
-  leaf, and requires a concrete validation time.
+  leaf, and requires a concrete validation time. `TslTrustService`,
+  `validate_tsl_trust_service_for_leaf`, and the `require_leaf_binding` policy
+  field are replaced by CA-bound `TslCertificateBinding`,
+  `evaluate_tsl_service_policy_for_ca`, and `require_ca_binding`.
+  `CertificateIdentityFacts` also adds the canonical `subject_name_der` field.
+- The permissive disclosure-policy constructors `VpPolicy::dev_default` and
+  `VpPolicy::unsafe_permissive_for_tests` have been removed; callers construct
+  an explicit policy.
 - VC validation exposes typed errors for required expiration, SD-JWT digest
   algorithm, presentation binding, and trusted issuer-key mismatches.
 
