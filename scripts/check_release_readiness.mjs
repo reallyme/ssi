@@ -84,7 +84,7 @@ function assertFixtureCopies() {
 
 shared.assertReallyMeReleasePackagePolicy({
   scriptPath: "scripts/check_release_readiness.mjs",
-  version: "0.6.4",
+  version: "0.6.5",
 });
 shared.assertWorkflowActionsPinned();
 shared.assertWorkflowPolicy({
@@ -1181,19 +1181,19 @@ assertContains(
 );
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "ref: dc6a067b31ec731a44eeb416a514ab218d27dd06",
+  "ref: 586890e2999043d77e07e589cd3dbdfe3ae3e154",
 );
 assertContains(
   ".github/workflows/crates-package-preflight.yml",
-  "ref: dc6a067b31ec731a44eeb416a514ab218d27dd06",
+  "ref: 586890e2999043d77e07e589cd3dbdfe3ae3e154",
 );
 assertContains(
   "scripts/run_pinned_release_readiness.mjs",
-  'const RELEASE_READINESS_COMMIT = "dc6a067b31ec731a44eeb416a514ab218d27dd06";',
+  'const RELEASE_READINESS_COMMIT = "586890e2999043d77e07e589cd3dbdfe3ae3e154";',
 );
 assertContains(
   "scripts/run_pinned_release_readiness.mjs",
-  '"eb2cefa283a60fb21a2e51b5cc8d03600bb986ca0409d0318f764338a20395ba"',
+  '"4ca93c819c4e5713fe2fd95eb13421dbd10b60e57518086281c28a1041772e1e"',
 );
 assertContains(
   "scripts/run_pinned_release_readiness.mjs",
