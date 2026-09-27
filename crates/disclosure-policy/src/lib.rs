@@ -36,7 +36,7 @@ pub use evaluate::{
     evaluate, EvaluationContext, ExtractedDisclosure, QeaaContext, StatusContext,
     MAX_EVALUATED_DISCLOSURES, MAX_EVALUATED_REQUIRED_CLAIMS,
 };
-pub use model::{RequiredClaim, VpPolicy};
+pub use model::{PredicateOperand, RequiredClaim, VpPolicy};
 pub use profiles::{
     eu_address_policy, eu_age_policy, eu_company_policy, eu_diploma_policy,
     eu_driving_license_policy, eu_eaa_policy, eu_eidas_vid_policy, eu_health_policy, eu_kyc_policy,

@@ -40,6 +40,8 @@ fn trusted_path(public_key: Vec<u8>) -> MdocCertificatePathValidation {
         public_key,
         not_before_unix: 1_600_000_000,
         not_after_unix: 1_900_000_000,
+        iaca_not_before_unix: 1_600_000_000,
+        iaca_not_after_unix: 1_900_000_000,
     }
 }
 
@@ -649,6 +651,8 @@ fn verifies_x5chain_device_response_after_leaf_expiry() {
                     public_key: issuer_public_key.clone(),
                     not_before_unix: MSO_SIGNING_TIME_UNIX,
                     not_after_unix: CERTIFICATE_EXPIRY_UNIX,
+                    iaca_not_before_unix: MSO_SIGNING_TIME_UNIX,
+                    iaca_not_after_unix: PRESENTATION_TIME_UNIX + 1,
                 }
             })
         },

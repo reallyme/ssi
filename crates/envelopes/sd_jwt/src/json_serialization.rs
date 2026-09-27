@@ -221,9 +221,14 @@ fn validate_unprotected_header(
     let object = header
         .as_object()
         .ok_or(SdJwtEnvelopeError::InvalidJsonSerialization)?;
-    if object
-        .keys()
-        .any(|key| !allow_sd_header || ![DISCLOSURES_MEMBER, KB_JWT_MEMBER].contains(&key.as_str()))
+    // JWS permits application-defined unprotected parameters such as `kid`.
+    // Only the two SD-JWT serialization parameters are position-sensitive:
+    // RFC 9901 carries them on the first signature entry so they cannot be
+    // repeated with conflicting values on sibling signatures.
+    if !allow_sd_header
+        && object
+            .keys()
+            .any(|key| [DISCLOSURES_MEMBER, KB_JWT_MEMBER].contains(&key.as_str()))
     {
         return Err(SdJwtEnvelopeError::InvalidJsonSerialization);
     }

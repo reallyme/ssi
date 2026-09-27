@@ -15,3 +15,7 @@ pub(super) fn proof_payload(
     serde_json::to_vec(&(current_core, created))
         .map_err(|_| super::Es256JwsCid2025Error::InvalidInput)
 }
+
+#[cfg(test)]
+#[path = "suite_tests.rs"]
+mod tests;

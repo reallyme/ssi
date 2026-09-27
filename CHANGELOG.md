@@ -13,6 +13,9 @@ changes to authenticate its externally visible projection commitment.
   absent optional check remains explicitly skipped rather than fabricated.
 - OAuth client-attestation trust receipts are bound to the exact compact JWT,
   and DPoP access-token verification requires the confirmed key thumbprint.
+  Client-attestation envelopes accept ordinary JOSE parameters, including the
+  HAIP `x5c` header, and treat `iat` as an optional claim whose time is checked
+  when present.
 - OCSP processing rejects ambiguous duplicate certificate responses, accepts
   interoperable SHA-256 and SHA-1 CertIDs, derives issuer identifiers from the
   authenticated issuer key, rejects unsupported critical response extensions
@@ -45,6 +48,10 @@ changes to authenticate its externally visible projection commitment.
   key indeterminate. A fixed 30-document EU snapshot corpus guards this boundary.
 - Presentation verification requires configured nonce and audience bindings,
   validates ZK expiry, and removes the stateless SIOP response entry point.
+  Both disclosure-policy engines share empty-policy, duplicate-path, and exact
+  predicate-operand semantics. Status evidence is bound to the presentation's
+  authenticated status reference, and its signer is read only after signature
+  verification.
 - Committed-credential proofs verify against a caller-trusted issuer key and
   reject raw P-256 keys whose bytes do not match their declared SEC1 encoding.
 - Legacy status lists receive a 24-hour maximum-age ceiling through the default
@@ -82,8 +89,12 @@ changes to authenticate its externally visible projection commitment.
 - Authenticated TSL pointer-parent failures map to the dedicated protobuf
   reason `TSL_POINTER_INVALID_PARENT` (1071), preserving the failure on the wire.
 - mdoc issuance bounds authorization identifiers and implementation-defined
-  key information. Committed proofs validate uncompressed P-256 points before
-  binding them to the trusted issuer key.
+  key information. X5Chain verification evaluates the document signer at the
+  authenticated MSO signing time while separately requiring the IACA trust
+  anchor to be valid at presentation time. Revocation policy remains necessary
+  because the issuer-chosen signing time is not external proof of issuance.
+  Committed proofs validate uncompressed P-256 points before binding them to
+  the trusted issuer key.
 
 ### Privacy and robustness
 
@@ -92,12 +103,20 @@ changes to authenticate its externally visible projection commitment.
 - SD-JWT top-level disclosure classifies dotted and URI claim names by
   structure rather than path-string syntax. Presentation selection indexes
   reconstructed arrays, ignores decoys, and rejects absent requested paths.
+  RFC 9901 general JSON serialization accepts ordinary unprotected JWS members
+  such as `kid` on every signature while keeping `disclosures` and `kb_jwt`
+  exclusive to the first signature. SD-JWT VC issuance rejects missing `vct`
+  before signing when the selected media type requires it.
 - Numeric claims normalize equivalent signed and unsigned values before
   commitment while preserving the 0.2.x `RM-CV-JCS-V1` integer tags, and
   committed-credential salts are zeroized on all paths.
 - Generated conformance evidence records every configured fuzz target and
   fails if an expected target is missing. Local evidence references are checked
   against real test functions and both positive and negative evidence.
+- `protocol-wire-formats.json` provides versioned, language-neutral vectors for
+  the legacy SD-JWT `disclosure_set_hash`, the did:me
+  `es256-jws-cid-2025` payload, canonical contact CBOR, and the CA-bound X.509
+  trusted-list policy. The X.509 suite records its eight actual cases.
 - Published crate preflight builds and runs tests from each extracted crate
   archive, preventing tests from relying on files outside the package. Preflight
   also attests the exact reviewed archives, and publication compares both new
@@ -124,6 +143,9 @@ changes to authenticate its externally visible projection commitment.
   Verified mdoc values and several presentation-domain models no longer
   implement `Clone` so sensitive authenticated projections are not duplicated
   implicitly.
+- Security-bearing verified result types are sealed throughout the credential,
+  presentation, trust, status, revocation, and envelope crates. Downstream
+  callers obtain them from verification APIs and use read-only accessors.
 - The standalone CRL core crate has been removed. The published
   `reallyme-revocation` crate accepts CRL decisions through the portable
   `StatusChecker` boundary; its OpenSSL parser and checker remain a
@@ -133,9 +155,10 @@ changes to authenticate its externally visible projection commitment.
 - Committed-credential proof binding requires the trusted issuer public key.
   The unauthenticated `verify_merkle_only` entry point has been removed.
 - QEAA validation is represented by the typed verification-provenance and
-  compliance pipeline; the former `QeaaValidationPolicy`,
-  `validate_qeaa_compliance`, and `validate_qeaa_compliance_with_policy` APIs
-  have been removed.
+  compliance pipeline. `QeaaValidationPolicy` is renamed to
+  `QeaaMetadataPolicy`; `validate_qeaa_compliance` and
+  `validate_qeaa_compliance_with_policy` are renamed to
+  `screen_qeaa_metadata` and `screen_qeaa_metadata_with_policy`.
 - `SingleUseStore` operations require a `SingleUseNamespace`, no longer accept
   caller-supplied current time, and use the store's `SingleUseClock`. That clock
   now returns paired wall and monotonic readings through `SingleUseTime`.
@@ -150,6 +173,9 @@ changes to authenticate its externally visible projection commitment.
 - `CredentialRevocationVerificationInput` and
   `verify_credential_revocation_status` require authenticated credential
   status-list evidence in addition to certificate-revocation evidence.
+  `CompositeRevocationPolicy::prefer_statuslist` is now required, and
+  `CredentialStatusListVerifier` implementations must provide the
+  authenticated signer through `verified_signer`.
 - The OpenSSL OCSP parser accepts certificate DER instead of OpenSSL handles;
   nonce-aware verification is available through
   `parse_ocsp_response_der_with_nonce`, and sealed `ParsedOcspResponse`
@@ -161,11 +187,15 @@ changes to authenticate its externally visible projection commitment.
   verified attestation PoP claims are exposed through accessors.
 - SD-JWT verification policies add required-expiration controls, and verified
   SD-JWT payloads, disclosures, and key-binding data are exposed through
-  accessors rather than public fields.
+  accessors rather than public fields. Legacy ReallyMe KB-JWT payloads now bind
+  the exact canonical disclosure set through `disclosure_set_hash`; the v2
+  wire contract is recorded in the portable protocol vector suite.
 - mdoc validity carries optional `expectedUpdate`; issue configuration carries
   device-key authorizations and bounded key information; x5chain verification
-  returns the authenticated signer-certificate interval. The former
-  `MdocEnvelopeStatus` enum is replaced by typed envelope errors.
+  passes the authenticated MSO signing time to the resolver and returns both
+  document-signer and IACA validity intervals. The resolver signature therefore
+  changes. The former `MdocEnvelopeStatus` enum is replaced by typed envelope
+  errors.
 - Status-list verification seals `VerifiedTokenStatusList`; use its accessors
   instead of the removed `status_bit` and `token_status_value` helpers.
   Revocation composition no longer exposes mutable `statuslist` or
@@ -192,5 +222,19 @@ changes to authenticate its externally visible projection commitment.
   an explicit policy.
 - VC validation exposes typed errors for required expiration, SD-JWT digest
   algorithm, presentation binding, and trusted issuer-key mismatches.
+- Presentation validation entry points `verify_presentation` and
+  `validate_presentation` are replaced by `evaluate_presentation_policy`. Its
+  wire result member is renamed from `valid` to `policySatisfied`.
+- SIOP resolver implementations must provide `is_authentication_method`; a key
+  that merely resolves is no longer implicitly authorized for authentication.
+- Generated protobuf messages implement `Drop` for zeroization. Rust callers
+  can no longer construct those types with struct update syntax such as
+  `..Default::default()` and must use setters or explicit construction.
+- `JwtVcPayload` implements `ZeroizeOnDrop` and is no longer freely movable out
+  of borrowed or dropping containers.
+- The `es256-jws-cid-2025` did:me proof payload changes from `current_core` to
+  the versioned `[current_core, created]` tuple. Contact CBOR version 1.0 is
+  accepted only in its deterministic ciborium encoding. Both byte contracts
+  are pinned by the portable protocol vector suite.
 
 All workspace crates, including source-only internal crates, use version 0.3.0.

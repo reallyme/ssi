@@ -9,6 +9,7 @@
 const VERIFY_NOW_UNIX: u64 = 1_683_000_002;
 
 include!("sd_jwt_tests/section_01.rs");
+include!("sd_jwt_tests/compatibility_tests.rs");
 include!("sd_jwt_tests/issuance_path_tests.rs");
 include!("sd_jwt_tests/section_02.rs");
 include!("sd_jwt_tests/section_03.rs");

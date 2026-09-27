@@ -7,8 +7,6 @@ use crate::device_auth::{validate_device_auth, DeviceAuthenticationValidationInp
 use crate::issue::{is_supported_digest_algorithm, sha256, value_digest};
 use crate::present::{DEVICE_RESPONSE_STATUS_OK, DEVICE_RESPONSE_VERSION};
 use crate::validity::validate_validity_window;
-use reallyme_cose::Algorithm;
-
 use crate::{
     validate_issuer_auth, validate_x5chain_issuer_auth, IssuerNameSpaces,
     MdocCertificatePathValidation, MdocDeviceResponse, MdocEnvelopeError, MdocInvalidInputReason,
@@ -16,6 +14,7 @@ use crate::{
     MAX_MDOC_DEVICE_RESPONSE_DOCUMENTS, MAX_MDOC_ELEMENTS_PER_NAMESPACE, MAX_MDOC_NAMESPACES,
     MSO_VERSION,
 };
+use reallyme_cose::Algorithm;
 use std::collections::BTreeSet;
 use zeroize::Zeroize;
 
@@ -24,10 +23,8 @@ use zeroize::Zeroize;
 pub struct VerifiedMdoc {
     /// Verified mdoc document type.
     doc_type: String,
-
     /// MobileSecurityObject recovered from issuerAuth.
     mobile_security_object: MobileSecurityObject,
-
     /// Disclosed issuer namespaces, when present.
     namespaces: Option<IssuerNameSpaces>,
 }
@@ -69,7 +66,6 @@ impl Drop for VerifiedMdoc {
 pub struct VerifiedMdocDeviceResponse {
     /// Decoded DeviceResponse model.
     device_response: MdocDeviceResponse,
-
     /// Verified issuer-signed documents in DeviceResponse order.
     verified_documents: Vec<VerifiedMdoc>,
 }
@@ -122,28 +118,33 @@ fn authenticate_issuer_signed_mdoc(
 
 /// Verify an issuer-signed mdoc through its RFC 9360 `x5chain` certificate path.
 ///
-/// The resolver must perform certificate parsing, path and profile validation,
-/// revocation policy, and trust-anchor selection before returning the leaf P-256
-/// public key. It receives the signing time carried in the MSO and must evaluate
-/// certificate validity at that time; verification succeeds only after that MSO
-/// value is authenticated. Merely extracting the leaf key is not a trust
-/// decision. `now_unix` independently evaluates document validity at
-/// presentation time.
+/// The resolver owns path, profile, revocation, and trust-anchor validation. It
+/// evaluates the document signer at the authenticated MSO signing time and
+/// returns the IACA window, which is checked at `now_unix`. This permits use
+/// after legitimate signer expiry without accepting an expired trust anchor.
+/// Revocation remains essential because an MSO time is not proof of issuance.
 pub fn verify_issuer_signed_mdoc_with_x5chain(
     document: &MdocIssuerSignedDocument,
     certificate_path_resolver: impl FnOnce(&[Vec<u8>], u64) -> Option<MdocCertificatePathValidation>,
     now_unix: u64,
 ) -> Result<VerifiedMdoc, MdocEnvelopeError> {
-    let verified =
+    let authenticated =
         authenticate_issuer_signed_mdoc_with_x5chain(document, certificate_path_resolver)?;
-    validate_mso_time(&verified.mobile_security_object, now_unix)?;
-    Ok(verified)
+    validate_mso_time(&authenticated.verified.mobile_security_object, now_unix)?;
+    validate_iaca_time(&authenticated, now_unix)?;
+    Ok(authenticated.verified)
+}
+
+struct AuthenticatedX5ChainMdoc {
+    verified: VerifiedMdoc,
+    iaca_not_before_unix: u64,
+    iaca_not_after_unix: u64,
 }
 
 fn authenticate_issuer_signed_mdoc_with_x5chain(
     document: &MdocIssuerSignedDocument,
     certificate_path_resolver: impl FnOnce(&[Vec<u8>], u64) -> Option<MdocCertificatePathValidation>,
-) -> Result<VerifiedMdoc, MdocEnvelopeError> {
+) -> Result<AuthenticatedX5ChainMdoc, MdocEnvelopeError> {
     let verified = validate_x5chain_issuer_auth(
         document.issuer_signed.issuer_auth.as_slice(),
         certificate_path_resolver,
@@ -154,7 +155,11 @@ fn authenticate_issuer_signed_mdoc_with_x5chain(
     {
         return Err(MdocEnvelopeError::InvalidSignature);
     }
-    Ok(result)
+    Ok(AuthenticatedX5ChainMdoc {
+        verified: result,
+        iaca_not_before_unix: verified.iaca_not_before_unix,
+        iaca_not_after_unix: verified.iaca_not_after_unix,
+    })
 }
 
 /// Verify a newly issued mdoc receipt, including its authenticated validity
@@ -169,10 +174,11 @@ pub fn verify_issuer_signed_mdoc_receipt_with_x5chain(
     certificate_path_resolver: impl FnOnce(&[Vec<u8>], u64) -> Option<MdocCertificatePathValidation>,
     now_unix: u64,
 ) -> Result<VerifiedMdoc, MdocEnvelopeError> {
-    let verified =
+    let authenticated =
         authenticate_issuer_signed_mdoc_with_x5chain(document, certificate_path_resolver)?;
-    validate_mso_time(&verified.mobile_security_object, now_unix)?;
-    Ok(verified)
+    validate_mso_time(&authenticated.verified.mobile_security_object, now_unix)?;
+    validate_iaca_time(&authenticated, now_unix)?;
+    Ok(authenticated.verified)
 }
 
 fn verified_mdoc_from_mso_cbor(
@@ -243,12 +249,10 @@ where
 /// Verify an ISO 18013-5 DeviceResponse whose issuerAuth uses RFC 9360 `x5chain`.
 ///
 /// This is the OpenID4VP/HAIP verification lane. The injected resolver owns the
-/// deployment's X.509 trust decision and must fail closed when any certificate
-/// or trust evidence is unacceptable. The resolver receives each signing time
-/// carried in an MSO for certificate-path validation, and verification accepts
-/// the result only after authenticating that value. The caller-supplied
-/// `now_unix` separately controls document validity at presentation time;
-/// neither validity check can be disabled.
+/// deployment's X.509 trust decision and receives the authenticated MSO signing
+/// time for document-signer validation. `now_unix` independently controls mdoc
+/// and IACA validity at presentation. Revocation must account for compromised
+/// signer keys because an MSO timestamp is not external proof of issuance.
 pub fn verify_mdoc_device_response_with_x5chain<F>(
     device_response_cbor: &[u8],
     certificate_path_resolver: F,
@@ -261,11 +265,25 @@ where
     verify_mdoc_device_response_with(
         device_response_cbor,
         |document| {
-            authenticate_issuer_signed_mdoc_with_x5chain(document, &certificate_path_resolver)
+            let authenticated =
+                authenticate_issuer_signed_mdoc_with_x5chain(document, &certificate_path_resolver)?;
+            validate_iaca_time(&authenticated, now_unix)?;
+            Ok(authenticated.verified)
         },
         expected_session_transcript_cbor,
         now_unix,
     )
+}
+
+fn validate_iaca_time(
+    authenticated: &AuthenticatedX5ChainMdoc,
+    now_unix: u64,
+) -> Result<(), MdocEnvelopeError> {
+    if now_unix < authenticated.iaca_not_before_unix || now_unix > authenticated.iaca_not_after_unix
+    {
+        return Err(MdocEnvelopeError::InvalidSignature);
+    }
+    Ok(())
 }
 
 fn verify_mdoc_device_response_with(

@@ -6,7 +6,7 @@ use identity_core_primitives::Algorithm;
 use reallyme_vp_core::{DisclosureMode, Presentation};
 
 use crate::error::{PolicyDecision, VpPolicyError};
-use crate::model::VpPolicy;
+use crate::model::{PredicateOperand, VpPolicy};
 
 /// Maximum number of extracted disclosures evaluated against policy.
 ///
@@ -25,6 +25,9 @@ pub struct ExtractedDisclosure {
 
     /// Disclosure mode satisfied by the presentation.
     pub mode: DisclosureMode,
+
+    /// Authenticated public operand carried by the disclosure proof.
+    pub operand: PredicateOperand,
 }
 
 /// Already-resolved credential status facts.
@@ -178,6 +181,13 @@ fn validate_required_claims(
         errors.push(VpPolicyError::ProofInvalid);
         return;
     }
+    let mut seen_disclosures = std::collections::BTreeSet::new();
+    if disclosures
+        .iter()
+        .any(|claim| !seen_disclosures.insert(claim.claim_path.as_str()))
+    {
+        errors.push(VpPolicyError::ProofInvalid);
+    }
     for required in &policy.required_claims {
         let Some(disclosed) = disclosures
             .iter()
@@ -187,17 +197,19 @@ fn validate_required_claims(
             continue;
         };
 
-        if disclosed.mode != required.mode {
-            errors.push(VpPolicyError::DisclosureModeNotAllowed);
+        if disclosed.mode != required.mode || disclosed.operand != required.operand {
+            errors.push(VpPolicyError::PredicateNotSatisfied);
         }
     }
-    for disclosed in disclosures {
-        if !policy
-            .required_claims
-            .iter()
-            .any(|required| required.claim_path == disclosed.claim_path)
-        {
-            errors.push(VpPolicyError::UnexpectedDisclosure);
+    if !policy.required_claims.is_empty() {
+        for disclosed in disclosures {
+            if !policy
+                .required_claims
+                .iter()
+                .any(|required| required.claim_path == disclosed.claim_path)
+            {
+                errors.push(VpPolicyError::UnexpectedDisclosure);
+            }
         }
     }
 }
@@ -208,7 +220,12 @@ fn validate_policy_configuration(policy: &VpPolicy, errors: &mut Vec<VpPolicyErr
     let qeaa_constraint_without_qeaa = (policy.min_qeaa_profile.is_some()
         || policy.min_identity_proofing_level.is_some())
         && !policy.require_qeaa;
-    if status_constraint_without_status || qeaa_constraint_without_qeaa {
+    let mut required_paths = std::collections::BTreeSet::new();
+    let duplicate_required_path = policy
+        .required_claims
+        .iter()
+        .any(|claim| !required_paths.insert(claim.claim_path.as_str()));
+    if status_constraint_without_status || qeaa_constraint_without_qeaa || duplicate_required_path {
         errors.push(VpPolicyError::PolicyMisconfiguration);
     }
 }

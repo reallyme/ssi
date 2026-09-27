@@ -19,6 +19,8 @@ use identity_presentation_delivery_contact_core::{
     MAX_CONTACT_MESSAGE_CBOR_BYTES,
 };
 
+const PROTOCOL_WIRE_VECTORS: &str = include_str!("fixtures/protocol-wire-formats.json");
+
 #[test]
 fn fragments_and_reassembles_roundtrip() {
     let limits = ContactLimits {
@@ -38,6 +40,71 @@ fn fragments_and_reassembles_roundtrip() {
 
     let rebuilt = reassemble_frames(&frames, &limits).unwrap();
     assert_eq!(rebuilt, msg);
+}
+
+#[test]
+fn contact_message_matches_portable_canonical_cbor_vector() {
+    let vectors: serde_json::Value =
+        serde_json::from_str(PROTOCOL_WIRE_VECTORS).expect("portable vector JSON must parse");
+    let vector = vectors
+        .get("contact_cbor")
+        .expect("contact CBOR vector must exist");
+    let message = vector
+        .get("message")
+        .expect("contact message vector must exist");
+    let contact = ContactMessage {
+        version: message
+            .get("version")
+            .expect("version must exist")
+            .as_str()
+            .expect("version must be text")
+            .to_owned(),
+        kind: ContactPayloadKind::Request,
+        session_id: vec![1; 16],
+        session_transcript_sha256: vec![2; 32],
+        message_id: u32::try_from(
+            message
+                .get("message_id")
+                .expect("message id must exist")
+                .as_u64()
+                .expect("message id must be unsigned"),
+        )
+        .expect("message id must fit u32"),
+        content_type: Some(
+            message
+                .get("content_type")
+                .expect("content type must exist")
+                .as_str()
+                .expect("content type must be text")
+                .to_owned(),
+        ),
+        created_at: message
+            .get("created_at")
+            .expect("created time must exist")
+            .as_u64()
+            .expect("created time must be unsigned"),
+        expires_at: message
+            .get("expires_at")
+            .expect("expiry time must exist")
+            .as_u64()
+            .expect("expiry time must be unsigned"),
+        payload: vec![0xaa, 0xbb],
+    };
+    let encoded = encode_contact_message_cbor(&contact).expect("contact vector must encode");
+    let encoded_hex = encoded
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+
+    assert_eq!(
+        encoded_hex,
+        vector
+            .get("encoded_cbor_hex")
+            .expect("encoded CBOR must exist")
+            .as_str()
+            .expect("encoded CBOR must be text")
+    );
+    decode_contact_message_cbor(&encoded).expect("canonical contact vector must decode");
 }
 
 #[test]

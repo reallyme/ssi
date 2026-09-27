@@ -265,6 +265,16 @@ pub fn issue_sd_jwt(
     if !input.claims.is_object() {
         return Err(SdJwtEnvelopeError::InvalidIssuanceInput);
     }
+    if matches!(
+        input.policy.issuer_type,
+        SdJwtIssuerType::DigitalCredentialSdJwt | SdJwtIssuerType::VerifiableCredentialSdJwt
+    ) && !input.claims.get("vct").is_some_and(Value::is_string)
+    {
+        // The verifier requires `vct` for both SD-JWT VC media types. Reject at
+        // issuance so the default API cannot create a credential that its own
+        // verification policy necessarily rejects.
+        return Err(SdJwtEnvelopeError::InvalidIssuanceInput);
+    }
 
     validate_disclosure_strategy(&input.policy.disclosure_strategy)?;
     let mut records = Vec::new();

@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    parse_and_validate_did_web_document, parse_did_web, DidWebDocumentLimits, DidWebErrorReason,
+    DID,
+};
 
 #[test]
 fn document_validation_accepts_registered_verification_method_key_pairs(

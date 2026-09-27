@@ -19,5 +19,9 @@ ciborium = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = { workspace = true }
 zeroize = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
 [lints]
 workspace = true

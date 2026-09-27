@@ -84,17 +84,18 @@ pub fn validate_attestation_client_authentication(
 }
 
 #[derive(Deserialize, Zeroize, ZeroizeOnDrop)]
-#[serde(deny_unknown_fields)]
 struct ClientAttestationHeader {
     typ: String,
     alg: String,
     kid: Option<String>,
+    crit: Option<Vec<String>>,
+    b64: Option<bool>,
 }
 
 #[derive(Deserialize)]
 struct ClientAttestationTemporalClaims {
     exp: i64,
-    iat: i64,
+    iat: Option<i64>,
 }
 
 fn validate_client_attestation_envelope(
@@ -112,8 +113,15 @@ fn validate_client_attestation_envelope(
         .ok_or_else(|| OauthError::new(Reason::InvalidClientAttestation))?;
     if header.typ != "oauth-client-attestation+jwt"
         || claims.exp <= current_time
-        || claims.iat <= 0
-        || claims.iat > latest_permitted_iat
+        // This layer does not implement critical extensions or RFC 7797
+        // unencoded payloads. Ordinary JOSE metadata remains available to the
+        // injected trust verifier, but these processing directives must fail
+        // before any verifier can interpret the signing input differently.
+        || header.crit.is_some()
+        || header.b64.is_some()
+        || claims
+            .iat
+            .is_some_and(|issued_at| issued_at <= 0 || issued_at > latest_permitted_iat)
         || header
             .kid
             .as_deref()

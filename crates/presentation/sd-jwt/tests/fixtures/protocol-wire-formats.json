@@ -1,0 +1,41 @@
+{
+  "schema": "reallyme.identity.conformance.protocol_wire_formats.v1",
+  "source": "ReallyMe v0.3 protocol wire contracts",
+  "sd_jwt_key_binding": {
+    "legacy_format_version": "reallyme-sd-jwt-kb-v1",
+    "format_version": "reallyme-sd-jwt-kb-v2",
+    "input_disclosures": ["b", "a"],
+    "canonical_disclosures_json": "[\"a\",\"b\"]",
+    "disclosure_set_hash_base64url": "BHPvLcDTJKtlnTWAwRNOnYEgNZBcR4H91tUpsMaGDhM",
+    "required_claim": "disclosure_set_hash"
+  },
+  "did_me_data_integrity": {
+    "cryptosuite": "es256-jws-cid-2025",
+    "format_version": "es256-jws-cid-2025-v2",
+    "current_core": "bafy-test",
+    "created": "2025-01-01T00:00:00Z",
+    "payload_utf8": "[\"bafy-test\",\"2025-01-01T00:00:00Z\"]",
+    "payload_base64url": "WyJiYWZ5LXRlc3QiLCIyMDI1LTAxLTAxVDAwOjAwOjAwWiJd"
+  },
+  "contact_cbor": {
+    "format_version": "contact-cbor-1.0-canonical",
+    "message": {
+      "version": "1.0",
+      "kind": "request",
+      "session_id_hex": "01010101010101010101010101010101",
+      "session_transcript_sha256_hex": "0202020202020202020202020202020202020202020202020202020202020202",
+      "message_id": 16909060,
+      "content_type": "application/cbor",
+      "created_at": 1700000000,
+      "expires_at": 1700000060,
+      "payload_hex": "aabb"
+    },
+    "encoded_cbor_hex": "a96776657273696f6e63312e30646b696e6467726571756573746a73657373696f6e5f69649001010101010101010101010101010101781973657373696f6e5f7472616e7363726970745f736861323536982002020202020202020202020202020202020202020202020202020202020202026a6d6573736167655f69641a010203046c636f6e74656e745f74797065706170706c69636174696f6e2f63626f726a637265617465645f61741a6553f1006a657870697265735f61741a6553f13c677061796c6f61648218aa18bb"
+  },
+  "x509_trust_policy": {
+    "format_version": "x509-trust-policy-v2",
+    "fixture": "x509-trust-policy.json",
+    "service_certificate_member": "service_ca",
+    "binding_policy_member": "require_ca_binding"
+  }
+}

@@ -146,3 +146,7 @@ pub(crate) fn canonical_disclosure_set_hash(
         Zeroizing::new(serde_json::to_vec(&ordered).map_err(|_| SdJwtVpError::Serialization)?);
     Ok(sha2_256_digest(&encoded))
 }
+
+#[cfg(test)]
+#[path = "build/protocol_wire_vector_tests.rs"]
+mod protocol_wire_vector_tests;
