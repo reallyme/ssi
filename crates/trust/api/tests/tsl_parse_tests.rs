@@ -33,8 +33,8 @@ fn preserves_typed_tag_and_update_window_failures() {
         1,
     );
     let invalid_window = fixture.replacen(
-        "<dateTime>2027-03-15T01:00:00Z</dateTime>",
-        "<dateTime>2027-03-15T02:00:00.000000001Z</dateTime>",
+        "<dateTime>2027-03-28T01:00:00Z</dateTime>",
+        "<dateTime>2027-03-28T02:00:00.000000001Z</dateTime>",
         1,
     );
 

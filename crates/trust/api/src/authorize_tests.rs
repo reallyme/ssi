@@ -87,7 +87,10 @@ fn scoped_trust_decision(
     purpose: TrustPurpose,
     policy_id: TrustPolicyId,
 ) -> reallyme_trust_core::TrustDecision {
-    let certificate = dummy_cert();
+    // A direct end-entity receipt must use a non-CA leaf. Reusing the trusted
+    // list signer fixture here makes the receipt fail its own X.509 policy
+    // before the cross-purpose authorization guard is reached.
+    let certificate = issued_leaf();
     let source = TrustSourceEvidence {
         source_id: [0x31_u8; 32],
         snapshot_id: [0x32_u8; 32],
@@ -136,14 +139,20 @@ fn scoped_trust_decision(
 
 #[test]
 fn authorize_issuer_returns_not_authorized_for_a_cross_purpose_receipt() {
-    let decision = scoped_trust_decision(TrustPurpose::Generic, TrustPolicyId::GenericX509V1);
+    let decision = scoped_trust_decision(TrustPurpose::QeaaIssuer, TrustPolicyId::EuQeaaV1);
+    assert!(decision.is_accepted());
     let authenticated =
-        TestAuthenticatedList(trusted_list("http://uri.etsi.org/TrstSvc/Svctype/EAA/Q"));
+        TestAuthenticatedList(trusted_list("http://uri.etsi.org/TrstSvc/Svctype/CA/QC"));
 
-    assert!(matches!(
-        authorize_issuer(&decision, &authenticated, AuthorizationPurpose::QeaaIssuer),
-        Err(TrustApiError::NotAuthorized)
-    ));
+    let result = authorize_issuer(
+        &decision,
+        &authenticated,
+        AuthorizationPurpose::QwacTlsServer,
+    );
+    assert!(
+        matches!(result, Err(TrustApiError::NotAuthorized)),
+        "unexpected authorization result: {result:?}"
+    );
 }
 
 #[test]
@@ -294,7 +303,7 @@ fn qualification_and_website_and_seal_extensions(qualifiers: &str) -> String {
 fn trusted_list_with_history() -> TrustedList {
     let certificate = certificate_base64();
     let services = format!(
-        r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/EAA/Q</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn</ServiceStatus><StatusStartingTime>2026-01-15T00:00:00Z</StatusStartingTime></ServiceInformation><ServiceHistory><ServiceHistoryInstance><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/EAA/Q</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Historical service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceHistoryInstance></ServiceHistory></TSPService>"#
+        r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/EAA/Q</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn</ServiceStatus><StatusStartingTime>2026-01-15T00:00:00Z</StatusStartingTime></ServiceInformation><ServiceHistory><ServiceHistoryInstance><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/EAA/Q</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Historical service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509SKI>BdjsI9jCpreaU1xQSyogPDMzCtM=</X509SKI></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceHistoryInstance></ServiceHistory></TSPService>"#
     );
     parse_tsl_xml(&trusted_list_document(&provider(&services))).unwrap()
 }
@@ -625,7 +634,7 @@ fn history_row(status: &str, start: &str, identity: &str) -> String {
 }
 
 const FIXTURE_SKI_IDENTITY: &str =
-    "<DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId>";
+    "<DigitalId><X509SKI>BdjsI9jCpreaU1xQSyogPDMzCtM=</X509SKI></DigitalId>";
 
 fn trusted_list_with_history_rows(rows: &str) -> TrustedList {
     let certificate = certificate_base64();
