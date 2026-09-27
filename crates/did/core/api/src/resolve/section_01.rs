@@ -25,7 +25,8 @@ use crate::commands::{
 use crate::error::DidApiError;
 use crate::parse::parse_did_url;
 use crate::validate::{
-    validate_did_with_history, DidValidationIssue, DomainVerificationEnv,
+    validate_did_with_history, validate_did_with_successors_from_trusted_head,
+    DidValidationIssue, DomainVerificationEnv,
 };
 
 /// Maximum DID or requested version identifier accepted by resolution.
@@ -51,6 +52,8 @@ pub struct DidResolveRequest {
     pub version_time: Option<String>,
     /// Lowest did:me sequence already accepted by the caller.
     pub minimum_version_sequence: Option<u64>,
+    /// Previously accepted did:me head that this result must extend.
+    pub trusted_head: Option<DidResolutionTrustedHead>,
     /// Minimum resolver assurance required by the caller.
     pub assurance: Option<DidResolutionAssurance>,
     /// Maximum age accepted for a cached provider observation.
@@ -67,6 +70,7 @@ impl Zeroize for DidResolveRequest {
         self.version_id.zeroize();
         self.version_time.zeroize();
         self.minimum_version_sequence = None;
+        self.trusted_head.zeroize();
     }
 }
 impl Drop for DidResolveRequest {
@@ -76,6 +80,21 @@ impl Drop for DidResolveRequest {
 }
 
 impl ZeroizeOnDrop for DidResolveRequest {}
+
+/// Owned caller pin used to prevent rollback and alternate-history resolution.
+#[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+pub struct DidResolutionTrustedHead {
+    /// Canonical core CID previously accepted by the caller.
+    pub current_core: String,
+    /// Sequence number associated with `current_core`.
+    pub sequence: u64,
+}
+
+impl core::fmt::Debug for DidResolutionTrustedHead {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("DidResolutionTrustedHead(<redacted>)")
+    }
+}
 
 /// Maximum tolerated amount, in seconds, by which a provider `retrieved_at`
 /// may lie in the future of the caller's trusted clock.

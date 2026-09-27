@@ -2,6 +2,20 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[test]
+fn key_binding_build_options_debug_redacts_private_material() {
+    let holder = gen_ed25519();
+    let options = KeyBindingJwtBuildOptions {
+        holder_jwk: &holder.jwk,
+        holder_private_key: &[222, 173, 190, 239],
+        audience: "https://verifier.example",
+        nonce: "nonce-123",
+        issued_at_unix: VERIFY_NOW_UNIX,
+    };
+
+    assert_eq!(format!("{options:?}"), "KeyBindingJwtBuildOptions([REDACTED])");
+}
+
 const REGRESSION_SALT: &str = "MDEyMzQ1Njc4OWFiY2RlZg";
 
 fn sign_dc_sd_jwt(issuer: &TestKey, payload: &Value, disclosures: &[String]) -> String {

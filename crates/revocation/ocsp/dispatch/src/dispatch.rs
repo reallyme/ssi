@@ -19,7 +19,9 @@
 //! Cargo feature. Native builds use OpenSSL and browser WASM uses its runtime
 //! binding. Swift and Kotlin provider selection lives in their SDK packages.
 
-use identity_revocation_ocsp_core::{OcspError, ParsedOcspResponse};
+use identity_revocation_ocsp_core::OcspError;
+
+use crate::ParsedOcspResponse;
 
 #[path = "limits.rs"]
 mod limits;

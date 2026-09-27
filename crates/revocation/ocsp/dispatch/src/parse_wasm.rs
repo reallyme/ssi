@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use identity_revocation_ocsp_core::{OcspError, ParsedOcspResponse};
+use identity_revocation_ocsp_core::OcspError;
+
+use crate::ParsedOcspResponse;
 
 /// Browser hosts cannot mint verified OCSP evidence from JSON assertions.
 ///

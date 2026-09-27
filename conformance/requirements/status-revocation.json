@@ -19,7 +19,7 @@
     "feature": "status_bit_semantics",
     "implementation": ["crates/status/src/verify.rs"],
     "positive_tests": ["verifies_clear_revocation_status", "status_list_vectors_verify_or_fail_closed"],
-    "negative_tests": ["rejects_revoked_status_bit", "rejects_suspended_status_bit", "status_list_vectors_verify_or_fail_closed"],
+    "negative_tests": ["rejects_revoked_status_bit", "rejects_suspended_status_bit"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -31,7 +31,7 @@
     "feature": "status_list_temporal_and_index_bounds",
     "implementation": ["crates/status/src/verify.rs", "reallyme_credential_status::MAX_STATUS_LIST_ENTRIES"],
     "positive_tests": ["verifies_clear_revocation_status", "status_list_vectors_verify_or_fail_closed"],
-    "negative_tests": ["rejects_expired_status_list", "rejects_status_list_before_issued_time", "rejects_out_of_bounds_index", "rejects_status_list_over_entry_limit", "status_list_vectors_verify_or_fail_closed"],
+    "negative_tests": ["rejects_expired_status_list", "rejects_status_list_before_issued_time", "rejects_out_of_bounds_index", "rejects_status_list_over_entry_limit"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -55,7 +55,7 @@
     "feature": "status_bit_index_and_byte_order",
     "implementation": ["crates/status/src/verify.rs"],
     "positive_tests": ["verifies_clear_revocation_status", "status_list_vectors_verify_or_fail_closed"],
-    "negative_tests": ["rejects_revoked_status_bit", "rejects_suspended_status_bit", "rejects_out_of_bounds_index", "rejects_short_status_list_encoded_bytes", "rejects_overlong_status_list_encoded_bytes", "status_list_vectors_verify_or_fail_closed"],
+    "negative_tests": ["rejects_revoked_status_bit", "rejects_suspended_status_bit", "rejects_out_of_bounds_index", "rejects_short_status_list_encoded_bytes", "rejects_overlong_status_list_encoded_bytes"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -153,7 +153,7 @@
     "section": "3.2, 3.3, 4.2.1, 4.2.2.2, and 4.2.2.3",
     "keyword": "MUST",
     "feature": "authenticated_ocsp_response_binding_freshness_and_status",
-    "implementation": ["crates/revocation/ocsp/core/src/bind_response.rs", "crates/revocation/ocsp/core/src/checker.rs", "crates/revocation/ocsp/openssl/src/parse.rs", "crates/revocation/ocsp/openssl/src/cert_id_match.rs"],
+    "implementation": ["crates/revocation/ocsp/openssl/src/bind_response.rs", "crates/revocation/ocsp/dispatch/src/checker.rs", "crates/revocation/ocsp/openssl/src/parse.rs", "crates/revocation/ocsp/openssl/src/cert_id_match.rs"],
     "positive_tests": ["parses_and_verifies_ocsp_response_fixture", "signed_response_nonce_is_extracted_and_bound", "ocsp_allows_good_cert"],
     "negative_tests": ["response_for_another_serial_is_rejected", "response_for_another_issuer_key_is_rejected", "host_response_nonce_must_match_request_nonce", "rejects_this_update_beyond_the_allowed_future_skew", "ocsp_detects_revocation", "tampered_response_is_rejected", "extra_certificates_cannot_replace_the_configured_issuer"],
     "applicable": true,

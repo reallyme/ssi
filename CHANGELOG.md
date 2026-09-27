@@ -178,8 +178,12 @@ changes to authenticate its externally visible projection commitment.
   authenticated signer through `verified_signer`.
 - The OpenSSL OCSP parser accepts certificate DER instead of OpenSSL handles;
   nonce-aware verification is available through
-  `parse_ocsp_response_der_with_nonce`, and sealed `ParsedOcspResponse`
-  receipts expose the authenticated response nonce through accessors.
+  `parse_ocsp_response_der_with_nonce`. Response construction and certificate
+  binding are private to the verifier backend, while the dispatch crate owns
+  the sealed `ParsedOcspResponse` receipt and its read-only accessors.
+- `DidResolveRequest` adds an optional owned `trusted_head`, and messaging
+  pre-key discovery requires a `DidTrustedHead`, so returned chains must prove
+  they extend caller-pinned state before any successor data is consumed.
 - `AuthorizationServerMetadata` is non-exhaustive, includes `jwks_uri`, and is
   constructed with `AuthorizationServerMetadata::new`. Attestation validation
   contexts add the expected client identity, trust-evidence construction now

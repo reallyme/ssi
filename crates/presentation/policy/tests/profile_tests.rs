@@ -414,10 +414,12 @@ fn builtin_profiles_reject_foreign_claimset() {
 
 #[test]
 fn evaluation_rejects_disclosure_sets_over_the_policy_cap() {
-    let policy = eu_pid_policy().require_claim(
-        "/claims/age",
-        identity_credential_claims_core::DisclosureMode::Reveal,
-    );
+    let policy = eu_pid_policy()
+        .require_claim(
+            "/claims/age",
+            identity_credential_claims_core::DisclosureMode::Reveal,
+        )
+        .expect("valid reveal requirement");
     let disclosure = codec_base64url::bytes_to_base64url(br#"["c2FsdA","/claims/age","NDI",0,[]]"#);
     let presentation = Presentation::SdJwtVc(Box::new(SdJwtVcPresentation {
         sd_jwt: "dummy".into(),

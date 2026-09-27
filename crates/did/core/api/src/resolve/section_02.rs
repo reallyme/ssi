@@ -87,14 +87,54 @@ fn validate_present_resolution(
     if result.history.len() != expected_history_len {
         return Err(DidApiError::ResolutionResultInvalid);
     }
-    let mut validation = validate_did_with_history(
-        &result.history,
-        doc,
-        DomainVerificationEnv {
-            resolve_txt: None,
-            fetch_url: None,
-        },
-    );
+    let env = DomainVerificationEnv {
+        resolve_txt: None,
+        fetch_url: None,
+    };
+    let mut validation = if let Some(trusted_head) = request.trusted_head.as_ref() {
+        let trusted_index = usize::try_from(
+            trusted_head
+                .sequence
+                .checked_sub(1)
+                .ok_or(DidApiError::ResolutionResultInvalid)?,
+        )
+        .map_err(|_| DidApiError::ResolutionResultInvalid)?;
+        if trusted_index > result.history.len() {
+            return Err(DidApiError::ResolutionResultInvalid);
+        }
+        let trusted_document = if trusted_index == result.history.len() {
+            doc
+        } else {
+            result
+                .history
+                .get(trusted_index)
+                .ok_or(DidApiError::ResolutionResultInvalid)?
+        };
+        if trusted_document.sequence != trusted_head.sequence
+            || trusted_document.current_core != trusted_head.current_core
+        {
+            return Err(DidApiError::ResolutionResultInvalid);
+        }
+        if trusted_index == result.history.len() {
+            crate::validate::validate_did_consistency(trusted_document, env)
+        } else {
+            let successor_index = trusted_index
+                .checked_add(1)
+                .ok_or(DidApiError::ResolutionResultInvalid)?;
+            let intervening = result
+                .history
+                .get(successor_index..)
+                .ok_or(DidApiError::ResolutionResultInvalid)?;
+            validate_did_with_successors_from_trusted_head(
+                trusted_document,
+                intervening,
+                doc,
+                env,
+            )
+        }
+    } else {
+        validate_did_with_history(&result.history, doc, env)
+    };
     if !validation.ok {
         return Err(DidApiError::ResolutionResultInvalid);
     }

@@ -2,6 +2,19 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+fn map_tsl_core_error(error: identity_trust_tsl_core::TslError) -> TslOpenSslError {
+    match error {
+        identity_trust_tsl_core::TslError::InvalidTag => TslOpenSslError::InvalidTag,
+        identity_trust_tsl_core::TslError::InvalidUpdateWindow => {
+            TslOpenSslError::InvalidUpdateWindow
+        }
+        identity_trust_tsl_core::TslError::UnsupportedCriticalExtension => {
+            TslOpenSslError::UnsupportedCriticalExtension
+        }
+        other => TslOpenSslError::TrustedList(other),
+    }
+}
+
 #[cfg(all(feature = "native", feature = "xmlsec-ffi"))]
 const fn map_xmlsec_policy_reason(
     reason: identity_trust_tsl_xmlsec::XmlSecPolicyViolationReason,

@@ -232,10 +232,13 @@ test("resumed publication rebuilds each existing archive before comparing crates
     const packageIndex = result.calls.findIndex(
       (call) => call[1] === "package" && call[3] === packageName,
     );
+    const packageCall = result.calls[packageIndex];
     const nextCurlIndex = result.calls.findIndex(
       (call, index) => index > packageIndex && call[0] === "curl",
     );
     assert.ok(publishIndex >= 0 && packageIndex > publishIndex && nextCurlIndex > packageIndex);
+    assert.ok(packageCall.includes("--no-verify"));
+    assert.ok(packageCall.includes("--locked"));
   }
   assert.ok(result.ledger.crates.every((entry) => entry.state === "verified_existing"));
 });

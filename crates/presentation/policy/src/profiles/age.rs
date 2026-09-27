@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 // age.rs
-use crate::VpPolicy;
+use crate::{PredicateOperand, RequiredClaim, VpPolicy};
 use identity_core_primitives::Algorithm;
 
 /// Build the baseline verifier policy for an EU age credential presentation.
@@ -34,9 +34,11 @@ pub fn eu_age_policy() -> VpPolicy {
 
 /// Build an EU age policy that requires proof of the supplied minimum age.
 pub fn eu_age_over_policy(minimum_age: u64) -> VpPolicy {
-    eu_age_policy().require_threshold_claim(
-        "/claims/age",
-        identity_credential_claims_core::DisclosureMode::Gte,
-        minimum_age,
-    )
+    let mut policy = eu_age_policy();
+    policy.required_claims.push(RequiredClaim {
+        claim_path: "/claims/age".into(),
+        mode: identity_credential_claims_core::DisclosureMode::Gte,
+        operand: PredicateOperand::Threshold(minimum_age),
+    });
+    policy
 }

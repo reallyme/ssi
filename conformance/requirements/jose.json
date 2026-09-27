@@ -136,7 +136,7 @@
     "feature": "portable_compact_jwe_vectors",
     "implementation": ["reallyme-jose/crates/src/jwe", "vectors/jwe-compact.json"],
     "positive_tests": ["jwe_compact_vectors_decrypt_or_fail_closed", "jwe-compact"],
-    "negative_tests": ["jwe_compact_vectors_decrypt_or_fail_closed"],
+    "negative_tests": ["rejects_modified_ciphertext"],
     "applicable": true,
     "exclusion_reason": null
   },

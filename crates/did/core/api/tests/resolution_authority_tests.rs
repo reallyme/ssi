@@ -14,10 +14,13 @@ use reallyme_did_api::{
     resolve::{
         validate_resolution_result, DidDeactivationStatus, DidDocumentMetadata,
         DidResolutionErrorCode, DidResolutionFreshness, DidResolutionMetadata, DidResolutionResult,
-        DidResolveRequest, MAX_DID_RESOLUTION_CLOCK_SKEW_SECONDS,
+        DidResolutionTrustedHead, DidResolveRequest, MAX_DID_RESOLUTION_CLOCK_SKEW_SECONDS,
     },
     update::{update_did, UpdateConfig},
-    validate::{validate_did_chain, DidValidationCode, DomainVerificationEnv},
+    validate::{
+        validate_did_chain, validate_did_chain_from_trusted_head, DidTrustedHead,
+        DidValidationCode, DomainVerificationEnv,
+    },
     CreateConfig, KeySet,
 };
 use reallyme_did_types::DIDDocument;
@@ -82,6 +85,7 @@ fn request(doc: &DIDDocument) -> DidResolveRequest {
         version_id: None,
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     }
@@ -161,6 +165,29 @@ fn resolution_rejects_history_that_does_not_authorize_the_head() {
 }
 
 #[test]
+fn resolution_must_extend_the_callers_pinned_head() {
+    let (doc1, ks1) = create("did:me:resolve-pinned-head");
+    let (doc2, _) = no_op_update(&doc1, &ks1);
+    let result = resolution(doc2.clone(), vec![doc1.clone()]);
+    let mut selected = request(&doc2);
+    selected.trusted_head = Some(DidResolutionTrustedHead {
+        current_core: doc1.current_core.clone(),
+        sequence: doc1.sequence,
+    });
+    validate_resolution_result(&selected, &result)
+        .expect("a direct successor of the pinned head must validate");
+
+    selected.trusted_head = Some(DidResolutionTrustedHead {
+        current_core: "bafk-invalid-pinned-core".into(),
+        sequence: doc1.sequence,
+    });
+    assert_eq!(
+        validate_resolution_result(&selected, &result),
+        Err(DidApiError::ResolutionResultInvalid)
+    );
+}
+
+#[test]
 fn chain_validation_reports_stable_codes() {
     let (doc1, ks1) = create("did:me:chain-codes");
     let (doc2, _) = no_op_update(&doc1, &ks1);
@@ -184,6 +211,27 @@ fn chain_validation_reports_stable_codes() {
 
     let chain = validate_did_chain(&[doc1, doc2], no_domain_env());
     assert!(chain.ok, "{:?}", chain.errors);
+}
+
+#[test]
+fn trusted_head_validation_rejects_a_mismatched_pin() {
+    let (doc1, ks1) = create("did:me:trusted-head-validator");
+    let (doc2, _) = no_op_update(&doc1, &ks1);
+    let chain = [doc1, doc2];
+
+    let result = validate_did_chain_from_trusted_head(
+        &chain,
+        DidTrustedHead {
+            current_core: "bafk-invalid-pinned-core",
+            sequence: chain[0].sequence,
+        },
+        no_domain_env(),
+    );
+    assert!(!result.ok);
+    assert!(result
+        .errors
+        .iter()
+        .any(|issue| issue.code == DidValidationCode::TransitionInvalid));
 }
 
 // -----------------------------------------------------------------------------
@@ -356,6 +404,7 @@ fn generic_resolution_rejects_other_methods_as_unsupported() {
             version_id: None,
             version_time: None,
             minimum_version_sequence: None,
+            trusted_head: None,
             assurance: None,
             freshness: None,
         };

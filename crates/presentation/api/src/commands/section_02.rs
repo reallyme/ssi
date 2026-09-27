@@ -2,6 +2,38 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+impl core::fmt::Debug for PresentationDisclosureFact {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("PresentationDisclosureFact(<redacted>)")
+    }
+}
+
+impl Zeroize for PresentationDisclosureFact {
+    fn zeroize(&mut self) {
+        self.claim_path.zeroize();
+        self.mode = DisclosureMode::Unspecified;
+        match &mut self.operand {
+            reallyme_disclosure_policy::PredicateOperand::None => {}
+            reallyme_disclosure_policy::PredicateOperand::Value(value) => value.zeroize(),
+            reallyme_disclosure_policy::PredicateOperand::Threshold(value) => value.zeroize(),
+            reallyme_disclosure_policy::PredicateOperand::Range { min, max } => {
+                min.zeroize();
+                max.zeroize();
+            }
+            reallyme_disclosure_policy::PredicateOperand::Set(values) => values.zeroize(),
+            _ => {}
+        }
+    }
+}
+
+impl Drop for PresentationDisclosureFact {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl ZeroizeOnDrop for PresentationDisclosureFact {}
+
 /// Request for `presentations.present`.
 #[derive(PartialEq)]
 pub struct PresentationPresentRequest {

@@ -12,14 +12,22 @@
 //! Tests for binding host-produced OCSP results to submitted certificates.
 
 use envelopes_x509::parse_cert_der;
-use identity_revocation_ocsp_core::{
-    bind_response_to_certificates, bind_response_to_certificates_with_nonce, OcspCertStatus,
-    OcspError, OcspExtension, UnverifiedOcspResponse,
-};
+use identity_revocation_ocsp_core::{OcspCertStatus, OcspError, OcspExtension};
+
+use crate::bind_response::bind_response_to_certificates_with_nonce;
+use crate::model::UnverifiedOcspResponse;
+
+fn bind_response_to_certificates(
+    response: UnverifiedOcspResponse,
+    cert_der: &[u8],
+    issuer_der: &[u8],
+) -> Result<crate::VerifiedOcspResponse, OcspError> {
+    bind_response_to_certificates_with_nonce(response, cert_der, issuer_der, None)
+}
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../openssl/tests/fixtures")
+        .join("tests/fixtures")
         .join(name);
     std::fs::read(path).unwrap()
 }

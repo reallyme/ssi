@@ -23,6 +23,9 @@ wasm = ["dep:js-sys", "dep:wasm-bindgen"]
 
 [dependencies]
 identity-revocation-ocsp-core = { version = "0.3.0", path = "../core" }
+identity-revocation-core = { workspace = true }
+envelopes-x509 = { workspace = true }
+reallyme-crypto = { workspace = true }
 
 serde_json = "1.0"
 codec-base64url = { package = "reallyme-codec-base64url", version = "0.2.3" }
@@ -37,6 +40,9 @@ js-sys = { version = "0.3", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
+
+[dev-dependencies]
+time = "0.3"
 
 [lints]
 workspace = true

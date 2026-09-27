@@ -7,7 +7,7 @@ fn relationship_key_rotation_rejects_unsupported_empty_and_malformed_requests() 
     let Some((old_document, rotated_document)) =
         relationship_rotation_documents("did:me:provider-relationship-invalid-request")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: rotated_document,
@@ -66,7 +66,7 @@ fn relationship_key_rotation_rejects_unselected_and_projection_mutation() {
     let Some((old_document, rotated_document)) =
         relationship_rotation_documents("did:me:provider-relationship-invalid-result")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let mut unselected_changed = rotated_document.clone();
     let unselected = unselected_changed
@@ -76,7 +76,7 @@ fn relationship_key_rotation_rejects_unselected_and_projection_mutation() {
     if let Some(method) = unselected {
         method.public_key_multibase.push('x');
     } else {
-        return;
+        panic!("required test fixture was not produced");
     }
     let provider = SuccessfulRotateProvider {
         document: unselected_changed,
@@ -118,7 +118,7 @@ fn compromised_key_replacement_validates_recovery_and_owned_result() {
     let Some((old_document, replaced_document)) =
         compromised_key_replacement_documents("did:me:provider-compromised-owner")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: replaced_document,
@@ -148,7 +148,7 @@ fn compromised_key_replacement_rejects_malformed_or_unauthorized_requests() {
     let Some((old_document, replaced_document)) =
         compromised_key_replacement_documents("did:me:provider-compromised-invalid-request")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: replaced_document,
@@ -226,7 +226,7 @@ fn compromised_key_replacement_rejects_compromised_authorization_and_substitutio
     let Some((old_document, recovered_document, unsafe_document)) =
         compromised_authority_documents("did:me:provider-compromised-authority")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     assert!(unsafe_document
         .attestations
@@ -279,7 +279,7 @@ fn all_key_rotation_derives_the_complete_set_and_clears_owned_results() {
     let Some((old_document, rotated_document)) =
         all_key_rotation_documents("did:me:provider-all-key-rotation-owner")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     assert_eq!(
         old_document.verification_method.len(),
@@ -325,7 +325,7 @@ fn all_key_rotation_rejects_malformed_authoritative_requests() {
     let Some((old_document, rotated_document)) =
         all_key_rotation_documents("did:me:provider-all-key-invalid-request")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: rotated_document,
@@ -356,15 +356,15 @@ fn all_key_rotation_rejects_partial_rotation_and_projection_substitution() {
     let Some((old_document, rotated_document)) =
         all_key_rotation_documents("did:me:provider-all-key-invalid-result")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let Some(old_first_method) = old_document.verification_method.first() else {
-        return;
+        panic!("required test fixture was not produced");
     };
 
     let mut partial_rotation = rotated_document.clone();
     let Some(rotated_first_method) = partial_rotation.verification_method.first_mut() else {
-        return;
+        panic!("required test fixture was not produced");
     };
     rotated_first_method.public_key_multibase = old_first_method.public_key_multibase.clone();
     let provider = SuccessfulRotateProvider {
@@ -401,7 +401,7 @@ fn key_relationship_assignment_preserves_keys_and_clears_owned_results() {
     let Some((old_document, assigned_document)) =
         relationship_assignment_documents("did:me:provider-relationship-assignment-owner")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     assert_eq!(
         old_document.verification_method,
@@ -462,7 +462,7 @@ fn key_relationship_assignment_rejects_malformed_or_incompatible_requests() {
     let Some((old_document, assigned_document)) =
         relationship_assignment_documents("did:me:provider-relationship-assignment-invalid")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: assigned_document,
@@ -536,11 +536,11 @@ fn key_relationship_assignment_rejects_key_and_projection_substitution() {
     let Some((old_document, assigned_document)) =
         relationship_assignment_documents("did:me:provider-relationship-assignment-result")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let mut key_changed = assigned_document.clone();
     let Some(method) = key_changed.verification_method.first_mut() else {
-        return;
+        panic!("required test fixture was not produced");
     };
     method.public_key_multibase.push('x');
     let provider = SuccessfulRotateProvider {
@@ -587,7 +587,7 @@ fn messaging_pre_key_designation_validates_exact_transition_and_clears_owned_res
     let Some((old_document, designated_document)) =
         messaging_designation_documents("did:me:provider-messaging-designation-owner")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: designated_document,
@@ -621,7 +621,7 @@ fn messaging_pre_key_designation_rejects_malformed_or_incompatible_requests() {
     let Some((old_document, designated_document)) =
         messaging_designation_documents("did:me:provider-messaging-designation-invalid-request")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: designated_document,
@@ -669,7 +669,7 @@ fn messaging_pre_key_designation_rejects_provider_substitution() {
     let Some((old_document, designated_document)) =
         messaging_designation_documents("did:me:provider-messaging-designation-substitution")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let mut substituted = designated_document;
     substituted
@@ -696,7 +696,7 @@ fn messaging_pre_key_rotation_validates_exact_transition_and_clears_owned_result
     let Some((old_document, rotated_document)) =
         messaging_rotation_documents("did:me:provider-messaging-rotation-owner")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     for old_method in &old_document.verification_method {
         let Some(rotated_method) = rotated_document
@@ -704,7 +704,7 @@ fn messaging_pre_key_rotation_validates_exact_transition_and_clears_owned_result
             .iter()
             .find(|candidate| candidate.id == old_method.id)
         else {
-            return;
+            panic!("required test fixture was not produced");
         };
         if matches!(old_method.id.as_str(), "#x25519" | "#mlkem768") {
             assert_ne!(

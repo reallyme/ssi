@@ -377,3 +377,21 @@ fn rejects_did_context_that_is_not_first() {
         Some(DidEbsiErrorReason::InvalidDocument)
     );
 }
+
+#[test]
+fn embedded_capability_invocation_cannot_hide_a_live_registry_key() {
+    let document = format!(
+        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{DID}","controller":["{DID}"],"verificationMethod":[{{"id":"{DID}#key-1","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{P256_X}","y":"{P256_Y}"}}}}],"assertionMethod":["{DID}#key-1"],"capabilityInvocation":[{{"id":"{DID}#key-1","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","x":"{P256_X}","y":"{P256_Y}"}}}},"{DID}#key-1"]}}"#
+    );
+
+    assert_eq!(
+        parse_and_validate_did_ebsi_document(
+            DID,
+            document.as_bytes(),
+            DidEbsiDocumentLimits::default(),
+        )
+        .err()
+        .map(|error| error.reason),
+        Some(DidEbsiErrorReason::InvalidDocument)
+    );
+}

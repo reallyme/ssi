@@ -225,8 +225,27 @@ fn validate_policy_configuration(policy: &VpPolicy, errors: &mut Vec<VpPolicyErr
         .required_claims
         .iter()
         .any(|claim| !required_paths.insert(claim.claim_path.as_str()));
-    if status_constraint_without_status || qeaa_constraint_without_qeaa || duplicate_required_path {
+    let invalid_operand = policy
+        .required_claims
+        .iter()
+        .any(|claim| !operand_matches_mode(claim.mode, &claim.operand));
+    if status_constraint_without_status
+        || qeaa_constraint_without_qeaa
+        || duplicate_required_path
+        || invalid_operand
+    {
         errors.push(VpPolicyError::PolicyMisconfiguration);
+    }
+}
+
+fn operand_matches_mode(mode: DisclosureMode, operand: &PredicateOperand) -> bool {
+    match (mode, operand) {
+        (DisclosureMode::Hidden | DisclosureMode::Reveal, PredicateOperand::None)
+        | (DisclosureMode::Eq, PredicateOperand::Value(_))
+        | (DisclosureMode::Gte | DisclosureMode::Lte, PredicateOperand::Threshold(_)) => true,
+        (DisclosureMode::Range, PredicateOperand::Range { min, max }) => min <= max,
+        (DisclosureMode::MemberOfSet, PredicateOperand::Set(values)) => !values.is_empty(),
+        _ => false,
     }
 }
 

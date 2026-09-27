@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -199,7 +199,7 @@ const findCargoManifests = (relativeDir, manifests = []) => {
 };
 
 const rustTestNames = new Set();
-const rustIdentifiers = new Set();
+const rustIdentifiersByFile = new Map();
 const rustTestFunctionPattern = /#\[(?:[A-Za-z_][A-Za-z0-9_]*::)?test(?:\([^\]]*\))?\][\s\S]*?\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 const rustIdentifierPattern = /\b(?:fn|struct|enum|trait|const|static|type)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
 for (const file of [
@@ -207,9 +207,10 @@ for (const file of [
   ...collectRustFiles("tests"),
 ]) {
   const source = readFileSync(file, "utf8");
+  const fileIdentifiers = new Set();
   let identifierMatch = rustIdentifierPattern.exec(source);
   while (identifierMatch !== null) {
-    rustIdentifiers.add(identifierMatch[1]);
+    fileIdentifiers.add(identifierMatch[1]);
     identifierMatch = rustIdentifierPattern.exec(source);
   }
   let match = rustTestFunctionPattern.exec(source);
@@ -217,6 +218,26 @@ for (const file of [
     rustTestNames.add(match[1]);
     match = rustTestFunctionPattern.exec(source);
   }
+  rustIdentifiersByFile.set(relative(root, file).replaceAll("\\", "/"), fileIdentifiers);
+}
+
+const crateIdentifiers = new Map();
+for (const manifest of findCargoManifests("crates")) {
+  const manifestSource = readFileSync(resolve(root, manifest), "utf8");
+  const packageName = /^name\s*=\s*"([^"]+)"$/mu.exec(manifestSource)?.[1];
+  if (packageName === undefined) {
+    continue;
+  }
+  const crateName = packageName.replaceAll("-", "_");
+  const identifiers = new Set();
+  const crateRoot = dirname(manifest);
+  for (const sourceFile of collectRustFiles(`${crateRoot}/src`)) {
+    const sourcePath = relative(root, sourceFile).replaceAll("\\", "/");
+    for (const identifier of rustIdentifiersByFile.get(sourcePath) ?? []) {
+      identifiers.add(identifier);
+    }
+  }
+  crateIdentifiers.set(crateName, identifiers);
 }
 
 const vectorManifest = readJson("vectors/manifest.json");
@@ -381,6 +402,11 @@ for (const file of readdirSync(requirementsDir).filter((entry) => entry.endsWith
     const implementation = requireArray(record, "implementation", relativePath);
     const positiveTests = requireArray(record, "positive_tests", relativePath);
     const negativeTests = requireArray(record, "negative_tests", relativePath);
+    const positiveSet = new Set(positiveTests);
+    const overlappingTest = negativeTests.find((testName) => positiveSet.has(testName));
+    if (overlappingTest !== undefined) {
+      fail(`${relativePath}:${record.id} uses ${overlappingTest} as both positive and negative evidence`);
+    }
     for (const testName of [...positiveTests, ...negativeTests]) {
       assertKnownTest(relativePath, record, testName);
     }
@@ -389,19 +415,37 @@ for (const file of readdirSync(requirementsDir).filter((entry) => entry.endsWith
         fail(`${relativePath}:${record.id} contains an invalid implementation path`);
       }
       if (implementationPath.includes("/")) {
-        const sourcePath = implementationPath.split("#", 1)[0].replace(/:[0-9]+$/u, "");
+        const [pathWithLine, symbol] = implementationPath.split("#", 2);
+        const sourcePath = pathWithLine.replace(/:[0-9]+$/u, "");
         const isPinnedExternalPath = externalImplementationPrefixes.some((prefix) =>
           sourcePath.startsWith(prefix),
         );
         if (!isPinnedExternalPath && !existsSync(resolve(root, sourcePath))) {
           fail(`${relativePath}:${record.id} references missing implementation ${implementationPath}`);
         }
+        if (!isPinnedExternalPath && symbol !== undefined) {
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(symbol)) {
+            fail(`${relativePath}:${record.id} has an invalid implementation symbol ${implementationPath}`);
+          }
+          const identifiers = rustIdentifiersByFile.get(sourcePath);
+          if (identifiers === undefined || !identifiers.has(symbol)) {
+            fail(`${relativePath}:${record.id} references missing implementation symbol ${implementationPath}`);
+          }
+        }
       } else {
-        const symbol = implementationPath.split("::").at(-1);
+        const symbolParts = implementationPath.split("::");
+        const symbol = symbolParts.at(-1);
+        const crateName = symbolParts[0];
         const isPinnedExternalSymbol = externalImplementationSymbolPrefixes.some((prefix) =>
           implementationPath.startsWith(prefix),
         );
-        if (!isPinnedExternalSymbol && (symbol === undefined || !rustIdentifiers.has(symbol))) {
+        if (
+          !isPinnedExternalSymbol &&
+          (symbolParts.length < 2 ||
+            symbol === undefined ||
+            crateName === undefined ||
+            !crateIdentifiers.get(crateName)?.has(symbol))
+        ) {
           fail(`${relativePath}:${record.id} references unknown implementation symbol ${implementationPath}`);
         }
       }

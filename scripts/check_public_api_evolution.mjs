@@ -24,20 +24,6 @@ function rustSources(directory) {
   return sources;
 }
 
-function precedingAttributesContain(lines, declarationIndex, attribute) {
-  for (let index = declarationIndex - 1; index >= 0; index -= 1) {
-    const line = lines[index].trim();
-    if (line === "" || line.startsWith("///") || line.startsWith("#[")) {
-      if (line === attribute) {
-        return true;
-      }
-      continue;
-    }
-    break;
-  }
-  return false;
-}
-
 const metadata = JSON.parse(
   execFileSync("cargo", ["metadata", "--no-deps", "--format-version", "1"], {
     encoding: "utf8",
@@ -52,15 +38,16 @@ let publicEnumCount = 0;
 for (const pkg of publishedPackages) {
   const sourceDirectory = join(dirname(pkg.manifest_path), "src");
   for (const source of rustSources(sourceDirectory)) {
-    const lines = readFileSync(source, "utf8").split(/\r?\n/u);
-    for (let index = 0; index < lines.length; index += 1) {
-      if (!/^\s*pub(?:\([^)]*\))?\s+enum\s+[A-Za-z_][A-Za-z0-9_]*/u.test(lines[index])) {
-        continue;
-      }
+    const sourceText = readFileSync(source, "utf8");
+    const declarationPattern = /((?:#\[[^\]]+\]\s*)*)pub(?:\([^)]*\))?\s+enum\s+[A-Za-z_][A-Za-z0-9_]*/gu;
+    let declaration = declarationPattern.exec(sourceText);
+    while (declaration !== null) {
       publicEnumCount += 1;
-      if (!precedingAttributesContain(lines, index, "#[non_exhaustive]")) {
-        violations.push(`${relative(process.cwd(), source)}:${index + 1}`);
+      if (!declaration[1].includes("#[non_exhaustive]")) {
+        const line = sourceText.slice(0, declaration.index).split(/\r?\n/u).length;
+        violations.push(`${relative(process.cwd(), source)}:${line}`);
       }
+      declaration = declarationPattern.exec(sourceText);
     }
   }
 }

@@ -394,22 +394,22 @@ const approvedPublicPackages = new Set([
   "reallyme-trust-x509",
 ]);
 
-const requiredWorkspaceLintLines = [
-  'unsafe_code = "deny"',
-  'missing_docs = "deny"',
-  'arithmetic_side_effects = "deny"',
-  'dbg_macro = "deny"',
-  'expect_used = "deny"',
-  'indexing_slicing = "deny"',
-  'large_include_file = "deny"',
-  'panic = "deny"',
-  'print_stderr = "deny"',
-  'print_stdout = "deny"',
-  'todo = "deny"',
-  'unimplemented = "deny"',
-  'unreachable = "deny"',
-  'unwrap_used = "deny"',
-  'wildcard_imports = "deny"',
+const requiredWorkspaceLints = [
+  ["workspace.lints.rust", "unsafe_code"],
+  ["workspace.lints.rust", "missing_docs"],
+  ["workspace.lints.clippy", "arithmetic_side_effects"],
+  ["workspace.lints.clippy", "dbg_macro"],
+  ["workspace.lints.clippy", "expect_used"],
+  ["workspace.lints.clippy", "indexing_slicing"],
+  ["workspace.lints.clippy", "large_include_file"],
+  ["workspace.lints.clippy", "panic"],
+  ["workspace.lints.clippy", "print_stderr"],
+  ["workspace.lints.clippy", "print_stdout"],
+  ["workspace.lints.clippy", "todo"],
+  ["workspace.lints.clippy", "unimplemented"],
+  ["workspace.lints.clippy", "unreachable"],
+  ["workspace.lints.clippy", "unwrap_used"],
+  ["workspace.lints.clippy", "wildcard_imports"],
 ];
 
 const requiredCiNeedles = [
@@ -664,6 +664,51 @@ const assertContains = (path, needle) => {
   }
 };
 
+const stripTomlComment = (line) => {
+  let quoted = false;
+  let escaped = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (escaped) {
+      escaped = false;
+    } else if (character === "\\" && quoted) {
+      escaped = true;
+    } else if (character === '"') {
+      quoted = !quoted;
+    } else if (character === "#" && !quoted) {
+      return line.slice(0, index);
+    }
+  }
+  return line;
+};
+
+const tomlStringValue = (source, expectedTable, expectedKey) => {
+  let table = "";
+  for (const rawLine of source.split(/\r?\n/u)) {
+    const line = stripTomlComment(rawLine).trim();
+    const tableMatch = /^\[([A-Za-z0-9_.-]+)\]$/u.exec(line);
+    if (tableMatch !== null) {
+      table = tableMatch[1];
+      continue;
+    }
+    if (table !== expectedTable) {
+      continue;
+    }
+    const assignment = /^([A-Za-z0-9_-]+)\s*=\s*"([^"]*)"$/u.exec(line);
+    if (assignment?.[1] === expectedKey) {
+      return assignment[2];
+    }
+  }
+  return undefined;
+};
+
+const cargoManifestSource = readText("Cargo.toml");
+for (const [table, key] of requiredWorkspaceLints) {
+  if (tomlStringValue(cargoManifestSource, table, key) !== "deny") {
+    fail(`Cargo.toml must set ${table}.${key} to deny`);
+  }
+}
+
 const assertNotContains = (path, needle) => {
   const sourcePaths = [path, ...(focusedSourceContinuations.get(path) ?? [])];
   if (
@@ -698,10 +743,6 @@ const parsePackageName = (manifestPath) => {
 };
 
 const packageRoot = (manifestPath) => dirname(manifestPath);
-
-for (const line of requiredWorkspaceLintLines) {
-  assertContains("Cargo.toml", line);
-}
 
 assertContains("Cargo.toml", 'rust-version = "1.96"');
 assertContains("Cargo.toml", 'panic = "abort"');

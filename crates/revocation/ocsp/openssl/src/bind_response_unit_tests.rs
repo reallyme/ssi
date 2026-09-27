@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::validate_response_nonce;
-use crate::OcspError;
+use identity_revocation_ocsp_core::OcspError;
 
 #[test]
 fn nonce_comparison_rejects_absent_or_different_values() {

@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use envelopes_x509::parse_cert_der;
-use identity_revocation_ocsp_core::{
-    bind_response_to_certificates_with_nonce, OcspCertStatus, OcspError, ParsedOcspResponse,
-    UnverifiedOcspResponse,
-};
+use identity_revocation_ocsp_core::{OcspCertStatus, OcspError};
 
 use openssl::hash::MessageDigest;
 use openssl::ocsp::{
@@ -18,10 +15,12 @@ use openssl::x509::store::X509StoreBuilder;
 use openssl::x509::verify::{X509VerifyFlags, X509VerifyParam};
 use openssl::x509::X509;
 
+use crate::bind_response::{bind_response_to_certificates_with_nonce, validate_response_nonce};
 use crate::cert_id_match::{
     embedded_responder_certificates, response_nonce_for_request, unique_matching_digest,
     validated_response_produced_at, MatchingDigest,
 };
+use crate::model::{UnverifiedOcspResponse, VerifiedOcspResponse};
 
 const MAX_OCSP_RESPONSE_DER_BYTES: usize = 1_048_576;
 const MAX_OCSP_EXTRA_CERTIFICATES: usize = 16;
@@ -47,7 +46,7 @@ pub fn parse_ocsp_response_der(
     issuer_der: &[u8],
     extra_certs_der: &[Vec<u8>],
     now_unix: u64,
-) -> Result<ParsedOcspResponse, OcspError> {
+) -> Result<VerifiedOcspResponse, OcspError> {
     if der.is_empty()
         || der.len() > MAX_OCSP_RESPONSE_DER_BYTES
         || extra_certs_der.len() > MAX_OCSP_EXTRA_CERTIFICATES
@@ -65,7 +64,7 @@ pub fn parse_ocsp_response_der_with_nonce(
     extra_certs_der: &[Vec<u8>],
     now_unix: u64,
     expected_nonce: Option<&[u8]>,
-) -> Result<ParsedOcspResponse, OcspError> {
+) -> Result<VerifiedOcspResponse, OcspError> {
     let cert = X509::from_der(cert_der).map_err(|_| OcspError::InvalidResponse)?;
     let issuer = X509::from_der(issuer_der).map_err(|_| OcspError::InvalidResponse)?;
     let mut extra_certs = Vec::new();
@@ -106,10 +105,7 @@ pub fn parse_ocsp_response_der_with_nonce(
     // did not carry one, a malformed authenticated extension still fails
     // closed rather than being reinterpreted as absence.
     let response_nonce = response_nonce_for_request(der, expected_nonce.is_some())?;
-    identity_revocation_ocsp_core::validate_response_nonce(
-        response_nonce.as_deref(),
-        expected_nonce,
-    )?;
+    validate_response_nonce(response_nonce.as_deref(), expected_nonce)?;
 
     // Responder authorization terminates at the issuing CA, so the issuer is
     // the trust anchor for this OCSP-specific path validation.

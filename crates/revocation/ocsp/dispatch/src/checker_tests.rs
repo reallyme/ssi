@@ -13,11 +13,30 @@
 
 use envelopes_x509::{parse_cert_der, X509Certificate};
 use identity_revocation_core::{StatusCheckError, StatusChecker};
-use identity_revocation_ocsp_core::{
-    bind_response_to_certificates, OcspCertStatus, OcspChecker, OcspError, OcspPolicy,
-    ParsedOcspResponse, UnverifiedOcspResponse,
-};
+use identity_revocation_ocsp_core::{OcspCertStatus, OcspPolicy};
 use time::OffsetDateTime;
+
+use crate::{OcspChecker, ParsedOcspResponse};
+
+impl ParsedOcspResponse {
+    fn for_test(
+        certificate_sha256: [u8; 32],
+        serial: Vec<u8>,
+        status: OcspCertStatus,
+        this_update: u64,
+        next_update: Option<u64>,
+    ) -> Self {
+        Self {
+            issuer_key: Vec::new(),
+            certificate_sha256,
+            serial,
+            status,
+            this_update,
+            next_update,
+            response_nonce: None,
+        }
+    }
+}
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -36,40 +55,31 @@ fn response(
     next_update: Option<u64>,
 ) -> ParsedOcspResponse {
     let cert = parse_cert_der(&fixture("leaf.der")).unwrap();
-    let issuer = parse_cert_der(&fixture("issuer.der")).unwrap();
-    let projected = UnverifiedOcspResponse::new(
-        issuer.rfc5280_method_one_key_identifier().unwrap().to_vec(),
+    ParsedOcspResponse::for_test(
+        *reallyme_crypto::sha2::digest(cert.der.as_slice()).as_bytes(),
         cert.serial.clone(),
         status,
         this_update,
         next_update,
-        None,
-        None,
-    );
-    bind_response_to_certificates(projected, &fixture("leaf.der"), &fixture("issuer.der")).unwrap()
+    )
 }
 
 fn fixture_response(
     certificate_name: &str,
-    issuer_name: &str,
+    _issuer_name: &str,
     status: OcspCertStatus,
     this_update: u64,
     next_update: Option<u64>,
 ) -> ParsedOcspResponse {
     let certificate_der = fixture(certificate_name);
-    let issuer_der = fixture(issuer_name);
     let certificate = parse_cert_der(&certificate_der).unwrap();
-    let issuer = parse_cert_der(&issuer_der).unwrap();
-    let projected = UnverifiedOcspResponse::new(
-        issuer.rfc5280_method_one_key_identifier().unwrap().to_vec(),
+    ParsedOcspResponse::for_test(
+        *reallyme_crypto::sha2::digest(&certificate_der).as_bytes(),
         certificate.serial.clone(),
         status,
         this_update,
         next_update,
-        None,
-        None,
-    );
-    bind_response_to_certificates(projected, &certificate_der, &issuer_der).unwrap()
+    )
 }
 
 #[test]
@@ -313,21 +323,17 @@ fn unusable_responses_report_expired() {
 #[test]
 fn next_update_before_this_update_is_invalid() {
     let cert = parse_cert_der(&fixture("leaf.der")).unwrap();
-    let issuer = parse_cert_der(&fixture("issuer.der")).unwrap();
-    let projected = UnverifiedOcspResponse::new(
-        issuer.rfc5280_method_one_key_identifier().unwrap().to_vec(),
+    let malformed = ParsedOcspResponse::for_test(
+        *reallyme_crypto::sha2::digest(cert.der.as_slice()).as_bytes(),
         cert.serial.clone(),
         OcspCertStatus::Good,
         999,
         Some(998),
-        None,
-        None,
     );
 
     assert_eq!(
-        bind_response_to_certificates(projected, &fixture("leaf.der"), &fixture("issuer.der"))
-            .unwrap_err(),
-        OcspError::InvalidResponse
+        OcspChecker::new(vec![malformed]).check(&cert, 999),
+        Err(StatusCheckError::InvalidList)
     );
 }
 

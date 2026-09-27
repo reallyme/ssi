@@ -123,6 +123,8 @@ externalNativeBuild/
 # Local developer state
 AGENTS.md
 /.agents/
+/.claude/
+/.codex/
 llms.txt
 LLMS.txt
 /.release-readiness/

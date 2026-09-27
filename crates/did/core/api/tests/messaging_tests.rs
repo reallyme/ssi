@@ -17,6 +17,7 @@ use reallyme_did_api::{
     },
     profile::DidProfile,
     update::{update_did, UpdateConfig},
+    validate::DidTrustedHead,
     CreateConfig,
 };
 use reallyme_did_types::Service;
@@ -88,8 +89,12 @@ fn discover_messaging_pre_keys_returns_transcript_bound_snapshot() {
 
     let chain = [doc1, doc2];
     let doc2 = &chain[1];
+    let trusted_head = DidTrustedHead {
+        current_core: &chain[0].current_core,
+        sequence: chain[0].sequence,
+    };
     let mut snapshots =
-        discover_messaging_pre_keys_from_chain(&chain, 2).expect("discovery failed");
+        discover_messaging_pre_keys_from_chain(&chain, trusted_head, 2).expect("discovery failed");
 
     assert_eq!(snapshots.len(), 1);
     assert_eq!(snapshots[0].did, doc2.id);
@@ -123,11 +128,42 @@ fn designate_messaging_pre_keys_publishes_valid_snapshot() {
     )
     .expect("designation failed");
 
+    let chain = [doc1, doc2];
+    let trusted_head = DidTrustedHead {
+        current_core: &chain[0].current_core,
+        sequence: chain[0].sequence,
+    };
     let snapshots =
-        discover_messaging_pre_keys_from_chain(&[doc1, doc2], 2).expect("discovery failed");
+        discover_messaging_pre_keys_from_chain(&chain, trusted_head, 2).expect("discovery failed");
 
     assert_eq!(snapshots.len(), 1);
     assert_eq!(snapshots[0].pre_keys, vec!["#x25519", "#mlkem768"]);
+}
+
+#[test]
+fn messaging_discovery_rejects_a_chain_that_does_not_extend_the_pinned_head() {
+    let (doc1, ks1) =
+        create_did(messaging_config(), "did:me:messaging-pinned").expect("create_did failed");
+    let service = Service {
+        id: "#messaging".into(),
+        service_type: "MessagingService".into(),
+        service_endpoint: json!({
+            "uri": "https://relay.example.com/inbox/pinned",
+            "preKeys": ["#x25519", "#mlkem768"]
+        }),
+    };
+    let (doc2, _) =
+        update_did(&doc1, &ks1, no_op_update_config(service)).expect("update_did failed");
+    let chain = [doc1, doc2];
+    let trusted_head = DidTrustedHead {
+        current_core: "bafk-invalid-pinned-core",
+        sequence: chain[0].sequence,
+    };
+
+    assert_eq!(
+        discover_messaging_pre_keys_from_chain(&chain, trusted_head, 2),
+        Err(DidApiError::MessagingPreKeyDiscoveryInvalid)
+    );
 }
 
 #[test]

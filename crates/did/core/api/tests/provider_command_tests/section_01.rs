@@ -354,7 +354,7 @@ fn provider_mutation_commands_fail_closed_by_default() {
     assert_eq!(create_err, DidApiError::ProviderCapabilityUnsupported);
 
     let Some((document, key_set)) = active_document("did:me:provider-closed-deactivate") else {
-        return;
+        panic!("required test fixture was not produced");
     };
     drop(key_set);
     let deactivate_err = deactivate_did_with_provider(
@@ -430,7 +430,7 @@ fn provider_mutation_commands_fail_closed_by_default() {
     let Some((document, _)) =
         messaging_designation_documents("did:me:provider-closed-messaging-designation")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let designation_err = designate_messaging_pre_keys_with_provider(
         &provider,
@@ -448,7 +448,7 @@ fn provider_mutation_commands_fail_closed_by_default() {
     let Some((document, _)) =
         messaging_rotation_documents("did:me:provider-closed-messaging-rotation")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let rotation_err = rotate_messaging_pre_keys_with_provider(
         &provider,
@@ -465,7 +465,7 @@ fn provider_mutation_commands_fail_closed_by_default() {
 #[test]
 fn typed_deactivation_request_and_owned_result_are_validated_and_cleared() {
     let Some((old_document, key_set)) = active_document("did:me:provider-deactivate-owner") else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let deactivated = deactivate_did(&old_document, &key_set);
     assert!(deactivated.is_ok());
@@ -505,7 +505,7 @@ fn typed_deactivation_request_and_owned_result_are_validated_and_cleared() {
 fn provider_deactivation_rejects_active_or_mutated_terminal_results() {
     let Some((old_document, key_set)) = active_document("did:me:provider-deactivate-invalid")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let deactivated = deactivate_did(&old_document, &key_set);
     assert!(deactivated.is_ok());
@@ -544,7 +544,7 @@ fn provider_deactivation_rejects_active_or_mutated_terminal_results() {
 fn provider_deactivation_rejects_terminal_input_before_provider_dispatch() {
     let Some((old_document, key_set)) = active_document("did:me:provider-deactivate-terminal")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let deactivated = deactivate_did(&old_document, &key_set);
     assert!(deactivated.is_ok());
@@ -571,7 +571,7 @@ fn provider_deactivation_rejects_terminal_input_before_provider_dispatch() {
 fn explicit_key_command_rejects_empty_selection_before_provider_dispatch() {
     let provider = ResolveOnlyProvider;
     let Some((document, key_set)) = active_document("did:me:provider-empty-rotation") else {
-        return;
+        panic!("required test fixture was not produced");
     };
     drop(key_set);
 
@@ -593,7 +593,7 @@ fn typed_selected_key_rotation_and_owned_result_are_validated_and_cleared() {
     let Some((old_document, rotated_document)) =
         selected_rotation_documents("did:me:provider-selected-rotation-owner")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: rotated_document,
@@ -629,7 +629,7 @@ fn selected_key_rotation_rejects_malformed_selection_before_provider_dispatch() 
     let Some((old_document, rotated_document)) =
         selected_rotation_documents("did:me:provider-selected-rotation-invalid-request")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let cases = [
         (vec!["#ed25519".to_owned(), "#ed25519".to_owned()], None),
@@ -658,7 +658,7 @@ fn selected_key_rotation_rejects_wrong_key_or_projection_changes() {
     let Some((old_document, rotated_document)) =
         selected_rotation_documents("did:me:provider-selected-rotation-invalid-result")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
 
     let unchanged_provider = SuccessfulRotateProvider {
@@ -695,7 +695,7 @@ fn relationship_key_rotation_validates_complete_selection_and_owned_result() {
     let Some((old_document, rotated_document)) =
         relationship_rotation_documents("did:me:provider-relationship-rotation-owner")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: rotated_document,

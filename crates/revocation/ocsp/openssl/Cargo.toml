@@ -16,6 +16,7 @@ native = []
 [dependencies]
 thiserror = { workspace = true }
 time = "0.3"
+subtle = "2.6"
 
 identity-revocation-ocsp-core = { version = "0.3.0", path = "../core" }
 reallyme-ssi-proto = { workspace = true }

@@ -51,6 +51,7 @@ fn request(doc: &DIDDocument) -> DidResolveRequest {
         version_id: Some(doc.current_core.clone()),
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: Some(DidResolutionAssurance::ChainVerified),
         freshness: Some(DidResolutionFreshness {
             maximum_staleness_seconds: 60,

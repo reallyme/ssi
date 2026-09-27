@@ -137,6 +137,27 @@ fn generated_status_entry_derives_time_state_without_ambient_evidence() {
 }
 
 #[test]
+fn generated_status_entry_rejects_an_expired_credential() {
+    let result = check_credential_envelope_status_command(
+        sample_envelope(CredentialKind::Pid),
+        CredentialVerificationContext {
+            now_unix: 1_760_000_000,
+            audience: None,
+            nonce: None,
+        },
+    );
+    assert!(result.is_ok());
+    let Ok(result) = result else {
+        return;
+    };
+
+    assert_eq!(
+        result.status,
+        reallyme_credential::CredentialStatusValue::Expired
+    );
+}
+
+#[test]
 fn evidence_backed_credential_validation_allows_valid_credential() {
     let mut envelope = sample_envelope(CredentialKind::Pid);
     let status_list = sample_status_list(vec![0]);

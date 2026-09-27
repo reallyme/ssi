@@ -8,6 +8,7 @@
 
 use envelopes_x509::parse_cert_pem;
 use envelopes_x509::policy::X509Policy;
+use envelopes_x509::PublicKeyAlgorithm;
 use identity_revocation_core::{StatusCheckError, StatusChecker};
 use identity_trust_tsl_openssl::{
     verify_tsl_xml_openssl as verify_tsl_xml_openssl_with_status, TslOpenSslError,
@@ -54,6 +55,22 @@ fn native_without_explicit_xmlsec_provider_fails_closed() {
     );
 
     assert!(matches!(result, Err(TslOpenSslError::BackendUnavailable)));
+}
+
+#[test]
+fn caller_cannot_widen_the_tsl_signer_algorithm_set() {
+    let signer = signer_certificate();
+    let mut policy = X509Policy::default();
+    policy.allowed_public_key_algorithms = vec![PublicKeyAlgorithm::Other];
+
+    let result = verify_tsl_xml_openssl(
+        SIGNED_TSL_XML,
+        &[signer],
+        OffsetDateTime::UNIX_EPOCH,
+        policy,
+    );
+
+    assert!(matches!(result, Err(TslOpenSslError::TrustFailure(_))));
 }
 
 #[test]

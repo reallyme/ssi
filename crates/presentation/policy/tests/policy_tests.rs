@@ -12,9 +12,31 @@
 //! Tests for core VP policy evaluation.
 
 use identity_core_primitives::Algorithm;
-use identity_credential_claims_core::ClaimsRegistry;
+use identity_credential_claims_core::{ClaimsRegistry, DisclosureMode};
 use identity_presentation_vp_core::model::{Presentation, SdJwtVcPresentation};
-use identity_presentation_vp_policy::{evaluate, EvaluationContext, PolicyDecision, VpPolicy};
+use identity_presentation_vp_policy::{
+    evaluate, EvaluationContext, PolicyDecision, VpPolicy, VpPolicyError,
+};
+
+#[test]
+fn operand_free_builder_rejects_predicate_modes() {
+    assert_eq!(
+        VpPolicy::default()
+            .require_claim("/claims/age", DisclosureMode::Gte)
+            .unwrap_err(),
+        VpPolicyError::PolicyMisconfiguration
+    );
+}
+
+#[test]
+fn threshold_builder_rejects_non_threshold_modes() {
+    assert_eq!(
+        VpPolicy::default()
+            .require_threshold_claim("/claims/age", DisclosureMode::Reveal, 18)
+            .unwrap_err(),
+        VpPolicyError::PolicyMisconfiguration
+    );
+}
 
 #[test]
 fn accepts_valid_sd_jwt_with_required_claim() {

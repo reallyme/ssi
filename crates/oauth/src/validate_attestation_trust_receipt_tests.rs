@@ -46,8 +46,13 @@ fn receipt_path_shape_matches_the_authenticated_anchor_kind() {
 }
 
 #[test]
-fn receipt_rejects_unknown_and_revoked_status_evidence() {
-    for status in [CertificateStatus::Unknown, CertificateStatus::Revoked] {
+fn receipt_requires_explicit_good_status_evidence() {
+    for status in [
+        CertificateStatus::Unknown,
+        CertificateStatus::Revoked,
+        CertificateStatus::Exempt,
+        CertificateStatus::NotChecked,
+    ] {
         let evidence = [CertificateStatusEvidence {
             position: CertificatePosition::Leaf,
             status,

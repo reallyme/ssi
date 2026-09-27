@@ -22,6 +22,13 @@ const COVERAGE_SOURCE_BY_PROTO = new Map([
   ["identity/status/v1/status_list.proto", ["crates/proto/src/zeroize_status.rs"]],
 ]);
 
+// These privacy-sensitive fields must remain redacted even if an annotation is
+// accidentally removed. Annotation-driven discovery alone cannot detect that
+// regression.
+const REQUIRED_REDACTED_FIELDS_BY_PROTO = new Map([
+  ["identity/credential/v1/subject_bundle.proto", ["salt"]],
+]);
+
 const ONEOF_VARIANT_FIELDS = new Set([
   "cryptographic_key",
   "claims_based",
@@ -106,10 +113,15 @@ function fieldHasCleanup(field, cleanupSource) {
 for (const protoPath of walk(protoRoot)) {
   const protoSource = readFileSync(protoPath, "utf8");
   const fields = annotatedFields(protoSource);
+  const relativeProto = relative(protoRoot, protoPath).replaceAll("\\", "/");
+  for (const requiredField of REQUIRED_REDACTED_FIELDS_BY_PROTO.get(relativeProto) ?? []) {
+    if (!fields.includes(requiredField)) {
+      throw new Error(`${relativeProto}:${requiredField} must retain debug_redact = true`);
+    }
+  }
   if (fields.length === 0) {
     continue;
   }
-  const relativeProto = relative(protoRoot, protoPath).replaceAll("\\", "/");
   const cleanupPaths = COVERAGE_SOURCE_BY_PROTO.get(relativeProto);
   if (cleanupPaths === undefined) {
     throw new Error(`${relativeProto} has redacted fields but no cleanup owner`);
