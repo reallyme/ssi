@@ -21,3 +21,8 @@ buf generate "${BUF_WORKSPACE}" \
   --path "${BUF_WORKSPACE}/reallyme/ssi/crates/proto/proto/reallyme"
 
 node "${SSI_ROOT}/scripts/sync-did-crypto-proto-boundary.mjs"
+node "${SSI_ROOT}/scripts/harden-generated-private-protos.mjs"
+
+# Keep generated Rust byte-for-byte aligned with the repository formatter so
+# freshness checks and `cargo fmt --check` agree on the canonical output.
+cargo fmt --package reallyme-ssi-proto --manifest-path "${SSI_ROOT}/Cargo.toml"

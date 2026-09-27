@@ -32,5 +32,5 @@ fn trim_unsigned_integer(value: &[u8]) -> &[u8] {
         .iter()
         .position(|byte| *byte != 0)
         .unwrap_or(value.len());
-    &value[first_non_zero..]
+    value.get(first_non_zero..).unwrap_or_default()
 }

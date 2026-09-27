@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::arithmetic_side_effects,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,

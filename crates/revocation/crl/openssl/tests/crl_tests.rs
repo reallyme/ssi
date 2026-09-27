@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -15,13 +16,14 @@
 mod crl_builder;
 
 use crl_builder::{
-    build_crl, integer, name_der, test_ca, CrlSpec, Entry, Extension, NEXT_UPDATE,
-    OID_AUTHORITY_KEY_IDENTIFIER, OID_CERTIFICATE_ISSUER, OID_CRL_NUMBER, OID_DELTA_CRL_INDICATOR,
-    OID_ISSUING_DISTRIBUTION_POINT, OID_REASON_CODE, OID_UNKNOWN, THIS_UPDATE,
+    build_crl, integer, name_der, test_ca, test_ca_with_crl_sign, test_non_ca_with_crl_sign,
+    CrlSpec, Entry, Extension, NEXT_UPDATE, OID_AUTHORITY_KEY_IDENTIFIER, OID_CERTIFICATE_ISSUER,
+    OID_CRL_NUMBER, OID_DELTA_CRL_INDICATOR, OID_ISSUING_DISTRIBUTION_POINT, OID_REASON_CODE,
+    OID_UNKNOWN, THIS_UPDATE,
 };
-use identity_revocation_crl_core::{CrlChecker, ParsedCrl};
 use identity_revocation_crl_openssl::{
-    parse_crl_der_with_env_issuer, parse_crl_pem_with_env_issuer, CrlError, MAX_CRL_DER_BYTES,
+    parse_crl_der_with_env_issuer, parse_crl_pem_with_env_issuer, CrlChecker, CrlError,
+    ParsedOpenSslCrl, MAX_CRL_DER_BYTES,
 };
 
 use identity_revocation_core::{StatusCheckError, StatusChecker};
@@ -38,17 +40,15 @@ fn read(path: &str) -> Vec<u8> {
     std::fs::read(path).unwrap()
 }
 
-fn fixture_crl(name: &str) -> ParsedCrl {
+fn fixture_crl(name: &str) -> ParsedOpenSslCrl {
     let root = X509::from_der(&read("tests/fixtures/root.der")).unwrap();
-    parse_crl_der_with_env_issuer(&read(name), root)
-        .unwrap()
-        .into()
+    parse_crl_der_with_env_issuer(&read(name), root).unwrap()
 }
 
-fn parse_built(spec: &CrlSpec) -> Result<ParsedCrl, CrlError> {
+fn parse_built(spec: &CrlSpec) -> Result<ParsedOpenSslCrl, CrlError> {
     let ca = test_ca("CRL Test CA");
     let der = build_crl(&ca, spec);
-    parse_crl_der_with_env_issuer(&der, ca.cert).map(Into::into)
+    parse_crl_der_with_env_issuer(&der, ca.cert)
 }
 
 #[test]
@@ -70,11 +70,25 @@ fn crl_checker_allows_non_revoked() {
 }
 
 #[test]
+fn crl_checker_uses_the_encoded_certificate_instead_of_mutable_projections() {
+    let mut leaf = parse_cert_der(&read("tests/fixtures/leaf.der")).unwrap();
+    let checker = CrlChecker::new(vec![fixture_crl("tests/fixtures/clean.crl.der")]);
+
+    // Callers cannot redirect a status decision by mutating the parsed model;
+    // the checker derives issuer, key identifier, and serial from DER again.
+    leaf.issuer_der = name_der("Different CRL Issuer");
+    leaf.authority_key_identifier = Some(vec![0xff]);
+    leaf.serial = vec![0xff];
+
+    assert_eq!(checker.check(&leaf, FIXTURE_NOW), Ok(()));
+}
+
+#[test]
 fn parsed_crl_carries_validity_window() {
     let crl = fixture_crl("tests/fixtures/clean.crl.der");
 
-    assert!(crl.this_update_unix > 0);
-    assert_eq!(crl.next_update_unix - crl.this_update_unix, 7 * 86_400);
+    assert!(crl.this_update_unix() > 0);
+    assert_eq!(crl.next_update_unix() - crl.this_update_unix(), 7 * 86_400);
 }
 
 #[test]
@@ -94,12 +108,12 @@ fn pem_and_der_paths_agree() {
     let crl = openssl::x509::X509Crl::from_der(&read("tests/fixtures/revoked.crl.der")).unwrap();
     let pem = crl.to_pem().unwrap();
 
-    let parsed: ParsedCrl = parse_crl_pem_with_env_issuer(&pem, root).unwrap().into();
+    let parsed = parse_crl_pem_with_env_issuer(&pem, root).unwrap();
     let expected = fixture_crl("tests/fixtures/revoked.crl.der");
 
-    assert_eq!(parsed.revoked_serials, expected.revoked_serials);
-    assert_eq!(parsed.this_update_unix, expected.this_update_unix);
-    assert_eq!(parsed.next_update_unix, expected.next_update_unix);
+    assert_eq!(parsed.revoked_serials(), expected.revoked_serials());
+    assert_eq!(parsed.this_update_unix(), expected.this_update_unix());
+    assert_eq!(parsed.next_update_unix(), expected.next_update_unix());
 }
 
 #[test]
@@ -118,9 +132,15 @@ fn built_crl_parses_with_times_and_normalized_serials() {
 
     let parsed = parse_built(&spec).unwrap();
 
-    assert_eq!(parsed.revoked_serials, vec![vec![0x80, 0x01]]);
-    assert_eq!(parsed.this_update_unix, u64::try_from(THIS_UPDATE).unwrap());
-    assert_eq!(parsed.next_update_unix, u64::try_from(NEXT_UPDATE).unwrap());
+    assert_eq!(parsed.revoked_serials(), &[vec![0x80, 0x01]]);
+    assert_eq!(
+        parsed.this_update_unix(),
+        u64::try_from(THIS_UPDATE).unwrap()
+    );
+    assert_eq!(
+        parsed.next_update_unix(),
+        u64::try_from(NEXT_UPDATE).unwrap()
+    );
 }
 
 #[test]
@@ -138,8 +158,47 @@ fn certificate_hold_is_parsed_as_suspension() {
     };
 
     let parsed = parse_built(&spec).unwrap();
-    assert!(parsed.revoked_serials.is_empty());
-    assert_eq!(parsed.suspended_serials, vec![vec![0x2A]]);
+    assert!(parsed.revoked_serials().is_empty());
+    assert_eq!(parsed.suspended_serials(), &[vec![0x2A]]);
+}
+
+#[test]
+fn remove_from_crl_is_rejected_for_complete_crl() {
+    let spec = CrlSpec {
+        entries: vec![Entry {
+            serial: vec![0x2A],
+            extensions: vec![Extension::new(
+                OID_REASON_CODE,
+                false,
+                vec![0x0A, 0x01, 0x08],
+            )],
+        }],
+        ..CrlSpec::default()
+    };
+
+    assert_eq!(parse_built(&spec).unwrap_err(), CrlError::UnsupportedScope);
+}
+
+#[test]
+fn issuer_without_crl_sign_key_usage_is_rejected() {
+    let ca = test_ca_with_crl_sign("CRL Test CA", false);
+    let der = build_crl(&ca, &CrlSpec::default());
+
+    assert_eq!(
+        parse_crl_der_with_env_issuer(&der, ca.cert).unwrap_err(),
+        CrlError::IssuerMismatch
+    );
+}
+
+#[test]
+fn non_ca_issuer_is_rejected_even_with_crl_sign_key_usage() {
+    let issuer = test_non_ca_with_crl_sign("CRL Test Signer");
+    let der = build_crl(&issuer, &CrlSpec::default());
+
+    assert_eq!(
+        parse_crl_der_with_env_issuer(&der, issuer.cert).unwrap_err(),
+        CrlError::IssuerMismatch
+    );
 }
 
 #[test]
@@ -338,6 +397,18 @@ fn crl_issuer_name_must_match_issuer_certificate() {
     };
 
     assert_eq!(parse_built(&spec).unwrap_err(), CrlError::IssuerMismatch);
+}
+
+#[test]
+fn canonically_equivalent_crl_issuer_name_is_accepted() {
+    let ca = test_ca("CRL Test CA");
+    let spec = CrlSpec {
+        issuer_name_der: Some(name_der("crl test ca")),
+        ..CrlSpec::default()
+    };
+    let der = build_crl(&ca, &spec);
+
+    assert!(parse_crl_der_with_env_issuer(&der, ca.cert).is_ok());
 }
 
 #[test]

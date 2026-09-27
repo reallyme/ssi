@@ -150,7 +150,7 @@
   "tsl_policy_cases": [
     {
       "id": "tsl-granted-bound-service",
-      "leaf": {
+      "service_ca": {
         "der_hex": "300301",
         "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
         "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9"
@@ -168,7 +168,7 @@
         "required_territory": "DE",
         "required_service_type": "CaQc",
         "require_granted_status": true,
-        "require_leaf_binding": true,
+        "require_ca_binding": true,
         "validation_time_unix": 1767312000,
         "max_status_age_seconds": null
       },
@@ -176,7 +176,7 @@
     },
     {
       "id": "tsl-wrong-territory",
-      "leaf": {
+      "service_ca": {
         "der_hex": "300301",
         "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
         "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9"
@@ -194,7 +194,7 @@
         "required_territory": "FR",
         "required_service_type": "CaQc",
         "require_granted_status": true,
-        "require_leaf_binding": true,
+        "require_ca_binding": true,
         "validation_time_unix": 1767312000,
         "max_status_age_seconds": null
       },
@@ -202,7 +202,7 @@
     },
     {
       "id": "tsl-stale-status",
-      "leaf": {
+      "service_ca": {
         "der_hex": "300301",
         "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
         "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9"
@@ -220,7 +220,7 @@
         "required_territory": "DE",
         "required_service_type": "CaQc",
         "require_granted_status": true,
-        "require_leaf_binding": true,
+        "require_ca_binding": true,
         "validation_time_unix": 1768003200,
         "max_status_age_seconds": 86400
       },
@@ -228,7 +228,7 @@
     },
     {
       "id": "tsl-binding-mismatch",
-      "leaf": {
+      "service_ca": {
         "der_hex": "300301",
         "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
         "subject_key_identifier_hex": "8e0d9deeb89a022d6375db08c3e00ca0863983f9"
@@ -246,7 +246,7 @@
         "required_territory": "DE",
         "required_service_type": "CaQc",
         "require_granted_status": true,
-        "require_leaf_binding": true,
+        "require_ca_binding": true,
         "validation_time_unix": 1767312000,
         "max_status_age_seconds": null
       },
@@ -254,7 +254,7 @@
     },
     {
       "id": "tsl-forged-subject-key-identifier-extension",
-      "leaf": {
+      "service_ca": {
         "der_hex": "300301",
         "spki_der_hex": "302a300506032b65700321005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
         "subject_key_identifier_hex": "0909090909090909090909090909090909090909"
@@ -272,7 +272,7 @@
         "required_territory": "DE",
         "required_service_type": "CaQc",
         "require_granted_status": true,
-        "require_leaf_binding": true,
+        "require_ca_binding": true,
         "validation_time_unix": 1767312000,
         "max_status_age_seconds": null
       },

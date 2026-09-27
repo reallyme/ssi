@@ -4,29 +4,34 @@
 
 use crate::{
     IdentityProofing, IdentityProofingLevel, IssuerCredential, IssuerCredentialKind, KeyManagement,
-    KeyProtection, QeaaCompliance, QeaaComplianceError, QeaaField, QeaaInvalidReason, QeaaPolicies,
-    QeaaValidationPolicy, QtspInfo, QtspRole, RevocationPolicy, StatusMethod, MAX_CERT_CHAIN_LEN,
-    MAX_CERT_CHAIN_TOTAL_DER_BYTES, MAX_CERT_DER_BYTES, MAX_OID_COUNT, MAX_QEAA_TEXT_BYTES,
-    MAX_STANDARD_COUNT,
+    KeyProtection, QeaaCompliance, QeaaComplianceError, QeaaField, QeaaInvalidReason,
+    QeaaMetadataPolicy, QeaaPolicies, QtspInfo, QtspRole, RevocationPolicy, StatusMethod,
+    MAX_CERT_CHAIN_LEN, MAX_CERT_CHAIN_TOTAL_DER_BYTES, MAX_CERT_DER_BYTES, MAX_OID_COUNT,
+    MAX_QEAA_TEXT_BYTES, MAX_STANDARD_COUNT,
 };
+use reallyme_crypto::sha2::digest as sha2_256_digest;
 
 use crate::screen_text::contains_unsafe_text_chars;
 
 type Result<T> = core::result::Result<T, QeaaComplianceError>;
 
-/// Validate QEAA compliance evidence using strict verifier defaults.
-pub fn validate_qeaa_compliance(compliance: &QeaaCompliance, now_unix: u64) -> Result<()> {
-    validate_qeaa_compliance_with_policy(compliance, QeaaValidationPolicy::strict(now_unix))
+/// Screen QEAA compliance metadata using strict local bounds.
+///
+/// This function does not authenticate any field. Callers must separately
+/// verify the containing credential, certificate path, qualified trust-list
+/// authorization, issuer binding, and current status evidence.
+pub fn screen_qeaa_metadata(compliance: &QeaaCompliance, now_unix: u64) -> Result<()> {
+    screen_qeaa_metadata_with_policy(compliance, QeaaMetadataPolicy::strict(now_unix))
 }
 
-/// Validate QEAA compliance evidence using caller-supplied local policy.
+/// Screen QEAA compliance metadata using caller-supplied local bounds.
 ///
 /// This is intentionally non-cryptographic and non-I/O. Certificate chain
 /// validation, trusted-list fetching, and signature verification are owned by
 /// trust and envelope crates before their verified result is projected here.
-pub fn validate_qeaa_compliance_with_policy(
+pub fn screen_qeaa_metadata_with_policy(
     compliance: &QeaaCompliance,
-    policy: QeaaValidationPolicy,
+    policy: QeaaMetadataPolicy,
 ) -> Result<()> {
     validate_qtsp(&compliance.qtsp)?;
     validate_policies(&compliance.policies)?;
@@ -176,6 +181,18 @@ fn validate_issuer_credential(issuer: &IssuerCredential) -> Result<()> {
         }
     }
 
+    let leaf = issuer
+        .cert_chain_der
+        .first()
+        .ok_or(invalid(QeaaInvalidReason::MissingField(
+            QeaaField::CertChainDer,
+        )))?;
+    if sha2_256_digest(leaf).as_bytes() != &issuer.cert_fingerprint_sha256 {
+        return Err(invalid(QeaaInvalidReason::InvalidField(
+            QeaaField::CertFingerprintSha256,
+        )));
+    }
+
     validate_text(&issuer.trusted_list_ref, QeaaField::TrustedListRef)?;
 
     if issuer.policy_oids.len() > MAX_OID_COUNT {
@@ -210,7 +227,7 @@ fn validate_key_management(keys: &KeyManagement) -> Result<()> {
 
 fn validate_identity_proofing(
     proofing: &IdentityProofing,
-    policy: QeaaValidationPolicy,
+    policy: QeaaMetadataPolicy,
 ) -> Result<()> {
     validate_text(&proofing.standard, QeaaField::IdentityProofingStandard)?;
     validate_text(&proofing.evidence_ref, QeaaField::EvidenceRef)?;
@@ -227,7 +244,7 @@ fn validate_identity_proofing(
     Ok(())
 }
 
-fn validate_audit_info(audit: &crate::AuditInfo, policy: QeaaValidationPolicy) -> Result<()> {
+fn validate_audit_info(audit: &crate::AuditInfo, policy: QeaaMetadataPolicy) -> Result<()> {
     validate_text(&audit.audit_standard, QeaaField::AuditStandard)?;
     validate_text(&audit.audit_report_ref, QeaaField::AuditReportRef)?;
     validate_digest(&audit.audit_report_hash, QeaaField::AuditReportHash)?;
@@ -250,7 +267,7 @@ fn validate_audit_info(audit: &crate::AuditInfo, policy: QeaaValidationPolicy) -
 
 fn validate_revocation_policy(
     revocation: &RevocationPolicy,
-    policy: QeaaValidationPolicy,
+    policy: QeaaMetadataPolicy,
 ) -> Result<()> {
     match revocation.status_method {
         StatusMethod::StatusList => {}

@@ -65,10 +65,22 @@ fn path_and_port_follow_did_web_mapping_rules() -> Result<(), Box<dyn std::error
 
 #[test]
 fn did_web_rejects_ip_addresses() {
-    let err = parse_did_web("did:web:192.0.2.1")
-        .err()
-        .map(|error| error.reason);
-    assert_eq!(err, Some(DidWebErrorReason::InvalidDomain));
+    for did in [
+        "did:web:192.0.2.1",
+        "did:web:127.1",
+        "did:web:0x7f.1",
+        "did:web:0177.0.0.1",
+        "did:web:10.0.1",
+    ] {
+        let err = parse_did_web(did).err().map(|error| error.reason);
+        assert_eq!(err, Some(DidWebErrorReason::InvalidDomain));
+    }
+    assert_eq!(
+        parse_did_web("did:web:example.com%3A443")
+            .err()
+            .map(|error| error.reason),
+        Some(DidWebErrorReason::InvalidPort)
+    );
 }
 
 #[test]
@@ -83,10 +95,32 @@ fn did_web_raw_colon_is_path_not_port() -> Result<(), Box<dyn std::error::Error>
 }
 
 #[test]
-fn did_web_rejects_encoded_path_separators() {
-    for did in ["did:web:example.com:a%2Fb", "did:web:example.com:a%5Cb"] {
-        let err = parse_did_web(did).err().map(|error| error.reason);
-        assert_eq!(err, Some(DidWebErrorReason::InvalidPath));
+fn did_web_rejects_path_normalization_aliases() {
+    for did in [
+        "did:web:example.com:.",
+        "did:web:example.com:..",
+        "did:web:example.com:a%2Fb",
+        "did:web:example.com:a%5Cb",
+        "did:web:example.com:a%00b",
+        "did:web:example.com:a%1Fb",
+        "did:web:example.com:a%7Fb",
+    ] {
+        assert_eq!(
+            parse_did_web(did).err().map(|error| error.reason),
+            Some(DidWebErrorReason::InvalidPath)
+        );
+    }
+
+    for did in [
+        "did:web:example.com:%61",
+        "did:web:example.com:%2E",
+        "did:web:example.com:%2E%2E",
+        "did:web:example.com:a%2Eb",
+    ] {
+        assert_eq!(
+            parse_did_web(did).err().map(|error| error.reason),
+            Some(DidWebErrorReason::InvalidPercentEncoding)
+        );
     }
 }
 
@@ -103,9 +137,27 @@ fn did_web_generates_and_parses_encoded_tilde_path_segment(
         parse_did_web(&did)?.path_segments(),
         ["%7Ealice".to_owned()]
     );
-    let err = parse_did_web("did:web:example.com:~alice")
-        .err()
-        .map(|error| error.reason);
-    assert_eq!(err, Some(DidWebErrorReason::InvalidPath));
+    assert_eq!(
+        parse_did_web("did:web:example.com:%7ealice")
+            .err()
+            .map(|error| error.reason),
+        Some(DidWebErrorReason::InvalidPercentEncoding)
+    );
     Ok(())
+}
+
+#[test]
+fn did_web_rejects_noncanonical_dns_case_and_percent_escapes() {
+    assert_eq!(
+        parse_did_web("did:web:EXAMPLE.com")
+            .err()
+            .map(|error| error.reason),
+        Some(DidWebErrorReason::InvalidDomain)
+    );
+    assert_eq!(
+        parse_did_web("did:web:example.com:%7e")
+            .err()
+            .map(|error| error.reason),
+        Some(DidWebErrorReason::InvalidPercentEncoding)
+    );
 }

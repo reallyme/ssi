@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 include!("rfc9901/section_01.rs");
+include!("rfc9901/verify_key_binding.rs");
 include!("rfc9901/section_02.rs");
 include!("rfc9901/section_03.rs");
 include!("rfc9901/section_04.rs");

@@ -178,5 +178,8 @@ fn exactly_one_subject_text(
         NameAttributeValue::Binary(_) => Err(RegistrationError::from_reason(
             RegistrationErrorReason::InvalidField,
         )),
+        _ => Err(RegistrationError::from_reason(
+            RegistrationErrorReason::InvalidField,
+        )),
     }
 }

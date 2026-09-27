@@ -10,11 +10,11 @@ use envelopes_x509::{parse_cert_der, verify_chain_signatures_pure_rust, X509Chai
 
 const SYNTHETIC_STATUS_URI: &str = "https://issuer.example/revocation/status-list";
 const STATUS_CERTIFICATE_DER: &[u8] =
-    include_bytes!("../../../../revocation/ocsp/openssl/tests/fixtures/leaf.der");
+    include_bytes!("../fixtures/ocsp-leaf.der");
 const STATUS_ISSUER_DER: &[u8] =
-    include_bytes!("../../../../revocation/ocsp/openssl/tests/fixtures/issuer.der");
+    include_bytes!("../fixtures/ocsp-issuer.der");
 const STATUS_ROOT_DER: &[u8] =
-    include_bytes!("../../../../revocation/ocsp/openssl/tests/fixtures/root.der");
+    include_bytes!("../fixtures/ocsp-root.der");
 
 #[test]
 fn signed_mso_status_list_interoperates_with_verification() {
@@ -44,9 +44,9 @@ fn signed_mso_status_list_interoperates_with_verification() {
     .unwrap();
 
     assert!(issued_mso.status.as_ref() == Some(&status));
-    assert!(verified.mobile_security_object.status.as_ref() == Some(&status));
+    assert!(verified.mobile_security_object().status.as_ref() == Some(&status));
     let certificate = verified
-        .mobile_security_object
+        .mobile_security_object()
         .status
         .as_ref()
         .and_then(MdocStatus::status_list_ref)
@@ -90,7 +90,7 @@ fn signed_mso_identifier_list_interoperates_with_verification() {
     .unwrap();
 
     assert!(issued_mso.status.as_ref() == Some(&status));
-    assert!(verified.mobile_security_object.status.as_ref() == Some(&status));
+    assert!(verified.mobile_security_object().status.as_ref() == Some(&status));
 }
 
 #[test]
@@ -146,7 +146,7 @@ fn device_response_rejects_device_auth_algorithm_not_bound_to_device_key() {
 }
 
 #[test]
-fn issuance_rejects_issuer_signed_item_random_outside_accepted_length() {
+fn issuance_ignores_legacy_caller_random_and_generates_safe_randomizers() {
     let (_, issuer_private_key) = issuer_keys();
     let signer = CoseIssuerAuthSigner {
         alg: Algorithm::Ed25519,
@@ -156,14 +156,19 @@ fn issuance_rejects_issuer_signed_item_random_outside_accepted_length() {
     for random_len in [1, MIN_MDOC_ITEM_RANDOM_BYTES - 1, MAX_MDOC_ITEM_RANDOM_BYTES + 1] {
         let mut elements = sample_elements();
         elements[0].random = vec![3_u8; random_len];
-        let err = match build_mso_mdoc(&valid_config(), &elements, &signer) {
-            Ok(_) => MdocEnvelopeError::UnsupportedOperation,
-            Err(err) => err,
-        };
-        assert_eq!(
-            err,
-            MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::InvalidRandomLength)
-        );
+        let (document, _) = build_mso_mdoc(&valid_config(), &elements, &signer).unwrap();
+        let generated = document
+            .issuer_signed
+            .name_spaces
+            .as_ref()
+            .and_then(|namespaces| namespaces.values().next())
+            .and_then(|items| items.first())
+            .map(decode_issuer_signed_item)
+            .transpose()
+            .unwrap()
+            .unwrap();
+        assert_eq!(generated.random.len(), MIN_MDOC_ITEM_RANDOM_BYTES);
+        assert_ne!(generated.random, vec![3_u8; random_len]);
     }
 
     let err = match iso23220_relationship_element(

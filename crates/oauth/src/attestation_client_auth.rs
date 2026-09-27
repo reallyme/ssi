@@ -6,13 +6,12 @@
 
 use core::fmt;
 
-use reallyme_crypto::sha2::digest as digest_sha2_256;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::error::{OauthError, OauthResult, Reason};
-use crate::jwt::{decode_compact_jwt, sign_compact_jwt, CompactJwt, JwtSigner};
+use crate::jwt::{sign_compact_jwt, CompactJwt, JwtSigner};
 use crate::sensitive::zeroize_option;
 use crate::validation::{
     validate_asymmetric_jose_alg, validate_compact_jwt, validate_issuer_identifier, validate_token,
@@ -24,12 +23,17 @@ pub use crate::attestation_trust_receipt::{
 };
 pub use crate::bind_attested_client_key::AttestedClientKey;
 
+mod validate;
+
+pub use validate::validate_attestation_client_authentication;
+
 pub(crate) const SHA_256_BYTES: usize = 32;
 
 /// Maximum age accepted for an already-computed wallet-attestation trust
 /// decision. This bounds reuse of status and trust-list evidence independently
 /// of the signer's certificate expiry.
 pub const MAX_ATTESTATION_TRUST_EVIDENCE_AGE_SECONDS: i64 = 300;
+const MAX_ATTESTATION_FUTURE_IAT_SKEW_SECONDS: i64 = 60;
 
 /// HTTP header carrying the Client Attestation JWT.
 pub const OAUTH_CLIENT_ATTESTATION_HEADER: &str = "OAuth-Client-Attestation";
@@ -187,6 +191,8 @@ impl AttestationPopClaims {
 pub struct AttestationClientAuthenticationValidationContext {
     /// Expected Authorization Server audience.
     pub expected_audience: String,
+    /// OAuth request `client_id` that must equal the attestation `sub` claim.
+    pub expected_client_id: String,
     /// Optional issuer challenge that must appear in the PoP JWT.
     pub expected_challenge: Option<String>,
     /// Earliest accepted issued-at timestamp.
@@ -208,6 +214,7 @@ impl fmt::Debug for AttestationClientAuthenticationValidationContext {
 impl Zeroize for AttestationClientAuthenticationValidationContext {
     fn zeroize(&mut self) {
         self.expected_audience.zeroize();
+        self.expected_client_id.zeroize();
         zeroize_option(&mut self.expected_challenge);
     }
 }
@@ -224,6 +231,7 @@ impl AttestationClientAuthenticationValidationContext {
     /// Validates the context before it is used for client authentication.
     pub fn validate(&self) -> OauthResult<()> {
         validate_issuer_identifier(&self.expected_audience)?;
+        validate_token(&self.expected_client_id)?;
         if let Some(challenge) = &self.expected_challenge {
             validate_token(challenge)?;
         }
@@ -236,6 +244,13 @@ impl AttestationClientAuthenticationValidationContext {
         {
             return Err(OauthError::new(Reason::InvalidClientAttestation));
         }
+        let latest_permitted_iat = self
+            .current_time
+            .checked_add(MAX_ATTESTATION_FUTURE_IAT_SKEW_SECONDS)
+            .ok_or_else(|| OauthError::new(Reason::InvalidClientAttestation))?;
+        if self.latest_iat > latest_permitted_iat {
+            return Err(OauthError::new(Reason::InvalidClientAttestation));
+        }
         Ok(())
     }
 }
@@ -243,6 +258,10 @@ impl AttestationClientAuthenticationValidationContext {
 /// Verifier injected by issuer adapters for wallet attestation client auth.
 pub trait AttestationClientAuthenticationVerifier {
     /// Verifies the wallet Client Attestation JWT signature and signer trust.
+    ///
+    /// Implementations must construct the returned receipt with the exact SPKI
+    /// used for JWT signature verification. `WalletAttestationTrustEvidence`
+    /// rejects a different leaf key from the selected trust path.
     fn verify_client_attestation(
         &self,
         client_attestation: &CompactJwt,
@@ -323,143 +342,4 @@ impl AttestationPopRequest {
         claims.validate()?;
         sign_compact_jwt(&header, &claims, signer)
     }
-}
-
-/// Validates complete attestation-based client authentication headers.
-pub fn validate_attestation_client_authentication(
-    authentication: &AttestationClientAuthentication,
-    context: &AttestationClientAuthenticationValidationContext,
-    verifier: &dyn AttestationClientAuthenticationVerifier,
-) -> OauthResult<VerifiedAttestationClientAuthentication> {
-    authentication.validate()?;
-    context.validate()?;
-    let client_attestation = CompactJwt::new(authentication.client_attestation.clone())?;
-    let pop = CompactJwt::new(authentication.client_attestation_pop.clone())?;
-    validate_client_attestation_envelope(&client_attestation, context.current_time)?;
-    let trust_evidence = verifier.verify_client_attestation(&client_attestation)?;
-    let mut verified_attestation =
-        VerifiedClientAttestation::bind(&client_attestation, trust_evidence)?;
-    if *verified_attestation.client_attestation_sha256()
-        != sha256(client_attestation.as_str().as_bytes())
-    {
-        return Err(OauthError::new(Reason::InvalidAttestationReceipt));
-    }
-    verified_attestation.validate_trust_evidence_freshness(
-        context.current_time,
-        context.max_trust_evidence_age_seconds,
-    )?;
-    let decoded_pop = decode_and_validate_attestation_pop(
-        &pop,
-        &context.expected_audience,
-        context.expected_challenge.as_deref(),
-        context.earliest_iat,
-        context.latest_iat,
-    )?;
-    if !verified_attestation
-        .attested_client_key()
-        .permits_algorithm(&decoded_pop.algorithm)
-    {
-        return Err(OauthError::new(Reason::AttestationKeyBindingFailed));
-    }
-    verifier
-        .verify_pop_signature(
-            &verified_attestation,
-            &decoded_pop.header_value,
-            decoded_pop.signing_input.as_bytes(),
-            &decoded_pop.signature,
-        )
-        .map_err(|_| OauthError::new(Reason::AttestationKeyBindingFailed))?;
-    verifier
-        .check_replay(
-            &verified_attestation,
-            &decoded_pop.claims.jti,
-            decoded_pop.claims.iat,
-        )
-        .map_err(|_| OauthError::new(Reason::AttestationReplay))?;
-    let pop_jti_sha256 = sha256(decoded_pop.claims.jti.as_bytes());
-    Ok(VerifiedAttestationClientAuthentication::new(
-        decoded_pop.claims,
-        verified_attestation,
-        pop_jti_sha256,
-    ))
-}
-
-#[derive(Deserialize)]
-struct ClientAttestationHeader {
-    typ: String,
-    alg: String,
-}
-
-#[derive(Deserialize)]
-struct ClientAttestationTemporalClaims {
-    exp: i64,
-}
-
-fn validate_client_attestation_envelope(
-    client_attestation: &CompactJwt,
-    current_time: i64,
-) -> OauthResult<()> {
-    let (header, claims, _signature): (
-        ClientAttestationHeader,
-        ClientAttestationTemporalClaims,
-        Vec<u8>,
-    ) = decode_compact_jwt(client_attestation)
-        .map_err(|_| OauthError::new(Reason::InvalidClientAttestation))?;
-    if header.typ != "oauth-client-attestation+jwt" || claims.exp <= current_time {
-        return Err(OauthError::new(Reason::InvalidClientAttestation));
-    }
-    validate_asymmetric_jose_alg(&header.alg)
-        .map_err(|_| OauthError::new(Reason::InvalidClientAttestation))
-}
-
-fn sha256(value: &[u8]) -> [u8; SHA_256_BYTES] {
-    *digest_sha2_256(value).as_bytes()
-}
-
-struct DecodedAttestationPop {
-    header_value: Value,
-    algorithm: String,
-    claims: AttestationPopClaims,
-    signing_input: Zeroizing<String>,
-    signature: Vec<u8>,
-}
-
-fn decode_and_validate_attestation_pop(
-    jwt: &CompactJwt,
-    expected_audience: &str,
-    expected_challenge: Option<&str>,
-    earliest_iat: i64,
-    latest_iat: i64,
-) -> OauthResult<DecodedAttestationPop> {
-    validate_issuer_identifier(expected_audience)?;
-    let (header, claims, signature): (AttestationPopHeader, AttestationPopClaims, Vec<u8>) =
-        decode_compact_jwt(jwt)?;
-    if header.typ != "oauth-client-attestation-pop+jwt" {
-        return Err(OauthError::new(Reason::InvalidClientAttestation));
-    }
-    validate_asymmetric_jose_alg(&header.alg)
-        .map_err(|_| OauthError::new(Reason::InvalidClientAttestation))?;
-    claims.validate()?;
-    if claims.aud != expected_audience {
-        return Err(OauthError::new(Reason::InvalidClientAttestation));
-    }
-    if let Some(challenge) = expected_challenge {
-        if claims.challenge.as_deref() != Some(challenge) {
-            return Err(OauthError::new(Reason::InvalidClientAttestation));
-        }
-    }
-    if claims.iat < earliest_iat || claims.iat > latest_iat {
-        return Err(OauthError::new(Reason::InvalidClientAttestation));
-    }
-    let algorithm = header.alg.clone();
-    let header_value =
-        serde_json::to_value(&header).map_err(|_| OauthError::new(Reason::InvalidJson))?;
-    let (signing_input, _) = jwt.signing_parts()?;
-    Ok(DecodedAttestationPop {
-        header_value,
-        algorithm,
-        claims,
-        signing_input: Zeroizing::new(signing_input.to_owned()),
-        signature,
-    })
 }

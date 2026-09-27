@@ -1,11 +1,16 @@
 # reallyme-credential-audit
 
-**Deterministic QEAA compliance and verification-provenance validation**
+**Deterministic QEAA metadata screening and verification-provenance models**
 
-`reallyme-credential-audit` validates the evidence attached to qualified
-electronic attestations of attributes. It provides typed models and bounded
-validation for identity proofing, QTSP roles, key protection, status methods,
+`reallyme-credential-audit` provides typed models and bounded structural
+screening for metadata attached to qualified electronic attestations of
+attributes: identity proofing, QTSP roles, key protection, status methods,
 standards versions, and verification resolvers.
+
+Metadata screening is not cryptographic verification. A successful screen does
+not establish a certificate path, qualified trust-list authorization, issuer
+binding, envelope signature, or current credential status. Those guarantees
+must come from the owning trust, envelope, and status layers.
 
 > Building an issuer, verifier, or wallet? Start with
 > [`reallyme-identity`](https://crates.io/crates/reallyme-identity). Use this
@@ -18,7 +23,7 @@ standards versions, and verification resolvers.
 | QEAA compliance metadata | Trusted-list retrieval |
 | Verification provenance | Certificate-chain verification |
 | Resource limits and typed validation errors | Trust decisions and policy selection |
-| Deterministic local validation | Operational audit logging and retention |
+| Deterministic local metadata screening | Operational audit logging and retention |
 
 The name refers to credential audit evidence. This crate does not implement a
 server audit trail or a compliance automation service.
@@ -27,7 +32,7 @@ server audit trail or a compliance automation service.
 
 ```toml
 [dependencies]
-reallyme-credential-audit = "0.2.0"
+reallyme-credential-audit = "0.3.0"
 ```
 
 ## License

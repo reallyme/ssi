@@ -25,7 +25,7 @@ mod model;
 pub use build::{
     build_siop_authentication_request, validate_siop_authentication_request,
     BuildSiopAuthenticationRequestInput, MAX_SIOP_REQUEST_LIFETIME_SECONDS, MAX_SIOP_SCOPES,
-    MAX_SIOP_SCOPE_BYTES, MAX_SIOP_TEXT_BYTES, SIOP_NONCE_BYTES,
+    MAX_SIOP_SCOPE_BYTES, MAX_SIOP_TEXT_BYTES, MIN_SIOP_STATE_BYTES, SIOP_NONCE_BYTES,
 };
 pub use error::SiopDeliveryError;
 pub use model::{

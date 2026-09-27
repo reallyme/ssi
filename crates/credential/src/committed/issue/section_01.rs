@@ -39,36 +39,48 @@ use crate::committed::{
 /// Input for issuing a credential (public envelope).
 #[derive(Debug)]
 pub struct IssueInput {
+    /// Credential kind written to the public envelope.
     pub kind: CredentialKind,
+    /// Versioned credential profile identifier.
     pub profile_id: String,
+    /// Assurance level asserted by the issuer.
     pub assurance: AssuranceLevel,
 
+    /// Stable reference identifying the credential issuer.
     pub issuer_reference: PartyReference,
     /// Public verification key attached to the issuer signature.
     pub issuer_verification_key: PublicKeyRef,
+    /// ISO country identifier asserted for the issuer.
     pub issuer_country: String,
 
     /// UTC seconds since epoch.
     pub valid_from: i64,
+    /// Exclusive credential expiry as seconds since the Unix epoch.
     pub valid_until: i64,
 
+    /// Credential status information covered by the issuer commitment.
     pub status: CredentialStatus,
 
+    /// Credential subject covered by the issuer commitment.
     pub subject: CredentialSubject,
 
     /// Commitment profile.
     pub claimset_id: String,
+    /// Domain-separation tags used by the commitment tree.
     pub domain_tags: DomainTags,
+    /// Resource and salt limits applied during commitment construction.
     pub limits: CommitmentLimits,
 
     /// Optional QEAA metadata.
     pub qeaa_compliance: Option<QeaaCompliance>,
 }
 
-/// Result of issuance: public envelope + subject-private bundle.
+/// Public credential envelope and private disclosure material produced atomically.
 #[derive(Debug)]
 pub struct IssueResult {
+    /// Issued credential envelope containing the authenticated commitment.
     pub envelope: CredentialEnvelope,
+    /// Private subject material required to construct selective-disclosure proofs.
     pub subject_bundle: SubjectPrivateBundle,
     /// Optional proof binding emitted atomically with P-256 credentials whose
     /// holder is also bound to a P-256 key.
@@ -100,7 +112,7 @@ impl CredentialPayloadSigner for CryptoSignerAdapter<'_> {
     }
 }
 
-/// Issue a credential using the "static Merkle root" model.
+/// Issues a credential whose signed envelope authenticates a Merkle commitment.
 ///
 /// - Values are encoded using a deterministic JSON canonicalization compatible with the TS JCS rules
 ///   (object keys sorted recursively; arrays preserved; primitives unchanged).
@@ -113,9 +125,8 @@ impl CredentialPayloadSigner for CryptoSignerAdapter<'_> {
 /// - Signature input bytes = canonical CBOR bytes of the envelope (excluding its signature)
 /// - ECDSA signatures are stored raw r||s (64 bytes); DER accepted and normalized.
 ///
-/// Returns:
-/// - CredentialEnvelope (public)
-/// - SubjectPrivateBundle (private openings + paths)
+/// The result contains the public credential envelope and the private openings
+/// required to construct selective-disclosure presentations.
 pub fn issue_credential<R: SaltRng>(
     input: IssueInput,
     claims: &BTreeMap<String, serde_json::Value>,
@@ -127,7 +138,7 @@ pub fn issue_credential<R: SaltRng>(
     issue_credential_with_signer(input, claims, &signer, rng)
 }
 
-/// Issue a credential using an abstract signer (HSM/QSCD/remote signing friendly).
+/// Issues a credential through an external signing provider.
 ///
 /// This function is identical to `issue_credential` except that it does not require the SDK
 /// to hold private key bytes.
@@ -140,15 +151,15 @@ pub fn issue_credential_with_signer<R: SaltRng>(
     issue_credential_with_payload_signer(input, claims, &CryptoSignerAdapter { signer }, rng)
 }
 
-/// Issue through the narrow ReallyMe host signing boundary.
+/// Issues a credential through the package-owned signing boundary.
 pub fn issue_credential_with_payload_signer<R: SaltRng + ?Sized>(
     input: IssueInput,
     claims: &BTreeMap<String, serde_json::Value>,
     signer: &dyn CredentialPayloadSigner,
     rng: &mut R,
 ) -> Result<IssueResult, VcError> {
-    // Basic hygiene: `valid_until` is exclusive, so an empty window is rejected
-    // consistently with public envelope validation.
+    // `valid_until` is exclusive, so equality would describe an empty validity
+    // interval and must match the public-envelope rejection behavior.
     if input.valid_until <= input.valid_from {
         return Err(VcError::InvalidCredential);
     }

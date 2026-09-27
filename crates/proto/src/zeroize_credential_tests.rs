@@ -111,9 +111,9 @@ fn subject_bundle_cleanup_clears_private_openings_and_signatures() {
             value: b"private".to_vec(),
             index: 0,
             merkle_path: vec![vec![7; 32]],
-            ..Default::default()
+            __buffa_unknown_fields: Default::default(),
         }],
-        ..Default::default()
+        __buffa_unknown_fields: Default::default(),
     };
 
     zeroize_subject_private_bundle(&mut bundle);

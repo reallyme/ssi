@@ -29,7 +29,16 @@ fn validate_ciborium_value(value: &Value, depth: usize) -> Result<(), MdocEnvelo
                     MdocInvalidInputReason::CborMapTooLarge,
                 ));
             }
-            for (key, item) in entries {
+            for (index, (key, item)) in entries.iter().enumerate() {
+                if entries
+                    .iter()
+                    .take(index)
+                    .any(|(existing_key, _)| existing_key == key)
+                {
+                    return Err(MdocEnvelopeError::InvalidInput(
+                        MdocInvalidInputReason::DuplicateCborMapKey,
+                    ));
+                }
                 validate_ciborium_value(key, next_depth)?;
                 validate_ciborium_value(item, next_depth)?;
             }

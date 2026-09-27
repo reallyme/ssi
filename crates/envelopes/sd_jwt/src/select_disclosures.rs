@@ -23,6 +23,7 @@ const ARRAY_DIGEST_CLAIM_NAME: &str = "...";
 /// One component in a claim path requested for disclosure.
 #[derive(Clone, PartialEq, Eq, Zeroize)]
 #[zeroize(drop)]
+#[non_exhaustive]
 pub enum SdJwtClaimPathComponent {
     /// Select an object property.
     Name(String),
@@ -251,14 +252,27 @@ impl PathMapper<'_> {
                 }
             }
             Value::Array(array) => {
-                for (index, child) in array.iter().enumerate() {
-                    self.path.push(SdJwtClaimPathComponent::Index(index));
-                    let result = match array_disclosure_digest(child)? {
-                        Some(digest) => self.map_array_disclosure(digest, child_depth),
+                // Claim paths address the reconstructed claim array, not the
+                // issuer payload. Decoy placeholders have no reconstructed
+                // position and therefore must not shift later user-visible
+                // elements.
+                let mut resolved_index = 0usize;
+                for child in array {
+                    let digest = array_disclosure_digest(child)?;
+                    if digest.is_some_and(|value| !self.graph.index_by_digest.contains_key(value)) {
+                        continue;
+                    }
+                    self.path
+                        .push(SdJwtClaimPathComponent::Index(resolved_index));
+                    let result = match digest {
+                        Some(value) => self.map_array_disclosure(value, child_depth),
                         None => self.map_value(child, child_depth),
                     };
                     self.path.pop();
                     result?;
+                    resolved_index = resolved_index
+                        .checked_add(1)
+                        .ok_or(SdJwtEnvelopeError::ProcessingNodeLimitExceeded)?;
                 }
             }
             Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}

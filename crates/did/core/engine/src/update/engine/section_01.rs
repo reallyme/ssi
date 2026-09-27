@@ -12,13 +12,13 @@ use crate::canonical::{json_to_cbor_value, normalize_json_value};
 use crate::core::{
     CanonicalService, CoreVerificationMethod, DidCore, UpdatePolicy as CoreUpdatePolicy,
 };
-use crate::document::{project_did_document, DocumentProjection};
+use crate::document::{default_context, project_did_document, DocumentProjection};
 use crate::error::DidCoreError;
 use crate::hashing::compute_core_cid;
+use crate::projection_binding::{projection_binding_hash, ProjectionBinding};
 use crate::signing::{attestation_crypto_algorithm, sign_core_with_policy};
 use crate::update::{
     error::UpdateError,
-    invariants::validate_chain,
     merge::{merge_domain_verification, merge_services},
     rotation::apply_rotations,
 };

@@ -16,6 +16,7 @@ pub const DEFAULT_OCSP_ALLOWED_SKEW_SECS: u64 = 300;
 
 /// Behavior when a revocation source cannot produce a terminal answer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum SoftFailMode {
     /// Treat unavailable/expired/invalid evidence as terminal failure.
     Strict,
@@ -38,7 +39,7 @@ pub enum SoftFailMode {
 /// applied to the checker without conversion.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct OcspPolicy {
-    /// If true, missing `nextUpdate` is invalid.
+    /// Whether an OCSP response without `nextUpdate` is invalid.
     pub require_next_update: bool,
 
     /// Maximum accepted `thisUpdate` age in seconds. If `None`, no local
@@ -48,9 +49,6 @@ pub struct OcspPolicy {
 
     /// Clock skew allowance in seconds.
     pub allowed_skew_secs: u64,
-
-    /// If true, backend metadata must prove response signature and responder authorization.
-    pub require_verified: bool,
 }
 
 impl Default for OcspPolicy {
@@ -62,7 +60,6 @@ impl Default for OcspPolicy {
             // indefinite replay of an otherwise valid response.
             max_age_secs: Some(DEFAULT_MAX_OCSP_AGE_SECS),
             allowed_skew_secs: DEFAULT_OCSP_ALLOWED_SKEW_SECS,
-            require_verified: true,
         }
     }
 }
@@ -87,9 +84,8 @@ pub struct CompositeRevocationPolicy {
 
     /// OCSP evidence policy.
     ///
-    /// The composite checker delegates to an already-built OCSP checker, so
-    /// this policy takes effect when that checker is built from it (for
-    /// example `OcspChecker::from_composite_policy` in the OCSP core crate).
+    /// The composite checker passes this policy into the OCSP checker for each
+    /// decision, preventing construction-time configuration drift.
     pub ocsp: OcspPolicy,
 }
 
@@ -110,6 +106,7 @@ impl CompositeRevocationPolicy {
 
 /// What kind of revocation evidence produced a cached result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum RevocationSource {
     /// OCSP evidence.
     Ocsp,
@@ -143,4 +140,17 @@ pub struct RevocationEvidenceMeta {
 pub trait StatusChecker {
     /// Check status for an already-parsed certificate or credential context.
     fn check(&self, cert: &X509Certificate, now_unix: u64) -> Result<(), StatusCheckError>;
+}
+
+/// OCSP status source whose evaluation is governed by the caller's composite
+/// policy rather than construction-time ambient configuration.
+pub trait OcspStatusChecker {
+    /// Check status while applying the exact OCSP policy from the aggregate
+    /// revocation decision.
+    fn check_with_policy(
+        &self,
+        cert: &X509Certificate,
+        now_unix: u64,
+        policy: OcspPolicy,
+    ) -> Result<(), StatusCheckError>;
 }

@@ -4,6 +4,7 @@
 
 use identity_core_primitives::Algorithm;
 use reallyme_did_types::DIDDocument;
+use std::collections::BTreeSet;
 
 use crate::error::DidApiError;
 use crate::update::{update_did_with_keysets, UpdateConfig};
@@ -175,6 +176,24 @@ pub fn replace_compromised_keys(
         return Err(DidApiError::RotationRequiresCreated);
     }
 
+    let compromised_material = vm_ids
+        .iter()
+        .map(|identifier| {
+            old_doc
+                .verification_method
+                .iter()
+                .find(|method| method.id == *identifier)
+                .map(|method| method.public_key_multibase.as_str())
+                .ok_or(DidApiError::VerificationMethodNotFound)
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    let excluded_authorization_methods = old_doc
+        .verification_method
+        .iter()
+        .filter(|method| compromised_material.contains(method.public_key_multibase.as_str()))
+        .map(|method| method.id.clone())
+        .collect::<Vec<_>>();
+
     let recovery_ks = build_rotated_keyset(old_doc, ks, vm_ids)?;
 
     // Compromised methods never authorize their own replacement; the remaining
@@ -201,7 +220,7 @@ pub fn replace_compromised_keys(
             invocation: None,
             key_agreement: None,
         },
-        vm_ids,
+        &excluded_authorization_methods,
     )
 }
 

@@ -5,7 +5,7 @@
 use crate::{ClaimPath, ClaimPathSegment, ClaimsError, ClaimsInvalidReason};
 use std::collections::BTreeMap;
 use time::format_description::well_known::Rfc3339;
-use time::{Date, Month, OffsetDateTime};
+use time::{Date, Month, OffsetDateTime, UtcOffset};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Maximum UTF-8 bytes accepted for one string-like claim value.
@@ -32,28 +32,22 @@ const DATE_LEN: usize = 10;
 /// output and zeroizes owned buffers on drop so payload normalization does not
 /// become an accidental long-lived copy of PII.
 #[derive(Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ClaimValue {
     /// Null value.
     Null,
-
     /// Boolean value.
     Boolean(bool),
-
     /// UTF-8 string value.
     String(String),
-
     /// Signed integer value.
     Signed(i64),
-
     /// Unsigned integer value.
     Unsigned(u64),
-
     /// Canonical fixed-point decimal value.
     Decimal(ClaimDecimal),
-
     /// Opaque byte string value.
     Bytes(Vec<u8>),
-
     /// ISO 8601 calendar date value.
     Date(ClaimDate),
 
@@ -131,8 +125,13 @@ impl ClaimDate {
 impl ClaimDateTime {
     /// Construct a date-time after RFC 3339 validation.
     pub fn new(value: impl Into<String>) -> Result<Self, ClaimsError> {
-        let rfc3339 = value.into();
-        validate_date_time(rfc3339.as_str())?;
+        let submitted = value.into();
+        let parsed = OffsetDateTime::parse(submitted.as_str(), &Rfc3339)
+            .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidDateTime))?;
+        let rfc3339 = parsed
+            .to_offset(UtcOffset::UTC)
+            .format(&Rfc3339)
+            .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidDateTime))?;
         Ok(Self { rfc3339 })
     }
 
@@ -298,7 +297,10 @@ pub fn validate_decimal(value: &str) -> Result<(), ClaimsError> {
     if bytes.first() == Some(&b'-') {
         offset = 1;
     }
-    let integer_digits = count_digits(&bytes[offset..]);
+    let integer_tail = bytes.get(offset..).ok_or(ClaimsError::InvalidInput(
+        ClaimsInvalidReason::InvalidDecimal,
+    ))?;
+    let integer_digits = count_digits(integer_tail);
     if integer_digits == 0 {
         return Err(ClaimsError::InvalidInput(
             ClaimsInvalidReason::InvalidDecimal,
@@ -309,7 +311,11 @@ pub fn validate_decimal(value: &str) -> Result<(), ClaimsError> {
         .ok_or(ClaimsError::InvalidInput(
             ClaimsInvalidReason::ClaimValueLimitExceeded,
         ))?;
-    let integer = &bytes[offset..integer_end];
+    let integer = bytes
+        .get(offset..integer_end)
+        .ok_or(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidDecimal,
+        ))?;
     if integer.len() > 1 && integer.first() == Some(&b'0') {
         return Err(ClaimsError::InvalidInput(
             ClaimsInvalidReason::InvalidDecimal,
@@ -334,7 +340,12 @@ pub fn validate_decimal(value: &str) -> Result<(), ClaimsError> {
         .ok_or(ClaimsError::InvalidInput(
             ClaimsInvalidReason::ClaimValueLimitExceeded,
         ))?;
-    let fraction_digits = count_digits(&bytes[fraction_offset..]);
+    let fraction_tail = bytes
+        .get(fraction_offset..)
+        .ok_or(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidDecimal,
+        ))?;
+    let fraction_digits = count_digits(fraction_tail);
     if fraction_digits == 0 {
         return Err(ClaimsError::InvalidInput(
             ClaimsInvalidReason::InvalidDecimal,
@@ -346,7 +357,11 @@ pub fn validate_decimal(value: &str) -> Result<(), ClaimsError> {
             .ok_or(ClaimsError::InvalidInput(
                 ClaimsInvalidReason::ClaimValueLimitExceeded,
             ))?;
-    let fraction = &bytes[fraction_offset..expected_len];
+    let fraction = bytes
+        .get(fraction_offset..expected_len)
+        .ok_or(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidDecimal,
+        ))?;
     if fraction.last() == Some(&b'0') {
         return Err(ClaimsError::InvalidInput(
             ClaimsInvalidReason::InvalidDecimal,
@@ -438,7 +453,10 @@ fn parse_four_digits(bytes: &[u8], offset: usize) -> Result<i32, ClaimsError> {
         .checked_add(2)
         .ok_or(ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidDate))?;
     let low = parse_two_digits(bytes, next_offset)?;
-    Ok(i32::from(high) * 100 + i32::from(low))
+    i32::from(high)
+        .checked_mul(100)
+        .and_then(|value| value.checked_add(i32::from(low)))
+        .ok_or(ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidDate))
 }
 
 fn parse_two_digits(bytes: &[u8], offset: usize) -> Result<u8, ClaimsError> {

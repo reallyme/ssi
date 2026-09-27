@@ -122,6 +122,23 @@ pub enum IdentityCoreErrorReason {
     IDENTITY_CORE_ERROR_REASON_DID_INVALID_NAMESPACE = 333i32,
     IDENTITY_CORE_ERROR_REASON_DID_INVALID_UNIQUE_IDENTIFIER = 334i32,
     IDENTITY_CORE_ERROR_REASON_DID_UNEXPECTED_SEGMENT = 335i32,
+    IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL = 336i32,
+    IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE = 337i32,
+    IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD = 338i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION = 339i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE = 340i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE = 341i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED = 342i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED = 343i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE = 344i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED = 345i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE = 346i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED = 347i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE = 348i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT = 349i32,
+    IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED = 350i32,
+    IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH = 351i32,
+    IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND = 352i32,
     /// Credential envelope and claim reasons.
     IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE = 400i32,
     IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_CLAIM = 401i32,
@@ -203,6 +220,9 @@ pub enum IdentityCoreErrorReason {
     IDENTITY_CORE_ERROR_REASON_VC_CANONICALIZATION = 520i32,
     IDENTITY_CORE_ERROR_REASON_VC_INVALID_CREDENTIAL = 521i32,
     IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE = 522i32,
+    IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH = 523i32,
+    IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH = 524i32,
+    IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID = 525i32,
     IDENTITY_CORE_ERROR_REASON_VC_API_UNSUPPORTED_PROFILE = 530i32,
     IDENTITY_CORE_ERROR_REASON_VC_API_INVALID_ISSUER = 531i32,
     IDENTITY_CORE_ERROR_REASON_VC_API_INVALID_SUBJECT = 532i32,
@@ -559,6 +579,7 @@ pub enum IdentityCoreErrorReason {
     IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_MISSING_POLICY_CPS_URI = 1068i32,
     IDENTITY_CORE_ERROR_REASON_X509_POLICY_ALGORITHM_PARAMETERS_NOT_ALLOWED = 1069i32,
     IDENTITY_CORE_ERROR_REASON_X509_POLICY_PATH_LENGTH_CONSTRAINT_EXCEEDED = 1070i32,
+    IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT = 1071i32,
     IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_FORMAT = 920i32,
     IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_CREDENTIAL_PROFILE = 921i32,
     IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_CLAIMSET_ID = 922i32,
@@ -926,6 +947,57 @@ impl IdentityCoreErrorReason {
     ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_UNEXPECTED_SEGMENT`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DidUnexpectedSegment: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_UNEXPECTED_SEGMENT;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidInvalidUrl: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidJsonLdProcessorUnavailable: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidInvalidJsonLd: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebPolicyViolation: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebNetworkFailure: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebTlsFailure: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebRedirectRejected: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebMediaTypeRejected: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebResponseTooLarge: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebHttpStatusRejected: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebProviderUnavailable: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebProviderUnauthenticated: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebProviderFailure: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebTimeout: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidWebCancelled: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidDocumentIdentifierMismatch: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DidResourceNotFound: Self = Self::IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND;
     ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const CredentialInvalidEnvelope: Self = Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE;
@@ -1166,6 +1238,15 @@ impl IdentityCoreErrorReason {
     ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const VcUnsupportedProfile: Self = Self::IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const VcProofBindingMismatch: Self = Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const VcProofBindingTrustedIssuerMismatch: Self = Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const VcProofBindingSignatureInvalid: Self = Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID;
     ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_VC_API_UNSUPPORTED_PROFILE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const VcApiUnsupportedProfile: Self = Self::IDENTITY_CORE_ERROR_REASON_VC_API_UNSUPPORTED_PROFILE;
@@ -2225,6 +2306,9 @@ impl IdentityCoreErrorReason {
     ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_X509_POLICY_PATH_LENGTH_CONSTRAINT_EXCEEDED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const X509PolicyPathLengthConstraintExceeded: Self = Self::IDENTITY_CORE_ERROR_REASON_X509_POLICY_PATH_LENGTH_CONSTRAINT_EXCEEDED;
+    ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TslPointerInvalidParent: Self = Self::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT;
     ///Idiomatic alias for [`Self::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_FORMAT`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const EnvelopeProfileMissingFormat: Self = Self::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_FORMAT;
@@ -2980,6 +3064,91 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
                     Self::IDENTITY_CORE_ERROR_REASON_DID_UNEXPECTED_SEGMENT,
                 )
             }
+            336i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL,
+                )
+            }
+            337i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE,
+                )
+            }
+            338i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD,
+                )
+            }
+            339i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION,
+                )
+            }
+            340i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE,
+                )
+            }
+            341i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE,
+                )
+            }
+            342i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED,
+                )
+            }
+            343i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED,
+                )
+            }
+            344i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE,
+                )
+            }
+            345i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED,
+                )
+            }
+            346i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE,
+                )
+            }
+            347i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED,
+                )
+            }
+            348i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE,
+                )
+            }
+            349i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT,
+                )
+            }
+            350i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED,
+                )
+            }
+            351i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH,
+                )
+            }
+            352i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND,
+                )
+            }
             400i32 => {
                 ::core::option::Option::Some(
                     Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE,
@@ -3378,6 +3547,21 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
             522i32 => {
                 ::core::option::Option::Some(
                     Self::IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE,
+                )
+            }
+            523i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH,
+                )
+            }
+            524i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH,
+                )
+            }
+            525i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID,
                 )
             }
             530i32 => {
@@ -5143,6 +5327,11 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
                     Self::IDENTITY_CORE_ERROR_REASON_X509_POLICY_PATH_LENGTH_CONSTRAINT_EXCEEDED,
                 )
             }
+            1071i32 => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT,
+                )
+            }
             920i32 => {
                 ::core::option::Option::Some(
                     Self::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_FORMAT,
@@ -5668,6 +5857,57 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
             Self::IDENTITY_CORE_ERROR_REASON_DID_UNEXPECTED_SEGMENT => {
                 "IDENTITY_CORE_ERROR_REASON_DID_UNEXPECTED_SEGMENT"
             }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL => {
+                "IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE => {
+                "IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD => {
+                "IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED => {
+                "IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH => {
+                "IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND => {
+                "IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND"
+            }
             Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE => {
                 "IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE"
             }
@@ -5907,6 +6147,15 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
             }
             Self::IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE => {
                 "IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH => {
+                "IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH => {
+                "IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH"
+            }
+            Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID => {
+                "IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID"
             }
             Self::IDENTITY_CORE_ERROR_REASON_VC_API_UNSUPPORTED_PROFILE => {
                 "IDENTITY_CORE_ERROR_REASON_VC_API_UNSUPPORTED_PROFILE"
@@ -6967,6 +7216,9 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
             Self::IDENTITY_CORE_ERROR_REASON_X509_POLICY_PATH_LENGTH_CONSTRAINT_EXCEEDED => {
                 "IDENTITY_CORE_ERROR_REASON_X509_POLICY_PATH_LENGTH_CONSTRAINT_EXCEEDED"
             }
+            Self::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT => {
+                "IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT"
+            }
             Self::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_FORMAT => {
                 "IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_FORMAT"
             }
@@ -7628,6 +7880,91 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
                     Self::IDENTITY_CORE_ERROR_REASON_DID_UNEXPECTED_SEGMENT,
                 )
             }
+            "IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND,
+                )
+            }
             "IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE" => {
                 ::core::option::Option::Some(
                     Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE,
@@ -8026,6 +8363,21 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
             "IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE" => {
                 ::core::option::Option::Some(
                     Self::IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH,
+                )
+            }
+            "IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID,
                 )
             }
             "IDENTITY_CORE_ERROR_REASON_VC_API_UNSUPPORTED_PROFILE" => {
@@ -9791,6 +10143,11 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
                     Self::IDENTITY_CORE_ERROR_REASON_X509_POLICY_PATH_LENGTH_CONSTRAINT_EXCEEDED,
                 )
             }
+            "IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT" => {
+                ::core::option::Option::Some(
+                    Self::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT,
+                )
+            }
             "IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_FORMAT" => {
                 ::core::option::Option::Some(
                     Self::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_FORMAT,
@@ -10095,6 +10452,23 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
             Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_NAMESPACE,
             Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_UNIQUE_IDENTIFIER,
             Self::IDENTITY_CORE_ERROR_REASON_DID_UNEXPECTED_SEGMENT,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH,
+            Self::IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND,
             Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE,
             Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_CLAIM,
             Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_STATUS_CHECK_FAILED,
@@ -10175,6 +10549,9 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
             Self::IDENTITY_CORE_ERROR_REASON_VC_CANONICALIZATION,
             Self::IDENTITY_CORE_ERROR_REASON_VC_INVALID_CREDENTIAL,
             Self::IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE,
+            Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH,
+            Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH,
+            Self::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID,
             Self::IDENTITY_CORE_ERROR_REASON_VC_API_UNSUPPORTED_PROFILE,
             Self::IDENTITY_CORE_ERROR_REASON_VC_API_INVALID_ISSUER,
             Self::IDENTITY_CORE_ERROR_REASON_VC_API_INVALID_SUBJECT,
@@ -10528,6 +10905,7 @@ impl ::buffa::Enumeration for IdentityCoreErrorReason {
             Self::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_MISSING_POLICY_CPS_URI,
             Self::IDENTITY_CORE_ERROR_REASON_X509_POLICY_ALGORITHM_PARAMETERS_NOT_ALLOWED,
             Self::IDENTITY_CORE_ERROR_REASON_X509_POLICY_PATH_LENGTH_CONSTRAINT_EXCEEDED,
+            Self::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT,
             Self::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_FORMAT,
             Self::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_CREDENTIAL_PROFILE,
             Self::IDENTITY_CORE_ERROR_REASON_ENVELOPE_PROFILE_MISSING_CLAIMSET_ID,

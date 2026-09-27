@@ -7,9 +7,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  changelogContainsRelease,
   ReleaseSourceError,
+  permitsRecordedRunResume,
   resolveReleaseVersion,
 } from "./verify_release_source.mjs";
+
+test("release changelog contains exactly one exact version heading", () => {
+  assert.equal(changelogContainsRelease("# Changelog\n\n## 0.3.0\n", "0.3.0"), true);
+  assert.equal(changelogContainsRelease("# Changelog\n\n## v0.3.0\n", "0.3.0"), false);
+  assert.equal(
+    changelogContainsRelease("# Changelog\n\n## 0.3.0\n\n## 0.3.0\n", "0.3.0"),
+    false,
+  );
+});
 
 test("release version is derived only when every publishable crate agrees", () => {
   assert.equal(
@@ -28,6 +39,34 @@ test("release version is derived only when every publishable crate agrees", () =
         requestedVersion: undefined,
       }),
     ReleaseSourceError,
+  );
+});
+
+test("only a rerun of the exact main release workflow may resume a recorded SHA", () => {
+  const valid = {
+    GITHUB_ACTIONS: "true",
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_WORKFLOW_REF:
+      "reallyme/ssi/.github/workflows/crates-release.yml@refs/heads/main",
+    GITHUB_RUN_ATTEMPT: "2",
+  };
+  assert.equal(permitsRecordedRunResume(valid), true);
+  assert.equal(permitsRecordedRunResume({ ...valid, GITHUB_RUN_ATTEMPT: "1" }), false);
+  assert.equal(permitsRecordedRunResume({ ...valid, GITHUB_EVENT_NAME: "push" }), false);
+  assert.equal(
+    permitsRecordedRunResume({
+      ...valid,
+      GITHUB_WORKFLOW_REF: "reallyme/ssi/.github/workflows/other.yml@refs/heads/main",
+    }),
+    false,
+  );
+  assert.equal(
+    permitsRecordedRunResume({
+      ...valid,
+      GITHUB_WORKFLOW_REF:
+        "reallyme/ssi/.github/workflows/crates-release.yml@refs/heads/release",
+    }),
+    false,
   );
 });
 

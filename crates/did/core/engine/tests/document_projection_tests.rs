@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
 use reallyme_codec::cbor::CborValue;
 use reallyme_did_core::{
@@ -125,6 +126,7 @@ fn sample_core_single_controller() -> DidCore {
         assertion: vec!["#ed25519".into()],
         key_agreement: vec![],
         services: vec![],
+        projection_hash: [0_u8; 32],
         update_policy: CoreUpdatePolicy {
             allowed_verification_methods: vec!["#ed25519".into()],
             threshold: None,

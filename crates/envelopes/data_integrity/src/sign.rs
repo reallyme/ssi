@@ -8,7 +8,7 @@ use crate::proof::{DataIntegrityCryptosuite, DataIntegrityProofError};
 use crate::suites::es256_jws_cid_2025::sign_es256_jws_cid_2025;
 
 /// Input for creating a Data Integrity proof with a supported cryptosuite.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct DataIntegritySignInput<'a> {
     /// Cryptosuite to apply.
     pub cryptosuite: DataIntegrityCryptosuite,
@@ -24,6 +24,12 @@ pub struct DataIntegritySignInput<'a> {
 
     /// Creation timestamp string embedded in the proof.
     pub created: &'a str,
+}
+
+impl core::fmt::Debug for DataIntegritySignInput<'_> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("DataIntegritySignInput([REDACTED])")
+    }
 }
 
 /// Create a Data Integrity proof with a supported cryptosuite.

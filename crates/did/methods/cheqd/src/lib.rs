@@ -12,6 +12,6 @@
 mod method;
 
 pub use method::{
-    effective_namespace, generate_did_cheqd, is_valid_did_cheqd, parse_did_cheqd,
-    CheqdDidIdentifier, CheqdIdentifierKind, DidCheqdError, DidCheqdErrorReason,
+    canonicalize_did_cheqd, effective_namespace, generate_did_cheqd, is_valid_did_cheqd,
+    parse_did_cheqd, CheqdDidIdentifier, CheqdIdentifierKind, DidCheqdError, DidCheqdErrorReason,
 };

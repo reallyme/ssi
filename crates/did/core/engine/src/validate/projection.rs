@@ -8,6 +8,7 @@ use reallyme_codec::cbor::CborValue;
 use reallyme_codec::multikey::parse_multikey;
 
 use crate::canonical::cbor_to_json_value;
+use crate::projection_binding::{projection_binding_hash, ProjectionBinding};
 use crate::validate::diagnostic::{DidValidationCode, DidValidationIssue, DidValidationLocation};
 use reallyme_did_types::DIDDocument;
 
@@ -28,6 +29,24 @@ fn projection_issue(location: DidValidationLocation) -> DidValidationIssue {
 /// Validate JSON and core projection consistency.
 pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionValidationResult {
     let mut errors = Vec::new();
+
+    let projection_hash = projection_binding_hash(&ProjectionBinding {
+        context: &doc.context,
+        also_known_as: &doc.also_known_as,
+        hardware_bound: doc.hardware_bound,
+        biometric_protected: doc.biometric_protected,
+        user_verification_method: doc.user_verification_method.as_deref(),
+        device_model: doc.device_model.as_deref(),
+        key_history: &doc.key_history,
+        domain_verification: &doc.domain_verification,
+        eudi_level_of_assurance: doc.eudi_level_of_assurance.as_deref(),
+        eudi_schema_version: doc.eudi_schema_version.as_deref(),
+    });
+    match (map_get(core, "projectionHash"), projection_hash) {
+        (Some(CborValue::Bytes(committed)), Ok(actual))
+            if committed.as_slice() == actual.as_slice() => {}
+        _ => errors.push(projection_issue(DidValidationLocation::Core)),
+    }
 
     // ---------------------------------------------------------------------
     // 0. keyHistory
@@ -206,9 +225,12 @@ pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionVal
 
             None => {
                 errors.push(projection_issue(DidValidationLocation::UpdatePolicy));
-                // IMPORTANT: do NOT return
+                // Continue collecting independent projection failures so the
+                // caller receives one complete typed diagnostic set.
             }
         }
+    } else {
+        errors.push(projection_issue(DidValidationLocation::UpdatePolicy));
     }
 
     // ---------------------------------------------------------------------
@@ -218,6 +240,8 @@ pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionVal
         "authentication",
         "authenticationKeys",
         &doc.authentication,
+        &doc.verification_method,
+        RelationshipPurpose::Signing,
         core,
         &mut errors,
     );
@@ -226,6 +250,8 @@ pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionVal
         "assertionMethod",
         "assertionKeys",
         &doc.assertion_method,
+        &doc.verification_method,
+        RelationshipPurpose::Signing,
         core,
         &mut errors,
     );
@@ -234,6 +260,8 @@ pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionVal
         "keyAgreement",
         "keyAgreementKeys",
         &doc.key_agreement,
+        &doc.verification_method,
+        RelationshipPurpose::KeyAgreement,
         core,
         &mut errors,
     );
@@ -291,6 +319,8 @@ fn check_rel(
     _name: &str,
     core_field: &str,
     doc_list: &[String],
+    verification_methods: &[reallyme_did_types::VerificationMethod],
+    purpose: RelationshipPurpose,
     core: &CborValue,
     errors: &mut Vec<DidValidationIssue>,
 ) {
@@ -301,6 +331,40 @@ fn check_rel(
     if core_set.len() != c_list.len() || doc_set.len() != doc_list.len() || core_set != doc_set {
         errors.push(projection_issue(DidValidationLocation::Relationship));
     }
+    for reference in doc_list {
+        let Some(method) = verification_methods
+            .iter()
+            .find(|candidate| candidate.id == *reference)
+        else {
+            errors.push(DidValidationIssue::new(
+                DidValidationCode::VerificationMethodInvalid,
+                DidValidationLocation::Relationship,
+            ));
+            continue;
+        };
+        let valid_algorithm = matches!(
+            (purpose, method.algorithm.as_deref()),
+            (
+                RelationshipPurpose::Signing,
+                Some("Ed25519" | "ML-DSA-87" | "P-256")
+            ) | (
+                RelationshipPurpose::KeyAgreement,
+                Some("X25519" | "ML-KEM-768" | "ML-KEM-1024")
+            )
+        );
+        if !valid_algorithm {
+            errors.push(DidValidationIssue::new(
+                DidValidationCode::VerificationMethodInvalid,
+                DidValidationLocation::Relationship,
+            ));
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum RelationshipPurpose {
+    Signing,
+    KeyAgreement,
 }
 fn map_get_u64(value: &CborValue, key: &str) -> Option<u64> {
     match map_get(value, key) {

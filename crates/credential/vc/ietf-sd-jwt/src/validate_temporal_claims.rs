@@ -22,6 +22,8 @@ pub struct IetfSdJwtTemporalPolicy {
     pub now_unix: u64,
     /// Symmetric leeway, bounded by [`MAX_IETF_SD_JWT_CLOCK_SKEW_SECONDS`].
     pub clock_skew_seconds: u64,
+    /// Require an issuer-signed `exp` claim.
+    pub require_exp: bool,
 }
 
 impl IetfSdJwtTemporalPolicy {
@@ -31,6 +33,9 @@ impl IetfSdJwtTemporalPolicy {
         Self {
             now_unix,
             clock_skew_seconds: DEFAULT_IETF_SD_JWT_CLOCK_SKEW_SECONDS,
+            // RFC 9901 does not require every credential to carry `exp`.
+            // Deployments that require bounded lifetime opt in explicitly.
+            require_exp: false,
         }
     }
 
@@ -42,7 +47,7 @@ impl IetfSdJwtTemporalPolicy {
     }
 }
 
-/// Validate the credential validity window against the verifier's clock.
+/// Validates the credential validity window against the verifier's clock.
 ///
 /// `exp` and `nbf` are read from the issuer-signed payload because they are
 /// never selectively disclosable. `iat` may be selectively disclosed, so it is
@@ -57,6 +62,9 @@ pub(crate) fn validate_credential_temporal_claims(
     let issued_at = numeric_date(resolved_payload.get("iat"))?;
     let not_before = numeric_date(issuer_payload.get("nbf"))?;
     let expires_at = numeric_date(issuer_payload.get("exp"))?;
+    if policy.require_exp && expires_at.is_none() {
+        return Err(IetfSdJwtVcError::InvalidTemporalClaim);
+    }
 
     if matches!((not_before, expires_at), (Some(start), Some(end)) if start >= end)
         || matches!((issued_at, expires_at), (Some(start), Some(end)) if start >= end)

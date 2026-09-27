@@ -174,6 +174,7 @@ fn validate_messaging_service(
                 Algorithm::Ed25519 | Algorithm::Secp256k1 | Algorithm::P256 | Algorithm::MlDsa87,
             )
             | Err(_) => errors.push(service_issue(service_index)),
+            Ok(_) => errors.push(service_issue(service_index)),
         }
     }
 

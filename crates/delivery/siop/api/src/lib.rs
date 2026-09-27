@@ -25,6 +25,5 @@ pub use identity_presentation_delivery_siop_core::{
     SiopDeliveryError, SiopIdTokenClaims, SiopSubjectJwk,
 };
 pub use identity_presentation_delivery_siop_verifier::{
-    verify_siop_authentication_response, verify_siop_authentication_response_with_state,
-    verify_siop_id_token_jwt, SiopKeyResolver, SiopVerifierError, VerifiedSiopIdToken,
+    verify_siop_authentication_response, SiopKeyResolver, SiopVerifierError, VerifiedSiopIdToken,
 };

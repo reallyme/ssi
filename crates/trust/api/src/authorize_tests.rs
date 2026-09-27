@@ -4,15 +4,67 @@
 
 //! Unit tests for TSL-based trust authorization over authenticated list data.
 
-use super::authorize_issuer_in_list;
+use super::{
+    authorize_issuer, authorize_validated_chain_in_list, decision_scope_matches,
+    AuthenticatedTrustedList,
+};
 use crate::{AuthorizationPurpose, TrustApiError, TrustedListPolicyErrorReason};
 
 use envelopes_x509::model::X509Certificate;
 use envelopes_x509::CertificatePolicyId;
+use identity_revocation_core::{StatusCheckError, StatusChecker};
 use identity_trust_tsl_core::{parse_tsl_xml, TrustedList, TslError};
 use reallyme_trust_core::{
-    TrustDecision, TrustEvidence, TrustOutcome, TrustPolicyId, TrustPurpose,
+    evaluate_trust_decision, DirectTrustEntry, SignatureVerifier, SignatureVerifyError,
+    TrustConfig, TrustEvaluationContext, TrustPolicyId, TrustPurpose, TrustSourceEvidence,
 };
+
+struct UnusedSignatureVerifier;
+
+struct AlwaysGoodStatusChecker;
+
+impl StatusChecker for AlwaysGoodStatusChecker {
+    fn check(
+        &self,
+        _certificate: &X509Certificate,
+        _now_unix: u64,
+    ) -> Result<(), StatusCheckError> {
+        Ok(())
+    }
+}
+
+impl SignatureVerifier for UnusedSignatureVerifier {
+    fn verify_chain(
+        &self,
+        _chain: &envelopes_x509::X509Chain,
+        _now: time::OffsetDateTime,
+    ) -> Result<(), SignatureVerifyError> {
+        Err(SignatureVerifyError::InvalidSignature)
+    }
+}
+
+struct TestValidatedChain {
+    chain: envelopes_x509::X509Chain,
+    evaluated_at: time::OffsetDateTime,
+}
+
+struct TestAuthenticatedList(TrustedList);
+
+impl super::sealed::Sealed for TestAuthenticatedList {}
+
+impl AuthenticatedTrustedList for TestAuthenticatedList {
+    fn authenticated_list(&self) -> &TrustedList {
+        &self.0
+    }
+}
+
+fn authorize_test_chain_in_list(
+    decision: &TestValidatedChain,
+    tsl: &TrustedList,
+    purpose: AuthorizationPurpose,
+) -> Result<(), TrustApiError> {
+    authorize_validated_chain_in_list(&decision.chain, decision.evaluated_at, tsl, purpose)
+}
 
 /// 2026-01-09T23:06:40Z: inside the fixture list's issue/next-update window.
 const WITHIN_LIST_VALIDITY: i64 = 1_768_000_000;
@@ -31,6 +83,104 @@ fn dummy_cert() -> X509Certificate {
     .unwrap()
 }
 
+fn scoped_trust_decision(
+    purpose: TrustPurpose,
+    policy_id: TrustPolicyId,
+) -> reallyme_trust_core::TrustDecision {
+    let certificate = dummy_cert();
+    let source = TrustSourceEvidence {
+        source_id: [0x31_u8; 32],
+        snapshot_id: [0x32_u8; 32],
+    };
+    let policy = match policy_id {
+        TrustPolicyId::EuQeaaV1 => envelopes_x509::policy::X509Policy {
+            require_leaf_digital_signature: true,
+            trust_anchor_requirement: envelopes_x509::policy::TrustAnchorRequirement::Rfc5280Ca,
+            ..Default::default()
+        },
+        TrustPolicyId::EuQwacV1 => envelopes_x509::eu_policy(envelopes_x509::EuPreset::Qwac),
+        TrustPolicyId::EuQsealV1 => envelopes_x509::eu_policy(envelopes_x509::EuPreset::Qsealc),
+        _ => envelopes_x509::policy::X509Policy::default(),
+    };
+    let config = TrustConfig {
+        trust_roots: Vec::new(),
+        now: time::OffsetDateTime::from_unix_timestamp(1_790_000_000).unwrap(),
+        policy,
+        link_policy: Default::default(),
+        evaluation: TrustEvaluationContext {
+            purpose,
+            policy_id,
+            source: Some(source),
+            status_policy: reallyme_trust_core::CertificateStatusPolicy {
+                leaf: reallyme_trust_core::StatusRequirement::Required,
+                intermediates: reallyme_trust_core::StatusRequirement::Required,
+                trust_anchor: reallyme_trust_core::StatusRequirement::Exempt,
+            },
+        },
+        direct_trust: vec![DirectTrustEntry {
+            certificate: certificate.clone(),
+            purpose,
+            policy_id,
+            source,
+        }],
+    };
+
+    evaluate_trust_decision(
+        core::slice::from_ref(&certificate),
+        &config,
+        &UnusedSignatureVerifier,
+        Some(&AlwaysGoodStatusChecker),
+    )
+    .unwrap()
+}
+
+#[test]
+fn authorize_issuer_returns_not_authorized_for_a_cross_purpose_receipt() {
+    let decision = scoped_trust_decision(TrustPurpose::Generic, TrustPolicyId::GenericX509V1);
+    let authenticated =
+        TestAuthenticatedList(trusted_list("http://uri.etsi.org/TrstSvc/Svctype/EAA/Q"));
+
+    assert!(matches!(
+        authorize_issuer(&decision, &authenticated, AuthorizationPurpose::QeaaIssuer),
+        Err(TrustApiError::NotAuthorized)
+    ));
+}
+
+#[test]
+fn authorization_rejects_a_trust_receipt_from_another_purpose_or_policy() {
+    let cases = [
+        (
+            TrustPurpose::QeaaIssuer,
+            TrustPolicyId::EuQeaaV1,
+            AuthorizationPurpose::QeaaIssuer,
+        ),
+        (
+            TrustPurpose::QwacTlsServer,
+            TrustPolicyId::EuQwacV1,
+            AuthorizationPurpose::QwacTlsServer,
+        ),
+        (
+            TrustPurpose::QsealSigner,
+            TrustPolicyId::EuQsealV1,
+            AuthorizationPurpose::QsealSigner,
+        ),
+    ];
+
+    for (purpose, policy_id, authorization) in cases {
+        let decision = scoped_trust_decision(purpose, policy_id);
+        assert!(decision_scope_matches(&decision, authorization));
+        for different_authorization in [
+            AuthorizationPurpose::QeaaIssuer,
+            AuthorizationPurpose::QwacTlsServer,
+            AuthorizationPurpose::QsealSigner,
+        ] {
+            if different_authorization != authorization {
+                assert!(!decision_scope_matches(&decision, different_authorization));
+            }
+        }
+    }
+}
+
 fn certificate_base64() -> String {
     include_str!("../../tsl-openssl/tests/fixtures/cert.pem")
         .lines()
@@ -44,34 +194,26 @@ fn provider(services: &str) -> String {
     )
 }
 
-fn trusted_decision_at(cert: X509Certificate, evaluated_at_unix_seconds: i64) -> TrustDecision {
-    TrustDecision {
-        outcome: TrustOutcome::Trusted,
-        accepted: true,
-        chain: Some(envelopes_x509::X509Chain { certs: vec![cert] }),
-        failures: vec![],
-        evidence: TrustEvidence {
-            purpose: TrustPurpose::QeaaIssuer,
-            policy_id: TrustPolicyId::EuQeaaV1,
-            evaluated_at: time::OffsetDateTime::from_unix_timestamp(evaluated_at_unix_seconds)
-                .unwrap(),
-            source: None,
-            trust_anchor: None,
-            certificate_status: Vec::new(),
-        },
+fn trusted_decision_at(
+    cert: X509Certificate,
+    evaluated_at_unix_seconds: i64,
+) -> TestValidatedChain {
+    TestValidatedChain {
+        chain: envelopes_x509::X509Chain { certs: vec![cert] },
+        evaluated_at: time::OffsetDateTime::from_unix_timestamp(evaluated_at_unix_seconds).unwrap(),
     }
 }
 
-fn trusted_decision(cert: X509Certificate) -> TrustDecision {
+fn trusted_decision(cert: X509Certificate) -> TestValidatedChain {
     trusted_decision_at(cert, WITHIN_LIST_VALIDITY)
 }
 
 fn trusted_chain_decision_at(
     certs: Vec<X509Certificate>,
     evaluated_at_unix_seconds: i64,
-) -> TrustDecision {
+) -> TestValidatedChain {
     let mut decision = trusted_decision_at(dummy_cert(), evaluated_at_unix_seconds);
-    decision.chain = Some(envelopes_x509::X509Chain { certs });
+    decision.chain = envelopes_x509::X509Chain { certs };
     decision
 }
 
@@ -92,7 +234,7 @@ fn issued_leaf() -> X509Certificate {
 }
 
 /// Chain whose leaf is issued by the CA/QC service certificate.
-fn ca_issued_decision(leaf: X509Certificate) -> TrustDecision {
+fn ca_issued_decision(leaf: X509Certificate) -> TestValidatedChain {
     trusted_chain_decision_at(vec![leaf, dummy_cert()], WITHIN_LIST_VALIDITY)
 }
 
@@ -126,6 +268,12 @@ fn qualification_extension_with_qualifiers(qualifiers: &str) -> String {
     )
 }
 
+fn qualification_and_additional_info_extensions(qualifiers: &str, information_uri: &str) -> String {
+    format!(
+        r#"<ServiceInformationExtensions><Extension Critical="true"><sie:Qualifications xmlns:sie="http://uri.etsi.org/TrstSvc/SvcInfoExt/eSigDir-1999-93-EC-TrustedList/#"><sie:QualificationElement><sie:Qualifiers>{qualifiers}</sie:Qualifiers><sie:CriteriaList assert="all"><sie:KeyUsage><sie:KeyUsageBit name="digitalSignature">true</sie:KeyUsageBit></sie:KeyUsage></sie:CriteriaList></sie:QualificationElement></sie:Qualifications></Extension><Extension Critical="true"><AdditionalServiceInformation><URI xml:lang="en">{information_uri}</URI></AdditionalServiceInformation></Extension></ServiceInformationExtensions>"#
+    )
+}
+
 fn trusted_list_with_history() -> TrustedList {
     let certificate = certificate_base64();
     let services = format!(
@@ -149,7 +297,7 @@ fn authorizes_qeaa_issuer() {
 
     let decision = trusted_decision(cert);
 
-    authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
+    authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
 }
 
 #[test]
@@ -157,7 +305,7 @@ fn evaluates_every_matching_service_before_rejecting_the_purpose() {
     let tsl = trusted_list_with_ca_and_qeaa_services();
     let decision = trusted_decision(dummy_cert());
 
-    authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
+    authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
 }
 
 #[test]
@@ -167,8 +315,8 @@ fn rejects_wrong_service_type() {
 
     let decision = ca_issued_decision(cert);
 
-    let err =
-        authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err();
+    let err = authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer)
+        .unwrap_err();
 
     assert!(matches!(err, TrustApiError::ServiceTypeMismatch));
 }
@@ -176,13 +324,14 @@ fn rejects_wrong_service_type() {
 #[test]
 fn authorizes_ca_qc_leaf_through_matching_qualification_criteria() {
     let cert = issued_leaf();
-    let extension = qualification_extension_with_qualifiers(
+    let extension = qualification_and_additional_info_extensions(
         r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForWSA"/>"#,
+        "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication",
     );
     let tsl = trusted_list_with_extensions("http://uri.etsi.org/TrstSvc/Svctype/CA/QC", &extension);
     let decision = ca_issued_decision(cert);
 
-    authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer).unwrap();
+    authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer).unwrap();
 }
 
 #[test]
@@ -193,20 +342,22 @@ fn purpose_qualifier_alone_does_not_make_a_certificate_qualified() {
     let tsl = trusted_list_with_extensions("http://uri.etsi.org/TrstSvc/Svctype/CA/QC", &extension);
     let decision = ca_issued_decision(cert);
 
-    let error =
-        authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer).unwrap_err();
+    let error = authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer)
+        .unwrap_err();
 
     assert!(matches!(error, TrustApiError::ServiceTypeMismatch));
 }
 
 #[test]
-fn qualified_website_policy_establishes_qualification_and_purpose() {
+fn qualified_website_policy_does_not_replace_trusted_list_purpose() {
     let mut certificate = issued_leaf();
     certificate.profile.certificate_policies = vec![CertificatePolicyId::QevcpWeb];
     let tsl = trusted_list("http://uri.etsi.org/TrstSvc/Svctype/CA/QC");
     let decision = ca_issued_decision(certificate);
 
-    authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer).unwrap();
+    let error = authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer)
+        .unwrap_err();
+    assert!(matches!(error, TrustApiError::ServiceTypeMismatch));
 }
 
 #[test]
@@ -217,8 +368,8 @@ fn matching_not_qualified_extension_overrides_certificate_claims() {
     let tsl = trusted_list_with_extensions("http://uri.etsi.org/TrstSvc/Svctype/CA/QC", &extension);
     let decision = ca_issued_decision(cert);
 
-    let error =
-        authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer).unwrap_err();
+    let error = authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer)
+        .unwrap_err();
 
     assert!(matches!(error, TrustApiError::ServiceTypeMismatch));
 }
@@ -229,8 +380,8 @@ fn arbitrary_suffix_does_not_become_a_standard_service_type() {
     let tsl = trusted_list("https://example.test/QCForElectronicAttestations");
     let decision = trusted_decision(cert);
 
-    let error =
-        authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err();
+    let error = authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer)
+        .unwrap_err();
 
     assert!(matches!(error, TrustApiError::ServiceTypeUnknown));
 }
@@ -240,7 +391,7 @@ fn authorizes_using_the_state_effective_at_the_trusted_evaluation_time() {
     let decision = trusted_decision_at(dummy_cert(), WITHIN_LIST_VALIDITY);
     let tsl = trusted_list_with_history();
 
-    authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
+    authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
 }
 
 #[test]
@@ -248,8 +399,8 @@ fn rejects_after_a_historically_granted_service_is_withdrawn() {
     let decision = trusted_decision_at(dummy_cert(), AFTER_PRE_PUBLISHED_TRANSITION);
     let tsl = trusted_list_with_history();
 
-    let error =
-        authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err();
+    let error = authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer)
+        .unwrap_err();
 
     assert!(matches!(error, TrustApiError::ServiceNotActive));
 }
@@ -277,13 +428,13 @@ fn rejects_a_list_that_is_not_fresh_at_the_evaluation_time() {
 
     let expired = trusted_decision_at(dummy_cert(), AT_NEXT_UPDATE);
     assert!(matches!(
-        authorize_issuer_in_list(&expired, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err(),
+        authorize_test_chain_in_list(&expired, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err(),
         TrustApiError::TrustedListPolicy(TrustedListPolicyErrorReason::Expired)
     ));
 
     let before_issue = trusted_decision_at(dummy_cert(), BEFORE_ISSUE);
     assert!(matches!(
-        authorize_issuer_in_list(&before_issue, &tsl, AuthorizationPurpose::QeaaIssuer)
+        authorize_test_chain_in_list(&before_issue, &tsl, AuthorizationPurpose::QeaaIssuer)
             .unwrap_err(),
         TrustApiError::TrustedList(TslError::NotYetIssued)
     ));
@@ -300,11 +451,11 @@ fn pre_published_current_state_does_not_govern_before_it_starts() {
     ));
     let before = trusted_decision_at(dummy_cert(), WITHIN_LIST_VALIDITY);
     assert!(matches!(
-        authorize_issuer_in_list(&before, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err(),
+        authorize_test_chain_in_list(&before, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err(),
         TrustApiError::ServiceNotActive
     ));
     let after = trusted_decision_at(dummy_cert(), AFTER_PRE_PUBLISHED_TRANSITION);
-    authorize_issuer_in_list(&after, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
+    authorize_test_chain_in_list(&after, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
 }
 
 #[test]
@@ -323,7 +474,8 @@ fn unidentifiable_restrictive_history_row_blocks_an_older_grant() {
     let tsl = trusted_list_with_history_rows(&rows);
     let decision = trusted_decision_at(dummy_cert(), WITHIN_LIST_VALIDITY);
     assert!(matches!(
-        authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err(),
+        authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer)
+            .unwrap_err(),
         TrustApiError::NotAuthorized
     ));
 }
@@ -341,7 +493,8 @@ fn different_type_history_row_blocks_an_older_same_type_grant() {
     let tsl = trusted_list_with_history_rows(&rows);
     let decision = trusted_decision_at(dummy_cert(), WITHIN_LIST_VALIDITY);
     assert!(matches!(
-        authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err(),
+        authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer)
+            .unwrap_err(),
         TrustApiError::ServiceTypeMismatch | TrustApiError::ServiceTypeUnknown
     ));
 }
@@ -355,7 +508,8 @@ fn ca_qc_service_key_on_the_leaf_alone_does_not_authorize() {
     // The leaf itself carries the CA/QC service key; nothing above it does.
     let decision = trusted_chain_decision_at(vec![dummy_cert()], WITHIN_LIST_VALIDITY);
     assert!(matches!(
-        authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer).unwrap_err(),
+        authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer)
+            .unwrap_err(),
         TrustApiError::NotAuthorized
     ));
 }
@@ -373,11 +527,12 @@ fn historical_match_ignores_a_self_asserted_subject_key_identifier() {
     forged.subject_key_identifier = dummy_cert().subject_key_identifier.clone();
     let decision = trusted_decision_at(forged, WITHIN_LIST_VALIDITY);
     assert!(matches!(
-        authorize_issuer_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap_err(),
+        authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QeaaIssuer)
+            .unwrap_err(),
         TrustApiError::NotAuthorized
     ));
 
     // The genuine key matches because its identifier is computed from SPKI.
     let genuine = trusted_decision_at(dummy_cert(), WITHIN_LIST_VALIDITY);
-    authorize_issuer_in_list(&genuine, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
+    authorize_test_chain_in_list(&genuine, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
 }

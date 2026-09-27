@@ -24,16 +24,24 @@ const AUDIENCE_CLAIM_NAME: &str = "aud";
 const NONCE_CLAIM_NAME: &str = "nonce";
 // A verifier may choose a shorter freshness window, but never a bearer-like
 // multi-day lifetime through accidental policy configuration.
-const MAX_KB_JWT_AGE_SECONDS: u64 = 86_400;
-const MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS: u64 = 300;
+/// Maximum verifier-configured age for a key-binding JWT.
+pub const MAX_KB_JWT_AGE_SECONDS: u64 = 86_400;
+/// Maximum verifier-configured future `iat` skew for a key-binding JWT.
+pub const MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS: u64 = 300;
 const MAX_ISSUER_PAYLOAD_BYTES: usize = 262_144;
 
-#[derive(Debug, Clone, Copy)]
+/// Options controlling key binding verification.
+#[derive(Clone, Copy)]
 pub struct KeyBindingVerificationOptions<'a> {
+    /// Holder public JWK whose parameters identify the key-binding key.
     pub holder_jwk: &'a Jwk,
+    /// Holder public-key bytes used to verify the key-binding signature.
     pub holder_public_key: &'a [u8],
+    /// Audience value that the authenticated key-binding JWT must match exactly.
     pub expected_audience: &'a str,
+    /// Verifier nonce that the authenticated key-binding JWT must match exactly.
     pub expected_nonce: &'a str,
+    /// Verification time as seconds since the Unix epoch.
     pub now_unix: u64,
     /// Maximum accepted future skew for the mandatory `iat` claim.
     pub max_future_iat_skew_seconds: u64,
@@ -41,15 +49,53 @@ pub struct KeyBindingVerificationOptions<'a> {
     pub max_iat_age_seconds: u64,
 }
 
-#[derive(Debug, Clone, Copy)]
+impl core::fmt::Debug for KeyBindingVerificationOptions<'_> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("KeyBindingVerificationOptions([REDACTED])")
+    }
+}
+
+impl KeyBindingVerificationOptions<'_> {
+    /// Validate verifier-supplied policy before any signature work.
+    ///
+    /// Empty audience or nonce values would make replay-protection comparisons
+    /// vacuous, and out-of-range time bounds would silently widen freshness.
+    pub fn validate(&self) -> Result<(), SdJwtEnvelopeError> {
+        if self.expected_audience.is_empty()
+            || self.expected_nonce.is_empty()
+            || self.now_unix == 0
+            || self.max_future_iat_skew_seconds > MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS
+            || self.max_iat_age_seconds == 0
+            || self.max_iat_age_seconds > MAX_KB_JWT_AGE_SECONDS
+        {
+            return Err(SdJwtEnvelopeError::InvalidKeyBindingJwt);
+        }
+        Ok(())
+    }
+}
+
+/// Options controlling key binding JWT build.
+#[derive(Clone, Copy)]
 pub struct KeyBindingJwtBuildOptions<'a> {
+    /// Holder public JWK whose parameters identify the key-binding key.
     pub holder_jwk: &'a Jwk,
+    /// Holder private-key bytes used only to create the key-binding signature.
     pub holder_private_key: &'a [u8],
+    /// Audience bound into the key-binding JWT.
     pub audience: &'a str,
+    /// Verifier nonce bound into the key-binding JWT.
     pub nonce: &'a str,
+    /// Issuance time encoded as seconds since the Unix epoch.
     pub issued_at_unix: u64,
 }
 
+impl core::fmt::Debug for KeyBindingJwtBuildOptions<'_> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("KeyBindingJwtBuildOptions([REDACTED])")
+    }
+}
+
+/// Build key binding JWT after validating all caller-supplied inputs.
 pub fn build_key_binding_jwt(
     issuer_signed_jwt: &str,
     disclosures: &[String],
@@ -89,7 +135,7 @@ pub(crate) fn verify_key_binding_jwt(
     options: &KeyBindingVerificationOptions<'_>,
     hash_algorithm: SdJwtHashAlgorithm,
 ) -> Result<Value, SdJwtEnvelopeError> {
-    validate_key_binding_options(options)?;
+    options.validate()?;
     let temporal_policy = JwtTemporalValidationPolicy::new(
         false,
         false,
@@ -186,26 +232,6 @@ fn hash_algorithm_from_issuer_jwt(
     hash_algorithm_from_payload(&value)
 }
 
-/// Validate verifier-supplied KB-JWT policy before any signature work.
-///
-/// Empty audience or nonce values would make the replay-protection
-/// comparisons vacuous, and out-of-range time bounds would silently widen the
-/// freshness window, so every such configuration fails closed.
-pub(crate) fn validate_key_binding_options(
-    options: &KeyBindingVerificationOptions<'_>,
-) -> Result<(), SdJwtEnvelopeError> {
-    if options.expected_audience.is_empty()
-        || options.expected_nonce.is_empty()
-        || options.now_unix == 0
-        || options.max_future_iat_skew_seconds > MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS
-        || options.max_iat_age_seconds == 0
-        || options.max_iat_age_seconds > MAX_KB_JWT_AGE_SECONDS
-    {
-        return Err(SdJwtEnvelopeError::InvalidKeyBindingJwt);
-    }
-    Ok(())
-}
-
 pub(crate) fn validate_key_binding_confirmation(
     issuer_payload: &Value,
     options: &KeyBindingVerificationOptions<'_>,
@@ -220,26 +246,19 @@ pub(crate) fn validate_key_binding_confirmation(
     let confirmation_public_key = confirmation_jwk
         .public_key_bytes()
         .map_err(|_| SdJwtEnvelopeError::InvalidKeyBindingJwt)?;
-    let supplied_jwk_public_key = options
-        .holder_jwk
-        .public_key_bytes()
-        .map_err(|_| SdJwtEnvelopeError::InvalidKeyBindingJwt)?;
-
     // RFC 9901 §§4.1.2 and 7.3 bind KB-JWT verification to the key fixed by
-    // the issuer-signed `cnf` claim. Validating both the JWK and raw-key views
-    // prevents a caller from supplying internally inconsistent key material.
+    // the issuer-signed `cnf` claim. The thumbprint binds the supplied JWK to
+    // the confirmation JWK; the raw comparison then binds the caller's actual
+    // verification bytes to that authenticated confirmation key.
     let confirmation_thumbprint = jwk_thumbprint_sha256(&confirmation_jwk)?;
     let supplied_thumbprint = jwk_thumbprint_sha256(options.holder_jwk)?;
-    if !constant_time_equal(&confirmation_thumbprint, &supplied_thumbprint)
-        || !constant_time_equal(
-            confirmation_public_key.as_slice(),
-            options.holder_public_key,
-        )
-        || !constant_time_equal(
-            supplied_jwk_public_key.as_slice(),
-            options.holder_public_key,
-        )
-    {
+    if !constant_time_equal(&confirmation_thumbprint, &supplied_thumbprint) {
+        return Err(SdJwtEnvelopeError::InvalidKeyBindingJwt);
+    }
+    if !constant_time_equal(
+        confirmation_public_key.as_slice(),
+        options.holder_public_key,
+    ) {
         return Err(SdJwtEnvelopeError::InvalidKeyBindingJwt);
     }
 

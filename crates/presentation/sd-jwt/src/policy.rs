@@ -30,7 +30,7 @@ pub struct DisclosedClaim {
 ///
 /// It purely answers:
 /// "Which claims were disclosed, and how?"
-pub fn extract_disclosed_claims(
+pub(crate) fn extract_disclosed_claims(
     vp: &SdJwtVcPresentation,
 ) -> Result<Vec<DisclosedClaim>, SdJwtVpError> {
     if vp.disclosures.len() > MAX_COMMITMENT_CLAIMS {

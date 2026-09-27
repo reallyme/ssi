@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::DidApiError;
-use crate::validate::{validate_did_transition, DomainVerificationEnv, FullValidationResult};
+use crate::validate::{
+    validate_did_consistency, validate_did_transition, DomainVerificationEnv, FullValidationResult,
+};
 use reallyme_keys::KeySet;
 
 use reallyme_did_core::update::{
@@ -182,6 +184,17 @@ pub(crate) fn update_did_with_keysets(
     if old_doc.id.is_empty() {
         return Err(DidApiError::MissingOldDocumentId);
     }
+    if !validate_did_consistency(
+        old_doc,
+        DomainVerificationEnv {
+            resolve_txt: None,
+            fetch_url: None,
+        },
+    )
+    .ok
+    {
+        return Err(DidApiError::UpdateRejected);
+    }
 
     // Clone KeySet (never mutate caller state)
     let mut new_ks = KeySet::new();
@@ -217,6 +230,19 @@ pub(crate) fn update_did_with_keysets(
         },
     )
     .map_err(map_update_error)?;
+
+    if !validate_did_transition(
+        old_doc,
+        &doc,
+        DomainVerificationEnv {
+            resolve_txt: None,
+            fetch_url: None,
+        },
+    )
+    .ok
+    {
+        return Err(DidApiError::UpdateRejected);
+    }
 
     Ok((doc, new_ks))
 }

@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Fixed VP core error categories.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum VpError {
     /// A presentation does not satisfy the core model invariants.
     #[error("invalid presentation")]

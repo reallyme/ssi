@@ -18,7 +18,7 @@ fn prepare_issue_request(
         return Err(VcApiError::QeaaRequired);
     }
     if let Some(qeaa) = &req.qeaa {
-        validate_qeaa_compliance(qeaa, now_unix).map_err(|_| VcApiError::QeaaInvalid)?;
+        screen_qeaa_metadata(qeaa, now_unix).map_err(|_| VcApiError::QeaaInvalid)?;
     }
     validate_claims_against_registry(&profile.registry, &profile.required_claim_ids, &req.claims)?;
 
@@ -183,6 +183,7 @@ fn ietf_sd_jwt_confirmation_jwk(
         HolderBinding::BearerWithoutBinding => return Ok(None),
         HolderBinding::ClaimsBased(_) => return Err(VcApiError::InvalidSubject),
         HolderBinding::CryptographicKey(key) => key,
+        _ => return Err(VcApiError::InvalidSubject),
     };
     let jwk = match (&key.public_key, key.alg) {
         (PublicKeyRepresentation::JwkJson(bytes), CredentialAlgorithm::Ed25519)
@@ -286,6 +287,7 @@ fn encoded_party_reference(
         reallyme_credential::committed::model::PartyReference::X509Subject(_)
         | reallyme_credential::committed::model::PartyReference::PublicKey(_)
         | reallyme_credential::committed::model::PartyReference::Absent => None,
+        _ => None,
     }
 }
 

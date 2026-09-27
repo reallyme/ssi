@@ -6,6 +6,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::X509Certificate;
 
+/// Leaf-first certificate chain with an optional terminal trust anchor.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct X509Chain {
     /// Leaf first, followed by intermediates and an optional root.
@@ -22,10 +23,12 @@ impl core::fmt::Debug for X509Chain {
 }
 
 impl X509Chain {
+    /// Returns the leaf certificate.
     pub fn leaf(&self) -> Option<&X509Certificate> {
         self.certs.first()
     }
 
+    /// Iterates over certificates between the leaf and terminal trust anchor.
     pub fn intermediates(&self) -> impl Iterator<Item = &X509Certificate> {
         let intermediate_count = self.certs.len().saturating_sub(2);
         self.certs.iter().skip(1).take(intermediate_count)

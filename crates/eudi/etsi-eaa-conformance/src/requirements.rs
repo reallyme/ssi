@@ -399,7 +399,10 @@ pub fn validate_normative_requirement_registry() -> Result<NormativeRequirementS
             return Err(ConformanceError::InvalidNormativeRequirementRegistry);
         }
         let handler_index = handler_index(control.handler);
-        handler_counts[handler_index] = handler_counts[handler_index]
+        let handler_count = handler_counts
+            .get_mut(handler_index)
+            .ok_or(ConformanceError::InvalidNormativeRequirementRegistry)?;
+        *handler_count = handler_count
             .checked_add(1)
             .ok_or(ConformanceError::InvalidNormativeRequirementRegistry)?;
         match part {

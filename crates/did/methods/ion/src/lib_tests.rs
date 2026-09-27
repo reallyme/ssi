@@ -2,22 +2,24 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::indexing_slicing)]
+
 use super::{
     generate_did_ion, generate_long_form_did_ion, parse_did_ion, short_form_did_ion,
     DidIonErrorReason, IonNetwork,
 };
 
 const SIDETREE_SUFFIX: &str = "EiCxAP7PtUg7HKSX0H3Refli8XIyD-_PI9y-iuxhh8sx9g";
-const ION_TESTNET3_SUFFIX: &str = "EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ";
+const ION_TESTNET_SUFFIX: &str = "EiClWZ1MnE8PHjH6y4e4nCKgtKnI1DK1foZiP61I86b6pw";
 const LONG_FORM_SUFFIX_DATA: &str = "eyJkZWx0YSI6eyJwYXRjaGVzIjpbeyJhY3Rpb24iOiJyZXBsYWNlIiwiZG9jdW1lbnQiOnt9fV0sInVwZGF0ZUNvbW1pdG1lbnQiOiJFaUFwazZianZxRUJ4eDBjckdlaHpDUHA4akxDWFpXeXJIczRDWjlPcXktanpnIn0sInN1ZmZpeERhdGEiOnsiZGVsdGFIYXNoIjoiRWlBNjQtYngyZU9kMDBJZXE4cHA5TnJYejRBYmdDMk5idjl0Mk51UVdXNmh3dyIsInJlY292ZXJ5Q29tbWl0bWVudCI6IkVpQXBrNmJqdnFFQnh4MGNyR2VoekNQcDhqTENYWld5ckhzNENaOU9xeS1qemcifX0";
 
 #[test]
-fn published_ion_testnet3_example_parses() -> Result<(), Box<dyn std::error::Error>> {
-    let did = "did:ion:testnet3:EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ";
+fn published_ion_testnet_example_parses() -> Result<(), Box<dyn std::error::Error>> {
+    let did = "did:ion:test:EiClWZ1MnE8PHjH6y4e4nCKgtKnI1DK1foZiP61I86b6pw";
     let parsed = parse_did_ion(did)?;
 
-    assert_eq!(parsed.network, IonNetwork::Testnet3);
-    assert_eq!(parsed.did_suffix, ION_TESTNET3_SUFFIX);
+    assert_eq!(parsed.network, IonNetwork::Testnet);
+    assert_eq!(parsed.did_suffix, ION_TESTNET_SUFFIX);
     assert_eq!(parsed.long_form_suffix_data, None);
     assert_eq!(generate_did_ion(parsed.network, parsed.did_suffix)?, did);
     Ok(())
@@ -49,7 +51,7 @@ fn did_ion_rejects_padded_suffix() {
 
 #[test]
 fn did_ion_rejects_unsupported_network() {
-    let err = parse_did_ion("did:ion:devnet:EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ")
+    let err = parse_did_ion("did:ion:testnet3:EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ")
         .err()
         .map(|error| error.reason);
     assert_eq!(err, Some(DidIonErrorReason::UnsupportedNetwork));
@@ -59,7 +61,7 @@ fn did_ion_rejects_unsupported_network() {
 fn rejects_substituted_suffix_and_delta() -> Result<(), Box<dyn std::error::Error>> {
     let wrong = generate_long_form_did_ion(
         IonNetwork::Mainnet,
-        ION_TESTNET3_SUFFIX,
+        ION_TESTNET_SUFFIX,
         LONG_FORM_SUFFIX_DATA,
     );
     assert_eq!(

@@ -4,41 +4,88 @@
 
 use crate::cbor::{decode_device_response_cbor, decode_issuer_signed_item, decode_mso_cbor};
 use crate::device_auth::{validate_device_auth, DeviceAuthenticationValidationInput};
-use crate::issue::sha256;
+use crate::issue::{is_supported_digest_algorithm, sha256, value_digest};
 use crate::present::{DEVICE_RESPONSE_STATUS_OK, DEVICE_RESPONSE_VERSION};
 use crate::validity::validate_validity_window;
 use reallyme_cose::Algorithm;
 
 use crate::{
-    validate_issuer_auth, validate_x5chain_issuer_auth, IssuerNameSpaces, MdocDeviceResponse,
-    MdocEnvelopeError, MdocInvalidInputReason, MdocIssuerSignedDocument, MobileSecurityObject,
-    ValueDigests, MAX_MDOC_DEVICE_RESPONSE_DOCUMENTS, MAX_MDOC_ELEMENTS_PER_NAMESPACE,
-    MAX_MDOC_NAMESPACES, MSO_VERSION, SHA256_DIGEST_LEN,
+    validate_issuer_auth, validate_x5chain_issuer_auth, IssuerNameSpaces,
+    MdocCertificatePathValidation, MdocDeviceResponse, MdocEnvelopeError, MdocInvalidInputReason,
+    MdocIssuerSignedDocument, MobileSecurityObject, ValueDigests,
+    MAX_MDOC_DEVICE_RESPONSE_DOCUMENTS, MAX_MDOC_ELEMENTS_PER_NAMESPACE, MAX_MDOC_NAMESPACES,
+    MSO_VERSION,
 };
-
-const MSO_DIGEST_ALGORITHM_SHA_256: &str = "SHA-256";
+use std::collections::BTreeSet;
+use zeroize::Zeroize;
 
 /// Result of successful issuer-signed mdoc verification.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub struct VerifiedMdoc {
     /// Verified mdoc document type.
-    pub doc_type: String,
+    doc_type: String,
 
     /// MobileSecurityObject recovered from issuerAuth.
-    pub mobile_security_object: MobileSecurityObject,
+    mobile_security_object: MobileSecurityObject,
 
     /// Disclosed issuer namespaces, when present.
-    pub namespaces: Option<IssuerNameSpaces>,
+    namespaces: Option<IssuerNameSpaces>,
+}
+
+impl VerifiedMdoc {
+    /// Borrow the authenticated mdoc document type.
+    #[must_use]
+    pub fn doc_type(&self) -> &str {
+        &self.doc_type
+    }
+
+    /// Borrow the authenticated MobileSecurityObject.
+    #[must_use]
+    pub const fn mobile_security_object(&self) -> &MobileSecurityObject {
+        &self.mobile_security_object
+    }
+
+    /// Borrow the authenticated disclosed issuer namespaces.
+    #[must_use]
+    pub const fn namespaces(&self) -> Option<&IssuerNameSpaces> {
+        self.namespaces.as_ref()
+    }
+}
+
+impl Drop for VerifiedMdoc {
+    fn drop(&mut self) {
+        self.doc_type.zeroize();
+        if let Some(namespaces) = &mut self.namespaces {
+            while let Some((mut namespace, mut items)) = namespaces.pop_first() {
+                namespace.zeroize();
+                items.zeroize();
+            }
+        }
+    }
 }
 
 /// Result of successful ISO 18013-5 DeviceResponse verification.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub struct VerifiedMdocDeviceResponse {
     /// Decoded DeviceResponse model.
-    pub device_response: MdocDeviceResponse,
+    device_response: MdocDeviceResponse,
 
     /// Verified issuer-signed documents in DeviceResponse order.
-    pub verified_documents: Vec<VerifiedMdoc>,
+    verified_documents: Vec<VerifiedMdoc>,
+}
+
+impl VerifiedMdocDeviceResponse {
+    /// Borrow the decoded response whose issuer and device authentication was verified.
+    #[must_use]
+    pub const fn device_response(&self) -> &MdocDeviceResponse {
+        &self.device_response
+    }
+
+    /// Borrow verified documents in response order.
+    #[must_use]
+    pub fn verified_documents(&self) -> &[VerifiedMdoc] {
+        &self.verified_documents
+    }
 }
 
 /// Verify an issuer-signed mdoc.
@@ -77,10 +124,14 @@ fn authenticate_issuer_signed_mdoc(
 ///
 /// The resolver must perform certificate parsing, path and profile validation,
 /// revocation policy, and trust-anchor selection before returning the leaf P-256
-/// public key. Merely extracting the leaf key is not a trust decision.
+/// public key. It receives the signing time carried in the MSO and must evaluate
+/// certificate validity at that time; verification succeeds only after that MSO
+/// value is authenticated. Merely extracting the leaf key is not a trust
+/// decision. `now_unix` independently evaluates document validity at
+/// presentation time.
 pub fn verify_issuer_signed_mdoc_with_x5chain(
     document: &MdocIssuerSignedDocument,
-    certificate_path_resolver: impl FnOnce(&[Vec<u8>]) -> Option<Vec<u8>>,
+    certificate_path_resolver: impl FnOnce(&[Vec<u8>], u64) -> Option<MdocCertificatePathValidation>,
     now_unix: u64,
 ) -> Result<VerifiedMdoc, MdocEnvelopeError> {
     let verified =
@@ -91,13 +142,19 @@ pub fn verify_issuer_signed_mdoc_with_x5chain(
 
 fn authenticate_issuer_signed_mdoc_with_x5chain(
     document: &MdocIssuerSignedDocument,
-    certificate_path_resolver: impl FnOnce(&[Vec<u8>]) -> Option<Vec<u8>>,
+    certificate_path_resolver: impl FnOnce(&[Vec<u8>], u64) -> Option<MdocCertificatePathValidation>,
 ) -> Result<VerifiedMdoc, MdocEnvelopeError> {
     let verified = validate_x5chain_issuer_auth(
         document.issuer_signed.issuer_auth.as_slice(),
         certificate_path_resolver,
     )?;
-    verified_mdoc_from_mso_cbor(document, &verified.payload)
+    let result = verified_mdoc_from_mso_cbor(document, &verified.payload)?;
+    let signed = result.mobile_security_object.validity_info.signed;
+    if signed < verified.certificate_not_before_unix || signed > verified.certificate_not_after_unix
+    {
+        return Err(MdocEnvelopeError::InvalidSignature);
+    }
+    Ok(result)
 }
 
 /// Verify a newly issued mdoc receipt, including its authenticated validity
@@ -109,7 +166,7 @@ fn authenticate_issuer_signed_mdoc_with_x5chain(
 /// mandatory before wallet import.
 pub fn verify_issuer_signed_mdoc_receipt_with_x5chain(
     document: &MdocIssuerSignedDocument,
-    certificate_path_resolver: impl FnOnce(&[Vec<u8>]) -> Option<Vec<u8>>,
+    certificate_path_resolver: impl FnOnce(&[Vec<u8>], u64) -> Option<MdocCertificatePathValidation>,
     now_unix: u64,
 ) -> Result<VerifiedMdoc, MdocEnvelopeError> {
     let verified =
@@ -128,7 +185,7 @@ fn verified_mdoc_from_mso_cbor(
             MdocInvalidInputReason::UnsupportedMsoVersion,
         ));
     }
-    if mobile_security_object.digest_algorithm != MSO_DIGEST_ALGORITHM_SHA_256 {
+    if !is_supported_digest_algorithm(mobile_security_object.digest_algorithm.as_str()) {
         return Err(MdocEnvelopeError::InvalidInput(
             MdocInvalidInputReason::UnsupportedDigestAlgorithm,
         ));
@@ -144,7 +201,11 @@ fn verified_mdoc_from_mso_cbor(
     }
 
     if let Some(namespaces) = &document.issuer_signed.name_spaces {
-        verify_value_digests(namespaces, &mobile_security_object.value_digests)?;
+        verify_value_digests(
+            namespaces,
+            &mobile_security_object.value_digests,
+            mobile_security_object.digest_algorithm.as_str(),
+        )?;
     }
 
     Ok(VerifiedMdoc {
@@ -183,8 +244,11 @@ where
 ///
 /// This is the OpenID4VP/HAIP verification lane. The injected resolver owns the
 /// deployment's X.509 trust decision and must fail closed when any certificate
-/// or trust evidence is unacceptable. The caller must supply the trusted
-/// evaluation time; validity checking cannot be disabled.
+/// or trust evidence is unacceptable. The resolver receives each signing time
+/// carried in an MSO for certificate-path validation, and verification accepts
+/// the result only after authenticating that value. The caller-supplied
+/// `now_unix` separately controls document validity at presentation time;
+/// neither validity check can be disabled.
 pub fn verify_mdoc_device_response_with_x5chain<F>(
     device_response_cbor: &[u8],
     certificate_path_resolver: F,
@@ -192,7 +256,7 @@ pub fn verify_mdoc_device_response_with_x5chain<F>(
     now_unix: u64,
 ) -> Result<VerifiedMdocDeviceResponse, MdocEnvelopeError>
 where
-    F: Fn(&[Vec<u8>]) -> Option<Vec<u8>>,
+    F: Fn(&[Vec<u8>], u64) -> Option<MdocCertificatePathValidation>,
 {
     verify_mdoc_device_response_with(
         device_response_cbor,
@@ -243,6 +307,14 @@ fn verify_mdoc_device_response_with(
             doc_type: document.doc_type.as_str(),
             device_name_spaces_cbor: document.device_signed.name_spaces_cbor.as_slice(),
         })?;
+        validate_device_key_authorizations(
+            verified
+                .mobile_security_object
+                .device_key_info
+                .key_authorizations
+                .as_ref(),
+            document.device_signed.name_spaces_cbor.as_slice(),
+        )?;
         verified_documents.push(verified);
     }
 
@@ -252,9 +324,70 @@ fn verify_mdoc_device_response_with(
     })
 }
 
+fn validate_device_key_authorizations(
+    authorizations: Option<&crate::DeviceKeyAuthorizations>,
+    device_name_spaces_cbor: &[u8],
+) -> Result<(), MdocEnvelopeError> {
+    let namespaces = crate::cbor::cbor_bytes_to_value(device_name_spaces_cbor).map_err(|_| {
+        MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::InvalidDeviceNameSpaces)
+    })?;
+    let namespace_entries =
+        crate::cbor::expect_map(&namespaces, MdocInvalidInputReason::InvalidDeviceNameSpaces)?;
+    let Some(authorizations) = authorizations else {
+        return if namespace_entries.is_empty() {
+            Ok(())
+        } else {
+            Err(MdocEnvelopeError::InvalidInput(
+                MdocInvalidInputReason::InvalidDeviceAuthentication,
+            ))
+        };
+    };
+    crate::validate_device_key_authorizations::validate_device_key_authorizations(authorizations)?;
+    for (namespace, elements) in namespace_entries {
+        let ciborium::value::Value::Text(namespace) = namespace else {
+            return Err(MdocEnvelopeError::InvalidInput(
+                MdocInvalidInputReason::InvalidDeviceNameSpaces,
+            ));
+        };
+        if authorizations
+            .name_spaces
+            .iter()
+            .any(|authorized| authorized == namespace)
+        {
+            continue;
+        }
+        let authorized_elements =
+            authorizations
+                .data_elements
+                .get(namespace)
+                .ok_or(MdocEnvelopeError::InvalidInput(
+                    MdocInvalidInputReason::InvalidDeviceAuthentication,
+                ))?;
+        let elements =
+            crate::cbor::expect_map(elements, MdocInvalidInputReason::InvalidDeviceNameSpaces)?;
+        for (element, _) in elements {
+            let ciborium::value::Value::Text(element) = element else {
+                return Err(MdocEnvelopeError::InvalidInput(
+                    MdocInvalidInputReason::InvalidDeviceNameSpaces,
+                ));
+            };
+            if !authorized_elements
+                .iter()
+                .any(|authorized| authorized == element)
+            {
+                return Err(MdocEnvelopeError::InvalidInput(
+                    MdocInvalidInputReason::InvalidDeviceAuthentication,
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn verify_value_digests(
     namespaces: &IssuerNameSpaces,
     value_digests: &ValueDigests,
+    digest_algorithm: &str,
 ) -> Result<(), MdocEnvelopeError> {
     if namespaces.len() > MAX_MDOC_NAMESPACES {
         return Err(MdocEnvelopeError::InvalidInput(
@@ -273,20 +406,33 @@ fn verify_value_digests(
             return Err(MdocEnvelopeError::InvalidDigest);
         };
 
+        let mut digest_ids = BTreeSet::new();
+        let mut element_identifiers = BTreeSet::new();
         for tagged in items {
             let issuer_signed_item_bytes = crate::cbor::encode_tagged_cbor_bytes(&tagged.bstr)?;
-            let digest = sha256(&issuer_signed_item_bytes)?;
+            let digest = value_digest(digest_algorithm, &issuer_signed_item_bytes)?;
             // A malformed disclosed item is indistinguishable from a digest
             // mismatch at this trust boundary and must not expose parser detail.
             let item =
                 decode_issuer_signed_item(tagged).map_err(|_| MdocEnvelopeError::InvalidDigest)?;
+            if !digest_ids.insert(item.digest_id) {
+                return Err(MdocEnvelopeError::InvalidInput(
+                    MdocInvalidInputReason::DuplicateDigestIdentifier,
+                ));
+            }
+            // Retain only a fixed-size digest for duplicate detection so the
+            // identifier is not copied into a non-zeroizing collection.
+            let element_identifier_digest = sha256(item.element_identifier.as_bytes())?;
+            if !element_identifiers.insert(element_identifier_digest) {
+                return Err(MdocEnvelopeError::InvalidInput(
+                    MdocInvalidInputReason::DuplicateElementIdentifier,
+                ));
+            }
             let Some(expected) = namespace_digests.get(&item.digest_id) else {
                 return Err(MdocEnvelopeError::InvalidDigest);
             };
 
-            let expected_digest = <[u8; SHA256_DIGEST_LEN]>::try_from(expected.as_slice())
-                .map_err(|_| MdocEnvelopeError::InvalidDigest)?;
-            if digest != expected_digest {
+            if digest.as_slice() != expected.as_slice() {
                 return Err(MdocEnvelopeError::InvalidDigest);
             }
         }

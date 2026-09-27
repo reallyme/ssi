@@ -65,7 +65,7 @@ fn credential_envelope_to_cbor(
         ),
         (
             "issuerReference".to_owned(),
-            party_reference_to_cbor(&envelope.issuer_reference),
+            party_reference_to_cbor(&envelope.issuer_reference)?,
         ),
         (
             "issuerCountry".to_owned(),
@@ -79,7 +79,7 @@ fn credential_envelope_to_cbor(
         ),
         (
             "subject".to_owned(),
-            credential_subject_to_cbor(&envelope.subject),
+            credential_subject_to_cbor(&envelope.subject)?,
         ),
         (
             "claimsCommitment".to_owned(),
@@ -94,17 +94,19 @@ fn credential_envelope_to_cbor(
     Ok(CborValue::Map(entries))
 }
 
-fn credential_subject_to_cbor(subject: &CredentialSubject) -> CborValue {
-    CborValue::Map(vec![
+fn credential_subject_to_cbor(
+    subject: &CredentialSubject,
+) -> Result<CborValue, CredentialError> {
+    Ok(CborValue::Map(vec![
         (
             "subjectReference".to_owned(),
-            party_reference_to_cbor(&subject.subject_reference),
+            party_reference_to_cbor(&subject.subject_reference)?,
         ),
         (
             "holderBinding".to_owned(),
-            holder_binding_to_cbor(&subject.holder_binding),
+            holder_binding_to_cbor(&subject.holder_binding)?,
         ),
-    ])
+    ]))
 }
 
 fn credential_status_to_cbor(status: &CredentialStatus) -> Result<CborValue, CredentialError> {
@@ -125,7 +127,7 @@ fn credential_status_to_cbor(status: &CredentialStatus) -> Result<CborValue, Cre
         ),
         (
             "purpose".to_owned(),
-            CborValue::String(status_purpose_label(status.purpose).to_owned()),
+            CborValue::String(status_purpose_label(status.purpose)?.to_owned()),
         ),
     ]))
 }
@@ -180,32 +182,32 @@ fn commitment_limits_to_cbor(limits: CommitmentLimits) -> CborValue {
     ])
 }
 
-fn public_key_ref_to_cbor(key: &PublicKeyRef) -> CborValue {
-    CborValue::Map(vec![
+fn public_key_ref_to_cbor(key: &PublicKeyRef) -> Result<CborValue, CredentialError> {
+    Ok(CborValue::Map(vec![
         (
             "alg".to_owned(),
-            CborValue::String(credential_algorithm_label(key.alg).to_owned()),
+            CborValue::String(credential_algorithm_label(key.alg)?.to_owned()),
         ),
         (
             "reference".to_owned(),
-            key_reference_to_cbor(&key.reference),
+            key_reference_to_cbor(&key.reference)?,
         ),
         (
             "publicKey".to_owned(),
-            public_key_representation_to_cbor(&key.public_key),
+            public_key_representation_to_cbor(&key.public_key)?,
         ),
         (
             "assurance".to_owned(),
-            key_assurance_to_cbor(&key.assurance),
+            key_assurance_to_cbor(&key.assurance)?,
         ),
-    ])
+    ]))
 }
 
-fn party_reference_to_cbor(reference: &PartyReference) -> CborValue {
+fn party_reference_to_cbor(reference: &PartyReference) -> Result<CborValue, CredentialError> {
     let (kind, value) = match reference {
         PartyReference::Did(value) => ("did", CborValue::String(value.clone())),
         PartyReference::X509Subject(value) => ("x509Subject", x509_subject_to_cbor(value)),
-        PartyReference::PublicKey(value) => ("publicKey", public_key_identity_to_cbor(value)),
+        PartyReference::PublicKey(value) => ("publicKey", public_key_identity_to_cbor(value)?),
         PartyReference::FederationEntityId(value) => {
             ("federationEntityId", CborValue::String(value.clone()))
         }
@@ -215,23 +217,25 @@ fn party_reference_to_cbor(reference: &PartyReference) -> CborValue {
         PartyReference::Uri(value) => ("uri", CborValue::String(value.clone())),
         PartyReference::Absent => ("absent", CborValue::Bool(true)),
     };
-    CborValue::Map(vec![
+    Ok(CborValue::Map(vec![
         ("kind".to_owned(), CborValue::String(kind.to_owned())),
         ("value".to_owned(), value),
-    ])
+    ]))
 }
 
-fn public_key_identity_to_cbor(identity: &PublicKeyIdentity) -> CborValue {
-    CborValue::Map(vec![
+fn public_key_identity_to_cbor(
+    identity: &PublicKeyIdentity,
+) -> Result<CborValue, CredentialError> {
+    Ok(CborValue::Map(vec![
         (
             "alg".to_owned(),
-            CborValue::String(credential_algorithm_label(identity.alg).to_owned()),
+            CborValue::String(credential_algorithm_label(identity.alg)?.to_owned()),
         ),
         (
             "representation".to_owned(),
-            public_key_representation_to_cbor(&identity.public_key),
+            public_key_representation_to_cbor(&identity.public_key)?,
         ),
-    ])
+    ]))
 }
 
 fn x509_subject_to_cbor(reference: &X509SubjectReference) -> CborValue {
@@ -265,14 +269,14 @@ fn x509_subject_to_cbor(reference: &X509SubjectReference) -> CborValue {
     ])
 }
 
-fn holder_binding_to_cbor(binding: &HolderBinding) -> CborValue {
-    match binding {
+fn holder_binding_to_cbor(binding: &HolderBinding) -> Result<CborValue, CredentialError> {
+    Ok(match binding {
         HolderBinding::CryptographicKey(key) => CborValue::Map(vec![
             (
                 "mode".to_owned(),
                 CborValue::String("cryptographicKey".to_owned()),
             ),
-            ("key".to_owned(), public_key_ref_to_cbor(key)),
+            ("key".to_owned(), public_key_ref_to_cbor(key)?),
         ]),
         HolderBinding::ClaimsBased(claims) => CborValue::Map(vec![
             (
@@ -285,11 +289,11 @@ fn holder_binding_to_cbor(binding: &HolderBinding) -> CborValue {
             "mode".to_owned(),
             CborValue::String("bearer".to_owned()),
         )]),
-    }
+    })
 }
 
-fn key_reference_to_cbor(reference: &KeyReference) -> CborValue {
-    match reference {
+fn key_reference_to_cbor(reference: &KeyReference) -> Result<CborValue, CredentialError> {
+    Ok(match reference {
         KeyReference::DidVerificationMethod(value) => CborValue::Map(vec![
             (
                 "kind".to_owned(),
@@ -308,10 +312,13 @@ fn key_reference_to_cbor(reference: &KeyReference) -> CborValue {
             "kind".to_owned(),
             CborValue::String("directPublicKey".to_owned()),
         )]),
-    }
+        _ => return Err(canonical_encoding_error()),
+    })
 }
 
-fn public_key_representation_to_cbor(representation: &PublicKeyRepresentation) -> CborValue {
+fn public_key_representation_to_cbor(
+    representation: &PublicKeyRepresentation,
+) -> Result<CborValue, CredentialError> {
     let (kind, value) = match representation {
         PublicKeyRepresentation::JwkJson(value) => ("jwk", CborValue::Bytes(value.clone())),
         PublicKeyRepresentation::CoseKey(value) => ("coseKey", CborValue::Bytes(value.clone())),
@@ -327,6 +334,7 @@ fn public_key_representation_to_cbor(representation: &PublicKeyRepresentation) -
                 RawPublicKeySerialization::FixedWidth => "fixedWidth",
                 RawPublicKeySerialization::Sec1Compressed => "sec1Compressed",
                 RawPublicKeySerialization::Sec1Uncompressed => "sec1Uncompressed",
+                _ => return Err(canonical_encoding_error()),
             };
             (
                 "raw",
@@ -339,15 +347,16 @@ fn public_key_representation_to_cbor(representation: &PublicKeyRepresentation) -
                 ]),
             )
         }
+        _ => return Err(canonical_encoding_error()),
     };
-    CborValue::Map(vec![
+    Ok(CborValue::Map(vec![
         ("kind".to_owned(), CborValue::String(kind.to_owned())),
         ("value".to_owned(), value),
-    ])
+    ]))
 }
 
-fn key_assurance_to_cbor(assurance: &KeyAssurance) -> CborValue {
-    match assurance {
+fn key_assurance_to_cbor(assurance: &KeyAssurance) -> Result<CborValue, CredentialError> {
+    Ok(match assurance {
         KeyAssurance::None => CborValue::Map(vec![(
             "type".to_owned(),
             CborValue::String("none".to_owned()),
@@ -370,35 +379,36 @@ fn key_assurance_to_cbor(assurance: &KeyAssurance) -> CborValue {
             ("type".to_owned(), CborValue::String("x509Chain".to_owned())),
             ("certificates".to_owned(), bytes_array_to_cbor(values)),
         ]),
-    }
+        _ => return Err(canonical_encoding_error()),
+    })
 }
 
 fn qeaa_compliance_to_cbor(qeaa: &QeaaCompliance) -> Result<CborValue, CredentialError> {
     Ok(CborValue::Map(vec![
-        ("qtsp".to_owned(), qtsp_info_to_cbor(&qeaa.qtsp)),
+        ("qtsp".to_owned(), qtsp_info_to_cbor(&qeaa.qtsp)?),
         ("policies".to_owned(), qeaa_policies_to_cbor(&qeaa.policies)),
         (
             "issuerCredential".to_owned(),
-            issuer_credential_to_cbor(&qeaa.issuer_credential),
+            issuer_credential_to_cbor(&qeaa.issuer_credential)?,
         ),
         (
             "keyManagement".to_owned(),
-            key_management_to_cbor(&qeaa.key_management),
+            key_management_to_cbor(&qeaa.key_management)?,
         ),
         (
             "identityProofing".to_owned(),
-            identity_proofing_to_cbor(&qeaa.identity_proofing),
+            identity_proofing_to_cbor(&qeaa.identity_proofing)?,
         ),
         ("audit".to_owned(), audit_info_to_cbor(&qeaa.audit)?),
         (
             "revocation".to_owned(),
-            revocation_policy_to_cbor(&qeaa.revocation),
+            revocation_policy_to_cbor(&qeaa.revocation)?,
         ),
     ]))
 }
 
-fn qtsp_info_to_cbor(qtsp: &QtspInfo) -> CborValue {
-    CborValue::Map(vec![
+fn qtsp_info_to_cbor(qtsp: &QtspInfo) -> Result<CborValue, CredentialError> {
+    Ok(CborValue::Map(vec![
         (
             "tspName".to_owned(),
             CborValue::String(qtsp.tsp_name.clone()),
@@ -406,9 +416,9 @@ fn qtsp_info_to_cbor(qtsp: &QtspInfo) -> CborValue {
         ("tspId".to_owned(), CborValue::String(qtsp.tsp_id.clone())),
         (
             "tspRole".to_owned(),
-            CborValue::String(qtsp_role_label(qtsp.tsp_role).to_owned()),
+            CborValue::String(qtsp_role_label(qtsp.tsp_role)?.to_owned()),
         ),
-    ])
+    ]))
 }
 
 fn qeaa_policies_to_cbor(policies: &QeaaPolicies) -> CborValue {

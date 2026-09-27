@@ -7,6 +7,7 @@
 //! JAdES Baseline-B validation and adversarial-boundary tests.
 
 use envelopes_x509::{parse_cert_der, X509Certificate, X509Chain, X509Policy};
+use identity_revocation_core::{StatusCheckError, StatusChecker};
 use identity_trust_jades::{
     authenticate_compact_jades, validate_compact_jades, AuthenticatedCompactJws,
     CompactJwsVerificationError, CompactJwsVerificationErrorReason, CompactJwsVerifier,
@@ -77,6 +78,14 @@ impl SignatureVerifier for UnusedCertificateVerifier {
     }
 }
 
+struct AllowAllStatus;
+
+impl StatusChecker for AllowAllStatus {
+    fn check(&self, _cert: &X509Certificate, _now_unix: u64) -> Result<(), StatusCheckError> {
+        Ok(())
+    }
+}
+
 #[test]
 fn authenticates_proof_only_against_the_exact_expected_leaf() {
     let certificate = signing_certificate();
@@ -126,13 +135,13 @@ fn validates_authenticated_header_thumbprint_time_and_direct_trust() {
     let validated = validate(
         &header,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
     )
     .expect("valid JAdES input");
 
     assert_eq!(validated.payload(), b"verified-payload");
     assert_eq!(validated.signing_certificate().der, certificate.der);
-    assert_eq!(validated.trust_decision().outcome, TrustOutcome::Trusted);
+    assert_eq!(validated.trust_decision().outcome(), TrustOutcome::Trusted);
     assert_eq!(
         validated.signature_algorithm(),
         JadesSignatureAlgorithm::Es256
@@ -149,7 +158,7 @@ fn reparses_supplied_der_before_using_projected_certificate_fields() {
     let header =
         format!("{{\"alg\":\"ES256\",\"iat\":{SIGNING_TIME},\"x5t#S256\":\"{thumbprint}\"}}");
     let compact = compact(&header);
-    let config = trust_config(certificate.clone(), optional_status());
+    let config = trust_config(certificate.clone(), enforced_status());
     let verifier = TestJwsVerifier {
         authenticated_header: header.as_bytes().to_vec(),
         failure: None,
@@ -164,7 +173,7 @@ fn reparses_supplied_der_before_using_projected_certificate_fields() {
         },
         &verifier,
         &UnusedCertificateVerifier,
-        None,
+        Some(&AllowAllStatus),
     )
     .expect("DER-derived projection must be accepted");
 
@@ -179,7 +188,7 @@ fn validates_canonical_x5c_as_the_presented_chain() {
     let validated = validate(
         &header,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
     )
     .expect("valid embedded certificate");
     assert_eq!(validated.signing_certificate().der, certificate.der);
@@ -192,7 +201,7 @@ fn rejects_missing_or_mismatched_signing_certificate_references() {
     assert_reason(
         &missing,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
         JadesErrorReason::MissingSigningCertificateReference,
     );
 
@@ -203,7 +212,7 @@ fn rejects_missing_or_mismatched_signing_certificate_references() {
     assert_reason(
         &mismatch,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
         JadesErrorReason::SigningCertificateMismatch,
     );
 }
@@ -218,7 +227,7 @@ fn accepts_x5c_as_the_signing_certificate_reference() {
     let validated = validate(
         &header,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
     )
     .expect("a protected x5c chain identifies the signing certificate");
     assert_eq!(validated.signing_certificate().der, certificate.der);
@@ -252,7 +261,7 @@ fn rejects_prohibited_sha1_x5t_parameter() {
     assert_reason(
         &header,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
         JadesErrorReason::InvalidProtectedHeader,
     );
 }
@@ -267,7 +276,7 @@ fn rejects_ambiguous_and_post_transition_legacy_signing_times() {
     assert_reason(
         &ambiguous,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
         JadesErrorReason::InvalidClaimedSigningTime,
     );
 
@@ -277,7 +286,7 @@ fn rejects_ambiguous_and_post_transition_legacy_signing_times() {
     assert_reason(
         &post_transition,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
         JadesErrorReason::SigningTimeOutsidePolicy,
     );
 }
@@ -292,7 +301,7 @@ fn rejects_sha256_in_x5t_o_and_short_sig_x5ts() {
     assert_reason(
         &x5t_o,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
         JadesErrorReason::InvalidCertificateReference,
     );
 
@@ -302,7 +311,7 @@ fn rejects_sha256_in_x5t_o_and_short_sig_x5ts() {
     assert_reason(
         &sig_x5ts,
         std::slice::from_ref(&certificate),
-        optional_status(),
+        enforced_status(),
         JadesErrorReason::InvalidCertificateReference,
     );
 }
@@ -325,8 +334,8 @@ fn accepts_sig_x5ts_for_a_unique_subset_of_the_certification_path() {
         unreferenced_path_certificate,
     ];
 
-    validate(&header, &path, optional_status())
-        .expect("sigX5ts may identify a strict subset of the supplied path");
+    validate(&header, &path, enforced_status())
+        .expect("direct trust may accept the signer while sigX5ts references a path subset");
 }
 
 #[test]
@@ -336,7 +345,7 @@ fn rejects_a_backend_receipt_for_different_header_bytes() {
     let header =
         format!("{{\"alg\":\"ES256\",\"iat\":{SIGNING_TIME},\"x5t#S256\":\"{thumbprint}\"}}");
     let compact = compact(&header);
-    let config = trust_config(certificate.clone(), optional_status());
+    let config = trust_config(certificate.clone(), enforced_status());
     let verifier = TestJwsVerifier {
         authenticated_header: b"{\"alg\":\"ES256\"}".to_vec(),
         failure: None,
@@ -368,7 +377,7 @@ fn rejects_a_backend_receipt_for_different_payload_bytes() {
         bytes_to_base64url(header.as_bytes()),
         bytes_to_base64url(b"different-payload")
     );
-    let config = trust_config(certificate.clone(), optional_status());
+    let config = trust_config(certificate.clone(), enforced_status());
     let verifier = TestJwsVerifier {
         authenticated_header: header.as_bytes().to_vec(),
         failure: None,
@@ -395,11 +404,17 @@ fn preserves_indeterminate_status_as_a_distinct_failure() {
     let thumbprint = bytes_to_base64url(reallyme_crypto::sha2::digest(&certificate.der).as_bytes());
     let header =
         format!("{{\"alg\":\"ES256\",\"iat\":{SIGNING_TIME},\"x5t#S256\":\"{thumbprint}\"}}");
-    assert_reason(
+    let error = validate_with_status_checker(
         &header,
         std::slice::from_ref(&certificate),
         required_status(),
-        JadesErrorReason::CertificatePathIndeterminate,
+        None,
+    )
+    .err()
+    .expect("required status without a checker must remain indeterminate");
+    assert_eq!(
+        error.reason(),
+        JadesErrorReason::CertificatePathIndeterminate
     );
 }
 
@@ -418,6 +433,15 @@ fn validate(
     header: &str,
     certificates: &[X509Certificate],
     status_policy: CertificateStatusPolicy,
+) -> Result<identity_trust_jades::ValidatedJades, identity_trust_jades::JadesError> {
+    validate_with_status_checker(header, certificates, status_policy, Some(&AllowAllStatus))
+}
+
+fn validate_with_status_checker(
+    header: &str,
+    certificates: &[X509Certificate],
+    status_policy: CertificateStatusPolicy,
+    status_checker: Option<&dyn StatusChecker>,
 ) -> Result<identity_trust_jades::ValidatedJades, identity_trust_jades::JadesError> {
     let certificate = certificates
         .first()
@@ -443,7 +467,7 @@ fn validate(
         },
         &verifier,
         &UnusedCertificateVerifier,
-        None,
+        status_checker,
     )
 }
 
@@ -479,10 +503,10 @@ fn compact(header: &str) -> String {
     )
 }
 
-fn optional_status() -> CertificateStatusPolicy {
+fn enforced_status() -> CertificateStatusPolicy {
     CertificateStatusPolicy {
-        leaf: StatusRequirement::Optional,
-        intermediates: StatusRequirement::Exempt,
+        leaf: StatusRequirement::Required,
+        intermediates: StatusRequirement::Required,
         trust_anchor: StatusRequirement::Exempt,
     }
 }
@@ -490,7 +514,7 @@ fn optional_status() -> CertificateStatusPolicy {
 fn required_status() -> CertificateStatusPolicy {
     CertificateStatusPolicy {
         leaf: StatusRequirement::Required,
-        intermediates: StatusRequirement::Exempt,
+        intermediates: StatusRequirement::Required,
         trust_anchor: StatusRequirement::Exempt,
     }
 }

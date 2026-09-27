@@ -27,9 +27,8 @@ pub use model::{
     WalletRelyingParty, WalletRelyingPartyService, WrpEntitlement,
 };
 pub use registry::{
-    authenticate_registry_record, AuthenticatedJws, AuthenticatedRegistryRecord,
-    JoseRegistryJwsVerifier, RegistrarCertificateChain, RegistryAuthenticationInput,
-    RegistryIntendedUseQuery, RegistryJwsVerifier, RegistryMetadata, ValidatedJwks,
+    authenticate_registry_record, AuthenticatedRegistryRecord, RegistrarCertificateChain,
+    RegistryAuthenticationInput, RegistryIntendedUseQuery, RegistryMetadata, ValidatedJwks,
 };
 pub use wrpac::{
     authenticate_access_certificate_association, AccessCertificateBinding,

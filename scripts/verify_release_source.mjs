@@ -11,6 +11,7 @@ const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const VERSION_PATTERN = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/u;
 const MAX_COMMAND_OUTPUT_BYTES = 1_048_576;
 const MAX_MANIFEST_BYTES = 65_536;
+const MAX_CHANGELOG_BYTES = 1_048_576;
 
 export class ReleaseSourceError extends Error {
   constructor(code) {
@@ -105,6 +106,53 @@ export const resolveReleaseVersion = ({ derivesVersion, manifestVersions, reques
   return derivesVersion ? derivedVersion : requestedVersion;
 };
 
+export const changelogContainsRelease = (contents, releaseVersion) => {
+  if (typeof contents !== "string" || typeof releaseVersion !== "string") {
+    return false;
+  }
+  const expectedHeading = `## ${releaseVersion}`;
+  return contents.split(/\r?\n/u).filter((line) => line === expectedHeading).length === 1;
+};
+
+const verifyChangelogRelease = (releaseVersion) => {
+  let status;
+  let contents;
+  try {
+    status = lstatSync("CHANGELOG.md");
+    if (status.isSymbolicLink() || !status.isFile() || status.size > MAX_CHANGELOG_BYTES) {
+      fail("invalid-release-changelog");
+    }
+    contents = readFileSync("CHANGELOG.md", "utf8");
+  } catch (error) {
+    if (error instanceof ReleaseSourceError) {
+      throw error;
+    }
+    fail("invalid-release-changelog");
+  }
+  if (!changelogContainsRelease(contents, releaseVersion)) {
+    fail("missing-release-changelog");
+  }
+};
+
+/// Permit an exact failed workflow run to resume after `main` advances.
+///
+/// GitHub preserves `GITHUB_SHA` and the original reviewed artifacts when a
+/// failed run is re-run. This narrow exception avoids stranding a partially
+/// published dependency graph without allowing a fresh dispatch from an old
+/// commit.
+export const permitsRecordedRunResume = (env) => {
+  if (
+    env.GITHUB_ACTIONS !== "true" ||
+    env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
+    env.GITHUB_WORKFLOW_REF === undefined ||
+    !env.GITHUB_WORKFLOW_REF.includes("/.github/workflows/crates-release.yml@refs/heads/main")
+  ) {
+    return false;
+  }
+  const attempt = Number.parseInt(env.GITHUB_RUN_ATTEMPT ?? "", 10);
+  return Number.isSafeInteger(attempt) && attempt >= 2;
+};
+
 export const verifyReleaseSource = ({ env = process.env } = {}) => {
   const releaseSha = env.RELEASE_SHA;
   if (typeof releaseSha !== "string" || !FULL_SHA_PATTERN.test(releaseSha)) {
@@ -121,7 +169,10 @@ export const verifyReleaseSource = ({ env = process.env } = {}) => {
     ["fetch", "--force", "--no-tags", "origin", "main:refs/remotes/origin/main"],
     { capture: false },
   );
-  if (run("git", ["rev-parse", "refs/remotes/origin/main"]) !== releaseSha) {
+  if (
+    run("git", ["rev-parse", "refs/remotes/origin/main"]) !== releaseSha &&
+    !permitsRecordedRunResume(env)
+  ) {
     fail("origin-main-mismatch");
   }
   const manifestVersions = publishableManifests().map((manifest) =>
@@ -133,6 +184,7 @@ export const verifyReleaseSource = ({ env = process.env } = {}) => {
     manifestVersions,
     requestedVersion: env.RELEASE_VERSION,
   });
+  verifyChangelogRelease(releaseVersion);
   return { releaseSha, releaseVersion };
 };
 

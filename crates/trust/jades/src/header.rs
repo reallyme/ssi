@@ -109,7 +109,7 @@ impl<'de> Visitor<'de> for ProtectedHeaderVisitor {
                 // SHA-1-based `x5t` parameter in every JAdES signature. The
                 // other parameters require a signing-input or remote-key
                 // policy outside this compact certificate-bound profile.
-                "x5t" | "b64" | "crit" | "jku" | "x5u" | "jwk" | "zip" => {
+                "x5t" | "b64" | "crit" | "jku" | "x5u" | "jwk" | "zip" | "sigD" => {
                     let _ = map.next_value::<IgnoredAny>()?;
                     return Err(serde::de::Error::custom("invalid protected header"));
                 }

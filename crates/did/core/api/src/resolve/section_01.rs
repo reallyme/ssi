@@ -9,7 +9,9 @@ use reallyme_did_method_ebsi::{
     DidEbsiRegistryWriteResponse, DidEbsiRegistryWriteResult, DidEbsiResolution,
     DidEbsiResolutionAssurance, DidEbsiResolveRequest,
 };
-use reallyme_did_method_web::{parse_did_web, DidWebDocument, DidWebMediaType};
+use reallyme_did_method_web::{
+    parse_did_web, DidWebDocument, DidWebErrorReason, DidWebMediaType,
+};
 use reallyme_did_types::DIDDocument;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -40,11 +42,12 @@ const DID_LD_JSON_CONTENT_TYPE: &str = "application/did+ld+json";
 pub struct DidResolveRequest {
     /// DID to resolve. DID URL path, query, and fragment components are not valid here.
     pub did: String,
-    /// Optional version identifier that must appear in the verified did:me chain.
+    /// Optional version identifier that must equal the returned, verified did:me version.
     pub version_id: Option<String>,
-    /// RFC 3339 instant at which a method registry version must have been valid.
+    /// Historical-time selector. Generic did:me resolution rejects this field
+    /// because did:me documents do not authenticate wall-clock validity bounds.
     pub version_time: Option<String>,
-    /// Lowest EBSI registry version sequence already accepted by the caller.
+    /// Lowest did:me sequence already accepted by the caller.
     pub minimum_version_sequence: Option<u64>,
     /// Minimum resolver assurance required by the caller.
     pub assurance: Option<DidResolutionAssurance>,

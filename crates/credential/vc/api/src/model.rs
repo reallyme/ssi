@@ -14,54 +14,66 @@ use reallyme_credential::committed::model::{
 };
 use reallyme_credential_audit::QeaaCompliance;
 
-/// Built-in profiles for direct use.
-/// `CustomProfile` can also be used to provide a registry and policy parameters.
+/// Credential issuance profiles supported by the high-level API.
 pub enum CredentialProfile {
-    /// Use caller-provided parameters + registry.
+    /// Applies caller-supplied commitment parameters and a claims registry.
     Custom(CustomProfile),
 }
 
+/// Caller-defined commitment and claims policy used during issuance.
 pub struct CustomProfile {
+    /// Claim-set identifier written to the credential commitment.
     pub claimset_id: String,
+    /// Credential kind written to the public envelope.
     pub kind: CredentialKind,
+    /// Assurance level asserted by the issuer.
     pub assurance: AssuranceLevel,
+    /// Domain-separation tags used by the commitment tree.
     pub domain_tags: DomainTags,
+    /// Resource and salt limits applied during commitment construction.
     pub limits: CommitmentLimits,
 
-    /// Registry used to validate claim ids and types.
+    /// Registry used to validate claim identifiers and value types.
     pub registry: ClaimsRegistry,
 
-    /// If true, QEAA must be present and must validate.
+    /// Whether valid QEAA compliance evidence is mandatory.
     pub require_qeaa: bool,
 
-    /// Required claim ids (not paths). If empty => no required set enforced here.
+    /// Required claim identifiers; an empty set imposes no additional requirement.
     pub required_claim_ids: Vec<String>,
 }
 
 /// High-level issuance request.
 pub struct IssueCredentialRequest {
+    /// Issuance profile and claim registry.
     pub profile: CredentialProfile,
 
+    /// Stable reference identifying the credential issuer.
     pub issuer_reference: PartyReference,
+    /// Public key reference placed in the signed envelope.
     pub issuer_verification_key: PublicKeyRef,
+    /// ISO country identifier asserted for the issuer.
     pub issuer_country: String,
 
+    /// Credential subject covered by the issuer commitment.
     pub subject: CredentialSubject,
 
-    /// UTC seconds since epoch
+    /// Inclusive validity start as seconds since the Unix epoch.
     pub valid_from: i64,
+    /// Exclusive credential expiry as seconds since the Unix epoch.
     pub valid_until: i64,
 
+    /// Credential status information covered by the issuer commitment.
     pub status: CredentialStatus,
 
-    /// Claim id -> JSON value
+    /// Claim values indexed by registry claim identifier.
     pub claims: BTreeMap<String, serde_json::Value>,
 
-    /// Optional QEAA metadata (validated here if required)
+    /// QEAA compliance evidence, when supplied or required by the profile.
     pub qeaa: Option<QeaaCompliance>,
 }
 
-/// Issuer crypto context (signing).
+/// In-process issuer signing key and its algorithm.
 pub struct IssuerSigning {
     /// Signature algorithm used for the issuer key.
     pub alg: CryptoAlg,
@@ -87,9 +99,11 @@ impl IssuerSigning {
     }
 }
 
-/// Output of issuance (canonical).
+/// Canonical committed-credential issuance result.
 pub struct IssuedCredential {
+    /// Issued credential envelope containing the authenticated commitment.
     pub envelope: CredentialEnvelope,
+    /// Private subject material required to construct selective-disclosure proofs.
     pub subject_bundle: SubjectPrivateBundle,
 }
 
@@ -105,10 +119,14 @@ pub enum PublicFormat {
 
 /// Output of issue+encode.
 pub struct IssuedAndEncoded {
+    /// Public encoding selected for the issued credential.
     pub public_format: PublicFormat,
+    /// Encoded public credential bytes in the selected transport format.
     pub public_bytes: Vec<u8>,
 
+    /// Issued credential envelope containing the authenticated commitment.
     pub envelope: CredentialEnvelope,
+    /// Private subject material required to construct selective-disclosure proofs.
     pub subject_bundle: SubjectPrivateBundle,
 }
 
@@ -161,17 +179,25 @@ impl Drop for IssuedAndEncoded {
 
 impl ZeroizeOnDrop for IssuedAndEncoded {}
 
+/// Issuer identity and public key used for JWT-VC encoding.
 #[cfg(feature = "jwt")]
 pub struct JwtIssuerConfig {
+    /// DID written to the JWT issuer claim.
     pub issuer_did: String,
+    /// Issuer public JWK whose parameters identify the signing key.
     pub issuer_jwk: envelopes_jwk::Jwk,
 }
 
+/// Issuer configuration used for IETF SD-JWT VC encoding.
 #[cfg(feature = "ietf-sd-jwt")]
 pub struct IetfSdJwtIssuerConfig {
+    /// Issuer public JWK whose parameters identify the signing key.
     pub issuer_jwk: envelopes_jwk::Jwk,
+    /// Protected `typ` value written to the issuer JWT.
     pub jwt_type: identity_vc_ietf_sd_jwt::IetfSdJwtJwtType,
+    /// Whether to include the Me Profile commitment in `me_zk`.
     pub include_me_profile_merkle_binding: bool,
+    /// Disclosure salt length in bytes.
     pub salt_len: usize,
 }
 

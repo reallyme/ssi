@@ -129,6 +129,10 @@ pub fn validate_did_me_structure(doc: &DIDDocument) -> StructureValidationResult
                 ));
             }
         }
+        _ => errors.push(issue(
+            DidValidationCode::ControllerInvalid,
+            DidValidationLocation::Controller,
+        )),
     }
 
     // ---------------------------------------------------------------------
@@ -439,6 +443,7 @@ fn exceeds_resource_limits(doc: &DIDDocument) -> bool {
     let controller_count = match &doc.controller {
         Controller::Single(_) => 1,
         Controller::Multiple(values) => values.len(),
+        _ => return true,
     };
     let allowed_count = doc
         .update_policy

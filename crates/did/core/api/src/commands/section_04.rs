@@ -154,8 +154,14 @@ fn validate_recovery_attestations(
         let authorized_signer = policy.allowed_verification_methods.iter().any(|allowed| {
             verification_method_references_match(&request.document.id, &attestation.vm, allowed)
         });
-        let duplicate_signer = document.attestations[..index].iter().any(|prior| {
-            verification_method_references_match(&request.document.id, &attestation.vm, &prior.vm)
+        let duplicate_signer = document.attestations.get(..index).is_none_or(|preceding| {
+            preceding.iter().any(|prior| {
+                verification_method_references_match(
+                    &request.document.id,
+                    &attestation.vm,
+                    &prior.vm,
+                )
+            })
         });
         if compromised_signer || !authorized_signer || duplicate_signer {
             return Err(invalid);
@@ -317,7 +323,12 @@ fn validate_messaging_pre_key_designation_request(
             .pre_keys
             .iter()
             .enumerate()
-            .any(|(index, identifier)| request.pre_keys[..index].contains(identifier))
+            .any(|(index, identifier)| {
+                request
+                    .pre_keys
+                    .get(..index)
+                    .is_none_or(|preceding| preceding.contains(identifier))
+            })
         || request.document.service.iter().any(|service| {
             service.id == request.service_id && service.service_type != "MessagingService"
         })

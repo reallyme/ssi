@@ -16,6 +16,7 @@ use reallyme_credential::{
     CredentialStatusListPolicyStatusInput, CredentialStatusReason, CredentialSubject,
     CredentialValidateRequest, CredentialValidationPolicy, CredentialValidityReason,
     CredentialVerificationContext, CredentialVerificationInput, HolderBinding, PartyReference,
+    X509SubjectReference,
 };
 #[cfg(feature = "proto")]
 use reallyme_credential::{credential_envelope_from_proto, credential_envelope_to_proto};
@@ -36,7 +37,10 @@ use reallyme_credential_status::{
     CredentialStatusError, StatusList, StatusListAlgorithm, StatusListSignature,
     StatusListVerifier, StatusPurpose,
 };
-use reallyme_revocation::{hybrid_fallback, vc_statuslist, StatusCheckError, StatusChecker};
+use reallyme_revocation::{
+    eu_qtsp_x509, hybrid_fallback, vc_statuslist, OcspPolicy, OcspStatusChecker,
+    StatusCheckError, StatusChecker,
+};
 use reallyme_trust_x509::{BasicConstraints, KeyUsage, QcStatements, X509Certificate};
 use std::collections::BTreeMap;
 use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time};
@@ -185,12 +189,49 @@ impl StatusListVerifier for TestStatusVerifier {
     }
 }
 
+impl reallyme_credential::CredentialStatusListVerifier for TestStatusVerifier {
+    fn verified_signer(&self) -> PartyReference {
+        PartyReference::Did("did:web:issuer.example".to_owned())
+    }
+}
+
+struct X509StatusVerifier;
+
+impl StatusListVerifier for X509StatusVerifier {
+    fn verify_status_list(
+        &self,
+        issuer: &str,
+        alg: StatusListAlgorithm,
+        payload: &[u8],
+        signature: &[u8],
+    ) -> Result<(), CredentialStatusError> {
+        TestStatusVerifier.verify_status_list(issuer, alg, payload, signature)
+    }
+}
+
+impl reallyme_credential::CredentialStatusListVerifier for X509StatusVerifier {
+    fn verified_signer(&self) -> PartyReference {
+        sample_certificate_reference()
+    }
+}
+
 struct StaticStatusChecker {
     result: Result<(), StatusCheckError>,
 }
 
 impl StatusChecker for StaticStatusChecker {
     fn check(&self, _cert: &X509Certificate, _now_unix: u64) -> Result<(), StatusCheckError> {
+        self.result
+    }
+}
+
+impl OcspStatusChecker for StaticStatusChecker {
+    fn check_with_policy(
+        &self,
+        _cert: &X509Certificate,
+        _now_unix: u64,
+        _policy: OcspPolicy,
+    ) -> Result<(), StatusCheckError> {
         self.result
     }
 }
@@ -239,6 +280,14 @@ fn sample_certificate() -> X509Certificate {
         qc_statements: QcStatements::default(),
         profile: Default::default(),
     }
+}
+
+fn sample_certificate_reference() -> PartyReference {
+    PartyReference::X509Subject(X509SubjectReference::CertificateSha256([
+        0x52, 0x21, 0x7a, 0xb4, 0x17, 0x1c, 0xf5, 0x19, 0xc3, 0x77, 0xa4, 0x20, 0x1a, 0xdc, 0x23,
+        0x4b, 0xeb, 0xe6, 0xbd, 0x00, 0x33, 0x2b, 0x6b, 0x3c, 0x1f, 0x96, 0xfc, 0xaf, 0x07, 0x32,
+        0xf4, 0x7e,
+    ]))
 }
 
 struct DeterministicSaltSource {
@@ -319,7 +368,7 @@ fn sample_status_list(encoded_list: Vec<u8>) -> StatusList {
     StatusList {
         issuer: "did:web:issuer.example".to_owned(),
         purpose: StatusPurpose::Revocation,
-        issued_at: 1_740_000_000,
+        issued_at: 1_749_950_000,
         next_update: 1_770_000_000,
         encoded_list,
         length: 8,
@@ -344,7 +393,11 @@ fn sample_qeaa() -> QeaaCompliance {
         },
         issuer_credential: IssuerCredential {
             kind: IssuerCredentialKind::X509,
-            cert_fingerprint_sha256: [7; 32],
+            cert_fingerprint_sha256: [
+                0x52, 0x21, 0x7a, 0xb4, 0x17, 0x1c, 0xf5, 0x19, 0xc3, 0x77, 0xa4, 0x20, 0x1a,
+                0xdc, 0x23, 0x4b, 0xeb, 0xe6, 0xbd, 0x00, 0x33, 0x2b, 0x6b, 0x3c, 0x1f, 0x96,
+                0xfc, 0xaf, 0x07, 0x32, 0xf4, 0x7e,
+            ],
             cert_chain_der: vec![vec![0x30, 0x03, 0x01]],
             trusted_list_ref: "EU-TSL:example".to_owned(),
             policy_oids: vec!["0.4.0.194112.1.3".to_owned()],

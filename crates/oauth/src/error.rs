@@ -40,6 +40,8 @@ pub enum Reason {
     AuthorizationServerIssuerMismatch,
     /// Attestation-based client authentication validation failed.
     InvalidClientAttestation,
+    /// Request client identifier did not match the authenticated attestation subject.
+    AttestationClientIdMismatch,
     /// The PoP did not verify with the Client Instance Key in the attestation.
     AttestationKeyBindingFailed,
     /// A verifier returned a malformed or mismatched attestation receipt.
@@ -75,6 +77,7 @@ impl Display for Reason {
             Self::InvalidMetadata => "invalid_metadata",
             Self::AuthorizationServerIssuerMismatch => "authorization_server_issuer_mismatch",
             Self::InvalidClientAttestation => "invalid_client_attestation",
+            Self::AttestationClientIdMismatch => "attestation_client_id_mismatch",
             Self::AttestationKeyBindingFailed => "attestation_key_binding_failed",
             Self::InvalidAttestationReceipt => "invalid_attestation_receipt",
             Self::AttestationTrustRejected => "attestation_trust_rejected",
@@ -93,6 +96,7 @@ impl Display for Reason {
 /// OAuth substrate error value.
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
 #[error("{reason}")]
+#[non_exhaustive]
 pub struct OauthError {
     reason: Reason,
 }

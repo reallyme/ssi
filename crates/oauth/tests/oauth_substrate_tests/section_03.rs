@@ -35,6 +35,7 @@ fn attestation_client_authentication_rejects_missing_or_non_public_cnf_jwk(
             &auth,
             &AttestationClientAuthenticationValidationContext {
                 expected_audience: "https://as.example".to_owned(),
+                expected_client_id: "wallet-client".to_owned(),
                 expected_challenge: Some("challenge".to_owned()),
                 earliest_iat: 1_699_999_990,
                 latest_iat: 1_700_000_010,
@@ -66,6 +67,7 @@ fn attestation_client_authentication_rejects_missing_or_non_public_cnf_jwk(
         &auth,
         &AttestationClientAuthenticationValidationContext {
             expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "wallet-client".to_owned(),
             expected_challenge: Some("challenge".to_owned()),
             earliest_iat: 1_699_999_990,
             latest_iat: 1_700_000_010,
@@ -86,7 +88,7 @@ fn attestation_client_authentication_rejects_missing_or_non_public_cnf_jwk(
 #[test]
 fn attestation_client_authentication_rejects_ambiguous_confirmation_claim() -> Result<(), OauthError>
 {
-    let public_jwk = test_client_instance_jwk("ambiguous-confirmation-key");
+    let public_jwk = test_client_instance_jwk(TestP256Key::Primary);
     let attestation = client_attestation_with_claims(json!({
         "sub": "wallet-client",
         "iat": 1_699_999_000_i64,
@@ -112,6 +114,7 @@ fn attestation_client_authentication_rejects_ambiguous_confirmation_claim() -> R
         &authentication,
         &AttestationClientAuthenticationValidationContext {
             expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "wallet-client".to_owned(),
             expected_challenge: Some("challenge".to_owned()),
             earliest_iat: 1_699_999_990,
             latest_iat: 1_700_000_010,
@@ -142,7 +145,7 @@ fn attestation_client_authentication_rejects_pop_algorithm_key_family_mismatch(
     .sign(&TestSigner)?;
     let attestation = client_attestation(json!({
         "kty": "RSA",
-        "n": "public-modulus",
+        "n": bytes_to_base64url(&[0xff; 256]),
         "e": "AQAB"
     }))?;
     let authentication = AttestationClientAuthentication::new(
@@ -154,6 +157,7 @@ fn attestation_client_authentication_rejects_pop_algorithm_key_family_mismatch(
         &authentication,
         &AttestationClientAuthenticationValidationContext {
             expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "wallet-client".to_owned(),
             expected_challenge: Some("challenge".to_owned()),
             earliest_iat: 1_699_999_990,
             latest_iat: 1_700_000_010,
@@ -174,7 +178,7 @@ fn attestation_client_authentication_rejects_pop_algorithm_key_family_mismatch(
 
 #[test]
 fn attestation_client_authentication_rejects_wrong_challenge() -> Result<(), OauthError> {
-    let public_jwk = test_client_instance_jwk("challenge-test-x");
+    let public_jwk = test_client_instance_jwk(TestP256Key::Primary);
     let pop = AttestationPopRequest {
         audience: "https://as.example".to_owned(),
         jti: "pop-2".to_owned(),
@@ -192,6 +196,7 @@ fn attestation_client_authentication_rejects_wrong_challenge() -> Result<(), Oau
         &auth,
         &AttestationClientAuthenticationValidationContext {
             expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "wallet-client".to_owned(),
             expected_challenge: Some("other-challenge".to_owned()),
             earliest_iat: 1_699_999_990,
             latest_iat: 1_700_000_010,
@@ -205,6 +210,46 @@ fn attestation_client_authentication_rejects_wrong_challenge() -> Result<(), Oau
     };
 
     assert_eq!(err.reason(), Reason::InvalidClientAttestation);
+    Ok(())
+}
+
+#[test]
+fn attestation_client_authentication_rejects_client_id_mismatch() -> Result<(), OauthError> {
+    let public_jwk = test_client_instance_jwk(TestP256Key::Primary);
+    let pop = AttestationPopRequest {
+        audience: "https://as.example".to_owned(),
+        jti: "pop-client-id-mismatch".to_owned(),
+        iat: 1_700_000_000,
+        challenge: Some("challenge".to_owned()),
+    }
+    .sign(&TestSigner)?;
+    let attestation = client_attestation(public_jwk)?;
+    let authentication = AttestationClientAuthentication::new(
+        attestation.as_str().to_owned(),
+        pop.as_str().to_owned(),
+    )?;
+    let verifier = TestVerifier::new();
+
+    let result = validate_attestation_client_authentication(
+        &authentication,
+        &AttestationClientAuthenticationValidationContext {
+            expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "different-client".to_owned(),
+            expected_challenge: Some("challenge".to_owned()),
+            earliest_iat: 1_699_999_990,
+            latest_iat: 1_700_000_010,
+            current_time: 1_700_000_000,
+            max_trust_evidence_age_seconds: 30,
+        },
+        &verifier,
+    );
+
+    assert_eq!(
+        result.err().map(|error| error.reason()),
+        Some(Reason::AttestationClientIdMismatch)
+    );
+    assert!(!verifier.pop_signature_checked.get());
+    assert!(!verifier.replay_checked.get());
     Ok(())
 }
 
@@ -230,4 +275,18 @@ fn bearer_owners_redact_and_zeroize_protocol_values() -> Result<(), OauthError> 
     assert!(authentication.client_attestation.is_empty());
     assert!(authentication.client_attestation_pop.is_empty());
     Ok(())
+}
+#[test]
+fn oauth_urls_reject_parser_confusion_and_fragments() {
+    use reallyme_openid_oauth::validation::validate_https_url;
+
+    for value in [
+        "https://example.com\\@127.0.0.1/token",
+        "https://as.example/token#fragment",
+    ] {
+        assert_eq!(
+            validate_https_url(value, false).err().map(|error| error.reason()),
+            Some(Reason::InvalidUrl)
+        );
+    }
 }

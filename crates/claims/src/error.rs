@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Stable reasons for invalid claim registry inputs.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum ClaimsInvalidReason {
     /// Claimset identifier is absent.
     #[error("empty claimset id")]
@@ -135,6 +136,7 @@ pub enum ClaimsInvalidReason {
 
 /// Claim registry and disclosure validation errors.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum ClaimsError {
     /// Registry or claim definition is malformed.
     #[error("invalid claims registry")]

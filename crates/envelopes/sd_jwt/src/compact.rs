@@ -22,9 +22,12 @@ pub const MAX_SD_JWT_COMPACT_BYTES: usize = 2 * 1024 * 1024;
 
 const MAX_SD_JWT_COMPACT_PARTS: usize = MAX_SD_JWT_DISCLOSURES + 2;
 
+/// Parsed SD-JWT compact serialization without a holder key-binding JWT.
 #[derive(PartialEq, Eq)]
 pub struct SdJwtCompact {
+    /// Compact issuer-signed JWT whose signature authenticates the SD-JWT payload.
     pub issuer_signed_jwt: String,
+    /// Encoded disclosures carried by this SD-JWT value.
     pub disclosures: Vec<String>,
 }
 
@@ -49,10 +52,14 @@ impl Drop for SdJwtCompact {
 
 impl ZeroizeOnDrop for SdJwtCompact {}
 
+/// Parsed SD-JWT compact serialization that includes a holder key-binding JWT.
 #[derive(PartialEq, Eq)]
 pub struct SdJwtWithKbCompact {
+    /// Compact issuer-signed JWT whose signature authenticates the SD-JWT payload.
     pub issuer_signed_jwt: String,
+    /// Encoded disclosures carried by this SD-JWT value.
     pub disclosures: Vec<String>,
+    /// Compact key-binding JWT that binds the presentation to its audience and nonce.
     pub key_binding_jwt: String,
 }
 
@@ -78,9 +85,13 @@ impl Drop for SdJwtWithKbCompact {
 
 impl ZeroizeOnDrop for SdJwtWithKbCompact {}
 
+/// Parsed compact SD-JWT with or without holder key binding.
 #[derive(PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SdJwtOrKbCompact {
+    /// SD-JWT without a holder key-binding JWT.
     SdJwt(SdJwtCompact),
+    /// SD-JWT followed by a holder key-binding JWT.
     SdJwtWithKb(SdJwtWithKbCompact),
 }
 
@@ -90,6 +101,7 @@ impl fmt::Debug for SdJwtOrKbCompact {
     }
 }
 
+/// Parses a bounded compact SD-JWT without holder key binding.
 pub fn parse_sd_jwt_compact(input: &str) -> Result<SdJwtCompact, SdJwtEnvelopeError> {
     validate_compact_input(input)?;
     let parts: Vec<&str> = input.split('~').collect();
@@ -100,9 +112,13 @@ pub fn parse_sd_jwt_compact(input: &str) -> Result<SdJwtCompact, SdJwtEnvelopeEr
         return Err(SdJwtEnvelopeError::InvalidCompactSerialization);
     }
 
-    parse_sd_jwt_parts(&parts[..parts.len().saturating_sub(1)])
+    let body = parts
+        .get(..parts.len().saturating_sub(1))
+        .ok_or(SdJwtEnvelopeError::InvalidCompactSerialization)?;
+    parse_sd_jwt_parts(body)
 }
 
+/// Parses a bounded compact SD-JWT with optional holder key binding.
 pub fn parse_sd_jwt_or_kb_compact(input: &str) -> Result<SdJwtOrKbCompact, SdJwtEnvelopeError> {
     validate_compact_input(input)?;
     let parts: Vec<&str> = input.split('~').collect();
@@ -115,7 +131,10 @@ pub fn parse_sd_jwt_or_kb_compact(input: &str) -> Result<SdJwtOrKbCompact, SdJwt
     }
 
     validate_jwt_compact(last, SdJwtEnvelopeError::InvalidKeyBindingJwt)?;
-    let mut sd_jwt = parse_sd_jwt_parts(&parts[..parts.len().saturating_sub(1)])?;
+    let body = parts
+        .get(..parts.len().saturating_sub(1))
+        .ok_or(SdJwtEnvelopeError::InvalidCompactSerialization)?;
+    let mut sd_jwt = parse_sd_jwt_parts(body)?;
     Ok(SdJwtOrKbCompact::SdJwtWithKb(SdJwtWithKbCompact {
         issuer_signed_jwt: core::mem::take(&mut sd_jwt.issuer_signed_jwt),
         disclosures: core::mem::take(&mut sd_jwt.disclosures),
@@ -123,6 +142,7 @@ pub fn parse_sd_jwt_or_kb_compact(input: &str) -> Result<SdJwtOrKbCompact, SdJwt
     }))
 }
 
+/// Serializes an issuer JWT and disclosures in compact SD-JWT form.
 pub fn serialize_sd_jwt_compact(
     issuer_signed_jwt: &str,
     disclosures: &[String],
@@ -154,6 +174,7 @@ pub fn serialize_sd_jwt_compact(
     Ok(output)
 }
 
+/// Serializes an issuer JWT, disclosures, and key-binding JWT in compact form.
 pub fn serialize_sd_jwt_kb_compact(
     issuer_signed_jwt: &str,
     disclosures: &[String],
@@ -179,7 +200,10 @@ fn parse_sd_jwt_parts(parts: &[&str]) -> Result<SdJwtCompact, SdJwtEnvelopeError
     validate_jwt_compact(issuer_signed_jwt, SdJwtEnvelopeError::InvalidIssuerJwt)?;
 
     let mut disclosures = Vec::new();
-    for disclosure in &parts[1..] {
+    let disclosures_slice = parts
+        .get(1..)
+        .ok_or(SdJwtEnvelopeError::InvalidCompactSerialization)?;
+    for disclosure in disclosures_slice {
         validate_disclosure(disclosure)?;
         disclosures.push((*disclosure).to_owned());
     }

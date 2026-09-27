@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::expect_used, clippy::unwrap_used)]
-//! Test coverage for this crate.
-
-use time::OffsetDateTime;
-
+#![allow(
+    missing_docs,
+    clippy::arithmetic_side_effects,
+    clippy::expect_used,
+    clippy::unwrap_used
+)]
 use reallyme_codec::base64::base64_to_bytes;
 use reallyme_trust_x509::{
     model::{
@@ -27,6 +28,7 @@ use reallyme_trust_x509::{
     LeafKeyIdentifierRequirement, QscdStatementRequirement, RevocationPointerRequirement,
     X509Error, X509Policy, X509PolicyFailure, X509ResourceLimit, MAX_X509_CHAIN_CERTIFICATES,
 };
+use time::OffsetDateTime;
 
 fn mk_leaf() -> X509Certificate {
     let mut profile = reallyme_trust_x509::CertificateProfile::default();
@@ -68,7 +70,6 @@ fn mk_leaf() -> X509Certificate {
         authority_key_identifier: None,
         san_dns: vec!["example.test".into()],
         san_ip: vec![],
-
         certificate_policies: vec![OID_QEVCP_W.to_string()],
         qc_statements: QcStatements {
             statement_ids: vec![
@@ -257,7 +258,6 @@ fn mk_intermediate() -> X509Certificate {
         profile,
     }
 }
-
 #[test]
 fn qwac_policy_accepts_valid_shape() {
     let chain = X509Chain {

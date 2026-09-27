@@ -16,7 +16,7 @@
 //! which composes SSI credential semantics with an injected ZK provider.
 
 use identity_presentation_vp_validator::{
-    validate_presentation, CryptoContext, QeaaContext, VpValidationError, VpValidationInput,
+    evaluate_presentation_policy, CryptoContext, QeaaContext, VpValidationError, VpValidationInput,
 };
 
 use identity_core_primitives::{vc_alg_str_to_alg, Algorithm};
@@ -54,11 +54,9 @@ pub enum WebValidationResult {
 
 /// Inputs required to validate a VP in a Web / QR / direct flow.
 ///
-/// IMPORTANT:
-/// - CryptoContext is NOT supplied
-/// - It is derived from the presentation itself
-/// - QEAA evidence and holder-binding results are NOT supplied; they are
-///   derived from the issuer-bound credential envelope and the verified KB-JWT
+/// Cryptographic context, QEAA evidence, and holder-binding results are derived
+/// from the presentation, issuer-bound credential envelope, and verified
+/// key-binding JWT rather than accepted as caller assertions.
 pub struct WebValidationInput<'a> {
     /// Presentation received at the delivery boundary.
     pub presentation: &'a Presentation,
@@ -106,7 +104,7 @@ pub fn validate_web_presentation<'a>(
     // ---------------------------------------------------------------------
     // 2) Delegate VP policy verification
     // ---------------------------------------------------------------------
-    let decision = validate_presentation(VpValidationInput {
+    let decision = evaluate_presentation_policy(VpValidationInput {
         presentation: input.presentation,
         claims_registry: input.claims_registry,
         claimset_id: input.claimset_id,
@@ -165,6 +163,7 @@ fn verify_presentation_crypto<'a>(
                 HolderBinding::ClaimsBased(_) | HolderBinding::BearerWithoutBinding => {
                     return Err(VpValidationError::InvalidBinding);
                 }
+                _ => return Err(VpValidationError::InvalidBinding),
             };
 
             let binding = input.sd_jwt_binding.ok_or_else(proof_invalid)?;
@@ -204,6 +203,9 @@ fn verify_presentation_crypto<'a>(
         Presentation::Mdoc(_) => Err(VpValidationError::PolicyRejected(vec![
             VpPolicyError::PresentationFormatNotAllowed,
         ])),
+        _ => Err(VpValidationError::PolicyRejected(vec![
+            VpPolicyError::PresentationFormatNotAllowed,
+        ])),
     }
 }
 
@@ -236,6 +238,9 @@ fn derive_crypto_context(presentation: &Presentation) -> Result<CryptoContext, V
             VpPolicyError::PresentationFormatNotAllowed,
         ])),
         Presentation::Mdoc(_) => Err(VpValidationError::PolicyRejected(vec![
+            VpPolicyError::PresentationFormatNotAllowed,
+        ])),
+        _ => Err(VpValidationError::PolicyRejected(vec![
             VpPolicyError::PresentationFormatNotAllowed,
         ])),
     }

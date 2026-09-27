@@ -5,21 +5,9 @@
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
 use thiserror::Error;
 
-/// Current implementation status for mdoc envelope support.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MdocEnvelopeStatus {
-    /// Structural mdoc CBOR model encoding and decoding are available.
-    StructureReady,
-
-    /// Issuer-signed mdoc issuance and verification are available.
-    IssuerSignedReady,
-
-    /// Issuer-signed mdoc and DeviceResponse presentation support are available.
-    PresentationReady,
-}
-
 /// Stable reason codes for invalid mdoc inputs and malformed signed content.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum MdocInvalidInputReason {
     /// `docType` is absent or empty.
     #[error("empty mdoc document type")]
@@ -61,6 +49,10 @@ pub enum MdocInvalidInputReason {
     #[error("mdoc cbor map is too large")]
     CborMapTooLarge,
 
+    /// A CBOR map repeats a key, making first/last-value interpretation ambiguous.
+    #[error("mdoc cbor map contains a duplicate key")]
+    DuplicateCborMapKey,
+
     /// A decoded CBOR array exceeds the accepted mdoc boundary profile.
     #[error("mdoc cbor array is too large")]
     CborArrayTooLarge,
@@ -85,6 +77,10 @@ pub enum MdocInvalidInputReason {
     #[error("duplicate mdoc element identifier")]
     DuplicateElementIdentifier,
 
+    /// Two issuer-signed items use the same digest identifier in one namespace.
+    #[error("duplicate mdoc digest identifier")]
+    DuplicateDigestIdentifier,
+
     /// One encoded issuer-signed element value exceeds the bounded profile.
     #[error("mdoc element value is too large")]
     ElementValueTooLarge,
@@ -92,6 +88,14 @@ pub enum MdocInvalidInputReason {
     /// Combined encoded issuer-signed values exceed the bounded issuance profile.
     #[error("mdoc aggregate element values are too large")]
     TotalElementValuesTooLarge,
+
+    /// An mdoc namespace or data-element identifier exceeds the bounded profile.
+    #[error("mdoc identifier is too long")]
+    IdentifierTooLong,
+
+    /// The optional MSO `keyInfo` map exceeds the bounded profile.
+    #[error("mdoc key information is too large")]
+    KeyInfoTooLarge,
 
     /// An ISO 23220 relationship value was not a non-empty array of
     /// a non-empty array of PersonalData maps with unique text identifiers.
@@ -118,7 +122,7 @@ pub enum MdocInvalidInputReason {
     #[error("mdoc integer is out of range")]
     IntegerOutOfRange,
 
-    /// The digest algorithm is not the supported SHA-256 profile.
+    /// The digest algorithm is not one of the supported ISO SHA-2 profiles.
     #[error("unsupported mdoc digest algorithm")]
     UnsupportedDigestAlgorithm,
 
@@ -249,6 +253,7 @@ pub enum MdocInvalidInputReason {
 
 /// Error type for mdoc issuance, issuer authentication, and presentation support.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum MdocEnvelopeError {
     /// Input or signed content was structurally invalid.
     #[error("invalid mdoc input")]
@@ -320,13 +325,18 @@ impl From<MdocInvalidInputReason> for IdentityCoreErrorReason {
             MdocInvalidInputReason::CborMapTooLarge => {
                 Self::IDENTITY_CORE_ERROR_REASON_MDOC_CBOR_MAP_TOO_LARGE
             }
+            MdocInvalidInputReason::DuplicateCborMapKey => {
+                Self::IDENTITY_CORE_ERROR_REASON_INVALID_INPUT
+            }
             MdocInvalidInputReason::CborArrayTooLarge => {
                 Self::IDENTITY_CORE_ERROR_REASON_MDOC_CBOR_ARRAY_TOO_LARGE
             }
             MdocInvalidInputReason::CborInputTooLarge
             | MdocInvalidInputReason::CborTooManyItems
             | MdocInvalidInputReason::ElementValueTooLarge
-            | MdocInvalidInputReason::TotalElementValuesTooLarge => {
+            | MdocInvalidInputReason::TotalElementValuesTooLarge
+            | MdocInvalidInputReason::IdentifierTooLong
+            | MdocInvalidInputReason::KeyInfoTooLarge => {
                 Self::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED
             }
             MdocInvalidInputReason::EmptyNamespace => {
@@ -335,7 +345,8 @@ impl From<MdocInvalidInputReason> for IdentityCoreErrorReason {
             MdocInvalidInputReason::EmptyElementIdentifier => {
                 Self::IDENTITY_CORE_ERROR_REASON_MDOC_EMPTY_ELEMENT_IDENTIFIER
             }
-            MdocInvalidInputReason::DuplicateElementIdentifier => {
+            MdocInvalidInputReason::DuplicateElementIdentifier
+            | MdocInvalidInputReason::DuplicateDigestIdentifier => {
                 Self::IDENTITY_CORE_ERROR_REASON_MDOC_MALFORMED_ISSUER_SIGNED_ITEM
             }
             MdocInvalidInputReason::MalformedIso23220Relationship

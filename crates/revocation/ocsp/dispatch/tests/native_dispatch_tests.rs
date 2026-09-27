@@ -40,10 +40,7 @@ mod native {
         )
         .expect("fixture must verify");
 
-        assert!(matches!(parsed.status, OcspCertStatus::Good));
-        assert_eq!(parsed.signature_valid, Some(true));
-        assert_eq!(parsed.responder_authorized, Some(true));
-        assert_eq!(parsed.responder_eku_ocsp_signing, Some(true));
-        assert!(parsed.this_update > 0);
+        assert!(matches!(parsed.status(), OcspCertStatus::Good));
+        assert!(parsed.this_update() > 0);
     }
 }

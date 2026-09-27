@@ -152,10 +152,11 @@ fn validate_algorithm_allowlist(
     const MAX_ALGORITHMS: usize = 2;
     if algorithms.is_empty()
         || algorithms.len() > MAX_ALGORITHMS
-        || algorithms
-            .iter()
-            .enumerate()
-            .any(|(index, algorithm)| algorithms[..index].contains(algorithm))
+        || algorithms.iter().enumerate().any(|(index, algorithm)| {
+            algorithms
+                .get(..index)
+                .is_none_or(|preceding| preceding.contains(algorithm))
+        })
     {
         return Err(RegistrationError::from_reason(
             RegistrationErrorReason::UnsupportedProfile,

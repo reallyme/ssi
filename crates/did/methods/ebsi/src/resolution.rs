@@ -161,7 +161,9 @@ pub fn validate_did_ebsi_resolution(
             if result.document.is_some() || result.registry_metadata.is_some() {
                 return Err(error(DidEbsiErrorReason::ResolutionResultInvalid));
             }
-            if (request.version_time.is_some() || request.minimum_version_sequence.is_some())
+            if (request.version_id.is_some()
+                || request.version_time.is_some()
+                || request.minimum_version_sequence.is_some())
                 && result.assurance_achieved != Some(DidEbsiResolutionAssurance::ChainVerified)
             {
                 return Err(error(DidEbsiErrorReason::HistoricalVersionMismatch));
@@ -233,6 +235,21 @@ fn validate_present(
     {
         return Err(error(DidEbsiErrorReason::ResolutionResultInvalid));
     }
+    let document_is_deactivated = document.is_effectively_deactivated();
+    if matches!(result.status, DidEbsiResolutionStatus::Deactivated) != document_is_deactivated {
+        return Err(error(DidEbsiErrorReason::ResolutionResultInvalid));
+    }
+    let requires_chain_assurance = request.version_id.is_some()
+        || request.version_time.is_some()
+        || request.minimum_version_sequence.is_some();
+    if requires_chain_assurance
+        && result.assurance_achieved != Some(DidEbsiResolutionAssurance::ChainVerified)
+    {
+        return Err(error(DidEbsiErrorReason::HistoricalVersionMismatch));
+    }
+    if !requires_chain_assurance && result.assurance_achieved.is_none() {
+        return Err(error(DidEbsiErrorReason::ResolutionResultInvalid));
+    }
     if (metadata.version_sequence == 1 && metadata.previous_version_id.is_some())
         || (metadata.version_sequence > 1 && metadata.previous_version_id.is_none())
     {
@@ -267,9 +284,6 @@ fn validate_present(
         return Err(error(DidEbsiErrorReason::HistoricalVersionMismatch));
     }
     if let Some(selected) = request.version_time.as_deref() {
-        if result.assurance_achieved != Some(DidEbsiResolutionAssurance::ChainVerified) {
-            return Err(error(DidEbsiErrorReason::HistoricalVersionMismatch));
-        }
         let selected = parse_timestamp(selected)?;
         if selected < valid_from || valid_until.is_some_and(|end| selected >= end) {
             return Err(error(DidEbsiErrorReason::HistoricalVersionMismatch));

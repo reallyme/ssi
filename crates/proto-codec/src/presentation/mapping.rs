@@ -20,27 +20,29 @@ mod validate_disclosure;
 use validate_disclosure::{validate_disclosure_model, validate_disclosure_value};
 
 /// Convert the Rust VP model to the generated protobuf model.
-#[must_use]
-pub fn presentation_to_proto(presentation_model: &vp::Presentation) -> pb::Presentation {
+pub fn presentation_to_proto(
+    presentation_model: &vp::Presentation,
+) -> Result<pb::Presentation, VpProtoError> {
     match presentation_model {
-        vp::Presentation::Zk(presentation_model) => pb::Presentation {
+        vp::Presentation::Zk(presentation_model) => Ok(pb::Presentation {
             kind: Some(presentation::Kind::Zk(Box::new(zk_to_proto(
                 presentation_model,
-            )))),
+            )?))),
             ..pb::Presentation::default()
-        },
-        vp::Presentation::SdJwtVc(presentation_model) => pb::Presentation {
+        }),
+        vp::Presentation::SdJwtVc(presentation_model) => Ok(pb::Presentation {
             kind: Some(presentation::Kind::SdJwtVc(Box::new(sd_jwt_to_proto(
                 presentation_model,
             )))),
             ..pb::Presentation::default()
-        },
-        vp::Presentation::Mdoc(presentation_model) => pb::Presentation {
+        }),
+        vp::Presentation::Mdoc(presentation_model) => Ok(pb::Presentation {
             kind: Some(presentation::Kind::Mdoc(Box::new(mdoc_to_proto(
                 presentation_model,
             )))),
             ..pb::Presentation::default()
-        },
+        }),
+        _ => Err(VpProtoError::InvalidEnumValue),
     }
 }
 
@@ -180,12 +182,16 @@ fn sd_jwt_take_from_proto(
     })
 }
 
-fn zk_to_proto(model: &vp::ZkPresentation) -> pb::ZkPresentation {
-    pb::ZkPresentation {
+fn zk_to_proto(model: &vp::ZkPresentation) -> Result<pb::ZkPresentation, VpProtoError> {
+    Ok(pb::ZkPresentation {
         freshness: MessageField::some(freshness_to_proto(&model.freshness)),
-        credential: MessageField::some(credential_to_proto(&model.credential)),
-        disclosures: model.disclosures.iter().map(disclosure_to_proto).collect(),
-        zk_proof: MessageField::some(zk_proof_to_proto(&model.zk_proof)),
+        credential: MessageField::some(credential_to_proto(&model.credential)?),
+        disclosures: model
+            .disclosures
+            .iter()
+            .map(disclosure_to_proto)
+            .collect::<Result<_, _>>()?,
+        zk_proof: MessageField::some(zk_proof_to_proto(&model.zk_proof)?),
         qeaa: model
             .qeaa
             .as_ref()
@@ -193,7 +199,7 @@ fn zk_to_proto(model: &vp::ZkPresentation) -> pb::ZkPresentation {
             .map(MessageField::some)
             .unwrap_or_else(MessageField::none),
         ..pb::ZkPresentation::default()
-    }
+    })
 }
 
 fn zk_from_proto(model: &pb::ZkPresentation) -> Result<vp::ZkPresentation, VpProtoError> {
@@ -242,13 +248,15 @@ fn freshness_from_proto(
     })
 }
 
-fn credential_to_proto(model: &vp::CredentialReference) -> pb::CredentialReference {
-    pb::CredentialReference {
+fn credential_to_proto(
+    model: &vp::CredentialReference,
+) -> Result<pb::CredentialReference, VpProtoError> {
+    Ok(pb::CredentialReference {
         envelope_hash: Vec::from(model.envelope_hash),
         issuer_did: model.issuer_did.clone(),
-        status: MessageField::some(status_to_proto(&model.status)),
+        status: MessageField::some(status_to_proto(&model.status)?),
         ..pb::CredentialReference::default()
-    }
+    })
 }
 
 fn credential_from_proto(
@@ -263,14 +271,16 @@ fn credential_from_proto(
     })
 }
 
-fn status_to_proto(model: &vp::CredentialStatusRef) -> pb::CredentialStatusRef {
-    pb::CredentialStatusRef {
+fn status_to_proto(
+    model: &vp::CredentialStatusRef,
+) -> Result<pb::CredentialStatusRef, VpProtoError> {
+    Ok(pb::CredentialStatusRef {
         status_list_url: model.status_list_url.clone(),
         status_list_id: Vec::from(model.status_list_id),
         status_list_index: model.status_list_index,
-        purpose: EnumValue::from(status_purpose_to_proto(model.purpose)),
+        purpose: EnumValue::from(status_purpose_to_proto(model.purpose)?),
         ..pb::CredentialStatusRef::default()
-    }
+    })
 }
 
 fn status_from_proto(
@@ -284,13 +294,13 @@ fn status_from_proto(
     })
 }
 
-fn disclosure_to_proto(model: &vp::ClaimDisclosure) -> pb::ClaimDisclosure {
-    pb::ClaimDisclosure {
+fn disclosure_to_proto(model: &vp::ClaimDisclosure) -> Result<pb::ClaimDisclosure, VpProtoError> {
+    Ok(pb::ClaimDisclosure {
         claim_path: model.claim_path.clone(),
-        mode: EnumValue::from(disclosure_mode_to_proto(model.mode)),
+        mode: EnumValue::from(disclosure_mode_to_proto(model.mode)?),
         value: disclosure_value_to_proto(model),
         ..pb::ClaimDisclosure::default()
-    }
+    })
 }
 
 fn disclosure_from_proto(model: &pb::ClaimDisclosure) -> Result<vp::ClaimDisclosure, VpProtoError> {
@@ -355,8 +365,8 @@ fn disclosure_value_to_proto(model: &vp::ClaimDisclosure) -> Option<claim_disclo
     })
 }
 
-fn zk_proof_to_proto(model: &vp::ZkProof) -> pb::ZkProof {
-    pb::ZkProof {
+fn zk_proof_to_proto(model: &vp::ZkProof) -> Result<pb::ZkProof, VpProtoError> {
+    Ok(pb::ZkProof {
         circuit_id: model.circuit_id.clone(),
         circuit_version: model.circuit_version.clone(),
         vk_id: model.vk_id.clone(),
@@ -370,10 +380,11 @@ fn zk_proof_to_proto(model: &vp::ZkProof) -> pb::ZkProof {
             vp::ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa => {
                 pb::ZkProofSuite::BarretenbergUltrahonkKeccakZkNoIpa
             }
+            _ => return Err(VpProtoError::InvalidEnumValue),
         }),
         artifact_manifest_sha256: model.artifact_manifest_sha256.to_vec(),
         ..pb::ZkProof::default()
-    }
+    })
 }
 
 fn zk_proof_from_proto(model: &pb::ZkProof) -> Result<vp::ZkProof, VpProtoError> {
@@ -417,11 +428,14 @@ fn qeaa_from_proto(model: &pb::QeaaVerifierHints) -> Result<vp::QeaaVerifierHint
     })
 }
 
-fn status_purpose_to_proto(purpose: vp::StatusPurpose) -> credential_pb::StatusPurpose {
+fn status_purpose_to_proto(
+    purpose: vp::StatusPurpose,
+) -> Result<credential_pb::StatusPurpose, VpProtoError> {
     match purpose {
-        vp::StatusPurpose::Unspecified => credential_pb::StatusPurpose::Unspecified,
-        vp::StatusPurpose::Revocation => credential_pb::StatusPurpose::Revocation,
-        vp::StatusPurpose::Suspension => credential_pb::StatusPurpose::Suspension,
+        vp::StatusPurpose::Unspecified => Ok(credential_pb::StatusPurpose::Unspecified),
+        vp::StatusPurpose::Revocation => Ok(credential_pb::StatusPurpose::Revocation),
+        vp::StatusPurpose::Suspension => Ok(credential_pb::StatusPurpose::Suspension),
+        _ => Err(VpProtoError::InvalidEnumValue),
     }
 }
 
@@ -439,16 +453,17 @@ fn status_purpose_from_proto(value: i32) -> Result<vp::StatusPurpose, VpProtoErr
     }
 }
 
-fn disclosure_mode_to_proto(mode: vp::DisclosureMode) -> pb::DisclosureMode {
+fn disclosure_mode_to_proto(mode: vp::DisclosureMode) -> Result<pb::DisclosureMode, VpProtoError> {
     match mode {
-        vp::DisclosureMode::Unspecified => pb::DisclosureMode::Unspecified,
-        vp::DisclosureMode::Hidden => pb::DisclosureMode::Hidden,
-        vp::DisclosureMode::Reveal => pb::DisclosureMode::Reveal,
-        vp::DisclosureMode::Eq => pb::DisclosureMode::Eq,
-        vp::DisclosureMode::Gte => pb::DisclosureMode::Gte,
-        vp::DisclosureMode::Lte => pb::DisclosureMode::Lte,
-        vp::DisclosureMode::Range => pb::DisclosureMode::Range,
-        vp::DisclosureMode::MemberOfSet => pb::DisclosureMode::MemberOfSet,
+        vp::DisclosureMode::Unspecified => Ok(pb::DisclosureMode::Unspecified),
+        vp::DisclosureMode::Hidden => Ok(pb::DisclosureMode::Hidden),
+        vp::DisclosureMode::Reveal => Ok(pb::DisclosureMode::Reveal),
+        vp::DisclosureMode::Eq => Ok(pb::DisclosureMode::Eq),
+        vp::DisclosureMode::Gte => Ok(pb::DisclosureMode::Gte),
+        vp::DisclosureMode::Lte => Ok(pb::DisclosureMode::Lte),
+        vp::DisclosureMode::Range => Ok(pb::DisclosureMode::Range),
+        vp::DisclosureMode::MemberOfSet => Ok(pb::DisclosureMode::MemberOfSet),
+        _ => Err(VpProtoError::InvalidEnumValue),
     }
 }
 

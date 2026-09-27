@@ -2,20 +2,20 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::unwrap_used)]
+#![allow(missing_docs, clippy::indexing_slicing, clippy::unwrap_used)]
 //! Test coverage for this crate.
 
 use reallyme_trust_x509::{
-    eu_policy, screen_chain_policy_only_no_path_validation, validate_tsl_trust_service_for_leaf,
+    eu_policy, evaluate_tsl_service_policy_for_ca, screen_chain_policy_only_no_path_validation,
     BasicConstraints, CertificatePolicyId, CertificateProfile, EuPreset, ExtendedKeyUsagePurpose,
     KeyUsage, ObjectIdentifier, PublicKeyProfile, QcStatementId, QcStatements, QcType,
-    SignatureAlgorithm, TslCertificateBinding, TslServiceStatus, TslServiceType, TslTrustService,
-    TslValidationPolicy, X509Certificate, X509Chain, X509Error, X509PolicyFailure,
+    SignatureAlgorithm, TslCertificateBinding, TslServicePolicyInput, TslServiceStatus,
+    TslServiceType, TslValidationPolicy, X509Certificate, X509Chain, X509Error, X509PolicyFailure,
 };
 use serde_json::Value;
 use time::OffsetDateTime;
 
-const X509_TRUST_POLICY_VECTORS: &str = include_str!("../../../../vectors/x509-trust-policy.json");
+const X509_TRUST_POLICY_VECTORS: &str = include_str!("fixtures/package/x509-trust-policy.json");
 
 #[test]
 fn x509_trust_policy_vectors_validate_or_fail_closed() {
@@ -35,10 +35,10 @@ fn x509_trust_policy_vectors_validate_or_fail_closed() {
     }
 
     for case in suite["tsl_policy_cases"].as_array().unwrap() {
-        let leaf = tsl_leaf_from_vector(&case["leaf"]);
+        let service_ca = tsl_service_ca_from_vector(&case["service_ca"]);
         let service = service_from_vector(&case["service"]);
         let policy = tsl_policy_from_vector(&case["policy"]);
-        let actual = validate_tsl_trust_service_for_leaf(&service, &leaf, &policy);
+        let actual = evaluate_tsl_service_policy_for_ca(&service, &service_ca, &policy);
         assert_result(actual, case["expected"]["result"].as_str().unwrap());
     }
 }
@@ -189,20 +189,33 @@ fn key_usage_from_vector(value: &Value) -> Option<KeyUsage> {
     })
 }
 
-fn tsl_leaf_from_vector(value: &Value) -> X509Certificate {
+fn tsl_service_ca_from_vector(value: &Value) -> X509Certificate {
     X509Certificate {
         der: hex_to_bytes(value["der_hex"].as_str().unwrap()),
-        subject: "CN=leaf".to_owned(),
-        issuer: "CN=issuer".to_owned(),
-        subject_der: b"CN=leaf".to_vec(),
-        issuer_der: b"CN=issuer".to_vec(),
+        subject: "CN=service-ca".to_owned(),
+        issuer: "CN=root".to_owned(),
+        subject_der: b"CN=service-ca".to_vec(),
+        issuer_der: b"CN=root".to_vec(),
         serial: vec![1],
         not_before: unix_time(1_767_225_600),
         not_after: unix_time(1_769_904_000),
         spki_der: hex_to_bytes(value["spki_der_hex"].as_str().unwrap()),
         signature_algorithm_oid: "1.2.840.10045.4.3.2".to_owned(),
-        basic_constraints: None,
-        key_usage: None,
+        basic_constraints: Some(BasicConstraints {
+            ca: true,
+            path_len_constraint: None,
+        }),
+        key_usage: Some(KeyUsage {
+            digital_signature: true,
+            content_commitment: false,
+            key_cert_sign: true,
+            crl_sign: true,
+            key_encipherment: false,
+            data_encipherment: false,
+            key_agreement: false,
+            encipher_only: false,
+            decipher_only: false,
+        }),
         extended_key_usage: None,
         subject_key_identifier: value["subject_key_identifier_hex"]
             .as_str()
@@ -216,14 +229,14 @@ fn tsl_leaf_from_vector(value: &Value) -> X509Certificate {
     }
 }
 
-fn service_from_vector(value: &Value) -> TslTrustService {
+fn service_from_vector(value: &Value) -> TslServicePolicyInput {
     let certificate_bindings = value["certificate_bindings"]
         .as_array()
         .unwrap()
         .iter()
         .map(binding_from_vector)
         .collect();
-    TslTrustService {
+    TslServicePolicyInput {
         territory: value["territory"].as_str().unwrap().to_owned(),
         provider_name: "Vector Provider".to_owned(),
         service_name: "Vector Service".to_owned(),
@@ -251,8 +264,8 @@ fn tsl_policy_from_vector(value: &Value) -> TslValidationPolicy {
             .map(service_type_from_str)
             .map(Option::unwrap),
         require_granted_status: value["require_granted_status"].as_bool().unwrap(),
-        require_leaf_binding: value["require_leaf_binding"].as_bool().unwrap(),
-        validation_time: value["validation_time_unix"].as_i64().map(unix_time),
+        require_ca_binding: value["require_ca_binding"].as_bool().unwrap(),
+        validation_time: unix_time(value["validation_time_unix"].as_i64().unwrap()),
         max_status_age_seconds: value["max_status_age_seconds"].as_u64(),
     }
 }

@@ -4,14 +4,106 @@
 
 //! Single-use store behavior tests.
 
+#![allow(clippy::expect_used)]
+
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 
 use reallyme_single_use::{
-    InMemorySingleUseStore, SingleUseError, SingleUseStore, DEFAULT_MAX_SINGLE_USE_TTL_SECS,
+    InMemorySingleUseStore as RawInMemorySingleUseStore, SingleUseClock, SingleUseError,
+    SingleUseNamespace, SingleUseResult, SingleUseStore, SingleUseTime,
+    DEFAULT_MAX_SINGLE_USE_TTL_SECS,
 };
 
 const NOW: u64 = 1_700_000_000;
+const NAMESPACE: SingleUseNamespace = SingleUseNamespace::Application;
+
+#[derive(Default)]
+struct TestClock {
+    wall: AtomicU64,
+    monotonic: AtomicU64,
+}
+
+impl TestClock {
+    fn at(now_unix: u64) -> Self {
+        Self {
+            wall: AtomicU64::new(now_unix),
+            monotonic: AtomicU64::new(now_unix),
+        }
+    }
+
+    fn set(&self, now_unix: u64) {
+        self.wall.store(now_unix, Ordering::SeqCst);
+        self.monotonic.store(now_unix, Ordering::SeqCst);
+    }
+
+    fn set_wall(&self, now_unix: u64) {
+        self.wall.store(now_unix, Ordering::SeqCst);
+    }
+}
+
+impl SingleUseClock for TestClock {
+    fn now(&self) -> SingleUseResult<SingleUseTime> {
+        Ok(SingleUseTime {
+            unix_seconds: self.wall.load(Ordering::SeqCst),
+            monotonic_seconds: self.monotonic.load(Ordering::SeqCst),
+        })
+    }
+}
+
+struct InMemorySingleUseStore {
+    inner: RawInMemorySingleUseStore,
+    clock: Arc<TestClock>,
+}
+
+impl Default for InMemorySingleUseStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl InMemorySingleUseStore {
+    fn new() -> Self {
+        Self::with_limits(65_536, DEFAULT_MAX_SINGLE_USE_TTL_SECS)
+            .expect("the fixed test limits are valid")
+    }
+
+    fn with_max_entries(max_entries: usize) -> SingleUseResult<Self> {
+        Self::with_limits(max_entries, DEFAULT_MAX_SINGLE_USE_TTL_SECS)
+    }
+
+    fn with_limits(max_entries: usize, max_ttl_secs: u64) -> SingleUseResult<Self> {
+        let clock = Arc::new(TestClock::at(NOW));
+        let clock_source: Arc<dyn SingleUseClock> = clock.clone();
+        let inner = RawInMemorySingleUseStore::with_clock_and_limits(
+            clock_source,
+            max_entries,
+            max_ttl_secs,
+        )?;
+        Ok(Self { inner, clock })
+    }
+
+    fn put(&self, key: &str, now_unix: u64, expires_at_unix: u64) -> SingleUseResult<()> {
+        self.clock.set(now_unix);
+        self.inner.put(NAMESPACE, key, expires_at_unix)
+    }
+
+    fn record_once(&self, key: &str, now_unix: u64, expires_at_unix: u64) -> SingleUseResult<()> {
+        self.clock.set(now_unix);
+        self.inner.record_once(NAMESPACE, key, expires_at_unix)
+    }
+
+    fn consume(&self, key: &str, now_unix: u64) -> SingleUseResult<()> {
+        self.clock.set(now_unix);
+        self.inner.consume(NAMESPACE, key)
+    }
+
+    fn prune(&self, now_unix: u64) -> SingleUseResult<()> {
+        self.clock.set(now_unix);
+        self.inner.prune()
+    }
+}
 
 #[test]
 fn stored_value_can_be_consumed() {
@@ -87,12 +179,162 @@ fn expired_value_is_rejected() {
 #[test]
 fn prune_removes_expired_entries() {
     let store = InMemorySingleUseStore::new();
-    assert_eq!(store.put("fresh", NOW, NOW + 60), Ok(()));
     assert_eq!(store.put("stale", NOW - 60, NOW), Ok(()));
+    assert_eq!(store.put("fresh", NOW, NOW + 60), Ok(()));
     assert_eq!(store.prune(NOW), Ok(()));
 
     assert_eq!(store.consume("stale", NOW), Err(SingleUseError::Rejected));
     assert_eq!(store.consume("fresh", NOW), Ok(()));
+}
+
+#[test]
+fn namespaces_have_independent_keys_and_share_global_capacity() {
+    let clock = Arc::new(TestClock::at(NOW));
+    let clock_source: Arc<dyn SingleUseClock> = clock;
+    let store = RawInMemorySingleUseStore::with_clock_and_limits(clock_source, 1, 300)
+        .expect("the fixed test limits are valid");
+
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "shared", NOW + 60),
+        Ok(())
+    );
+    assert_eq!(
+        store.record_once(SingleUseNamespace::WalletAttestation, "shared", NOW + 60),
+        Err(SingleUseError::CapacityExceeded)
+    );
+}
+
+#[test]
+fn one_protocol_cannot_exhaust_another_protocols_quota() {
+    let clock = Arc::new(TestClock::at(NOW));
+    let clock_source: Arc<dyn SingleUseClock> = clock;
+    let store = RawInMemorySingleUseStore::with_clock_and_limits(clock_source, 10, 300)
+        .expect("the fixed test limits are valid");
+
+    for key in ["dpop-1", "dpop-2"] {
+        assert_eq!(
+            store.record_once(SingleUseNamespace::Dpop, key, NOW + 60),
+            Ok(())
+        );
+    }
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "dpop-3", NOW + 60),
+        Err(SingleUseError::CapacityExceeded)
+    );
+    assert_eq!(
+        store.record_once(SingleUseNamespace::WalletAttestation, "wallet-1", NOW + 60,),
+        Ok(())
+    );
+}
+
+#[test]
+fn clock_rollback_is_clamped_without_pruning_replay_state() {
+    let clock = Arc::new(TestClock::at(NOW));
+    let clock_source: Arc<dyn SingleUseClock> = clock.clone();
+    let store = RawInMemorySingleUseStore::with_clock_and_limits(clock_source, 8, 300)
+        .expect("the fixed test limits are valid");
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "jti", NOW + 60),
+        Ok(())
+    );
+
+    clock.set(NOW - 1);
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "other", NOW + 60),
+        Ok(())
+    );
+    clock.set(NOW);
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "jti", NOW + 60),
+        Err(SingleUseError::Rejected)
+    );
+}
+
+#[test]
+fn forward_wall_clock_jump_does_not_release_replay_records() {
+    let clock = Arc::new(TestClock::at(NOW));
+    let clock_source: Arc<dyn SingleUseClock> = clock.clone();
+    let store = RawInMemorySingleUseStore::with_clock_and_limits(clock_source, 8, 300)
+        .expect("the fixed test limits are valid");
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "retained-jti", NOW + 60),
+        Ok(())
+    );
+
+    clock.set_wall(NOW + 10_000);
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "during-jump", NOW + 60),
+        Err(SingleUseError::InvalidExpiry)
+    );
+
+    clock.set_wall(NOW);
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "retained-jti", NOW + 60),
+        Err(SingleUseError::Rejected)
+    );
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "after-correction", NOW + 60),
+        Ok(())
+    );
+}
+
+#[test]
+fn absolute_deadline_expires_consumables_but_not_replay_records_during_a_clock_jump() {
+    let clock = Arc::new(TestClock::at(NOW));
+    let clock_source: Arc<dyn SingleUseClock> = clock.clone();
+    let store = RawInMemorySingleUseStore::with_clock_and_limits(clock_source, 8, 300)
+        .expect("the fixed test limits are valid");
+    assert_eq!(
+        store.put(
+            SingleUseNamespace::OpenId4VciCredentialNonce,
+            "nonce",
+            NOW + 60,
+        ),
+        Ok(())
+    );
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "jti", NOW + 60),
+        Ok(())
+    );
+
+    clock.set_wall(NOW + 3_600);
+    assert_eq!(
+        store.consume(SingleUseNamespace::OpenId4VciCredentialNonce, "nonce"),
+        Err(SingleUseError::Rejected)
+    );
+
+    clock.set_wall(NOW);
+    assert_eq!(
+        store.record_once(SingleUseNamespace::Dpop, "jti", NOW + 60),
+        Err(SingleUseError::Rejected)
+    );
+}
+
+#[test]
+fn consume_rejects_absolute_expiry_when_monotonic_time_pauses() {
+    let clock = Arc::new(TestClock::at(NOW));
+    let clock_source: Arc<dyn SingleUseClock> = clock.clone();
+    let store = RawInMemorySingleUseStore::with_clock_and_limits(clock_source, 8, 300)
+        .expect("the fixed test limits are valid");
+    assert_eq!(
+        store.put(
+            SingleUseNamespace::OpenId4VciCredentialNonce,
+            "sleep-spanning-nonce",
+            NOW + 60,
+        ),
+        Ok(())
+    );
+
+    // A suspended process may observe wall-clock progress without equivalent
+    // progress from its process-monotonic clock.
+    clock.set_wall(NOW + 3_600);
+    assert_eq!(
+        store.consume(
+            SingleUseNamespace::OpenId4VciCredentialNonce,
+            "sleep-spanning-nonce",
+        ),
+        Err(SingleUseError::Rejected)
+    );
 }
 
 #[test]
@@ -128,7 +370,7 @@ fn oversized_key_is_invalid() {
 fn bounded_store_rejects_new_entries_at_capacity() {
     let store = InMemorySingleUseStore::with_max_entries(1);
     assert!(store.is_ok());
-    let store = store.unwrap_or_default();
+    let store = store.expect("the fixed test limits are valid");
     assert_eq!(store.put("first", NOW, NOW + 60), Ok(()));
     assert_eq!(
         store.put("second", NOW, NOW + 60),
@@ -139,7 +381,8 @@ fn bounded_store_rejects_new_entries_at_capacity() {
 
 #[test]
 fn replacement_expiry_supersedes_the_previous_schedule() {
-    let store = InMemorySingleUseStore::with_max_entries(1).unwrap_or_default();
+    let store =
+        InMemorySingleUseStore::with_max_entries(1).expect("the fixed test limits are valid");
     assert_eq!(store.put("reissued", NOW, NOW + 1), Ok(()));
     assert_eq!(store.put("reissued", NOW, NOW + 60), Ok(()));
 
@@ -149,7 +392,8 @@ fn replacement_expiry_supersedes_the_previous_schedule() {
 
 #[test]
 fn record_once_rejects_replay_and_reclaims_expired_capacity() {
-    let store = InMemorySingleUseStore::with_max_entries(1).unwrap_or_default();
+    let store =
+        InMemorySingleUseStore::with_max_entries(1).expect("the fixed test limits are valid");
     assert_eq!(store.record_once("jti-1", NOW, NOW + 1), Ok(()));
     assert_eq!(
         store.record_once("jti-1", NOW, NOW + 60),
@@ -160,7 +404,8 @@ fn record_once_rejects_replay_and_reclaims_expired_capacity() {
 
 #[test]
 fn consumable_and_recorded_values_use_separate_keyspaces() {
-    let store = InMemorySingleUseStore::with_max_entries(2).unwrap_or_default();
+    let store =
+        InMemorySingleUseStore::with_max_entries(10).expect("the fixed test limits are valid");
     assert_eq!(store.put("shared-value", NOW, NOW + 60), Ok(()));
     assert_eq!(store.record_once("shared-value", NOW, NOW + 60), Ok(()));
 
@@ -210,7 +455,8 @@ fn expiry_must_follow_now_and_respect_max_lifetime() {
 
 #[test]
 fn custom_lifetime_ceiling_is_enforced() {
-    let store = InMemorySingleUseStore::with_limits(8, 300).unwrap_or_default();
+    let store =
+        InMemorySingleUseStore::with_limits(8, 300).expect("the fixed test limits are valid");
 
     assert_eq!(store.put("ok", NOW, NOW + 300), Ok(()));
     assert_eq!(
@@ -225,7 +471,8 @@ fn custom_lifetime_ceiling_is_enforced() {
 
 #[test]
 fn put_reclaims_expired_capacity_before_rejecting() {
-    let store = InMemorySingleUseStore::with_max_entries(1).unwrap_or_default();
+    let store =
+        InMemorySingleUseStore::with_max_entries(1).expect("the fixed test limits are valid");
     assert_eq!(store.put("first", NOW, NOW + 1), Ok(()));
     assert_eq!(
         store.put("second", NOW, NOW + 60),

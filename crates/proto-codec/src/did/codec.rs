@@ -44,6 +44,7 @@ const DID_PROTO_UNKNOWN_FIELD_LIMIT: usize = 0;
 
 /// Error type for DID protobuf transport.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum DidProtoCodecError {
     /// A protobuf message could not be encoded.
     #[error("DID protobuf encode failed")]

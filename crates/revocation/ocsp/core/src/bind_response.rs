@@ -6,7 +6,13 @@
 
 use envelopes_x509::parse_cert_der;
 
-use crate::{OcspError, ParsedOcspResponse};
+use subtle::ConstantTimeEq;
+
+use crate::{OcspError, ParsedOcspResponse, UnverifiedOcspResponse};
+
+/// Largest OCSP nonce accepted from a responder or host projection.
+pub const MAX_OCSP_NONCE_BYTES: usize = 32;
+const OCSP_NONCE_OID: &str = "1.3.6.1.5.5.7.48.1.2";
 
 /// Cross-check a response produced by a host platform verifier against the
 /// certificate and issuer DER that were submitted for verification.
@@ -17,37 +23,58 @@ use crate::{OcspError, ParsedOcspResponse};
 /// identifier), and a well-formed validity window, so a confused or
 /// compromised host cannot substitute a response for a different certificate.
 ///
-/// The issuer key identifier is bound to the issuer's subjectKeyIdentifier
-/// when present, otherwise to the certificate's authorityKeyIdentifier; a
-/// certificate/issuer pair offering neither is rejected.
+/// The issuer key hash is bound to RFC 6960 `CertID.issuerKeyHash`, which uses
+/// RFC 5280 method (1) over the issuer subjectPublicKey bits. The certificate
+/// issuer name is matched exactly, and a present authorityKeyIdentifier must
+/// independently identify that issuer key.
 pub fn bind_response_to_certificates(
-    response: ParsedOcspResponse,
+    response: UnverifiedOcspResponse,
     cert_der: &[u8],
     issuer_der: &[u8],
 ) -> Result<ParsedOcspResponse, OcspError> {
+    bind_response_to_certificates_with_nonce(response, cert_der, issuer_der, None)
+}
+
+/// Bind a host-produced response and require its authenticated nonce to equal
+/// the nonce sent in the corresponding OCSP request.
+pub fn bind_response_to_certificates_with_nonce(
+    response: UnverifiedOcspResponse,
+    cert_der: &[u8],
+    issuer_der: &[u8],
+    expected_nonce: Option<&[u8]>,
+) -> Result<ParsedOcspResponse, OcspError> {
+    if response.extensions.as_ref().is_some_and(|extensions| {
+        extensions
+            .iter()
+            .any(|extension| extension.critical && extension.oid != OCSP_NONCE_OID)
+    }) {
+        return Err(OcspError::InvalidResponse);
+    }
     let cert = parse_cert_der(cert_der).map_err(|_| OcspError::InvalidResponse)?;
     let issuer = parse_cert_der(issuer_der).map_err(|_| OcspError::InvalidResponse)?;
 
-    if canonical_serial(&response.serial) != canonical_serial(&cert.serial) {
+    // DER INTEGER encodings are canonical. Removing leading zeroes here would
+    // alias a valid positive serial with a negative or non-canonical encoding.
+    if response.serial != cert.serial {
         return Err(OcspError::InvalidResponse);
     }
 
-    if let (Some(aki), Some(ski)) = (
-        cert.authority_key_identifier.as_deref(),
-        issuer.subject_key_identifier.as_deref(),
-    ) {
-        if aki != ski {
+    if cert.issuer_der != issuer.subject_der {
+        return Err(OcspError::InvalidResponse);
+    }
+    if let Some(aki) = cert.authority_key_identifier.as_deref() {
+        if !issuer.matches_key_identifier(aki) {
             return Err(OcspError::InvalidResponse);
         }
     }
-    let expected_issuer_key = issuer
-        .subject_key_identifier
-        .as_deref()
-        .or(cert.authority_key_identifier.as_deref())
+    let computed_issuer_key = issuer
+        .rfc5280_method_one_key_identifier()
         .ok_or(OcspError::InvalidResponse)?;
-    if response.issuer_key.as_slice() != expected_issuer_key {
+    if response.issuer_key.as_slice() != computed_issuer_key {
         return Err(OcspError::InvalidResponse);
     }
+
+    validate_response_nonce(response.response_nonce.as_deref(), expected_nonce)?;
 
     if response.this_update == 0 {
         return Err(OcspError::InvalidResponse);
@@ -59,13 +86,40 @@ pub fn bind_response_to_certificates(
         return Err(OcspError::InvalidResponse);
     }
 
-    Ok(response)
+    let certificate_sha256 = reallyme_crypto::sha2::digest(cert_der);
+    Ok(ParsedOcspResponse::from_verified_backend(
+        response.issuer_key,
+        *certificate_sha256.as_bytes(),
+        response.serial,
+        response.status,
+        response.this_update,
+        response.next_update,
+        response.response_nonce,
+    ))
 }
 
-fn canonical_serial(serial: &[u8]) -> &[u8] {
-    let start = serial
-        .iter()
-        .position(|byte| *byte != 0)
-        .unwrap_or(serial.len());
-    serial.get(start..).unwrap_or_default()
+/// Validate bounded OCSP nonce presence and equality.
+pub fn validate_response_nonce(
+    response_nonce: Option<&[u8]>,
+    expected_nonce: Option<&[u8]>,
+) -> Result<(), OcspError> {
+    if response_nonce.is_some_and(|nonce| nonce.is_empty() || nonce.len() > MAX_OCSP_NONCE_BYTES)
+        || expected_nonce
+            .is_some_and(|nonce| nonce.is_empty() || nonce.len() > MAX_OCSP_NONCE_BYTES)
+    {
+        return Err(OcspError::InvalidResponse);
+    }
+    match (response_nonce, expected_nonce) {
+        (Some(response), Some(expected))
+            if response.len() == expected.len() && bool::from(response.ct_eq(expected)) =>
+        {
+            Ok(())
+        }
+        (_, None) => Ok(()),
+        _ => Err(OcspError::InvalidResponse),
+    }
 }
+
+#[cfg(test)]
+#[path = "bind_response_unit_tests.rs"]
+mod tests;

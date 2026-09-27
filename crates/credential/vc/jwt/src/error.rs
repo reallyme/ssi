@@ -6,20 +6,26 @@ use thiserror::Error;
 
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
 
+/// Typed failures returned by JWT VC operations.
 #[derive(Debug, Error)]
 pub enum VcJwtError {
+    /// JWT encoding, decoding, or signature processing failed.
     #[error("jwt error")]
     Jwt,
 
+    /// The JWT payload is not a valid VC-JWT credential.
     #[error("invalid vc-jwt payload")]
     InvalidPayload,
 
+    /// A base64url component is malformed.
     #[error("base64url error")]
     Base64Url,
 
+    /// The embedded credential model failed validation.
     #[error("vc core error")]
     VcCore,
 
+    /// A required VC-JWT claim is absent.
     #[error("missing field")]
     MissingField,
 

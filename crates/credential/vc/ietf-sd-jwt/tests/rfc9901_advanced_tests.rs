@@ -5,6 +5,7 @@
 
 #![allow(
     missing_docs,
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -172,7 +173,7 @@ fn recursive_all_levels_and_json_serialization_parity() {
         None,
     )
     .expect("verify");
-    let payload = verified.payload.as_object().expect("payload obj");
+    let payload = verified.payload().as_object().expect("payload obj");
     assert_eq!(
         payload.get("iss").and_then(Value::as_str),
         Some("https://example.com/issuer")
@@ -408,6 +409,44 @@ fn holder_presentation_api_and_kb_jwt_binding_work() {
         }),
     )
     .expect("verify with kb");
+
+    let wrong_profile_json = presentation
+        .to_json_string()
+        .expect("serialize wrong-profile fixture source");
+    let mut wrong_profile =
+        SdJwtArtifact::from_json_string(&wrong_profile_json).expect("parse wrong-profile fixture");
+    let mut wrong_profile_payload = decode_payload(&wrong_profile.issuer_signed_jwt);
+    wrong_profile_payload["cnf"]["jwk"] = json!({
+        "kty": "OKP",
+        "crv": "X25519",
+        "x": bytes_to_base64url(&holder_pub),
+        "alg": "ECDH-ES",
+        "use": "enc"
+    });
+    wrong_profile.issuer_signed_jwt = encode_signed_jwt_with_header_options(
+        &wrong_profile_payload,
+        &issuer_jwk,
+        &issuer_priv,
+        &JwtHeaderEncodeOptions::new(Some("dc+sd-jwt".to_owned())),
+    )
+    .expect("re-sign wrong-profile cnf fixture");
+    let error = verify_rfc9901_sd_jwt(
+        &wrong_profile,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        Some(KbJwtVerifyParams {
+            holder_jwk: &holder_jwk,
+            holder_public_key: &holder_pub,
+            expected_audience: "https://verifier.example",
+            expected_nonce: "nonce-123",
+            now_unix: 1_738_100_100,
+            max_iat_age_seconds: 300,
+            max_future_iat_skew_seconds: 60,
+        }),
+    )
+    .expect_err("cnf.jwk curve and algorithm profile must match the KB-JWT key");
+    assert!(matches!(error, IetfSdJwtVcError::Verification));
 
     let future_iat = artifact
         .holder_presentation_by_paths(

@@ -43,17 +43,13 @@ fn parse_extensions(
             });
         }
         if let Some(value) = extension.qualifications {
-            match parse_qualifications(value, service_type, critical) {
-                Ok(mut parsed) => qualifications.append(&mut parsed),
-                Err(TslError::Qualification(TslQualificationFailure::PolicyIdentifier))
-                    if !critical =>
-                {
-                    // A non-critical extension with a malformed policy claim
-                    // is not authoritative. Ignore the complete extension so
-                    // no partial qualifier can influence trust evaluation.
-                }
-                Err(error) => return Err(error),
-            }
+            // Qualifications alter whether a certificate is qualified and can
+            // include a terminal NotQualified restriction. Silently dropping
+            // the whole recognized extension because one policy identifier is
+            // malformed would discard that restriction, so recognized
+            // qualification syntax always fails closed regardless of the XML
+            // extension's critical bit.
+            qualifications.append(&mut parse_qualifications(value, service_type, critical)?);
         }
         if let Some(value) = extension.taken_over_by {
             parse_taken_over_by(value, critical)?;

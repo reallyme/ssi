@@ -94,4 +94,28 @@ pub struct RequiredClaim {
 
     /// Disclosure mode required for the claim.
     pub mode: DisclosureMode,
+
+    /// Exact public operand the presentation must prove for predicate modes.
+    pub operand: PredicateOperand,
+}
+
+/// Public operand bound into a verifier's claim requirement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PredicateOperand {
+    /// No operand; valid only for non-predicate modes such as `Reveal`.
+    None,
+    /// Exact byte value used by equality predicates.
+    Value(Vec<u8>),
+    /// Numeric threshold used by `Gte` and `Lte` predicates.
+    Threshold(u64),
+    /// Inclusive numeric range.
+    Range {
+        /// Inclusive minimum.
+        min: u64,
+        /// Inclusive maximum.
+        max: u64,
+    },
+    /// Exact accepted byte-value set.
+    Set(Vec<Vec<u8>>),
 }

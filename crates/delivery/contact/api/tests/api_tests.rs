@@ -51,7 +51,7 @@ fn builds_fragments_and_verifies() {
     .unwrap();
     let verified = validate_contact_frames(&frames, &st, now + 1, &limits).unwrap();
 
-    assert_eq!(verified.message.payload, payload);
+    assert_eq!(verified.message().payload, payload);
 }
 
 #[test]

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::indexing_slicing, clippy::unwrap_used)]
+
 use std::cell::Cell;
 
 use super::{
@@ -15,8 +17,10 @@ const DID: &str = "did:ebsi:zub5ZZUfHLLptCduwEy8xRj";
 const KEY: &str = "did:ebsi:zub5ZZUfHLLptCduwEy8xRj#key-1";
 const SECOND_KEY: &str = "did:ebsi:zub5ZZUfHLLptCduwEy8xRj#key-2";
 const SECOND_CONTROLLER: &str = "did:ebsi:ztRBFfMCY7VAGHH1Ba8Q5o9";
-const COORDINATE_A: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-const COORDINATE_B: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE";
+const P256_X_A: &str = "axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpY";
+const P256_Y_A: &str = "T-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU";
+const P256_X_B: &str = "fPJ7GI0DT36KUjgDBLUaw8CJaeJ38hs1pgtI_EdmmXg";
+const P256_Y_B: &str = "B3dVENuO0EApPZrGn3Qw27p9reY86YIpngS3nSJ4c9E";
 
 struct FixtureProvider {
     authenticated: bool,
@@ -44,9 +48,9 @@ impl AuthenticatedDidEbsiRegistryProvider for FixtureProvider {
     }
 }
 
-fn active_document(coordinate: &str) -> Vec<u8> {
+fn active_document(x: &str, y: &str) -> Vec<u8> {
     format!(
-        r#"{{"@context":["https://www.w3.org/ns/did/v1"],"id":"{DID}","controller":["{DID}"],"verificationMethod":[{{"id":"{KEY}","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{coordinate}","y":"{COORDINATE_A}"}}}}],"authentication":["{KEY}"],"assertionMethod":["{KEY}"],"capabilityInvocation":["{KEY}"]}}"#
+        r#"{{"@context":["https://www.w3.org/ns/did/v1"],"id":"{DID}","controller":["{DID}"],"verificationMethod":[{{"id":"{KEY}","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{x}","y":"{y}"}}}}],"authentication":["{KEY}"],"assertionMethod":["{KEY}"],"capabilityInvocation":["{KEY}"]}}"#
     )
     .into_bytes()
 }
@@ -61,7 +65,7 @@ fn inactive_document() -> Vec<u8> {
 fn two_method_document(include_second: bool, relate_second: bool) -> Vec<u8> {
     let second_method = if include_second {
         format!(
-            r#",{{"id":"{SECOND_KEY}","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{COORDINATE_B}","y":"{COORDINATE_A}"}}}}"#
+            r#",{{"id":"{SECOND_KEY}","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{P256_X_B}","y":"{P256_Y_B}"}}}}"#
         )
     } else {
         String::new()
@@ -72,7 +76,7 @@ fn two_method_document(include_second: bool, relate_second: bool) -> Vec<u8> {
         String::new()
     };
     format!(
-        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{DID}","controller":["{DID}"],"verificationMethod":[{{"id":"{KEY}","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{COORDINATE_A}","y":"{COORDINATE_A}"}}}}{second_method}],"assertionMethod":["{KEY}"{second_relationship}],"capabilityInvocation":["{KEY}"]}}"#
+        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{DID}","controller":["{DID}"],"verificationMethod":[{{"id":"{KEY}","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{P256_X_A}","y":"{P256_Y_A}"}}}}{second_method}],"assertionMethod":["{KEY}"{second_relationship}],"capabilityInvocation":["{KEY}"]}}"#
     )
     .into_bytes()
 }
@@ -84,14 +88,14 @@ fn controller_document(include_second: bool) -> Vec<u8> {
         format!(r#"["{DID}"]"#)
     };
     format!(
-        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{DID}","controller":{controllers},"verificationMethod":[{{"id":"{KEY}","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{COORDINATE_A}","y":"{COORDINATE_A}"}}}}],"assertionMethod":["{KEY}"],"capabilityInvocation":["{KEY}"]}}"#
+        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{DID}","controller":{controllers},"verificationMethod":[{{"id":"{KEY}","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{P256_X_A}","y":"{P256_Y_A}"}}}}],"assertionMethod":["{KEY}"],"capabilityInvocation":["{KEY}"]}}"#
     )
     .into_bytes()
 }
 
 #[test]
 fn registration_requires_injected_authenticated_provider_and_correlates_receipt() {
-    let proposed = active_document(COORDINATE_A);
+    let proposed = active_document(P256_X_A, P256_Y_A);
     let missing = write_did_ebsi_registry_document(
         None,
         DidEbsiRegistryOperation::RegisterDocument,
@@ -150,8 +154,8 @@ fn registration_requires_injected_authenticated_provider_and_correlates_receipt(
 
 #[test]
 fn rotation_and_effective_deactivation_validate_exact_public_transitions() {
-    let current = active_document(COORDINATE_A);
-    let rotated = active_document(COORDINATE_B);
+    let current = active_document(P256_X_A, P256_Y_A);
+    let rotated = active_document(P256_X_B, P256_Y_B);
     let rotation_provider = FixtureProvider {
         authenticated: true,
         response_operation: DidEbsiRegistryOperation::RotateVerificationMethod,
@@ -191,8 +195,8 @@ fn rotation_and_effective_deactivation_validate_exact_public_transitions() {
 
 #[test]
 fn rejects_unauthorized_malformed_and_mismatched_registry_writes() {
-    let current = active_document(COORDINATE_A);
-    let rotated = active_document(COORDINATE_B);
+    let current = active_document(P256_X_A, P256_Y_A);
+    let rotated = active_document(P256_X_B, P256_Y_B);
     let provider = FixtureProvider {
         authenticated: true,
         response_operation: DidEbsiRegistryOperation::UpdateDocument,
@@ -297,6 +301,37 @@ fn controller_method_and_relationship_operations_require_exact_transitions() {
         );
         assert!(result.is_ok(), "operation {operation:?} was rejected");
     }
+}
+
+#[test]
+fn method_operations_reject_changes_to_non_target_methods() {
+    let current = two_method_document(false, false);
+    let mut proposed: serde_json::Value =
+        serde_json::from_slice(&two_method_document(true, false)).unwrap();
+    proposed["verificationMethod"][0]["publicKeyJwk"]["x"] =
+        serde_json::Value::String(P256_X_B.to_owned());
+    let proposed = serde_json::to_vec(&proposed).unwrap();
+    let provider = FixtureProvider {
+        authenticated: true,
+        response_operation: DidEbsiRegistryOperation::AddVerificationMethod,
+        called: Cell::new(false),
+    };
+
+    let error = write_did_ebsi_registry_document(
+        Some(&provider),
+        DidEbsiRegistryOperation::AddVerificationMethod,
+        DID,
+        Some(&current),
+        &proposed,
+        KEY,
+        Some(SECOND_KEY),
+        None,
+        DidEbsiDocumentLimits::default(),
+    )
+    .unwrap_err();
+
+    assert_eq!(error.reason, DidEbsiErrorReason::InvalidDocument);
+    assert!(!provider.called.get());
 }
 
 #[test]

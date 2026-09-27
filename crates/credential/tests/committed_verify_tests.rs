@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -70,6 +71,15 @@ fn base_input() -> IssueInput {
     }
 }
 
+fn base_input_with_issuer_public(issuer_public_key: &[u8]) -> IssueInput {
+    let mut input = base_input();
+    input.issuer_verification_key.public_key = PublicKeyRepresentation::Raw {
+        serialization: RawPublicKeySerialization::FixedWidth,
+        bytes: issuer_public_key.to_vec(),
+    };
+    input
+}
+
 fn ed25519_key(did_url: &str, marker: u8) -> PublicKeyRef {
     PublicKeyRef {
         alg: CredentialAlgorithm::Ed25519,
@@ -119,7 +129,7 @@ fn verify_issued_credential_succeeds() {
     let mut rng = OsSaltRng;
 
     let issued = issue_credential(
-        base_input(),
+        base_input_with_issuer_public(&issuer_public),
         &base_claims(),
         CryptoAlgorithm::Ed25519,
         &issuer_private,
@@ -196,7 +206,7 @@ fn issue_and_verify_support_all_declared_holder_key_representations() {
     ];
 
     for (reference, representation) in cases {
-        let mut input = base_input();
+        let mut input = base_input_with_issuer_public(&issuer_public);
         input.subject = CredentialSubject {
             subject_reference: PartyReference::Absent,
             holder_binding: HolderBinding::CryptographicKey(PublicKeyRef {
@@ -240,7 +250,7 @@ fn issue_and_verify_keep_claims_and_bearer_binding_independent_from_subject_iden
     ];
 
     for binding in bindings {
-        let mut input = base_input();
+        let mut input = base_input_with_issuer_public(&issuer_public);
         input.subject = CredentialSubject {
             subject_reference: PartyReference::Absent,
             holder_binding: binding,
@@ -273,7 +283,7 @@ fn verify_fails_if_envelope_is_tampered() {
     let mut rng = OsSaltRng;
 
     let mut issued = issue_credential(
-        base_input(),
+        base_input_with_issuer_public(&issuer_public),
         &base_claims(),
         CryptoAlgorithm::Ed25519,
         &issuer_private,
@@ -304,7 +314,7 @@ fn verify_fails_if_signature_is_tampered() {
     let mut rng = OsSaltRng;
 
     let mut issued = issue_credential(
-        base_input(),
+        base_input_with_issuer_public(&issuer_public),
         &base_claims(),
         CryptoAlgorithm::Ed25519,
         &issuer_private,
@@ -335,7 +345,7 @@ fn verify_fails_if_merkle_opening_is_tampered() {
     let mut rng = OsSaltRng;
 
     let mut issued = issue_credential(
-        base_input(),
+        base_input_with_issuer_public(&issuer_public),
         &base_claims(),
         CryptoAlgorithm::Ed25519,
         &issuer_private,
@@ -364,7 +374,7 @@ fn verify_rejects_inconsistent_or_unbounded_merkle_shapes() {
     let (issuer_public, issuer_private) = generate_keypair(CryptoAlgorithm::Ed25519).unwrap();
     let mut rng = OsSaltRng;
     let mut issued = issue_credential(
-        base_input(),
+        base_input_with_issuer_public(&issuer_public),
         &base_claims(),
         CryptoAlgorithm::Ed25519,
         &issuer_private,
@@ -424,7 +434,7 @@ fn verify_without_subject_bundle_only_checks_issuer_signature() {
     let mut rng = OsSaltRng;
 
     let issued = issue_credential(
-        base_input(),
+        base_input_with_issuer_public(&issuer_public),
         &base_claims(),
         CryptoAlgorithm::Ed25519,
         &issuer_private,

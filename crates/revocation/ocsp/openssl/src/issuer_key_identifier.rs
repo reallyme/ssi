@@ -6,33 +6,11 @@
 //! certificates through their authorityKeyIdentifier.
 
 use identity_revocation_ocsp_core::OcspError;
-use openssl::sha::sha1;
-use openssl::x509::X509;
 
 const DER_TAG_SEQUENCE: u8 = 0x30;
 const DER_TAG_BIT_STRING: u8 = 0x03;
 /// Long-form DER lengths above four octets are never needed for a public key.
 const MAX_DER_LENGTH_OCTETS: usize = 4;
-
-/// Return the issuer's key identifier.
-///
-/// The subjectKeyIdentifier extension is preferred. Without it, the
-/// identifier is derived with RFC 5280 Section 4.2.1.2 method (1): the SHA-1
-/// hash of the value of the subjectPublicKey BIT STRING (excluding the tag,
-/// length, and unused-bits octet), which is also the construction used by
-/// RFC 6960 `issuerKeyHash`.
-pub(crate) fn issuer_key_identifier(issuer: &X509) -> Result<Vec<u8>, OcspError> {
-    if let Some(ski) = issuer.subject_key_id() {
-        return Ok(ski.as_slice().to_vec());
-    }
-
-    let spki_der = issuer
-        .public_key()
-        .and_then(|key| key.public_key_to_der())
-        .map_err(|_| OcspError::InvalidResponse)?;
-    let subject_public_key = subject_public_key_bits(&spki_der)?;
-    Ok(sha1(subject_public_key).to_vec())
-}
 
 /// Extract the subjectPublicKey BIT STRING contents from a DER
 /// SubjectPublicKeyInfo: `SEQUENCE { AlgorithmIdentifier, BIT STRING }`.

@@ -17,6 +17,7 @@ const MERKLE_ROOT_LEN: usize = 32;
 const MERKLE_ROOT_B64U_LEN: usize = 43;
 const MAX_COMMITMENT_ALGORITHM_BYTES: usize = 64;
 
+/// ReallyMe extension binding an SD-JWT credential to a Merkle commitment root.
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub struct MeProfileMerkleBinding {
     /// base64url(32-byte Merkle root)
@@ -47,6 +48,7 @@ impl Drop for MeProfileMerkleBinding {
 impl ZeroizeOnDrop for MeProfileMerkleBinding {}
 
 impl MeProfileMerkleBinding {
+    /// Creates and validates a Me Profile Merkle binding.
     pub fn new(
         merkle_root_b64u: impl Into<String>,
         commitment_alg: impl Into<String>,
@@ -60,6 +62,7 @@ impl MeProfileMerkleBinding {
     }
 }
 
+/// Inserts a validated Me Profile Merkle binding without replacing an existing claim.
 pub fn insert_me_profile_merkle_binding(
     payload: &mut Map<String, Value>,
     binding: &MeProfileMerkleBinding,
@@ -79,6 +82,7 @@ pub fn insert_me_profile_merkle_binding(
     Ok(())
 }
 
+/// Extracts and validates a Me Profile Merkle binding from an authenticated payload.
 pub fn extract_me_profile_merkle_binding(
     payload: &Map<String, Value>,
 ) -> Result<Option<MeProfileMerkleBinding>, IetfSdJwtVcError> {
@@ -105,7 +109,7 @@ pub fn extract_me_profile_merkle_binding(
     Ok(Some(binding))
 }
 
-/// Verify that an IETF SD-JWT VC payload is bound to the expected ReallyMe
+/// Verifies that an IETF SD-JWT VC payload is bound to the expected ReallyMe
 /// claim commitment root.
 ///
 /// Standard SD-JWT verifiers can ignore `me_zk`; ReallyMe verifiers use this

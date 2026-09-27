@@ -36,6 +36,9 @@ pub struct DidCore {
     /// Canonical service entries committed into the core.
     pub services: Vec<CanonicalService>,
 
+    /// SHA-256 commitment to the remaining DID Document projection fields.
+    pub projection_hash: [u8; 32],
+
     /// Update policy committed into the core.
     pub update_policy: UpdatePolicy,
 

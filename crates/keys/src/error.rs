@@ -29,6 +29,18 @@ pub enum KeySetError {
     #[error("invalid public key multibase")]
     InvalidPublicKeyMultibase,
 
+    /// Private key material did not derive the supplied public Multikey.
+    #[error("private and public key material do not match")]
+    KeyPairMismatch,
+
+    /// The public Multikey algorithm cannot be paired with private material here.
+    #[error("unsupported key pair algorithm")]
+    UnsupportedKeyPairAlgorithm,
+
+    /// A bounded key-set export could not be serialized.
+    #[error("key set serialization failed")]
+    SerializationFailed,
+
     /// Requested private key is not present in the key set.
     #[error("missing private key")]
     MissingPrivateKey,
@@ -48,7 +60,12 @@ impl From<KeySetError> for IdentityCoreErrorReason {
             }
             KeySetError::InvalidPrivateKeyMaterial
             | KeySetError::InvalidPrivateKeyEncoding
-            | KeySetError::MissingPrivateKey => Self::IDENTITY_CORE_ERROR_REASON_INVALID_SIGNATURE,
+            | KeySetError::KeyPairMismatch
+            | KeySetError::UnsupportedKeyPairAlgorithm
+            | KeySetError::SerializationFailed
+            | KeySetError::MissingPrivateKey => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_PRIVATE_KEY_MATERIAL
+            }
         }
     }
 }

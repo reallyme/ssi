@@ -7,7 +7,7 @@
     "feature": "brotli_roundtrip_for_identity_payloads",
     "implementation": ["crates/compression/brotli/src/compress.rs", "crates/compression/brotli/src/decompress.rs"],
     "positive_tests": ["roundtrip_compression", "compression_reduces_size_for_repetitive_data"],
-    "negative_tests": [],
+    "negative_tests": ["decompression_rejects_non_standard_large_window_stream"],
     "applicable": true,
     "exclusion_reason": null
   },

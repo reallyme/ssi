@@ -59,71 +59,6 @@ impl Default for VpPolicy {
 /// Additional constructors & helpers
 /// ----------------------------------------------------------------
 impl VpPolicy {
-    /// Permissive policy intended for local development and wallet interoperability testing.
-    ///
-    /// - Allows SD-JWT and ZK
-    /// - Does NOT require status checks
-    /// - Does NOT require QEAA
-    pub fn dev_default() -> Self {
-        Self {
-            allowed_issuer_algorithms: vec![
-                Algorithm::Ed25519,
-                Algorithm::P256,
-                Algorithm::Secp256k1,
-            ],
-            allowed_holder_algorithms: vec![
-                Algorithm::Ed25519,
-                Algorithm::P256,
-                Algorithm::Secp256k1,
-            ],
-
-            allow_sd_jwt: true,
-            allow_zk: true,
-
-            required_claims: Vec::new(),
-            allowed_claimsets: None,
-
-            require_status: false,
-            max_status_age_seconds: None,
-
-            require_qeaa: false,
-            min_qeaa_profile: None,
-            min_identity_proofing_level: None,
-        }
-    }
-
-    /// Extremely permissive policy intended for tests only.
-    ///
-    /// Must not be used in production.
-    pub fn unsafe_permissive_for_tests() -> Self {
-        Self {
-            allowed_issuer_algorithms: vec![
-                Algorithm::Ed25519,
-                Algorithm::P256,
-                Algorithm::Secp256k1,
-                Algorithm::MlDsa87,
-            ],
-            allowed_holder_algorithms: vec![
-                Algorithm::Ed25519,
-                Algorithm::P256,
-                Algorithm::Secp256k1,
-            ],
-
-            allow_sd_jwt: true,
-            allow_zk: true,
-
-            required_claims: Vec::new(),
-            allowed_claimsets: None,
-
-            require_status: false,
-            max_status_age_seconds: None,
-
-            require_qeaa: false,
-            min_qeaa_profile: None,
-            min_identity_proofing_level: None,
-        }
-    }
-
     /// Add a required claim constraint.
     ///
     /// Example:
@@ -132,6 +67,22 @@ impl VpPolicy {
         self.required_claims.push(RequiredClaim {
             claim_path: claim_path.into(),
             mode,
+            operand: crate::PredicateOperand::None,
+        });
+        self
+    }
+
+    /// Add a numeric threshold predicate requirement.
+    pub fn require_threshold_claim(
+        mut self,
+        claim_path: impl Into<String>,
+        mode: DisclosureMode,
+        threshold: u64,
+    ) -> Self {
+        self.required_claims.push(RequiredClaim {
+            claim_path: claim_path.into(),
+            mode,
+            operand: crate::PredicateOperand::Threshold(threshold),
         });
         self
     }

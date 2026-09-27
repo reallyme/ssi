@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::unwrap_used)]
+#![allow(missing_docs, clippy::indexing_slicing, clippy::unwrap_used)]
 //! Test coverage for this crate.
 
 include!("profile_tests/section_01.rs");

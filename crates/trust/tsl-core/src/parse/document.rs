@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// Parse a schema-shaped TSL/LOTL XML document into a bounded typed model.
+/// Parses a schema-shaped TSL/LOTL XML document into a bounded typed model.
 ///
 /// Native ingestion additionally performs XSD and XMLDSig verification before
 /// returning this projection. The portable parser independently enforces the
@@ -117,7 +117,7 @@ pub fn parse_tsl_xml(xml: &str) -> Result<TrustedList, TslError> {
         return Err(TslError::MissingField(TslRequiredField::PointersToOtherTsl));
     }
     let providers = parse_providers(envelope.tsp_list)?;
-    validate_closed_list_services(next_update, &providers)?;
+    validate_closed_list_services(next_update, issue_date_time, &providers)?;
 
     Ok(TrustedList {
         name,
@@ -141,13 +141,19 @@ pub fn parse_tsl_xml(xml: &str) -> Result<TrustedList, TslError> {
 
 fn validate_closed_list_services(
     next_update: Option<TslTimestamp>,
+    issue_date_time: TslTimestamp,
     providers: &[TrustServiceProvider],
 ) -> Result<(), TslError> {
     if next_update.is_none()
         && providers
             .iter()
             .flat_map(|provider| provider.services.iter())
-            .any(|service| !closed_list_status_is_non_authorizing(&service.status))
+            .any(|service| {
+                !closed_list_status_is_non_authorizing(&service.status)
+                    || (service.status_starting_time.unix_seconds(),
+                        service.status_starting_time.nanosecond())
+                        > (issue_date_time.unix_seconds(), issue_date_time.nanosecond())
+            })
     {
         // Clause 5.3.15 requires "expired". The Commission's authenticated
         // archival UK list also uses legacy terminal national-status values.
@@ -257,8 +263,13 @@ fn add_calendar_months(value: OffsetDateTime, months: u16) -> Result<OffsetDateT
         .year()
         .checked_add(year_delta)
         .ok_or(TslError::InvalidUpdateWindow)?;
-    let target_month_number =
-        u8::try_from((advanced_month % 12) + 1).map_err(|_| TslError::InvalidUpdateWindow)?;
+    let zero_based_target_month = advanced_month
+        .checked_rem(12)
+        .ok_or(TslError::InvalidUpdateWindow)?;
+    let target_month_number = zero_based_target_month
+        .checked_add(1)
+        .and_then(|month| u8::try_from(month).ok())
+        .ok_or(TslError::InvalidUpdateWindow)?;
     let target_month =
         Month::try_from(target_month_number).map_err(|_| TslError::InvalidUpdateWindow)?;
     let target_day = value.day().min(target_month.length(target_year));

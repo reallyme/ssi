@@ -48,6 +48,7 @@ fn signature_algorithm_to_proto(value: &str) -> Result<SignatureAlgorithm, DidPr
         Algorithm::X25519 | Algorithm::MlKem768 | Algorithm::MlKem1024 => {
             Err(DidProtoCodecError::UnsupportedAlgorithm)
         }
+        _ => Err(DidProtoCodecError::UnsupportedAlgorithm),
     }
 }
 

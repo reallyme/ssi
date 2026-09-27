@@ -8,6 +8,7 @@
 #![cfg(feature = "reference-tests")]
 #![allow(
     missing_docs,
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -155,13 +156,16 @@ fn reference_fixtures_roundtrip_and_verify() {
         // Verified claim reconstruction must include all disclosed app claims.
         for (k, v) in &input.selective_claims {
             assert_eq!(
-                verified.disclosed_claims.get(k),
+                verified.disclosed_claims().get(k),
                 Some(v),
                 "{name}: disclosed claim mismatch for key {k}"
             );
         }
 
-        assert!(verified.kb_jwt.is_none(), "{name}: kb_jwt should be absent");
+        assert!(
+            verified.key_binding_jwt().is_none(),
+            "{name}: kb_jwt should be absent"
+        );
     }
 }
 

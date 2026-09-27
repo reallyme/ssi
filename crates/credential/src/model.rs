@@ -29,6 +29,7 @@ pub type UnixSeconds = i64;
 
 /// Credential family represented by the public envelope.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum CredentialKind {
     /// General credential governed by issuer policy rather than an eIDAS category.
     Generic,
@@ -45,6 +46,7 @@ pub enum CredentialKind {
 
 /// EUDI assurance level represented by the credential.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum AssuranceLevel {
     /// Baseline assurance for credentials outside a regulated assurance profile.
     Basic,
@@ -98,6 +100,7 @@ pub struct CredentialEnvelope {
 
 /// Reference used to identify a party independently from holder binding.
 #[derive(Clone, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum PartyReference {
     /// DID or DID URL.
     Did(String),
@@ -126,6 +129,7 @@ pub struct PublicKeyIdentity {
 
 /// Validated X.509 reference form used to identify a certificate subject.
 #[derive(Clone, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum X509SubjectReference {
     /// SHA-256 fingerprint of the referenced certificate.
     CertificateSha256([u8; 32]),
@@ -142,6 +146,7 @@ pub enum X509SubjectReference {
 
 /// Explicit holder-authorisation mode.
 #[derive(Clone, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum HolderBinding {
     /// Holder proves possession of this key.
     CryptographicKey(PublicKeyRef),

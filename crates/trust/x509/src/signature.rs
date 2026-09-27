@@ -21,13 +21,16 @@ use path_constraints::reject_unprocessed_path_constraints;
 const OID_SHA256_WITH_RSA_ENCRYPTION: &str = "1.2.840.113549.1.1.11";
 const OID_ECDSA_WITH_SHA256: &str = "1.2.840.10045.4.3.2";
 
+/// Stateless verifier for supported certificate-chain signature algorithms.
 pub struct PureRustSignatureVerifier;
 
 impl PureRustSignatureVerifier {
+    /// Creates the stateless portable verifier.
     pub const fn new() -> Self {
         Self
     }
 
+    /// Verifies every certificate signature and supported path constraint.
     pub fn verify_chain(&self, chain: &X509Chain) -> Result<(), X509Error> {
         verify_chain_signatures_pure_rust(chain)
     }
@@ -39,7 +42,7 @@ impl Default for PureRustSignatureVerifier {
     }
 }
 
-/// Verify every child-to-issuer signature in a leaf-first chain.
+/// Verifies every child-to-issuer signature in a leaf-first chain.
 ///
 /// This is the portable (WASM and mobile) certificate lane. Beyond each
 /// signature it enforces, for every certificate in the chain:

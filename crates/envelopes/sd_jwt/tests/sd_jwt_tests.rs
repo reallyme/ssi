@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(missing_docs)]
-#![allow(clippy::expect_used, clippy::panic)]
+#![allow(clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 //! Test coverage for this crate.
 
 /// Verifier clock shared by generic SD-JWT verification tests.

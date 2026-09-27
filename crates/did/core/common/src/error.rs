@@ -8,6 +8,7 @@ use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityC
 
 /// Errors shared by common identity primitives.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IdentityCoreError {
     /// Canonical data was malformed or could not be represented deterministically.
     InvalidCanonicalForm,

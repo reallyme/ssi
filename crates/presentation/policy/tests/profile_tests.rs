@@ -115,6 +115,12 @@ impl StatusListVerifier for AcceptAllStatusVerifier {
     }
 }
 
+impl reallyme_credential::CredentialStatusListVerifier for AcceptAllStatusVerifier {
+    fn verified_signer(&self) -> reallyme_credential::PartyReference {
+        reallyme_credential::PartyReference::Did("did:test:issuer".to_owned())
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Profile tests
 // -----------------------------------------------------------------------------
@@ -154,7 +160,7 @@ fn pid_profile_accepts_valid_qeaa() {
         next_update: 1_800_000_000,
         encoded_list: vec![0u8],
         length: 1,
-        list_id: None,
+        list_id: Some([7; 32]),
         signature: StatusListSignature {
             alg: StatusListAlgorithm::Ed25519,
             sig_bytes: vec![1, 2, 3],
@@ -176,6 +182,10 @@ fn pid_profile_accepts_valid_qeaa() {
             status: Some(StatusContext {
                 list: &status_list,
                 index: 0,
+                expected_index: 0,
+                expected_issuer: "did:test:issuer",
+                expected_list_id: [7; 32],
+                expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,
             }),
             qeaa: Some(&qeaa),
@@ -200,7 +210,7 @@ fn pid_profile_rejects_low_loip() {
         next_update: 1_800_000_000,
         encoded_list: vec![0u8], // bit 0 = active
         length: 1,
-        list_id: None,
+        list_id: Some([7; 32]),
         signature: StatusListSignature {
             alg: StatusListAlgorithm::Ed25519,
             sig_bytes: vec![1, 2, 3],
@@ -222,6 +232,10 @@ fn pid_profile_rejects_low_loip() {
             status: Some(StatusContext {
                 list: &status_list,
                 index: 0,
+                expected_index: 0,
+                expected_issuer: "did:test:issuer",
+                expected_list_id: [7; 32],
+                expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,
             }),
             qeaa: Some(&qeaa),
@@ -240,7 +254,7 @@ fn status_list_issued_at(issued_at: u64) -> StatusList {
         next_update: 1_800_000_000,
         encoded_list: vec![0u8],
         length: 1,
-        list_id: None,
+        list_id: Some([7; 32]),
         signature: StatusListSignature {
             alg: StatusListAlgorithm::Ed25519,
             sig_bytes: vec![1, 2, 3],
@@ -271,6 +285,10 @@ fn evaluate_pid_at(
             status: Some(StatusContext {
                 list: status_list,
                 index: 0,
+                expected_index: 0,
+                expected_issuer: "did:test:issuer",
+                expected_list_id: [7; 32],
+                expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,
             }),
             qeaa: Some(&qeaa),
@@ -284,7 +302,8 @@ fn pid_profile_rejects_status_list_older_than_max_age() {
     let policy = eu_pid_policy();
     let now = 1_700_100_000;
 
-    // 86_400 seconds is the PID profile bound; one second over is stale.
+    // The maximum age is exclusive: a list must be strictly younger than the
+    // configured bound when it is evaluated.
     let stale = status_list_issued_at(now - 86_401);
     assert_eq!(
         evaluate_pid_at(&policy, "eu.pid.v1", &stale, now),
@@ -294,6 +313,12 @@ fn pid_profile_rejects_status_list_older_than_max_age() {
     let boundary = status_list_issued_at(now - 86_400);
     assert_eq!(
         evaluate_pid_at(&policy, "eu.pid.v1", &boundary, now),
+        PolicyDecision::Reject(vec![VpPolicyError::StatusTooOld])
+    );
+
+    let fresh = status_list_issued_at(now - 86_399);
+    assert_eq!(
+        evaluate_pid_at(&policy, "eu.pid.v1", &fresh, now),
         PolicyDecision::Accept
     );
 }
@@ -360,6 +385,10 @@ fn evaluation_rejects_disclosure_sets_over_the_policy_cap() {
             status: Some(StatusContext {
                 list: &status_list,
                 index: 0,
+                expected_index: 0,
+                expected_issuer: "did:test:issuer",
+                expected_list_id: [7; 32],
+                expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,
             }),
             qeaa: Some(&qeaa),

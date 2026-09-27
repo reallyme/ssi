@@ -4,6 +4,7 @@
 //! Test coverage for this crate.
 #![allow(missing_docs)]
 #![allow(clippy::panic)]
+#![allow(clippy::expect_used)]
 #![allow(clippy::unwrap_used)]
 
 use identity_core_primitives::Algorithm;
@@ -132,6 +133,66 @@ fn pid_policy_rejects_missing_qeaa_and_stale_status() {
             assert!(errors.contains(&VpPolicyError::QeaaRequired));
         }
         PolicyDecision::Accept => panic!("expected policy rejection"),
+        _ => panic!("unexpected future policy decision"),
+    }
+}
+
+#[test]
+fn optional_status_evidence_is_neutral_only_when_no_adverse_status_is_present() {
+    let policy = reallyme_disclosure_policy::eu_age_policy();
+    let presentation = sd_jwt_presentation();
+    let evaluate_status = |status| {
+        evaluate(
+            &policy,
+            &EvaluationContext {
+                binding_ok: true,
+                now_unix: 1_700_000_000,
+                presentation: &presentation,
+                issuer_algorithm: Algorithm::P256,
+                holder_algorithm: Algorithm::P256,
+                claimset_id: "eu.age.v1",
+                disclosures: &[],
+                status: Some(status),
+                qeaa: None,
+            },
+        )
+    };
+
+    assert_eq!(
+        evaluate_status(StatusContext {
+            checked: false,
+            revoked: false,
+            suspended: false,
+            age_seconds: None,
+        }),
+        PolicyDecision::Accept
+    );
+
+    for (status, expected) in [
+        (
+            StatusContext {
+                checked: false,
+                revoked: true,
+                suspended: false,
+                age_seconds: None,
+            },
+            VpPolicyError::CredentialRevoked,
+        ),
+        (
+            StatusContext {
+                checked: false,
+                revoked: false,
+                suspended: true,
+                age_seconds: None,
+            },
+            VpPolicyError::CredentialSuspended,
+        ),
+    ] {
+        match evaluate_status(status) {
+            PolicyDecision::Reject(errors) => assert_eq!(errors, vec![expected]),
+            PolicyDecision::Accept => panic!("adverse status evidence must be terminal"),
+            _ => panic!("unexpected future policy decision"),
+        }
     }
 }
 
@@ -169,6 +230,7 @@ fn passport_policy_rejects_sd_jwt() {
             assert!(errors.contains(&VpPolicyError::PresentationFormatNotAllowed));
         }
         PolicyDecision::Accept => panic!("expected policy rejection"),
+        _ => panic!("unexpected future policy decision"),
     }
 }
 
@@ -183,9 +245,13 @@ fn policy_plans_disclosure_for_revealed_claims() {
     match plan {
         SatisfactionPlan::Disclose(claims) => {
             assert_eq!(claims.len(), 1);
-            assert_eq!(claims[0].claim_path, "/claims/family_name");
+            assert_eq!(
+                claims.first().expect("one planned claim").claim_path,
+                "/claims/family_name"
+            );
         }
         SatisfactionPlan::Derive(_) => panic!("revealed claim should not require derivation"),
+        _ => panic!("unexpected future satisfaction plan"),
     }
 }
 
@@ -200,10 +266,12 @@ fn policy_emits_proof_system_neutral_predicate_plan() {
     match plan {
         SatisfactionPlan::Derive(plan) => {
             assert_eq!(plan.inputs.len(), 1);
-            assert_eq!(plan.inputs[0].claim_path, "/claims/age");
-            assert_eq!(plan.inputs[0].mode, DisclosureMode::Gte);
+            let input = plan.inputs.first().expect("one derivation input");
+            assert_eq!(input.claim_path, "/claims/age");
+            assert_eq!(input.mode, DisclosureMode::Gte);
         }
         SatisfactionPlan::Disclose(_) => panic!("predicate must require derivation"),
+        _ => panic!("unexpected future satisfaction plan"),
     }
 }
 
@@ -364,10 +432,12 @@ fn policy_defers_derivation_capability_to_the_protocol_layer() {
     match plan {
         SatisfactionPlan::Derive(plan) => {
             assert_eq!(plan.inputs.len(), 1);
-            assert_eq!(plan.inputs[0].claim_path, "/claims/age");
-            assert_eq!(plan.inputs[0].mode, DisclosureMode::MemberOfSet);
+            let input = plan.inputs.first().expect("one derivation input");
+            assert_eq!(input.claim_path, "/claims/age");
+            assert_eq!(input.mode, DisclosureMode::MemberOfSet);
         }
         SatisfactionPlan::Disclose(_) => panic!("predicate must require derivation"),
+        _ => panic!("unexpected future satisfaction plan"),
     }
 }
 

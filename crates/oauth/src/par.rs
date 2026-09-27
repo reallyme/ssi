@@ -54,6 +54,7 @@ const RESERVED_PAR_PARAMETERS: &[&str] = &[
 
 /// OAuth grant type values relevant to OpenID4VCI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum GrantType {
     /// OAuth Authorization Code grant.
     #[serde(rename = "authorization_code")]

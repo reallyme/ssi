@@ -18,6 +18,7 @@ pub const EUDI_PID_PROFILE_NAME: &str = "EUDI PID Profile";
 
 /// A well-known interoperability profile shared across protocols.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Profile {
     /// HAIP: OpenID4VC High Assurance Interoperability Profile.
     Haip,
@@ -27,6 +28,14 @@ pub enum Profile {
 
 impl Profile {
     /// Returns the canonical, human-readable profile name.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use reallyme_openid4vc_profiles::{Profile, HAIP_PROFILE_NAME};
+    ///
+    /// assert_eq!(Profile::Haip.display_name(), HAIP_PROFILE_NAME);
+    /// ```
     #[must_use]
     pub const fn display_name(self) -> &'static str {
         match self {

@@ -9,16 +9,13 @@ fn disclosure_dependencies(path: &str) -> Vec<String> {
 
     let mut out = Vec::new();
     let chars: Vec<char> = path.chars().collect();
-    let mut i = 1usize;
-    while i < chars.len() {
-        let c = chars[i];
-        if c == '.' || c == '[' {
-            let prefix: String = chars[..i].iter().collect();
+    for (index, character) in chars.iter().enumerate().skip(1) {
+        if *character == '.' || *character == '[' {
+            let prefix: String = chars.iter().take(index).collect();
             if prefix.len() > 2 {
                 out.push(prefix);
             }
         }
-        i += 1;
     }
 
     out.push(path.to_string());

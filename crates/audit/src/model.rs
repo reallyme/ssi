@@ -33,6 +33,7 @@ pub const DEFAULT_MAX_STATUS_AGE_SECONDS: u32 = 86_400;
 
 /// Identity proofing level asserted by QEAA compliance evidence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum IdentityProofingLevel {
     /// Boundary value for proto/JSON interop; never valid QEAA evidence.
     Unspecified,
@@ -61,6 +62,7 @@ impl IdentityProofingLevel {
 
 /// QTSP role for the service issuing or attesting QEAA credentials.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum QtspRole {
     /// Boundary value for interop; never valid QEAA evidence.
     Unspecified,
@@ -71,6 +73,7 @@ pub enum QtspRole {
 
 /// Issuer credential family used to bind the QEAA issuer to trust material.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum IssuerCredentialKind {
     /// Boundary value for interop; never valid QEAA evidence.
     Unspecified,
@@ -81,6 +84,7 @@ pub enum IssuerCredentialKind {
 
 /// Key protection class for the credential signing key.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum KeyProtection {
     /// Boundary value for interop; never valid QEAA evidence.
     Unspecified,
@@ -94,6 +98,7 @@ pub enum KeyProtection {
 
 /// Revocation status method declared for a QEAA credential.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum StatusMethod {
     /// Boundary value for interop; never valid QEAA evidence.
     Unspecified,
@@ -104,7 +109,11 @@ pub enum StatusMethod {
     StatusList,
 }
 
-/// Complete protocol-neutral QEAA compliance evidence.
+/// Protocol-neutral QEAA compliance metadata carried by a credential.
+///
+/// These fields are issuer assertions until the owning envelope, trust, and
+/// status layers have independently verified them. Structural screening of
+/// this value does not convert it into authenticated evidence.
 #[derive(Eq, PartialEq, Zeroize, ZeroizeOnDrop)]
 pub struct QeaaCompliance {
     /// Qualified trust service provider metadata.
@@ -264,9 +273,9 @@ impl_redacted_debug!(
     RevocationPolicy,
 );
 
-/// Local validation policy for QEAA compliance evidence.
+/// Local structural-screening policy for QEAA compliance metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct QeaaValidationPolicy {
+pub struct QeaaMetadataPolicy {
     /// Verification time in Unix seconds.
     pub now_unix: u64,
 
@@ -280,8 +289,8 @@ pub struct QeaaValidationPolicy {
     pub require_current_audit_period: bool,
 }
 
-impl QeaaValidationPolicy {
-    /// Strict QEAA policy for verifier-side evaluation.
+impl QeaaMetadataPolicy {
+    /// Strict structural policy for verifier-side metadata screening.
     pub const fn strict(now_unix: u64) -> Self {
         Self {
             now_unix,

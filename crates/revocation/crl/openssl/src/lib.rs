@@ -19,11 +19,10 @@
 //! - parses CRLs (PEM / DER)
 //! - verifies CRL signatures using issuer certificates
 //! - extracts revoked serial numbers and metadata
-//! - converts into a portable `ParsedCrl`
+//! - constructs an opaque verified CRL capability
+//! - evaluates certificate status from those verified capabilities
 //!
 //! It does NOT:
-//! - implement revocation policy
-//! - implement `StatusChecker`
 //! - fetch CRLs
 //! - build certificate chains
 //!
@@ -33,7 +32,12 @@
 //! uncovered certificate as good, so callers must resolve a complete CRL for
 //! the configured issuer.
 //!
-//! All revocation logic lives in `identity-revocation-crl-core`.
+//! The parsed capability cannot be constructed outside this crate, so status
+//! checking cannot be fed caller-forged CRL fields through safe Rust.
+
+/// Status checking over verified CRL capabilities.
+#[cfg(not(target_arch = "wasm32"))]
+mod checker;
 
 /// Typed errors for OpenSSL-backed CRL parsing.
 pub mod error;
@@ -47,6 +51,8 @@ pub mod parse;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod parsed_crl;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use checker::{CrlChecker, DEFAULT_CRL_ALLOWED_SKEW_SECS, DEFAULT_MAX_CRL_AGE_SECS};
 pub use error::CrlError;
 #[cfg(not(target_arch = "wasm32"))]
 pub use inspect_extensions::{MAX_CRL_ENTRY_EXTENSIONS, MAX_CRL_EXTENSIONS};
@@ -57,6 +63,3 @@ pub use parse::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use parsed_crl::ParsedOpenSslCrl;
-
-// Re-export portable core model for convenience
-pub use identity_revocation_crl_core::ParsedCrl;

@@ -68,6 +68,7 @@ pub(crate) fn algorithm_to_proto(
         Algorithm::MlKem1024 => {
             crypto_algorithm_identifier::Algorithm::Kem(EnumValue::from(KemAlgorithm::MlKem1024))
         }
+        _ => return Err(DidProtoCodecError::UnsupportedAlgorithm),
     };
 
     Ok(CryptoAlgorithmIdentifier {

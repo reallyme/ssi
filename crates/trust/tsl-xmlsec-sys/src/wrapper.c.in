@@ -29,10 +29,13 @@
 #include <xmlsec/keysdata.h>
 #include <xmlsec/transforms.h>
 
-// We currently target the OpenSSL xmlsec backend (Homebrew: xmlsec1-openssl).
+// XML signature verification uses the XML Security Library OpenSSL backend.
 #include <xmlsec/openssl/app.h>
 #include <xmlsec/openssl/crypto.h>
 #include <xmlsec/openssl/x509.h>
+
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
 
 /*__ABI_DEFINES__*/
 
@@ -217,6 +220,67 @@ static int meid_enable_transform(xmlSecPtrListPtr list, xmlSecTransformId id) {
  return (xmlSecPtrListAdd(list, (xmlSecPtr)id) < 0) ? -1 : 0;
 }
 
+// Validate the signer against only the caller-provided anchors. Keeping this
+// store independent from XMLSec prevents OpenSSL environment variables and
+// platform defaults from becoming ambient trust inputs.
+static int meid_verify_signer_path(X509* signer_cert,
+ const unsigned char* const* trusted_roots_der, const size_t* trusted_roots_der_lens,
+ size_t trusted_roots_count, time_t verification_time) {
+ if(signer_cert == NULL) return 0;
+
+ X509_STORE* store = X509_STORE_new();
+ if(store == NULL) return 0;
+ int valid = 0;
+
+ for(size_t index = 0; index < trusted_roots_count; ++index) {
+ const unsigned char* cursor = trusted_roots_der[index];
+ const unsigned char* end = cursor + trusted_roots_der_lens[index];
+ X509* root = d2i_X509(NULL, &cursor, (long)trusted_roots_der_lens[index]);
+ if(root == NULL || cursor != end || X509_STORE_add_cert(store, root) != 1) {
+ X509_free(root);
+ goto cleanup_store;
+ }
+ X509_free(root);
+ }
+
+ X509_STORE_CTX* context = X509_STORE_CTX_new();
+ if(context == NULL) goto cleanup_store;
+ if(X509_STORE_CTX_init(context, store, signer_cert, NULL) != 1) {
+ X509_STORE_CTX_free(context);
+ goto cleanup_store;
+ }
+ X509_VERIFY_PARAM* parameters = X509_STORE_CTX_get0_param(context);
+ if(parameters == NULL) {
+ X509_STORE_CTX_free(context);
+ goto cleanup_store;
+ }
+ X509_VERIFY_PARAM_set_time(parameters, verification_time);
+ valid = (X509_verify_cert(context) == 1);
+ X509_STORE_CTX_free(context);
+
+cleanup_store:
+ X509_STORE_free(store);
+ return valid;
+}
+
+static int meid_signer_valid_at(X509* signer_cert, time_t verification_time) {
+ if(signer_cert == NULL) return 0;
+ return X509_cmp_time(X509_get0_notBefore(signer_cert), &verification_time) <= 0 &&
+ X509_cmp_time(X509_get0_notAfter(signer_cert), &verification_time) >= 0;
+}
+
+static int meid_signed_info_references_succeeded(xmlSecDSigCtxPtr dsig) {
+ if(dsig == NULL || !xmlSecPtrListIsValid(&(dsig->signedInfoReferences))) return 0;
+ xmlSecSize count = xmlSecPtrListGetSize(&(dsig->signedInfoReferences));
+ if(count != 2) return 0;
+ for(xmlSecSize index = 0; index < count; ++index) {
+ xmlSecDSigReferenceCtxPtr reference = (xmlSecDSigReferenceCtxPtr)
+ xmlSecPtrListGetItem(&(dsig->signedInfoReferences), index);
+ if(reference == NULL || reference->status != xmlSecDSigStatusSucceeded) return 0;
+ }
+ return 1;
+}
+
 /*
  * Install the xmlsec-side allowlists that mirror the Rust profile pre-pass.
  *
@@ -328,11 +392,9 @@ int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len,
  return MEID_XMLSEC_STATUS_SCHEMA_INVALID;
  }
 
- // Ensure XML ID attributes are registered for same-document references.
- //
- // Note: xmlsec resolves `#id` references through the document ID table.
- // Registering through xmlsec avoids double-registering libxml2 ID tables on
- // platforms that already treat `xml:id` specially.
+ // xmlsec resolves same-document references through the document ID table.
+ // Registering attributes through xmlsec avoids duplicating libxml2 ID entries
+ // on platforms that already recognize `xml:id`.
  xmlSecAddIDs(doc, root, meid_id_attrs);
 
  // Find the first Signature node (namespace-aware).
@@ -381,13 +443,11 @@ int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len,
  }
 
  dsig->keyInfoReadCtx.certsVerificationTime = verification_time;
- if(allow_trusted_leaf != 0) {
- // Exact-leaf bootstrap trust is enforced by the Rust caller after XMLSec
- // returns the certificate that performed the signature operation. Requiring
- // XMLSec to build a CA-style path here would reject an explicitly pinned
- // end-entity signer before that byte-exact authorization can run.
+ // XMLSec is responsible only for XMLDSig math and returning the exact signer
+ // material. Path validation below uses a separate store containing only the
+ // caller-provided anchors. Exact-signer mode still enforces certificate time;
+ // the Rust caller then performs the byte-exact authorization decision.
  dsig->keyInfoReadCtx.flags |= XMLSEC_KEYINFO_FLAGS_X509DATA_DONT_VERIFY_CERTS;
- }
 
  // Allow KeyInfo/X509Data for public key extraction (equivalent to `xmlsec1 --enabled-key-data x509`).
  if(!xmlSecPtrListIsValid(&(dsig->keyInfoReadCtx.enabledKeyData))) {
@@ -401,13 +461,20 @@ int meid_xmlsec_verify_tsl(const char* xml, size_t xml_len,
  goto cleanup_context;
  }
  int rc = xmlSecDSigCtxVerify(dsig, sig_node);
- int ok = (rc >= 0) && (dsig->status == xmlSecDSigStatusSucceeded);
+ int ok = (rc >= 0) && (dsig->status == xmlSecDSigStatusSucceeded) &&
+ meid_signed_info_references_succeeded(dsig);
 
  if(ok) {
  xmlSecKeyDataPtr x509_data = xmlSecKeyGetData(dsig->signKey, xmlSecOpenSSLKeyDataX509Id);
  X509* signer_cert = (x509_data == NULL) ? NULL : xmlSecOpenSSLKeyDataX509GetKeyCert(x509_data);
+ if(allow_trusted_leaf != 0) {
+ ok = meid_signer_valid_at(signer_cert, verification_time);
+ } else {
+ ok = meid_verify_signer_path(signer_cert, trusted_roots_der, trusted_roots_der_lens,
+ trusted_roots_count, verification_time);
+ }
  int der_len = (signer_cert == NULL) ? -1 : i2d_X509(signer_cert, NULL);
- if(der_len <= 0 || (size_t)der_len > signer_der_capacity) {
+ if(!ok || der_len <= 0 || (size_t)der_len > signer_der_capacity) {
  ok = 0;
  } else {
  unsigned char* output_cursor = signer_der;

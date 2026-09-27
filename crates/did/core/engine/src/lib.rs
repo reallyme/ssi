@@ -24,6 +24,8 @@ pub mod identifier;
 pub mod keys;
 /// Built-in DID profile definitions.
 pub mod profile;
+/// Commitment for DID Document projection fields outside the canonical core shape.
+pub mod projection_binding;
 /// Core attestation signing helpers.
 pub mod signing;
 /// DID document update engine.
@@ -36,7 +38,11 @@ pub use core::{CanonicalService, CoreVerificationMethod, DidCore, UpdatePolicy};
 pub use canonical::Canonical;
 pub use error::DidCoreError;
 pub use hashing::{compute_core_cid, verify_core_cid};
-pub use identifier::core_signature_input;
+pub use identifier::{
+    core_signature_input, derive_identifier_payload, generate_did_me, genesis_binding_cbor,
+    is_valid_did_me, parse_did_me, verify_genesis_core_identifier, DidMeError, DidMeErrorReason,
+    DidMeIdentifier, CORE_SIGNATURE_DOMAIN_TAG, GENESIS_DOMAIN_TAG, GENESIS_NONCE_LEN,
+};
 
 pub use attestation::CoreAttestation;
 pub use signing::sign_core;

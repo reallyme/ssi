@@ -14,10 +14,12 @@ fn add_expected_checks(
     checks.push(expected_nonce_check(
         &request.presentation,
         request.expected.nonce,
+        request.facts.verified_nonce,
     ));
     checks.push(expected_audience_check(
         &request.presentation,
         request.expected.audience_hash,
+        request.facts.verified_audience_hash,
     ));
     checks.push(expected_text_binding_check(
         PresentationCheckName::ResponseUri,
@@ -64,6 +66,9 @@ fn validate_presentation_shape(
             }
             Ok(())
         }
+        _ => Err(VpApiError::InvalidCommand(
+            PresentationCommandReason::InvalidPresentation,
+        )),
     }
 }
 
@@ -221,50 +226,74 @@ fn extracted_disclosures(disclosures: &[PresentationDisclosureFact]) -> Vec<Extr
 fn expected_nonce_check(
     presentation: &Presentation,
     expected: Option<[u8; 32]>,
+    verified_nonce: Option<[u8; 32]>,
 ) -> PresentationCheckResult {
     let Some(expected) = expected else {
-        return skipped(PresentationCheckName::Nonce, false);
+        return fail(
+            PresentationCheckName::Nonce,
+            PresentationCheckCode::EvidenceRequired,
+            true,
+        );
     };
     match presentation {
         Presentation::Zk(zk)
-            if reallyme_crypto::operations::constant_time::equal_fixed(
-                &zk.freshness.challenge,
-                &expected,
-            ) =>
-        {
-            pass(PresentationCheckName::Nonce, true)
-        }
+            if verified_nonce.is_some_and(|actual| {
+                reallyme_crypto::operations::constant_time::equal_fixed(&actual, &expected)
+                    && reallyme_crypto::operations::constant_time::equal_fixed(
+                        &actual,
+                        &zk.freshness.challenge,
+                    )
+            }) => pass(PresentationCheckName::Nonce, true),
         Presentation::Zk(_) => fail(
             PresentationCheckName::Nonce,
             PresentationCheckCode::BindingMismatch,
             true,
         ),
-        _ => indeterminate(PresentationCheckName::Nonce, true),
+        _ if verified_nonce.is_some_and(|actual| {
+            reallyme_crypto::operations::constant_time::equal_fixed(&actual, &expected)
+        }) => pass(PresentationCheckName::Nonce, true),
+        _ => fail(
+            PresentationCheckName::Nonce,
+            PresentationCheckCode::BindingMismatch,
+            true,
+        ),
     }
 }
 
 fn expected_audience_check(
     presentation: &Presentation,
     expected: Option<[u8; 32]>,
+    verified_audience_hash: Option<[u8; 32]>,
 ) -> PresentationCheckResult {
     let Some(expected) = expected else {
-        return skipped(PresentationCheckName::Audience, false);
+        return fail(
+            PresentationCheckName::Audience,
+            PresentationCheckCode::EvidenceRequired,
+            true,
+        );
     };
     match presentation {
         Presentation::Zk(zk)
-            if reallyme_crypto::operations::constant_time::equal_fixed(
-                &zk.freshness.audience_hash,
-                &expected,
-            ) =>
-        {
-            pass(PresentationCheckName::Audience, true)
-        }
+            if verified_audience_hash.is_some_and(|actual| {
+                reallyme_crypto::operations::constant_time::equal_fixed(&actual, &expected)
+                    && reallyme_crypto::operations::constant_time::equal_fixed(
+                        &actual,
+                        &zk.freshness.audience_hash,
+                    )
+            }) => pass(PresentationCheckName::Audience, true),
         Presentation::Zk(_) => fail(
             PresentationCheckName::Audience,
             PresentationCheckCode::BindingMismatch,
             true,
         ),
-        _ => indeterminate(PresentationCheckName::Audience, true),
+        _ if verified_audience_hash.is_some_and(|actual| {
+            reallyme_crypto::operations::constant_time::equal_fixed(&actual, &expected)
+        }) => pass(PresentationCheckName::Audience, true),
+        _ => fail(
+            PresentationCheckName::Audience,
+            PresentationCheckCode::BindingMismatch,
+            true,
+        ),
     }
 }
 
@@ -289,14 +318,16 @@ fn status_check(
     let Some(status) = status else {
         return skipped_or_indeterminate(PresentationCheckName::CredentialStatus, mandatory);
     };
-    if status.checked && !status.revoked && !status.suspended {
-        pass(PresentationCheckName::CredentialStatus, mandatory)
-    } else {
+    if status.revoked || status.suspended {
         fail(
             PresentationCheckName::CredentialStatus,
             PresentationCheckCode::InvalidCredentialStatus,
-            mandatory,
+            true,
         )
+    } else if status.checked {
+        pass(PresentationCheckName::CredentialStatus, mandatory)
+    } else {
+        skipped_or_indeterminate(PresentationCheckName::CredentialStatus, mandatory)
     }
 }
 
@@ -308,7 +339,10 @@ fn optional_bool_check(
 ) -> PresentationCheckResult {
     match value {
         Some(true) => pass(name, mandatory),
-        Some(false) => fail(name, code, mandatory),
+        // Once a caller supplies evaluated evidence, a known failure is
+        // authoritative even when the policy permits the evidence to be
+        // absent. Optional means "absence permitted", never "failure ignored".
+        Some(false) => fail(name, code, true),
         None => skipped_or_indeterminate(name, mandatory),
     }
 }
@@ -359,37 +393,22 @@ fn apply_requested_checks(
         return;
     }
     for check in checks.iter_mut() {
-        if requested.contains(&check.name) && check.outcome == PresentationCheckOutcome::Skipped {
-            check.outcome = PresentationCheckOutcome::Indeterminate;
-            check.severity = PresentationCheckSeverity::Warning;
+        if requested.contains(&check.name) {
+            // Selecting a check is an acceptance requirement, regardless of
+            // whether the available evidence passes, fails, or is absent.
+            // Leaving an evaluated failure optional would let the aggregate
+            // decision authorize a presentation the caller explicitly asked
+            // this boundary to reject.
             check.mandatory = true;
+            if check.outcome == PresentationCheckOutcome::Skipped {
+                check.outcome = PresentationCheckOutcome::Indeterminate;
+                check.severity = PresentationCheckSeverity::Warning;
+            }
         }
     }
     // Requested checks narrow the report, never the decision: mandatory
     // checks always stay in the set the aggregate decision is computed from.
     checks.retain(|check| check.mandatory || requested.contains(&check.name));
-}
-
-fn decision_from_checks(checks: &[PresentationCheckResult]) -> PresentationDecision {
-    let mut has_indeterminate = false;
-    for check in checks {
-        if !check.mandatory {
-            continue;
-        }
-        match check.outcome {
-            PresentationCheckOutcome::Fail => return PresentationDecision::Deny,
-            PresentationCheckOutcome::Indeterminate | PresentationCheckOutcome::Skipped => {
-                has_indeterminate = true;
-            }
-            PresentationCheckOutcome::Pass => {}
-        }
-    }
-
-    if has_indeterminate {
-        PresentationDecision::Indeterminate
-    } else {
-        PresentationDecision::Allow
-    }
 }
 
 fn pass(name: PresentationCheckName, mandatory: bool) -> PresentationCheckResult {

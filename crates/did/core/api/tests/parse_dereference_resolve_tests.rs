@@ -100,6 +100,62 @@ fn parse_rejects_invalid_did_me_method_identifier() {
 }
 
 #[test]
+fn parse_applies_every_bundled_method_validator() {
+    let values = [
+        "did:key:z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP",
+        "did:jwk:eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6ImFjYklRaXVNczNpOF91c3pFakoydHBUdFJNNEVVM3l6OTFQSDZDZEgyVjAiLCJ5IjoiX0tjeUxqOXZXTXB0bm1LdG00NkdxRHo4d2Y3NEk1TEtncmwyR3pIM25TRSJ9",
+        "did:ion:EiDahaOGH-liLLdDtTxEAdc8i-cfCz-WUcQdRJheMVNn3A",
+        "did:cheqd:mainnet:TAwT8WVt3dz2DBAifwuSkn",
+        "did:ebsi:zub5ZZUfHLLptCduwEy8xRj",
+        "did:web:example.com",
+    ];
+    for did_url in values {
+        let parsed = parse_did(DidParseRequest {
+            did_url: did_url.to_owned(),
+        })
+        .expect("published method vector must parse");
+        assert!(parsed.method_supported);
+    }
+}
+
+#[test]
+fn parse_enforces_did_core_url_component_syntax() {
+    let parsed = parse_did(DidParseRequest {
+        did_url: "did:example:alpha%2fbeta/path:one;two?service=%2fissuer?version=1#key%2Done"
+            .into(),
+    })
+    .expect("DID Core URL characters must parse");
+    assert_eq!(parsed.method_specific_id, "alpha%2fbeta");
+    assert_eq!(parsed.path.as_deref(), Some("/path:one;two"));
+    assert_eq!(parsed.query.as_deref(), Some("service=%2fissuer?version=1"));
+    assert_eq!(parsed.fragment.as_deref(), Some("key%2Done"));
+
+    for did_url in ["did:example:123?", "did:example:123#"] {
+        assert!(parse_did(DidParseRequest {
+            did_url: did_url.into(),
+        })
+        .is_ok());
+    }
+
+    for did_url in [
+        "did:example:alpha beta",
+        "did:example:alpha:",
+        "did:example:alpha%2",
+        "did:example:alpha/path with space",
+        "did:example:alpha?query=%GG",
+        "did:example:alpha#fragment[0]",
+        "did:example:alpha#fragment#second",
+    ] {
+        assert_eq!(
+            parse_did(DidParseRequest {
+                did_url: did_url.into(),
+            }),
+            Err(DidApiError::InvalidDidUrl),
+        );
+    }
+}
+
+#[test]
 fn dereference_returns_whole_document_without_fragment() {
     let (doc, _) = create_did(create_config(), "did:me:deref-doc").expect("create failed");
 

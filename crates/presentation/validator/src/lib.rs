@@ -27,4 +27,4 @@ pub mod oidc_error;
 pub mod validator;
 
 pub use error::VpValidationError;
-pub use validator::{validate_presentation, CryptoContext, QeaaContext, VpValidationInput};
+pub use validator::{evaluate_presentation_policy, CryptoContext, QeaaContext, VpValidationInput};

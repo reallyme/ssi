@@ -10,7 +10,11 @@ use std::time::Duration;
 use url::Url;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::document::{parse_and_validate_did_web_document, DidWebDocument, DidWebDocumentLimits};
+use crate::document::{
+    parse_and_validate_did_web_document,
+    parse_and_validate_did_web_document_with_json_ld_processor, DidWebDocument,
+    DidWebDocumentLimits, DidWebJsonLdProcessor,
+};
 use crate::error::{DidWebError, DidWebErrorReason, DidWebTransportError};
 use crate::method::{did_web_document_url, parse_did_web, DidWebIdentifier};
 
@@ -183,6 +187,36 @@ pub fn resolve_did_web_document(
     did: &str,
     policy: DidWebResolutionPolicy,
 ) -> Result<DidWebResolutionResult, DidWebError> {
+    resolve_document(network, destination_policy, cancellation, did, policy, None)
+}
+
+/// Resolve and validate a did:web document with injected JSON-LD processing.
+pub fn resolve_did_web_document_with_json_ld_processor(
+    network: &dyn DidWebNetworkResolver,
+    destination_policy: &dyn DidWebDestinationPolicy,
+    cancellation: &dyn DidWebCancellation,
+    did: &str,
+    policy: DidWebResolutionPolicy,
+    processor: &dyn DidWebJsonLdProcessor,
+) -> Result<DidWebResolutionResult, DidWebError> {
+    resolve_document(
+        network,
+        destination_policy,
+        cancellation,
+        did,
+        policy,
+        Some(processor),
+    )
+}
+
+fn resolve_document(
+    network: &dyn DidWebNetworkResolver,
+    destination_policy: &dyn DidWebDestinationPolicy,
+    cancellation: &dyn DidWebCancellation,
+    did: &str,
+    policy: DidWebResolutionPolicy,
+    processor: Option<&dyn DidWebJsonLdProcessor>,
+) -> Result<DidWebResolutionResult, DidWebError> {
     let identifier = parse_did_web(did)?;
     let initial_url = did_web_document_url(identifier.as_str())?;
     let mut current_url = parse_https_url(&initial_url)?;
@@ -214,7 +248,7 @@ pub fn resolve_did_web_document(
         }
 
         if response.status == HTTP_STATUS_OK {
-            return finish_resolution(identifier, response, redirect_count, policy);
+            return finish_resolution(identifier, response, redirect_count, policy, processor);
         }
         if !REDIRECT_STATUSES.contains(&response.status) {
             return Err(DidWebError::new(DidWebErrorReason::HttpStatusRejected));
@@ -243,6 +277,7 @@ fn finish_resolution(
     response: DidWebHttpResponse,
     redirect_count: u8,
     policy: DidWebResolutionPolicy,
+    processor: Option<&dyn DidWebJsonLdProcessor>,
 ) -> Result<DidWebResolutionResult, DidWebError> {
     if response.redirect_location.is_some() {
         return Err(DidWebError::new(DidWebErrorReason::RedirectPolicyViolation));
@@ -257,11 +292,19 @@ fn finish_resolution(
         return Err(DidWebError::new(DidWebErrorReason::ResponseTooLarge));
     }
     let media_type = parse_media_type(response.content_type.as_deref())?;
-    let document = parse_and_validate_did_web_document(
-        &identifier,
-        response.body.as_slice(),
-        policy.document_limits,
-    )?;
+    let document = match processor {
+        Some(processor) => parse_and_validate_did_web_document_with_json_ld_processor(
+            &identifier,
+            response.body.as_slice(),
+            policy.document_limits,
+            processor,
+        )?,
+        None => parse_and_validate_did_web_document(
+            &identifier,
+            response.body.as_slice(),
+            policy.document_limits,
+        )?,
+    };
     Ok(DidWebResolutionResult {
         document,
         media_type,
@@ -405,10 +448,25 @@ fn is_public_ipv6(address: Ipv6Addr) -> bool {
     let is_teredo = segments[0] == 0x2001 && segments[1] == 0x0000;
     let is_benchmarking = segments[0] == 0x2001 && segments[1] == 0x0002 && segments[2] == 0;
     let is_orchid = segments[0] == 0x2001 && matches!(segments[1] & 0xfff0, 0x0010 | 0x0020);
+    let is_amt = segments[0] == 0x2001 && segments[1] == 0x0003;
+    let is_deprecated_eid = segments[0] == 0x2001 && segments[1] == 0x0005;
+    let is_pcp_anycast = segments == [0x2001, 0x0001, 0, 0, 0, 0, 0, 1];
+    let is_as112 = segments[0] == 0x2001 && segments[1] == 0x0004 && segments[2] == 0x0112;
+    let is_documentation_2 = segments[0] == 0x3fff && segments[1] & 0xf000 == 0;
+    let is_nat64 = (segments[0] == 0x0064
+        && segments[1] == 0xff9b
+        && segments[2..6].iter().all(|segment| *segment == 0))
+        || (segments[0] == 0x0064 && segments[1] == 0xff9b && segments[2] == 1);
     is_global_unicast
         && !is_documentation
         && !is_6to4
         && !is_teredo
         && !is_benchmarking
         && !is_orchid
+        && !is_amt
+        && !is_deprecated_eid
+        && !is_pcp_anycast
+        && !is_as112
+        && !is_documentation_2
+        && !is_nat64
 }

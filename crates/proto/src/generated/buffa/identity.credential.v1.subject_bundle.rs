@@ -4,13 +4,13 @@
 /// SubjectPrivateBundle carries holder-private claim openings for a credential.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
-#[serde(default)]
 pub struct SubjectPrivateBundle {
     /// Present only for cryptographic holder binding. Claims-based and bearer
     /// credentials carry no synthetic or empty key.
     ///
     /// Field 1: `holder_key`
     #[serde(
+        default,
         rename = "holderKey",
         alias = "holder_key",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
@@ -20,6 +20,7 @@ pub struct SubjectPrivateBundle {
     ///
     /// Field 2: `envelope_hash`
     #[serde(
+        default,
         rename = "envelopeHash",
         alias = "envelope_hash",
         with = "::buffa::json_helpers::bytes",
@@ -28,6 +29,7 @@ pub struct SubjectPrivateBundle {
     pub envelope_hash: ::buffa::alloc::vec::Vec<u8>,
     /// Field 3: `issuer_signature`
     #[serde(
+        default,
         rename = "issuerSignature",
         alias = "issuer_signature",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
@@ -35,12 +37,14 @@ pub struct SubjectPrivateBundle {
     pub issuer_signature: ::buffa::MessageField<Signature, ::buffa::Inline<Signature>>,
     /// Field 4: `tree`
     #[serde(
+        default,
         rename = "tree",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub tree: ::buffa::MessageField<MerkleTreeInfo, ::buffa::Inline<MerkleTreeInfo>>,
     /// Field 5: `claims`
     #[serde(
+        default,
         rename = "claims",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
         deserialize_with = "::buffa::json_helpers::null_as_default"
@@ -431,12 +435,12 @@ pub const __MERKLE_TREE_INFO_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
 /// path.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
-#[serde(default)]
 pub struct ClaimOpening {
     /// "/claims/age"
     ///
     /// Field 1: `claim_path`
     #[serde(
+        default,
         rename = "claimPath",
         alias = "claim_path",
         with = "::buffa::json_helpers::proto_string",
@@ -445,6 +449,7 @@ pub struct ClaimOpening {
     pub claim_path: ::buffa::alloc::string::String,
     /// Field 2: `salt`
     #[serde(
+        default,
         rename = "salt",
         with = "::buffa::json_helpers::bytes",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
@@ -454,6 +459,7 @@ pub struct ClaimOpening {
     ///
     /// Field 3: `value`
     #[serde(
+        default,
         rename = "value",
         with = "::buffa::json_helpers::bytes",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
@@ -461,6 +467,7 @@ pub struct ClaimOpening {
     pub value: ::buffa::alloc::vec::Vec<u8>,
     /// Field 4: `index`
     #[serde(
+        default,
         rename = "index",
         with = "::buffa::json_helpers::uint32",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
@@ -470,6 +477,7 @@ pub struct ClaimOpening {
     ///
     /// Field 5: `merkle_path`
     #[serde(
+        default,
         rename = "merklePath",
         alias = "merkle_path",
         with = "::buffa::json_helpers::proto_seq",

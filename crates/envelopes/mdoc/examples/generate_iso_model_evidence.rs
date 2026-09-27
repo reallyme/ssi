@@ -137,6 +137,7 @@ fn claim_type_name(claim_type: ClaimType) -> &'static str {
         ClaimType::Null => "null",
         ClaimType::Object => "object",
         ClaimType::Array => "array",
+        _ => "unspecified",
     }
 }
 

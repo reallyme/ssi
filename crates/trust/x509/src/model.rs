@@ -2,12 +2,13 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use time::OffsetDateTime;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 mod chain;
+mod describe_certificate;
 mod key_identifier;
 pub use chain::X509Chain;
+pub use describe_certificate::X509Certificate;
 
 /// Maximum certificate count accepted for a presented X.509 chain.
 ///
@@ -26,85 +27,13 @@ pub const MAX_X509_OID_CHARS: usize = 128;
 /// RFC 5280 Section 4.1.2.2 maximum serial-number content length.
 pub const MAX_X509_SERIAL_BYTES: usize = 20;
 
-#[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
-pub struct X509Certificate {
-    pub der: Vec<u8>,
-    /// Display-only subject Name; use [`X509Certificate::subject_der`] for identity and chaining.
-    pub subject: String,
-    /// Display-only rendering of the issuer Name. Never compare it for
-    /// chaining or identity; use [`X509Certificate::issuer_der`].
-    pub issuer: String,
-    /// Exact DER encoding of the subject Name (RFC 5280 Section 4.1.2.6).
-    ///
-    /// Chaining compares these bytes for exact equality. RFC 5280 Section 7.1
-    /// permits a relying party to match names after internationalized
-    /// normalization; exact DER equality is the conservative subset of that
-    /// rule and never treats two distinct encodings as the same name.
-    pub subject_der: Vec<u8>,
-    /// Exact DER encoding of the issuer Name (RFC 5280 Section 4.1.2.4).
-    pub issuer_der: Vec<u8>,
-    pub serial: Vec<u8>,
-    #[zeroize(skip)]
-    pub not_before: OffsetDateTime,
-    #[zeroize(skip)]
-    pub not_after: OffsetDateTime,
-    pub spki_der: Vec<u8>,
-    pub signature_algorithm_oid: String,
-
-    pub basic_constraints: Option<BasicConstraints>,
-    pub key_usage: Option<KeyUsage>,
-    pub extended_key_usage: Option<Vec<String>>, // EKU OIDs
-
-    pub subject_key_identifier: Option<Vec<u8>>,
-    pub authority_key_identifier: Option<Vec<u8>>,
-
-    pub san_dns: Vec<String>,
-    pub san_ip: Vec<Vec<u8>>,
-
-    // NEW: CertificatePolicies (policyIdentifier OIDs)
-    pub certificate_policies: Vec<String>,
-
-    // NEW: qcStatements (RFC3739 / ETSI EN 319 412-5)
-    pub qc_statements: QcStatements,
-
-    /// Lossless, typed projection used by audit-facing profile evaluation.
-    pub profile: CertificateProfile,
-}
-
-impl core::fmt::Debug for X509Certificate {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        formatter
-            .debug_struct("X509Certificate")
-            .field("der", &"<redacted>")
-            .field("subject", &"<redacted>")
-            .field("issuer", &"<redacted>")
-            .field("subject_der", &"<redacted>")
-            .field("issuer_der", &"<redacted>")
-            .field("serial", &"<redacted>")
-            .field("not_before", &self.not_before)
-            .field("not_after", &self.not_after)
-            .field("spki_der", &"<redacted>")
-            .field("signature_algorithm_oid", &self.signature_algorithm_oid)
-            .field("basic_constraints", &self.basic_constraints)
-            .field("key_usage", &self.key_usage)
-            .field("extended_key_usage", &"<redacted>")
-            .field("subject_key_identifier", &"<redacted>")
-            .field("authority_key_identifier", &"<redacted>")
-            .field("san_dns", &"<redacted>")
-            .field("san_ip", &"<redacted>")
-            .field("certificate_policies", &"<redacted>")
-            .field("qc_statements", &"<redacted>")
-            .field("profile", &self.profile)
-            .finish()
-    }
-}
-
 /// Bounded dotted-decimal object identifier.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub struct ObjectIdentifier(String);
 
 impl ObjectIdentifier {
-    /// Parse and bound a dotted-decimal OID.
+    /// Parses a length-bounded dotted-decimal object identifier.
     pub fn parse(value: &str) -> Option<Self> {
         if value.is_empty()
             || value.len() > MAX_X509_OID_CHARS
@@ -119,7 +48,7 @@ impl ObjectIdentifier {
         Some(Self(value.to_owned()))
     }
 
-    /// Borrow the canonical dotted-decimal form.
+    /// Borrows the canonical dotted-decimal form.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -136,63 +65,103 @@ impl core::fmt::Debug for ObjectIdentifier {
 
 /// X.509 certificate syntax version.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Zeroize)]
+#[non_exhaustive]
 pub enum CertificateVersion {
+    /// X.509 version 1.
     V1,
+    /// X.509 version 2.
     V2,
+    /// X.509 version 3.
     #[default]
     V3,
 }
 
 /// Known certificate extension or a bounded unknown OID.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub enum CertificateExtensionKind {
+    /// Basic Constraints extension.
     BasicConstraints,
+    /// Key Usage extension.
     KeyUsage,
+    /// Extended Key Usage extension.
     ExtendedKeyUsage,
+    /// Subject Key Identifier extension.
     SubjectKeyIdentifier,
+    /// Authority Key Identifier extension.
     AuthorityKeyIdentifier,
+    /// Subject Alternative Name extension.
     SubjectAlternativeName,
+    /// Certificate Policies extension.
     CertificatePolicies,
+    /// Authority Information Access extension.
     AuthorityInformationAccess,
+    /// CRL Distribution Points extension.
     CrlDistributionPoints,
+    /// ETSI QCStatements extension.
     QcStatements,
+    /// RFC 9608 `noRevAvail` extension.
     NoRevAvail,
+    /// Unrecognized extension retained by object identifier.
     Other(ObjectIdentifier),
 }
 
 /// Extension identity and criticality retained for policy enforcement.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct CertificateExtension {
+    /// Extension identity.
     pub kind: CertificateExtensionKind,
+    /// Criticality bit from the extension wrapper.
     pub critical: bool,
 }
 
 /// Typed RDN attribute identifier.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub enum NameAttributeKind {
+    /// Common Name (`CN`).
     CommonName,
+    /// Country Name (`C`).
     CountryName,
+    /// Given Name.
     GivenName,
+    /// Surname.
     Surname,
+    /// Pseudonym.
     Pseudonym,
+    /// Organization Name (`O`).
     OrganizationName,
+    /// Organizational Unit Name (`OU`).
     OrganizationalUnitName,
+    /// Locality Name (`L`).
     LocalityName,
+    /// State or Province Name (`ST`).
     StateOrProvinceName,
+    /// Serial Number.
     SerialNumber,
+    /// Street Address.
     StreetAddress,
+    /// Postal Code.
     PostalCode,
+    /// Domain Component (`DC`).
     DomainComponent,
+    /// Email Address.
     EmailAddress,
+    /// Organization Identifier.
     OrganizationIdentifier,
+    /// Telephone Number.
     TelephoneNumber,
+    /// Unrecognized attribute retained by object identifier.
     Other(ObjectIdentifier),
 }
 
 /// Typed attribute value without flattening multi-valued RDNs.
 #[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub enum NameAttributeValue {
+    /// Decoded textual value.
     Text(String),
+    /// DER content bytes for a non-textual value.
     Binary(Vec<u8>),
 }
 
@@ -205,26 +174,35 @@ impl core::fmt::Debug for NameAttributeValue {
     }
 }
 
+/// One typed attribute from a relative distinguished name.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct NameAttribute {
+    /// Attribute type.
     pub kind: NameAttributeKind,
+    /// Attribute value.
     pub value: NameAttributeValue,
 }
 
+/// Ordered attributes from one relative distinguished name.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Zeroize, ZeroizeOnDrop)]
 pub struct RelativeDistinguishedName {
+    /// Attributes belonging to this relative distinguished name.
     pub attributes: Vec<NameAttribute>,
 }
 
+/// Ordered relative distinguished names from an X.509 Name.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Zeroize, ZeroizeOnDrop)]
 pub struct DistinguishedName {
+    /// Relative distinguished names in encoded order.
     pub rdns: Vec<RelativeDistinguishedName>,
 }
 
 /// Typed `otherName` subject-alt-name value.
 #[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct OtherName {
+    /// Object identifier naming the `otherName` syntax.
     pub type_id: ObjectIdentifier,
+    /// DER-encoded value.
     pub value_der: Vec<u8>,
 }
 
@@ -241,8 +219,11 @@ impl core::fmt::Debug for OtherName {
 /// Additional subject alternative names required by relying-party profiles.
 #[derive(Clone, PartialEq, Eq, Default, Zeroize, ZeroizeOnDrop)]
 pub struct SubjectAlternativeNames {
+    /// URIs from the authenticated certificate.
     pub uris: Vec<String>,
+    /// Email addresses from the authenticated certificate.
     pub email_addresses: Vec<String>,
+    /// Other names from the authenticated certificate.
     pub other_names: Vec<OtherName>,
 }
 
@@ -259,16 +240,22 @@ impl core::fmt::Debug for SubjectAlternativeNames {
 
 /// Authority Information Access method.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub enum AuthorityAccessMethod {
+    /// Online Certificate Status Protocol endpoint.
     Ocsp,
+    /// CA Issuers certificate-discovery endpoint.
     CaIssuers,
+    /// Unrecognized access method retained by object identifier.
     Other(ObjectIdentifier),
 }
 
 /// URI-valued Authority Information Access descriptor.
 #[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct AuthorityAccessDescription {
+    /// Access method.
     pub method: AuthorityAccessMethod,
+    /// Access-location URI.
     pub uri: String,
 }
 
@@ -282,120 +269,25 @@ impl core::fmt::Debug for AuthorityAccessDescription {
     }
 }
 
-/// Public-key algorithm and measured strength.
-#[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
-pub enum PublicKeyProfile {
-    Rsa {
-        bits: u16,
-    },
-    Ec {
-        bits: u16,
-        curve: Option<ObjectIdentifier>,
-    },
-    Ed25519,
-    Ed448,
-    Dsa {
-        bits: u16,
-    },
-    Other {
-        algorithm: ObjectIdentifier,
-        bits: u16,
-    },
-}
-
-/// Closed public-key algorithm family used by versioned profile policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Zeroize)]
-pub enum PublicKeyAlgorithm {
-    Rsa,
-    Ec,
-    Ed25519,
-    Ed448,
-    Dsa,
-    Other,
-}
-
-impl PublicKeyProfile {
-    /// Returns the typed algorithm family without reparsing an OID.
-    pub const fn algorithm(&self) -> PublicKeyAlgorithm {
-        match self {
-            Self::Rsa { .. } => PublicKeyAlgorithm::Rsa,
-            Self::Ec { .. } => PublicKeyAlgorithm::Ec,
-            Self::Ed25519 => PublicKeyAlgorithm::Ed25519,
-            Self::Ed448 => PublicKeyAlgorithm::Ed448,
-            Self::Dsa { .. } => PublicKeyAlgorithm::Dsa,
-            Self::Other { .. } => PublicKeyAlgorithm::Other,
-        }
-    }
-}
-
-impl Default for PublicKeyProfile {
-    fn default() -> Self {
-        Self::Other {
-            algorithm: ObjectIdentifier("0.0".to_owned()),
-            bits: 0,
-        }
-    }
-}
-
-/// Typed certificate-signature algorithm.
-#[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
-pub enum SignatureAlgorithm {
-    RsaPkcs1Sha256,
-    RsaPkcs1Sha384,
-    RsaPkcs1Sha512,
-    RsaPss,
-    EcdsaSha256,
-    EcdsaSha384,
-    EcdsaSha512,
-    Ed25519,
-    Ed448,
-    Other(ObjectIdentifier),
-}
-
-/// Hash algorithm carried by an RSA-PSS algorithm identifier.
-#[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
-pub enum RsaPssHashAlgorithm {
-    Sha1,
-    Sha256,
-    Sha384,
-    Sha512,
-    Sha3_256,
-    Sha3_384,
-    Sha3_512,
-    Other(ObjectIdentifier),
-}
-
-/// Mask-generation algorithm carried by RSA-PSS parameters.
-#[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
-pub enum RsaPssMaskGenerationAlgorithm {
-    Mgf1(RsaPssHashAlgorithm),
-    Other(ObjectIdentifier),
-}
-
-/// Lossless security-relevant projection of RFC 4055 RSA-PSS parameters.
-#[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
-pub struct RsaPssParameters {
-    pub hash_algorithm: RsaPssHashAlgorithm,
-    pub mask_generation_algorithm: RsaPssMaskGenerationAlgorithm,
-    pub salt_length: u32,
-    pub trailer_field: u32,
-}
-
-impl Default for SignatureAlgorithm {
-    fn default() -> Self {
-        Self::Other(ObjectIdentifier("0.0".to_owned()))
-    }
-}
+include!("model/describe_algorithms.rs");
 
 /// Typed certificate policy identifier.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub enum CertificatePolicyId {
+    /// ETSI QCP for a natural person.
     QcpNaturalPerson,
+    /// ETSI QCP for a legal person.
     QcpLegalPerson,
+    /// ETSI QCP for a natural person using a QSCD.
     QcpNaturalPersonQscd,
+    /// ETSI QCP for a legal person using a QSCD.
     QcpLegalPersonQscd,
+    /// ETSI QEVCP-w website-authentication policy.
     QevcpWeb,
+    /// ETSI QNCP-w website-authentication policy.
     QncpWeb,
+    /// ETSI generic QNCP-w website-authentication policy.
     QncpWebGeneric,
     /// ETSI TS 119 411-8 NCP for a natural-person wallet relying party.
     WrpacNcpNatural,
@@ -405,96 +297,147 @@ pub enum CertificatePolicyId {
     WrpacQcpNatural,
     /// ETSI TS 119 411-8 QCP for a legal-person wallet relying party.
     WrpacQcpLegal,
+    /// Unrecognized policy retained by object identifier.
     Other(ObjectIdentifier),
 }
 
 /// Extended Key Usage purpose with bounded unknown preservation.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub enum ExtendedKeyUsagePurpose {
+    /// Any Extended Key Usage purpose.
     Any,
+    /// TLS server authentication.
     ServerAuthentication,
+    /// TLS client authentication.
     ClientAuthentication,
+    /// Code signing.
     CodeSigning,
+    /// Email protection.
     EmailProtection,
+    /// Time stamping.
     TimeStamping,
+    /// OCSP response signing.
     OcspSigning,
+    /// Unrecognized purpose retained by object identifier.
     Other(ObjectIdentifier),
 }
 
 /// Typed QC statement identifier.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub enum QcStatementId {
+    /// ETSI QcCompliance statement.
     Compliance,
+    /// ETSI QcLimitValue statement.
     LimitValue,
+    /// ETSI QcRetentionPeriod statement.
     RetentionPeriod,
+    /// ETSI QcSSCD statement.
     QcSscd,
+    /// ETSI QcPDS statement.
     Pds,
+    /// ETSI QcType statement.
     Type,
+    /// Unrecognized statement retained by object identifier.
     Other(ObjectIdentifier),
 }
 
 /// Typed ETSI QcType value.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub enum QcType {
+    /// Electronic-signature certificate.
     ElectronicSignature,
+    /// Electronic-seal certificate.
     ElectronicSeal,
+    /// Website-authentication certificate.
     WebAuthentication,
     /// ETSI TS 119 412-6 PID-provider sign/seal certificate.
     PidProvider,
     /// ETSI TS 119 412-6 wallet-provider sign/seal certificate.
     WalletProvider,
+    /// Unrecognized QC type retained by object identifier.
     Other(ObjectIdentifier),
 }
 
 /// Audit-facing, typed X.509 projection.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Zeroize, ZeroizeOnDrop)]
 pub struct CertificateProfile {
+    /// Certificate syntax version.
     pub version: CertificateVersion,
+    /// Subject distinguished name.
     pub subject: DistinguishedName,
+    /// Issuer distinguished name.
     pub issuer: DistinguishedName,
+    /// Extension identities and criticality bits.
     pub extensions: Vec<CertificateExtension>,
+    /// Typed Subject Alternative Name values.
     pub subject_alternative_names: SubjectAlternativeNames,
+    /// Authority Information Access descriptors.
     pub authority_information_access: Vec<AuthorityAccessDescription>,
+    /// Validated CRL Distribution Point URIs.
     pub crl_distribution_point_uris: Vec<String>,
+    /// Whether the certificate asserts RFC 9608 `noRevAvail`.
     pub no_rev_avail: bool,
+    /// Subject public-key algorithm and measured strength.
     pub public_key: PublicKeyProfile,
     /// RFC 8017 Section 3.1 RSA public exponent, when the SPKI is RSA.
     pub rsa_public_exponent: Option<Vec<u8>>,
+    /// Certificate signature algorithm.
     pub signature_algorithm: SignatureAlgorithm,
     /// RFC 4055 parameters when `signature_algorithm` is RSA-PSS.
     pub rsa_pss_parameters: Option<RsaPssParameters>,
+    /// Extended Key Usage purposes.
     pub extended_key_usage: Vec<ExtendedKeyUsagePurpose>,
+    /// Certificate-policy object identifiers asserted by the certificate.
     pub certificate_policies: Vec<CertificatePolicyId>,
     /// RFC 5280 Section 4.2.1.4 CPS pointer qualifiers, preserved as IA5 URIs.
     pub certificate_policy_cps_uris: Vec<String>,
+    /// ETSI QC statement identifiers.
     pub qc_statement_ids: Vec<QcStatementId>,
+    /// ETSI QcType values.
     pub qc_types: Vec<QcType>,
 }
 
+/// Statement and type OIDs from the ETSI QCStatements extension.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Zeroize, ZeroizeOnDrop)]
 pub struct QcStatements {
-    /// All QCStatement statementId OIDs present in qcStatements extension
+    /// All `statementId` OIDs in the extension.
     pub statement_ids: Vec<String>,
 
-    /// For QcType statement, the contained qcType OIDs (e.g., qct-web / qct-esign / qct-eseal)
+    /// QcType OIDs contained in an ETSI QcType statement.
     pub qc_types: Vec<String>,
 }
 
+/// Security-relevant values from the Basic Constraints extension.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct BasicConstraints {
+    /// Whether the certificate asserts `CA:TRUE`.
     pub ca: bool,
+    /// Maximum subordinate CA depth, when present.
     pub path_len_constraint: Option<u32>,
 }
 
+/// Bit-level projection of the X.509 Key Usage extension.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct KeyUsage {
+    /// `digitalSignature` bit.
     pub digital_signature: bool,
+    /// `contentCommitment` bit.
     pub content_commitment: bool,
+    /// `keyCertSign` bit.
     pub key_cert_sign: bool,
+    /// `cRLSign` bit.
     pub crl_sign: bool,
+    /// `keyEncipherment` bit.
     pub key_encipherment: bool,
+    /// `dataEncipherment` bit.
     pub data_encipherment: bool,
+    /// `keyAgreement` bit.
     pub key_agreement: bool,
+    /// `encipherOnly` bit.
     pub encipher_only: bool,
+    /// `decipherOnly` bit.
     pub decipher_only: bool,
 }

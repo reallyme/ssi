@@ -10,6 +10,7 @@ pub const ENCODING_JCS_UTF8: &str = "JCS-UTF8";
 
 /// Semantic type of a credential claim value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum ClaimType {
     /// Type has not been specified.
     Unspecified,
@@ -56,6 +57,7 @@ pub enum ClaimType {
 
 /// Supported disclosure modes for a claim.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum DisclosureMode {
     /// Mode has not been specified.
     Unspecified,

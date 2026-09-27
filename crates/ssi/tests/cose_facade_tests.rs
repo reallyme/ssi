@@ -46,5 +46,5 @@ fn reallyme_compression_facade_roundtrips_brotli() {
     let compressed = brotli_compress(payload).unwrap();
     let decompressed = brotli_decompress(&compressed).unwrap();
 
-    assert_eq!(decompressed, payload);
+    assert_eq!(decompressed.as_slice(), payload.as_slice());
 }

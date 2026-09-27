@@ -47,6 +47,14 @@ pub enum JwtVcEnvelopeError {
     #[error("invalid JWT-VC credential encoding")]
     InvalidCredentialEncoding,
 
+    /// Decoded credential bytes were not one canonical, bounded DAG-CBOR value.
+    #[error("invalid JWT-VC credential CBOR")]
+    InvalidCredentialCbor,
+
+    /// An encoded credential transport exceeded its pre-decode resource ceiling.
+    #[error("JWT-VC credential resource limit exceeded")]
+    ResourceLimit,
+
     /// JOSE signing or verification failed.
     #[error("JWT-VC JOSE operation failed")]
     Jwt,
@@ -84,6 +92,12 @@ impl From<JwtVcEnvelopeError> for IdentityCoreErrorReason {
             }
             JwtVcEnvelopeError::InvalidCredentialEncoding => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_INVALID_CREDENTIAL_ENCODING
+            }
+            JwtVcEnvelopeError::InvalidCredentialCbor => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_INVALID_PAYLOAD
+            }
+            JwtVcEnvelopeError::ResourceLimit => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED
             }
             JwtVcEnvelopeError::Jwt => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_JWT_VC_ENVELOPE_JWT

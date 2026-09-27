@@ -1,8 +1,8 @@
 [
   {
     "id": "STATUS-MUST-001",
-    "source": "W3C-VC-DM-2.0",
-    "section": "4.9",
+    "source": "COMPLIANCE-MAP",
+    "section": "Repository-specific signed status-list envelope",
     "keyword": "MUST",
     "feature": "status_list_signature_binding",
     "implementation": ["crates/status/src/verify.rs", "crates/status/src/model.rs"],
@@ -13,8 +13,8 @@
   },
   {
     "id": "STATUS-MUST-002",
-    "source": "W3C-VC-DM-2.0",
-    "section": "4.9",
+    "source": "COMPLIANCE-MAP",
+    "section": "Repository-specific signed status-list outcome semantics",
     "keyword": "MUST",
     "feature": "status_bit_semantics",
     "implementation": ["crates/status/src/verify.rs"],
@@ -25,8 +25,8 @@
   },
   {
     "id": "STATUS-MUST-003",
-    "source": "W3C-VC-DM-2.0",
-    "section": "4.9",
+    "source": "COMPLIANCE-MAP",
+    "section": "Repository-specific signed status-list time and size policy",
     "keyword": "MUST",
     "feature": "status_list_temporal_and_index_bounds",
     "implementation": ["crates/status/src/verify.rs", "reallyme_credential_status::MAX_STATUS_LIST_ENTRIES"],
@@ -37,8 +37,8 @@
   },
   {
     "id": "STATUS-MUST-004",
-    "source": "W3C-VC-DM-2.0",
-    "section": "4.9 Credential Status",
+    "source": "COMPLIANCE-MAP",
+    "section": "Repository-specific signed status-list structural policy",
     "keyword": "MUST",
     "feature": "status_list_structural_validation",
     "implementation": ["crates/status/src/verify.rs", "crates/status/src/model.rs"],
@@ -49,8 +49,8 @@
   },
   {
     "id": "STATUS-MUST-005",
-    "source": "W3C-VC-DM-2.0",
-    "section": "4.9 Credential Status bitstring processing",
+    "source": "COMPLIANCE-MAP",
+    "section": "Repository-specific signed status-list bit ordering",
     "keyword": "MUST",
     "feature": "status_bit_index_and_byte_order",
     "implementation": ["crates/status/src/verify.rs"],
@@ -148,6 +148,30 @@
     "exclusion_reason": null
   },
   {
+    "id": "OCSP-MUST-001",
+    "source": "RFC6960",
+    "section": "3.2, 3.3, 4.2.1, 4.2.2.2, and 4.2.2.3",
+    "keyword": "MUST",
+    "feature": "authenticated_ocsp_response_binding_freshness_and_status",
+    "implementation": ["crates/revocation/ocsp/core/src/bind_response.rs", "crates/revocation/ocsp/core/src/checker.rs", "crates/revocation/ocsp/openssl/src/parse.rs", "crates/revocation/ocsp/openssl/src/cert_id_match.rs"],
+    "positive_tests": ["parses_and_verifies_ocsp_response_fixture", "signed_response_nonce_is_extracted_and_bound", "ocsp_allows_good_cert"],
+    "negative_tests": ["response_for_another_serial_is_rejected", "response_for_another_issuer_key_is_rejected", "host_response_nonce_must_match_request_nonce", "rejects_this_update_beyond_the_allowed_future_skew", "ocsp_detects_revocation", "tampered_response_is_rejected", "extra_certificates_cannot_replace_the_configured_issuer"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "CRL-MUST-001",
+    "source": "RFC5280",
+    "section": "5 Certificate Revocation List and CRL Extensions Profile",
+    "keyword": "MUST",
+    "feature": "authenticated_complete_crl_issuer_scope_freshness_and_status",
+    "implementation": ["crates/revocation/crl/openssl/src/parse.rs", "crates/revocation/crl/openssl/src/checker.rs", "crates/revocation/crl/openssl/src/inspect_extensions.rs"],
+    "positive_tests": ["crl_checker_allows_non_revoked", "pem_and_der_paths_agree", "unknown_non_critical_crl_extension_is_accepted"],
+    "negative_tests": ["crl_checker_detects_revocation", "issuer_without_crl_sign_key_usage_is_rejected", "non_ca_issuer_is_rejected_even_with_crl_sign_key_usage", "missing_next_update_is_rejected", "delta_crl_is_rejected", "unknown_critical_crl_extension_is_rejected", "tampered_signature_is_rejected", "crl_issuer_name_must_match_issuer_certificate"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
     "id": "REVOCATION-MUST-002",
     "source": "COMPLIANCE-MAP",
     "section": "eIDAS/EUDI credential and certificate revocation evidence policy",
@@ -224,7 +248,7 @@
       "verify_credential_composes_signature_and_revocation_policy",
       "verify_credential_composes_signature_and_statuslist_policy"
     ],
-    "negative_tests": ["credential_revocation_policy_maps_unavailable_sources", "credential_status_rejects_not_yet_valid_list"],
+    "negative_tests": ["credential_revocation_policy_maps_unavailable_sources", "credential_revocation_rejects_certificate_not_bound_to_issuer", "credential_status_rejects_not_yet_valid_list", "credential_status_revocation_is_terminal_before_certificate_fallback"],
     "applicable": true,
     "exclusion_reason": null
   },

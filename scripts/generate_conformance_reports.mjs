@@ -23,11 +23,16 @@ const fail = (reason) => {
 };
 
 const argumentsList = process.argv.slice(2);
-if (argumentsList.length !== 2 || argumentsList[0] !== "--output-dir") {
-  fail("expected --output-dir PATH");
+if (
+  argumentsList.length !== 4 ||
+  argumentsList[0] !== "--output-dir" ||
+  argumentsList[2] !== "--upstream-results"
+) {
+  fail("expected --output-dir PATH --upstream-results PATH");
 }
 
 const reportsDir = resolve(process.cwd(), argumentsList[1]);
+const upstreamResultsPath = resolve(process.cwd(), argumentsList[3]);
 const outputRelativeToRoot = relative(root, reportsDir);
 if (
   outputRelativeToRoot === "" ||
@@ -103,9 +108,49 @@ const cargoLockSha256 = createHash("sha256")
 const generatedAt = new Date().toISOString();
 const sources = readJson("conformance/upstream/sources.lock").sources;
 const upstream = readJson("conformance/upstream/tests.json").sources;
+let upstreamExecutionResults;
+try {
+  upstreamExecutionResults = JSON.parse(readFileSync(upstreamResultsPath, "utf8"));
+} catch {
+  fail("upstream conformance result is not valid JSON");
+}
+if (
+  upstreamExecutionResults?.schema !==
+    "reallyme.identity.conformance.upstream-results.v1" ||
+  upstreamExecutionResults?.repository?.name !== "reallyme/ssi" ||
+  upstreamExecutionResults?.repository?.commit !== ssiCommit ||
+  !Array.isArray(upstreamExecutionResults?.results)
+) {
+  fail("upstream conformance result is not bound to the clean SSI commit");
+}
+const expectedExecutions = new Map(
+  upstream
+    .filter((source) => source.execution !== undefined)
+    .map((source) => [source.execution.id, source.execution]),
+);
+if (upstreamExecutionResults.results.length !== expectedExecutions.size) {
+  fail("upstream conformance result does not cover every executable source");
+}
+for (const result of upstreamExecutionResults.results) {
+  const expected = expectedExecutions.get(result.id);
+  if (
+    expected === undefined ||
+    result.status !== "passed" ||
+    result.repository !== expected.repository ||
+    result.source_commit !== expected.source_commit ||
+    result.package !== expected.package ||
+    result.version !== expected.version ||
+    result.cargo_checksum !== expected.cargo_checksum ||
+    JSON.stringify(result.command) !== JSON.stringify(expected.command) ||
+    !Array.isArray(result.mapped_tests) ||
+    result.mapped_tests.length === 0
+  ) {
+    fail(`upstream conformance result ${result.id ?? "<unknown>"} is invalid`);
+  }
+}
 const conceptInventory = readJson("conformance/concepts.json").concepts;
 const vectorManifest = readJson("vectors/manifest.json");
-const fuzzTargets = [
+const declaredFuzzTargets = [
   {
     id: "fuzz_claim_path",
     path: "fuzz/fuzz_targets/fuzz_claim_path.rs",
@@ -122,9 +167,29 @@ const fuzzTargets = [
     concepts: ["mdoc"],
   },
   {
+    id: "fuzz_parse_tsl_xml",
+    path: "fuzz/fuzz_targets/fuzz_parse_tsl_xml.rs",
+    concepts: ["x509"],
+  },
+  {
     id: "fuzz_sd_jwt_processing",
     path: "fuzz/fuzz_targets/fuzz_sd_jwt_processing.rs",
     concepts: ["sd-jwt"],
+  },
+  {
+    id: "fuzz_xml_signature_profile",
+    path: "fuzz/fuzz_targets/fuzz_xml_signature_profile.rs",
+    concepts: ["x509"],
+  },
+  {
+    id: "fuzz_jades_header",
+    path: "fuzz/fuzz_targets/fuzz_jades_header.rs",
+    concepts: ["x509", "jwt-vc"],
+  },
+  {
+    id: "fuzz_status_tokens",
+    path: "fuzz/fuzz_targets/fuzz_status_tokens.rs",
+    concepts: ["status"],
   },
   {
     id: "fuzz_status_list",
@@ -136,7 +201,13 @@ const fuzzTargets = [
     path: "fuzz/fuzz_targets/fuzz_x509_trust_der.rs",
     concepts: ["x509"],
   },
-].filter((target) => existsSync(resolve(root, target.path)));
+];
+for (const target of declaredFuzzTargets) {
+  if (!existsSync(resolve(root, target.path))) {
+    fail(`declared fuzz target is missing: ${target.path}`);
+  }
+}
+const fuzzTargets = declaredFuzzTargets;
 const requirementFiles = readdirSync(resolve(root, "conformance/requirements"))
   .filter((file) => file.endsWith(".json"))
   .sort();
@@ -382,6 +453,7 @@ const buildReport = (definition) => {
     positive_tests: unique(applicable.flatMap((record) => record.positive_tests)),
     negative_tests: unique(applicable.flatMap((record) => record.negative_tests)),
     upstream_vectors: upstream,
+    upstream_execution_results: upstreamExecutionResults.results,
     conformance_vectors: vectorManifest.suites,
     fuzz_status: fuzzStatusFor(definition),
     mutation_status: "not-wired",

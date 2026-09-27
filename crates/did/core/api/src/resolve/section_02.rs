@@ -53,19 +53,11 @@ fn validate_present_resolution(
 
     validate_version_window(request, metadata)?;
 
-    if result
-        .resolution_metadata
-        .sequence
-        .is_some_and(|sequence| sequence != doc.sequence)
-    {
+    if result.resolution_metadata.sequence != Some(doc.sequence) {
         return Err(DidApiError::ResolutionResultInvalid);
     }
 
-    if metadata
-        .version_id
-        .as_ref()
-        .is_some_and(|version_id| version_id != &doc.current_core)
-    {
+    if metadata.version_id.as_ref() != Some(&doc.current_core) {
         return Err(DidApiError::ResolutionResultInvalid);
     }
 
@@ -74,11 +66,18 @@ fn validate_present_resolution(
     }
 
     if let Some(version_id) = request.version_id.as_ref() {
-        let version_in_chain =
-            version_id == &doc.current_core || doc.key_history.iter().any(|v| v == version_id);
-        if !version_in_chain {
+        // A historical selector must make the provider return that exact
+        // document. Accepting an identifier merely because it appeared in the
+        // head's history would silently return the wrong version.
+        if version_id != &doc.current_core {
             return Err(DidApiError::ResolutionResultInvalid);
         }
+    }
+    if request
+        .minimum_version_sequence
+        .is_some_and(|minimum| doc.sequence < minimum)
+    {
+        return Err(DidApiError::ResolutionResultInvalid);
     }
 
     // A non-genesis document is authenticated only through its verified
@@ -149,32 +148,9 @@ fn validate_version_window(
         }
     }
 
-    let Some(selected) = request.version_time.as_deref() else {
-        // Without a historical selector the current version is required.
-        if request.version_id.is_none() && metadata.valid_until.is_some() {
-            return Err(DidApiError::ResolutionResultInvalid);
-        }
-        return Ok(());
-    };
-    let selected = parse(selected)?;
-
-    let observed_version_time = metadata
-        .updated
-        .as_deref()
-        .or(metadata.created.as_deref())
-        .ok_or(DidApiError::ResolutionResultInvalid)
-        .and_then(parse)?;
-    if observed_version_time > selected {
-        return Err(DidApiError::ResolutionResultInvalid);
-    }
-
-    // A superseded version must carry its exclusive end bound.
-    if metadata.next_version_id.is_some() && valid_until.is_none() {
-        return Err(DidApiError::ResolutionResultInvalid);
-    }
-    if valid_from.is_some_and(|start| selected < start)
-        || valid_until.is_some_and(|end| selected >= end)
-    {
+    // Without an exact version selector the provider must return the current
+    // version. Wall-clock bounds remain syntax-checked metadata only.
+    if request.version_id.is_none() && metadata.valid_until.is_some() {
         return Err(DidApiError::ResolutionResultInvalid);
     }
     Ok(())

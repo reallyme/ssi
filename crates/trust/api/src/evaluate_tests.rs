@@ -4,9 +4,12 @@
 
 //! Unit tests for typed trust evaluation input and purpose policy.
 
-use super::{core_context_for_authorization, verify_credential_trust_api};
+use super::{
+    core_context_for_authorization, policy_for_authorization, verify_credential_trust_api,
+};
 use crate::{AuthorizationPurpose, TrustApiError};
 
+use envelopes_x509::{CertificatePolicyId, ExtendedKeyUsagePurpose, QcType};
 use reallyme_trust_core::{CertificateStatusPolicy, SignatureVerifier, StatusRequirement};
 
 struct RejectingVerifier;
@@ -56,4 +59,27 @@ fn qualified_purposes_require_leaf_and_intermediate_status() {
         reallyme_trust_core::TrustEvaluationContext::default().status_policy,
         CertificateStatusPolicy::default()
     );
+}
+
+#[test]
+fn qualified_purposes_select_their_certificate_profiles() {
+    let qwac = policy_for_authorization(Some(AuthorizationPurpose::QwacTlsServer));
+    assert_eq!(
+        qwac.required_leaf_eku_any_of,
+        vec![ExtendedKeyUsagePurpose::ServerAuthentication]
+    );
+    assert!(qwac
+        .required_policy_any_of
+        .contains(&CertificatePolicyId::QevcpWeb));
+    assert_eq!(
+        qwac.required_qc_type_any_of,
+        vec![QcType::WebAuthentication]
+    );
+
+    let qseal = policy_for_authorization(Some(AuthorizationPurpose::QsealSigner));
+    assert!(qseal.required_leaf_eku_any_of.is_empty());
+    assert!(qseal
+        .required_policy_any_of
+        .contains(&CertificatePolicyId::QcpLegalPerson));
+    assert_eq!(qseal.required_qc_type_any_of, vec![QcType::ElectronicSeal]);
 }

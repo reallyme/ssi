@@ -127,5 +127,8 @@ fn credential_algorithm_to_crypto_algorithm(
         | CredentialAlgorithm::MlKem1024 => Err(CredentialError::Signature(
             CredentialSignatureReason::UnsupportedAlgorithm,
         )),
+        _ => Err(CredentialError::Signature(
+            CredentialSignatureReason::UnsupportedAlgorithm,
+        )),
     }
 }

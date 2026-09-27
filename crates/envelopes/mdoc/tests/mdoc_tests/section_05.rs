@@ -48,31 +48,37 @@ fn malformed_validity_windows() -> [ValidityInfo; 6] {
             signed: 1_750_000_000,
             valid_from: 1_700_000_000,
             valid_until: 1_800_000_000,
+            expected_update: None,
         },
         ValidityInfo {
             signed: 0,
             valid_from: 1_700_000_000,
             valid_until: 1_800_000_000,
+            expected_update: None,
         },
         ValidityInfo {
             signed: 1_700_000_000,
             valid_from: 0,
             valid_until: 1_800_000_000,
+            expected_update: None,
         },
         ValidityInfo {
             signed: 1_700_000_000,
             valid_from: 1_700_000_000,
             valid_until: 0,
+            expected_update: None,
         },
         ValidityInfo {
             signed: 1_700_000_000,
             valid_from: 1_800_000_000,
             valid_until: 1_700_000_000,
+            expected_update: None,
         },
         ValidityInfo {
             signed: 1_700_000_000,
             valid_from: 1_750_000_000,
             valid_until: 1_750_000_000,
+            expected_update: None,
         },
     ]
 }
@@ -96,8 +102,9 @@ fn issuance_receipt_rejects_authenticated_malformed_validity_windows() {
 
         let error = verify_issuer_signed_mdoc_receipt_with_x5chain(
             &document,
-            |presented_path| {
-                (presented_path == certificates.as_slice()).then(|| issuer_public_key.clone())
+            |presented_path, _signing_time_unix| {
+                (presented_path == certificates.as_slice())
+                    .then(|| trusted_path(issuer_public_key.clone()))
             },
             1_750_000_000,
         )

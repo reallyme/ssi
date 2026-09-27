@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::unwrap_used)]
+#![allow(missing_docs, clippy::indexing_slicing, clippy::unwrap_used)]
 
 use identity_trust_tsl_core::{
     parse_tsl_xml, validate_tsl_freshness, validate_tsl_sequence_number,
@@ -125,16 +125,19 @@ fn retains_multiple_official_provider_registration_identifiers() {
 }
 
 #[test]
-fn coalesces_a_repeated_current_public_key_for_the_same_service_type() {
+fn rejects_a_repeated_current_public_key_for_the_same_service_type_and_scope() {
     let certificate = certificate_base64();
     let service = format!(
         r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/CA/QC</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceInformation></TSPService>"#
     );
     let xml = document(&provider(&format!("{service}{service}")));
 
-    let parsed = parse_tsl_xml(&xml).unwrap();
-    assert_eq!(parsed.providers[0].services.len(), 1);
-    assert_eq!(parsed.providers[0].services[0].history.len(), 0);
+    assert_eq!(
+        parse_tsl_xml(&xml).unwrap_err(),
+        TslError::DigitalIdentity(
+            identity_trust_tsl_core::TslDigitalIdentityFailure::DuplicateServiceKey
+        )
+    );
 }
 
 #[test]
@@ -163,7 +166,7 @@ fn enforces_current_service_identity_presence_and_representation_consistency() {
 
     let mismatched_ski = valid.replace(
         "</ServiceDigitalIdentity>",
-        "<DigitalId><X509SKI>AQ==</X509SKI></DigitalId></ServiceDigitalIdentity>",
+        "<DigitalId><X509SKI>AQEBAQEBAQEBAQEBAQEBAQEBAQE=</X509SKI></DigitalId></ServiceDigitalIdentity>",
     );
     assert_eq!(
         parse_tsl_xml(&mismatched_ski).unwrap_err(),
@@ -195,6 +198,7 @@ fn enforces_current_service_identity_presence_and_representation_consistency() {
         Err(TslError::DigitalIdentity(
             identity_trust_tsl_core::TslDigitalIdentityFailure::PublicKeyMismatch
                 | identity_trust_tsl_core::TslDigitalIdentityFailure::SubjectNameMismatch
+                | identity_trust_tsl_core::TslDigitalIdentityFailure::CertificateAuthorityMismatch
         ))
     ));
 }
@@ -318,7 +322,7 @@ fn conflicting_history_rows_at_one_starting_time_become_a_barrier() {
 }
 
 #[test]
-fn older_duplicate_service_state_does_not_widen_the_current_state() {
+fn duplicate_current_service_key_is_rejected_across_service_rows() {
     let certificate = certificate_base64();
     let qualification = r#"<ServiceInformationExtensions><Extension Critical="true"><q:Qualifications xmlns:q="http://uri.etsi.org/TrstSvc/SvcInfoExt/eSigDir-1999-93-EC-TrustedList/#"><q:QualificationElement><q:Qualifiers><q:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCWithQSCD"/></q:Qualifiers><q:CriteriaList assert="all"><q:KeyUsage><q:KeyUsageBit name="digitalSignature">true</q:KeyUsageBit></q:KeyUsage></q:CriteriaList></q:QualificationElement></q:Qualifications></Extension></ServiceInformationExtensions>"#;
     let service = |start: &str, extensions: &str, supply: &str| {
@@ -333,18 +337,11 @@ fn older_duplicate_service_state_does_not_widen_the_current_state() {
     );
     let newer = service("2025-01-01T00:00:00Z", "", "");
     for body in [format!("{older}{newer}"), format!("{newer}{older}")] {
-        let list = parse_tsl_xml(&document(&provider(&body))).unwrap();
-        let service = &list.providers[0].services[0];
-        assert_eq!(list.providers[0].services.len(), 1);
-        assert_eq!(service.status_starting_time.unix_seconds(), 1_735_689_600);
-        assert!(service.qualifications.is_empty());
-        assert!(service.supply_points.is_empty());
-        assert_eq!(service.service_names.len(), 1);
-        assert_eq!(service.history.len(), 1);
-        assert_eq!(service.history[0].qualifications.len(), 1);
         assert_eq!(
-            service.history[0].status_starting_time.unix_seconds(),
-            1_704_067_200
+            parse_tsl_xml(&document(&provider(&body))).unwrap_err(),
+            TslError::DigitalIdentity(
+                identity_trust_tsl_core::TslDigitalIdentityFailure::DuplicateServiceKey
+            )
         );
     }
 }
@@ -757,3 +754,4 @@ fn rejects_unsupported_version_and_excessive_depth() {
 include!("tsl_parse/scheme_metadata_tests.rs");
 include!("tsl_parse/qualification_edge_tests.rs");
 include!("tsl_parse/etsi_119612_v2_4_1_tests.rs");
+include!("tsl_parse/digital_identity_consistency_tests.rs");

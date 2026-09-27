@@ -9,6 +9,7 @@ use reallyme_crypto::dispatch::verify as dispatch_verify;
 use reallyme_crypto::p256::p256_ecdsa_jose_signature_to_der;
 use reallyme_did_types::DIDDocument;
 
+use super::suite::proof_payload;
 use super::{Es256JwsCid2025Error, CRYPTOSUITE};
 
 /// Verify an es256-jws-cid-2025 DataIntegrityProof on a DIDDocument.
@@ -37,6 +38,10 @@ pub fn verify_es256_jws_cid_2025(doc: &DIDDocument) -> Result<(), Es256JwsCid202
         .jws
         .as_deref()
         .ok_or(Es256JwsCid2025Error::MissingJws)?;
+    let created = proof
+        .created
+        .as_deref()
+        .ok_or(Es256JwsCid2025Error::InvalidInput)?;
 
     if !doc.assertion_method.iter().any(|s| s == vm_ref) {
         return Err(Es256JwsCid2025Error::VerificationMethodNotAllowed);
@@ -55,14 +60,17 @@ pub fn verify_es256_jws_cid_2025(doc: &DIDDocument) -> Result<(), Es256JwsCid202
         return Err(Es256JwsCid2025Error::WrongAlgorithm);
     }
 
-    let parts: Vec<&str> = jws.split('.').collect();
-    if parts.len() != 3 {
+    let mut parts = jws.split('.');
+    let (Some(h), Some(p), Some(s), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
         return Err(Es256JwsCid2025Error::MalformedJws);
-    }
-    let (h, p, s) = (parts[0], parts[1], parts[2]);
+    };
 
     let header_bytes =
         base64url_bytes_to_bytes(h.as_bytes()).map_err(|_| Es256JwsCid2025Error::BadJwsHeader)?;
+    identity_core_primitives::validate_json::validate_json(&header_bytes)
+        .map_err(|_| Es256JwsCid2025Error::BadJwsHeader)?;
     let header: serde_json::Value =
         serde_json::from_slice(&header_bytes).map_err(|_| Es256JwsCid2025Error::BadJwsHeader)?;
 
@@ -78,10 +86,7 @@ pub fn verify_es256_jws_cid_2025(doc: &DIDDocument) -> Result<(), Es256JwsCid202
 
     let payload_bytes =
         base64url_bytes_to_bytes(p.as_bytes()).map_err(|_| Es256JwsCid2025Error::BadJwsHeader)?;
-    let payload =
-        core::str::from_utf8(&payload_bytes).map_err(|_| Es256JwsCid2025Error::BadJwsHeader)?;
-
-    if payload != doc.current_core {
+    if payload_bytes != proof_payload(&doc.current_core, created)? {
         return Err(Es256JwsCid2025Error::PayloadMismatch);
     }
 

@@ -129,6 +129,7 @@ pub struct DIDDocument {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
 /// DID Core controller value represented as either one DID or multiple DIDs.
+#[non_exhaustive]
 pub enum Controller {
     /// Single-controller DID form.
     Single(String),

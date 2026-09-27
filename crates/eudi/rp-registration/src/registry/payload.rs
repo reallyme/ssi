@@ -167,19 +167,21 @@ pub(super) fn parse_selected_payload(
         }
         RegistryPayloadShape::Ts5SignedIntendedUseCheck => {
             let envelope: SignedIntendedUseCheck = deserialize_strict(bytes)?;
-            let metadata = current_metadata(&envelope.iss, envelope.iat, freshness)?;
-            let details = envelope
+            let _metadata = current_metadata(&envelope.iss, envelope.iat, freshness)?;
+            let _details = envelope
                 .data
                 .details
                 .as_deref()
                 .map(BoundedText::try_new)
                 .transpose()?;
-            Ok((
-                RegistryPayload::IntendedUseCheck {
-                    is_registered: envelope.data.is_registered,
-                    details,
-                },
-                metadata,
+            let _is_registered = envelope.data.is_registered;
+            // TS 119 475 does not echo the service or intended-use identifiers
+            // in this signed response shape. A valid signature therefore
+            // cannot prevent a fresh positive answer from being replayed for a
+            // different query, so the Boolean is never released as an
+            // authorization result.
+            Err(RegistrationError::from_reason(
+                RegistrationErrorReason::UnboundLegacyAnswer,
             ))
         }
         RegistryPayloadShape::LegacyRawWrpArray => {

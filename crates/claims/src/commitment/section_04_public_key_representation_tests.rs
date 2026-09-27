@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::indexing_slicing)]
+
     use super::{
         certificate_subject_public_key_info, validate_public_key_ref,
         validate_public_key_representation, CredentialAlgorithm, KeyAssurance, KeyReference,

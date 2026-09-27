@@ -240,8 +240,11 @@ pub(crate) fn validate_with_authority(
                 );
                 errors.extend(att.errors);
 
-                let att_policy =
-                    validate_attestation_policy(&core_authority.update_policy, &doc.attestations);
+                let att_policy = validate_attestation_policy(
+                    &core_authority.update_policy,
+                    &core_authority.verification_methods,
+                    &doc.attestations,
+                );
                 errors.extend(att_policy.errors);
             }
             None => errors.push(DidValidationIssue::new(
@@ -252,15 +255,22 @@ pub(crate) fn validate_with_authority(
     }
 
     // ---------------------------------------------------------------------
-    // 5. Data Integrity Proof (non-authoritative anchor)
+    // 5. Data Integrity Proof
     // ---------------------------------------------------------------------
     if doc.data_integrity_proof.is_some() {
         let dip = validate_data_integrity_proof_schema(doc);
-        // The optional Data Integrity proof is useful anchor metadata, but the
-        // did:me core and attestations determine DID validity. Report proof
-        // shape issues without allowing them to invalidate an otherwise valid
-        // DID document.
-        warnings.extend(dip.errors);
+        if dip.ok {
+            if envelopes_data_integrity::suites::es256_jws_cid_2025::verify_es256_jws_cid_2025(doc)
+                .is_err()
+            {
+                errors.push(DidValidationIssue::new(
+                    DidValidationCode::DataIntegrityProofInvalid,
+                    DidValidationLocation::DataIntegrityProof,
+                ));
+            }
+        } else {
+            errors.extend(dip.errors);
+        }
     }
 
     // ---------------------------------------------------------------------

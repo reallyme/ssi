@@ -24,12 +24,13 @@ presentation, and DeviceResponse verification.
 
 ```toml
 [dependencies]
-reallyme-mdoc = "0.2.0"
+reallyme-mdoc = "0.3.0"
 ```
 
 The default `native` feature enables the native cryptographic provider. Use
-`default-features = false` with `wasm` for WebAssembly. The lower-level model
-and CBOR surface remains available without `mdoc-crypto`.
+`default-features = false` with `wasm` for WebAssembly. `mdoc-crypto` is an
+internal dependency grouping enabled by those reviewed lanes; applications
+must not select it as an independent provider policy.
 
 ## License
 

@@ -4,9 +4,10 @@
 
 //! Built-in verifier policy profiles.
 //!
-//! These profiles express trust and acceptance requirements such as QEAA,
+//! These baseline profiles express trust and acceptance requirements such as QEAA,
 //! identity proofing rank, status freshness, accepted algorithms, and accepted
-//! presentation formats. Claim schemas remain separate from these profiles.
+//! presentation formats. Claim schemas and relying-party-specific claim or
+//! threshold requirements remain separate and must be added explicitly.
 
 /// EU address policy.
 pub mod address;

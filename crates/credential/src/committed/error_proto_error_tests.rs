@@ -21,6 +21,18 @@ fn vc_core_errors_map_to_stable_proto_reasons() {
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE,
         ),
         (
+            VcError::ProofBindingMismatch,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH,
+        ),
+        (
+            VcError::ProofBindingTrustedIssuerMismatch,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH,
+        ),
+        (
+            VcError::ProofBindingSignatureInvalid,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID,
+        ),
+        (
             VcError::EntropyUnavailable,
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_API_ISSUANCE_FAILED,
         ),

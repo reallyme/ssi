@@ -13,7 +13,7 @@ on:
         description: Release version without a leading v
         required: true
         type: string
-        default: 0.2.0
+        default: 0.3.0
 
 concurrency:
   group: crates-package-preflight-${{ inputs.version }}-${{ github.sha }}
@@ -60,6 +60,11 @@ jobs:
     name: Review crates.io packages
     needs: verify-source-sha
     runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
     steps:
       - name: Checkout certified release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -140,9 +145,21 @@ jobs:
         working-directory: reallyme/ssi
         run: node scripts/verify_release_attestation.mjs
 
+      - name: Download exact-source upstream conformance result
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: reallyme-ssi-upstream-conformance-${{ needs.verify-source-sha.outputs.release_sha }}
+          path: upstream-conformance
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.rust-ci.outputs.rust_ci_run_id }}
+
       - name: Generate clean SSI conformance evidence
         working-directory: reallyme/ssi
-        run: node scripts/generate_conformance_reports.mjs --output-dir "${RUNNER_TEMP}/ssi-conformance"
+        run: >-
+          node scripts/generate_conformance_reports.mjs
+          --output-dir "${RUNNER_TEMP}/ssi-conformance"
+          --upstream-results ../../upstream-conformance/upstream-conformance.json
 
       - name: Upload SSI conformance evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -159,6 +176,11 @@ jobs:
           RUST_CI_RUN_ID: ${{ steps.rust-ci.outputs.rust_ci_run_id }}
         working-directory: reallyme/ssi
         run: node scripts/write_release_attestation.mjs
+
+      - name: Cryptographically attest reviewed package evidence
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: reallyme/ssi/release-attestation/crates-preflight.json
 
       - name: Upload reviewed package attestation
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

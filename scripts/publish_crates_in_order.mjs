@@ -40,6 +40,8 @@ const mode = args[0] ?? MODE_INSPECT;
 const allowDirty = args.includes("--allow-dirty");
 const unknownArgs = args.slice(1).filter((arg) => arg !== "--allow-dirty");
 const releaseVersion = process.env.RELEASE_VERSION ?? "";
+const publicationLedgerPath = process.env.PUBLICATION_LEDGER_PATH ?? "";
+const releaseSha = process.env.RELEASE_SHA ?? "";
 
 if (
   (mode !== MODE_INSPECT && mode !== MODE_ORDER && mode !== MODE_PUBLISH) ||
@@ -58,6 +60,15 @@ if (allowDirty && mode !== MODE_INSPECT && mode !== MODE_ORDER) {
 
 if (mode === MODE_PUBLISH && releaseVersion.length === 0) {
   console.error("RELEASE_VERSION must be set when publishing crates.");
+  process.exit(2);
+}
+
+if (
+  mode === MODE_PUBLISH &&
+  publicationLedgerPath.length !== 0 &&
+  !/^[0-9a-f]{40}$/u.test(releaseSha)
+) {
+  console.error("RELEASE_SHA must be an exact Git commit when recording a publication ledger.");
   process.exit(2);
 }
 
@@ -345,6 +356,11 @@ if (mode === MODE_INSPECT) {
   }
 
   fs.rmSync(unpackDirectory, { force: true, recursive: true });
+  // Rust compile-time environment values such as CARGO_MANIFEST_DIR are not
+  // part of Cargo's artifact fingerprint. Reusing this cache could therefore
+  // execute a test binary compiled against the workspace instead of the
+  // extracted archive, defeating the purpose of the package inspection.
+  fs.rmSync(inspectionTargetDirectory, { force: true, recursive: true });
   fs.mkdirSync(unpackDirectory, { recursive: true });
   for (const pkg of ordered) {
     const archive = path.join(packageDirectory, `${pkg.name}-${pkg.version}.crate`);
@@ -432,6 +448,23 @@ function inspectPackage(pkg) {
     process.exit(checkResult.status ?? 1);
   }
 
+  // Tests are part of the crate archive and frequently contain compile-time
+  // fixtures. Executing them from the extracted archive proves that none of
+  // those fixtures accidentally depend on files elsewhere in this checkout.
+  const testArgs = [
+    "test",
+    "--manifest-path",
+    manifestPath,
+    "--all-features",
+    "--locked",
+    "--offline",
+    ...patchArgs,
+  ];
+  const testResult = run("cargo", testArgs, { env: inspectionEnvironment });
+  if (testResult.status !== 0) {
+    process.exit(testResult.status ?? 1);
+  }
+
   const dryRunArgs = ["publish", "-p", pkg.name, "--dry-run", "--locked"];
   if (allowDirty) {
     dryRunArgs.push("--allow-dirty");
@@ -462,18 +495,11 @@ function inspectPackage(pkg) {
 }
 
 function publishPackage(pkg) {
-  const packageResult = run("cargo", [
-    "package",
-    "-p",
-    pkg.name,
-    "--no-verify",
-    "--locked",
-  ]);
-  if (packageResult.status !== 0) {
-    process.exit(packageResult.status ?? 1);
-  }
-
-  const args = ["publish", "-p", pkg.name, "--locked"];
+  // Archive construction and extracted-archive verification are release
+  // preflight responsibilities. Rebuilding here would execute dependency
+  // build scripts while a registry credential is present and would also fail
+  // outside the retry loop while a newly-published dependency propagates.
+  const args = ["publish", "-p", pkg.name, "--locked", "--no-verify"];
 
   for (let attempt = 1; attempt <= MAX_PUBLISH_ATTEMPTS; attempt += 1) {
     const result = run("cargo", args, { capture: true });
@@ -481,14 +507,14 @@ function publishPackage(pkg) {
     process.stderr.write(result.stderr);
 
     if (result.status === 0) {
-      return;
+      return "published";
     }
 
     const combined = `${result.stdout}\n${result.stderr}`;
     if (combined.includes("already uploaded") || combined.includes("already exists")) {
       verifyPublishedPackageMatches(pkg);
       console.log(`${pkg.name} ${pkg.version} is already published; continuing.`);
-      return;
+      return "verified_existing";
     }
 
     const lowerCombined = combined.toLowerCase();
@@ -526,6 +552,47 @@ function publishPackage(pkg) {
     );
     sleepMs(delayMs);
   }
+}
+
+const publicationLedger = {
+  schema: "reallyme.ssi.crates-publication-ledger.v1",
+  repository: "reallyme/ssi",
+  source_commit: releaseSha,
+  release_version: releaseVersion,
+  state: "not_started",
+  crates: ordered.map((pkg, publish_order) => ({
+    name: pkg.name,
+    version: pkg.version,
+    publish_order,
+    state: "pending",
+    archive_sha256: null,
+  })),
+};
+
+function writePublicationLedger() {
+  if (mode !== MODE_PUBLISH || publicationLedgerPath.length === 0) {
+    return;
+  }
+  const parent = path.dirname(publicationLedgerPath);
+  fs.mkdirSync(parent, { recursive: true });
+  const temporaryPath = `${publicationLedgerPath}.tmp`;
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(publicationLedger, null, 2)}\n`, {
+    mode: 0o600,
+  });
+  fs.renameSync(temporaryPath, publicationLedgerPath);
+}
+
+function archiveSha256(pkg) {
+  const archive = path.join(packageDirectory, `${pkg.name}-${pkg.version}.crate`);
+  if (!fs.existsSync(archive)) {
+    return null;
+  }
+  return createHash("sha256").update(fs.readFileSync(archive)).digest("hex");
+}
+
+if (mode === MODE_PUBLISH) {
+  publicationLedger.state = "in_progress";
+  writePublicationLedger();
 }
 
 function verifyPublishedPackageMatches(pkg) {
@@ -587,5 +654,20 @@ for (const pkg of ordered) {
     continue;
   }
 
-  publishPackage(pkg);
+  const ledgerEntry = publicationLedger.crates.find((entry) => entry.name === pkg.name);
+  if (ledgerEntry !== undefined) {
+    ledgerEntry.state = "attempting";
+    writePublicationLedger();
+  }
+  const publishState = publishPackage(pkg);
+  if (ledgerEntry !== undefined) {
+    ledgerEntry.state = publishState;
+    ledgerEntry.archive_sha256 = archiveSha256(pkg);
+    writePublicationLedger();
+  }
+}
+
+if (mode === MODE_PUBLISH) {
+  publicationLedger.state = "completed";
+  writePublicationLedger();
 }

@@ -6,13 +6,15 @@
 //! Test coverage for this crate.
 
 use reallyme_credential_audit::{
-    validate_qeaa_compliance, IdentityProofing, IdentityProofingLevel, IssuerCredential,
+    screen_qeaa_metadata, IdentityProofing, IdentityProofingLevel, IssuerCredential,
     IssuerCredentialKind, KeyManagement, KeyProtection, QeaaCompliance, QeaaComplianceError,
     QeaaField, QeaaInvalidReason, QeaaPolicies, QtspInfo, QtspRole, RevocationPolicy, StatusMethod,
     MAX_CERT_CHAIN_LEN, MAX_CERT_CHAIN_TOTAL_DER_BYTES, MAX_CERT_DER_BYTES,
 };
+use reallyme_crypto::sha2::digest as sha2_256_digest;
 
 fn sample_qeaa() -> QeaaCompliance {
+    let leaf_der = vec![0x30, 0x03, 0x01];
     QeaaCompliance {
         qtsp: QtspInfo {
             tsp_name: "Test QTSP".to_owned(),
@@ -25,8 +27,8 @@ fn sample_qeaa() -> QeaaCompliance {
         },
         issuer_credential: IssuerCredential {
             kind: IssuerCredentialKind::X509,
-            cert_fingerprint_sha256: [7; 32],
-            cert_chain_der: vec![vec![0x30, 0x03, 0x01]],
+            cert_fingerprint_sha256: *sha2_256_digest(&leaf_der).as_bytes(),
+            cert_chain_der: vec![leaf_der],
             trusted_list_ref: "EU-TSL:example".to_owned(),
             policy_oids: vec!["0.4.0.194112.1.3".to_owned()],
             qcstatements_oids: vec!["0.4.0.1862.1.1".to_owned()],
@@ -58,15 +60,31 @@ fn sample_qeaa() -> QeaaCompliance {
 
 #[test]
 fn qeaa_validates_happy_path() {
-    validate_qeaa_compliance(&sample_qeaa(), 1_750_000_000).unwrap();
+    screen_qeaa_metadata(&sample_qeaa(), 1_750_000_000).unwrap();
 }
 
 #[test]
 fn qeaa_treats_certificate_chain_as_bounded_external_evidence() {
     let mut qeaa = sample_qeaa();
-    qeaa.issuer_credential.cert_chain_der = vec![vec![0x01, 0x02, 0x03]];
+    let leaf_der = vec![0x01, 0x02, 0x03];
+    qeaa.issuer_credential.cert_fingerprint_sha256 = *sha2_256_digest(&leaf_der).as_bytes();
+    qeaa.issuer_credential.cert_chain_der = vec![leaf_der];
 
-    validate_qeaa_compliance(&qeaa, 1_750_000_000).unwrap();
+    screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap();
+}
+
+#[test]
+fn qeaa_rejects_fingerprint_not_bound_to_leaf_der() {
+    let mut qeaa = sample_qeaa();
+    qeaa.issuer_credential.cert_fingerprint_sha256 = [7; 32];
+
+    let err = screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap_err();
+    assert_eq!(
+        err,
+        QeaaComplianceError::InvalidInput(QeaaInvalidReason::InvalidField(
+            QeaaField::CertFingerprintSha256
+        ))
+    );
 }
 
 #[test]
@@ -74,7 +92,7 @@ fn qeaa_rejects_non_qeaa_qtsp_role() {
     let mut qeaa = sample_qeaa();
     qeaa.qtsp.tsp_role = QtspRole::Unspecified;
 
-    let err = validate_qeaa_compliance(&qeaa, 1_750_000_000).unwrap_err();
+    let err = screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap_err();
 
     assert_eq!(
         err,
@@ -87,7 +105,7 @@ fn qeaa_rejects_insufficient_identity_proofing() {
     let mut qeaa = sample_qeaa();
     qeaa.identity_proofing.loip = IdentityProofingLevel::Extended;
 
-    let err = validate_qeaa_compliance(&qeaa, 1_750_000_000).unwrap_err();
+    let err = screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap_err();
 
     assert_eq!(
         err,
@@ -99,7 +117,7 @@ fn qeaa_rejects_insufficient_identity_proofing() {
 fn qeaa_rejects_inactive_audit_period() {
     let qeaa = sample_qeaa();
 
-    let err = validate_qeaa_compliance(&qeaa, 1_900_000_000).unwrap_err();
+    let err = screen_qeaa_metadata(&qeaa, 1_900_000_000).unwrap_err();
 
     assert_eq!(
         err,
@@ -112,7 +130,7 @@ fn qeaa_rejects_zero_length_audit_period() {
     let mut qeaa = sample_qeaa();
     qeaa.audit.period_to_unix = qeaa.audit.period_from_unix;
 
-    let err = validate_qeaa_compliance(&qeaa, 1_750_000_000).unwrap_err();
+    let err = screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap_err();
 
     assert_eq!(
         err,
@@ -125,7 +143,7 @@ fn qeaa_rejects_all_zero_digests() {
     let mut qeaa = sample_qeaa();
     qeaa.audit.audit_report_hash = [0; 32];
 
-    let err = validate_qeaa_compliance(&qeaa, 1_750_000_000).unwrap_err();
+    let err = screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap_err();
 
     assert_eq!(
         err,
@@ -140,7 +158,7 @@ fn qeaa_rejects_oversized_certificate_chain() {
     let mut qeaa = sample_qeaa();
     qeaa.issuer_credential.cert_chain_der = vec![vec![1]; MAX_CERT_CHAIN_LEN + 1];
 
-    let err = validate_qeaa_compliance(&qeaa, 1_750_000_000).unwrap_err();
+    let err = screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap_err();
 
     assert_eq!(
         err,
@@ -157,7 +175,7 @@ fn qeaa_rejects_oversized_certificate_chain_total_der() {
     let second_der = vec![2; MAX_CERT_CHAIN_TOTAL_DER_BYTES - MAX_CERT_DER_BYTES + 1];
     qeaa.issuer_credential.cert_chain_der = vec![first_der, second_der];
 
-    let err = validate_qeaa_compliance(&qeaa, 1_750_000_000).unwrap_err();
+    let err = screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap_err();
 
     assert_eq!(
         err,
@@ -172,7 +190,7 @@ fn qeaa_rejects_invalid_oid() {
     let mut qeaa = sample_qeaa();
     qeaa.issuer_credential.policy_oids = vec!["0.4.bad".to_owned()];
 
-    let err = validate_qeaa_compliance(&qeaa, 1_750_000_000).unwrap_err();
+    let err = screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap_err();
 
     assert_eq!(
         err,
@@ -185,7 +203,7 @@ fn qeaa_rejects_stale_status_policy_window() {
     let mut qeaa = sample_qeaa();
     qeaa.revocation.max_status_age_seconds = 86_401;
 
-    let err = validate_qeaa_compliance(&qeaa, 1_750_000_000).unwrap_err();
+    let err = screen_qeaa_metadata(&qeaa, 1_750_000_000).unwrap_err();
 
     assert_eq!(
         err,
@@ -217,14 +235,14 @@ fn qeaa_rejects_control_and_bidi_characters_in_text_fields() {
     let mut newline = sample_qeaa();
     newline.qtsp.tsp_name = "Test QTSP\nforged: approved".to_owned();
     assert_eq!(
-        validate_qeaa_compliance(&newline, 1_750_000_000).unwrap_err(),
+        screen_qeaa_metadata(&newline, 1_750_000_000).unwrap_err(),
         QeaaComplianceError::InvalidInput(QeaaInvalidReason::InvalidField(QeaaField::QtspName))
     );
 
     let mut bidi = sample_qeaa();
     bidi.audit.audit_report_ref = "urn:reallyme:audit:\u{202E}1:troper".to_owned();
     assert_eq!(
-        validate_qeaa_compliance(&bidi, 1_750_000_000).unwrap_err(),
+        screen_qeaa_metadata(&bidi, 1_750_000_000).unwrap_err(),
         QeaaComplianceError::InvalidInput(QeaaInvalidReason::InvalidField(
             QeaaField::AuditReportRef
         ))
@@ -233,7 +251,7 @@ fn qeaa_rejects_control_and_bidi_characters_in_text_fields() {
     let mut standard = sample_qeaa();
     standard.policies.standards = vec!["ETSI EN 319 411-2\u{0}".to_owned()];
     assert_eq!(
-        validate_qeaa_compliance(&standard, 1_750_000_000).unwrap_err(),
+        screen_qeaa_metadata(&standard, 1_750_000_000).unwrap_err(),
         QeaaComplianceError::InvalidInput(QeaaInvalidReason::InvalidField(
             QeaaField::PolicyStandards
         ))

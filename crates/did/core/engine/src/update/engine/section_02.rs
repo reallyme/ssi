@@ -33,13 +33,6 @@ pub fn update_engine(
         .ok_or(UpdateError::InvalidSequence)?;
     let prev_cid = old.current_core.clone();
 
-    validate_chain(
-        old.sequence,
-        next_seq,
-        &old.current_core,
-        Some(old.current_core.as_str()),
-    )?;
-
     let mut new_history = old.key_history.clone();
     new_history.push(old.current_core.clone());
 
@@ -76,6 +69,7 @@ pub fn update_engine(
     let mut controller_vec = match &old.controller {
         reallyme_did_types::Controller::Single(d) => vec![d.clone()],
         reallyme_did_types::Controller::Multiple(v) => v.clone(),
+        _ => return Err(UpdateError::InvalidState),
     };
 
     controller_vec.sort();
@@ -173,6 +167,42 @@ pub fn update_engine(
         &core_controller_keys,
     )?;
 
+    let next_also_known_as = opts
+        .metadata
+        .also_known_as
+        .clone()
+        .unwrap_or_else(|| old.also_known_as.clone());
+    let next_hardware_bound = opts.metadata.hardware_bound.or(old.hardware_bound);
+    let next_biometric_protected = opts
+        .metadata
+        .biometric_protected
+        .or(old.biometric_protected);
+    let next_user_verification_method = opts
+        .metadata
+        .user_verification_method
+        .clone()
+        .or_else(|| old.user_verification_method.clone());
+    let next_device_model = opts
+        .metadata
+        .device_model
+        .clone()
+        .or_else(|| old.device_model.clone());
+    let next_eudi_level_of_assurance = old.eudi_level_of_assurance.clone();
+    let next_eudi_schema_version = old.eudi_schema_version.clone();
+    let projection_hash = projection_binding_hash(&ProjectionBinding {
+        context: &default_context(),
+        also_known_as: &next_also_known_as,
+        hardware_bound: next_hardware_bound,
+        biometric_protected: next_biometric_protected,
+        user_verification_method: next_user_verification_method.as_deref(),
+        device_model: next_device_model.as_deref(),
+        key_history: &new_history,
+        domain_verification: &merged_dv,
+        eudi_level_of_assurance: next_eudi_level_of_assurance.as_deref(),
+        eudi_schema_version: next_eudi_schema_version.as_deref(),
+    })
+    .map_err(|_| UpdateError::InvalidState)?;
+
     // Now build DidCore
     let core = DidCore {
         id: old.id.clone(),
@@ -184,6 +214,7 @@ pub fn update_engine(
         assertion: assertion.clone(),
         key_agreement,
         services: core_services,
+        projection_hash,
         nonce: None,
         update_policy: CoreUpdatePolicy {
             allowed_verification_methods: next_allowed,
@@ -279,20 +310,11 @@ pub fn update_engine(
         core: &core,
         core_cid: &core_cid,
 
-        also_known_as: opts
-            .metadata
-            .also_known_as
-            .unwrap_or_else(|| old.also_known_as.clone()),
-        hardware_bound: opts.metadata.hardware_bound.or(old.hardware_bound),
-        biometric_protected: opts
-            .metadata
-            .biometric_protected
-            .or(old.biometric_protected),
-        user_verification_method: opts
-            .metadata
-            .user_verification_method
-            .or(old.user_verification_method.clone()),
-        device_model: opts.metadata.device_model.or(old.device_model.clone()),
+        also_known_as: next_also_known_as,
+        hardware_bound: next_hardware_bound,
+        biometric_protected: next_biometric_protected,
+        user_verification_method: next_user_verification_method,
+        device_model: next_device_model,
 
         key_history: new_history,
         verification_method: projected_verification_methods,
@@ -300,8 +322,8 @@ pub fn update_engine(
         domain_verification: merged_dv,
         attestations,
         data_integrity_proof,
-        eudi_level_of_assurance: old.eudi_level_of_assurance.clone(),
-        eudi_schema_version: old.eudi_schema_version.clone(),
+        eudi_level_of_assurance: next_eudi_level_of_assurance,
+        eudi_schema_version: next_eudi_schema_version,
     })
     .map_err(|_| UpdateError::InvalidState)
 }

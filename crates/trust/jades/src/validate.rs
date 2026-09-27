@@ -75,12 +75,17 @@ pub fn validate_compact_jades(
         status_checker,
     )
     .map_err(|_| JadesError::new(JadesErrorReason::CertificatePathRejected))?;
-    match trust_decision.outcome {
+    match trust_decision.outcome() {
         TrustOutcome::Trusted => {}
         TrustOutcome::Rejected => {
             return Err(JadesError::new(JadesErrorReason::CertificatePathRejected));
         }
         TrustOutcome::Indeterminate => {
+            return Err(JadesError::new(
+                JadesErrorReason::CertificatePathIndeterminate,
+            ));
+        }
+        _ => {
             return Err(JadesError::new(
                 JadesErrorReason::CertificatePathIndeterminate,
             ));

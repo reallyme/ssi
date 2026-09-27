@@ -9,8 +9,9 @@ use crate::{
 
 use identity_core_primitives::Algorithm;
 use identity_credential_claims_core::{validate_disclosure, ClaimsRegistry};
-use identity_credential_status_core::{CredentialStatusError, StatusList, StatusListVerifier};
+use identity_credential_status_core::{CredentialStatusError, StatusList, StatusPurpose};
 use identity_presentation_vp_core::model::Presentation;
+use reallyme_credential::CredentialStatusListVerifier;
 use reallyme_credential_audit::QeaaCompliance;
 
 /// Maximum number of presentation disclosures evaluated against policy.
@@ -79,8 +80,16 @@ pub struct StatusContext<'a> {
     pub list: &'a StatusList,
     /// Credential index in the status list.
     pub index: u64,
+    /// Status index authenticated by the credential envelope.
+    pub expected_index: u64,
+    /// Issuer identifier authenticated by the credential envelope.
+    pub expected_issuer: &'a str,
+    /// Status-list identifier authenticated by the credential envelope.
+    pub expected_list_id: [u8; 32],
+    /// Status purpose authenticated by the credential envelope.
+    pub expected_purpose: StatusPurpose,
     /// Injected verifier for status-list signatures and freshness.
-    pub verifier: &'a dyn StatusListVerifier,
+    pub verifier: &'a dyn CredentialStatusListVerifier,
 }
 
 /// Evaluate a presentation against verifier policy.
@@ -91,6 +100,20 @@ pub struct StatusContext<'a> {
 /// - makes all accept/reject decisions explicit
 pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
     let mut errors = Vec::new();
+
+    let status_constraint_without_status =
+        policy.max_status_age_seconds.is_some() && !policy.require_status;
+    let qeaa_constraint_without_qeaa = (policy.min_qeaa_profile.is_some()
+        || policy.min_identity_proofing_level.is_some())
+        && !policy.require_qeaa;
+    let mut required_paths = std::collections::BTreeSet::new();
+    let duplicate_required_path = policy
+        .required_claims
+        .iter()
+        .any(|claim| !required_paths.insert(claim.claim_path.as_str()));
+    if status_constraint_without_status || qeaa_constraint_without_qeaa || duplicate_required_path {
+        errors.push(VpPolicyError::PolicyMisconfiguration);
+    }
 
     // ---------------------------------------------------------------------
     // 1. Don't evaluate the OpenID4VP binding here, just determine if it has been
@@ -162,6 +185,14 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
         policy.required_claims.as_slice()
     };
 
+    let mut seen_disclosures = std::collections::BTreeSet::new();
+    if disclosed
+        .iter()
+        .any(|claim| !seen_disclosures.insert(claim.claim_path.as_str()))
+    {
+        errors.push(VpPolicyError::ProofInvalid);
+    }
+
     if !required_claims.is_empty() {
         for disclosed_claim in &disclosed {
             if !required_claims
@@ -211,10 +242,14 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
                 errors.push(VpPolicyError::PolicyMisconfiguration);
                 continue;
             }
+            Err(_) => {
+                errors.push(VpPolicyError::PolicyMisconfiguration);
+                continue;
+            }
         };
 
         // Enforce that the disclosed mode satisfies the required mode
-        if disclosed_claim.mode != req.mode {
+        if disclosed_claim.mode != req.mode || disclosed_claim.operand != req.operand {
             errors.push(VpPolicyError::PredicateNotSatisfied);
         }
     }
@@ -222,9 +257,15 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
     // ---------------------------------------------------------------------
     // 6. Status / revocation
     // ---------------------------------------------------------------------
-    if policy.require_status {
-        match &ctx.status {
-            Some(sc) => {
+    match &ctx.status {
+        Some(sc) => {
+            if sc.index != sc.expected_index
+                || sc.list.issuer != sc.expected_issuer
+                || sc.list.list_id != Some(sc.expected_list_id)
+                || sc.list.purpose != sc.expected_purpose
+            {
+                errors.push(VpPolicyError::StatusCheckFailed);
+            } else {
                 match identity_credential_status_core::verify_status(
                     sc.list,
                     sc.index,
@@ -242,12 +283,17 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
                     Err(CredentialStatusError::Suspended) => {
                         errors.push(VpPolicyError::CredentialSuspended);
                     }
+                    Err(CredentialStatusError::Expired) => {
+                        errors.push(VpPolicyError::StatusTooOld);
+                    }
                     Err(_) => {
                         errors.push(VpPolicyError::StatusCheckFailed);
                     }
                 }
             }
-            None => {
+        }
+        None => {
+            if policy.require_status {
                 errors.push(VpPolicyError::StatusCheckFailed);
             }
         }
@@ -261,7 +307,12 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
             Some(qeaa) => {
                 // Optional profile match
                 if let Some(required_profile) = &policy.min_qeaa_profile {
-                    if qeaa.policies.policy_id != *required_profile {
+                    let required_rank = qeaa_profile_rank(required_profile);
+                    let actual_rank = qeaa_profile_rank(&qeaa.policies.policy_id);
+                    if !matches!(
+                        (required_rank, actual_rank),
+                        (Some(required), Some(actual)) if actual >= required
+                    ) {
                         errors.push(VpPolicyError::QeaaProfileMismatch);
                     }
                 }
@@ -290,6 +341,16 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
     }
 }
 
+fn qeaa_profile_rank(profile: &str) -> Option<u64> {
+    let version = profile.strip_prefix("QEAA-ETSI-")?;
+    let (major, minor) = version.split_once('.')?;
+    let major = major.parse::<u32>().ok()?;
+    let minor = minor.parse::<u32>().ok()?;
+    u64::from(major)
+        .checked_mul(1_000_000)
+        .and_then(|base| base.checked_add(u64::from(minor)))
+}
+
 /// Enforce `max_status_age_seconds` against the verified list's `issued_at`.
 ///
 /// `verify_status` has already rejected lists issued in the future, so a
@@ -299,7 +360,7 @@ fn status_age_within_policy(policy: &VpPolicy, status: &StatusContext<'_>, now_u
         return true;
     };
     match now_unix.checked_sub(status.list.issued_at) {
-        Some(age) => age <= max_age,
+        Some(age) => age < max_age,
         None => false,
     }
 }

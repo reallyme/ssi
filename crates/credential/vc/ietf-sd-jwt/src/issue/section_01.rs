@@ -28,8 +28,10 @@ use crate::sensitive::{
 use crate::{error::IetfSdJwtVcError, payload::SdJwtDisclosure};
 
 
+/// Hash algorithms permitted for RFC 9901 disclosure digests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IetfSdJwtHashAlgorithm {
+    /// Uses the SHA-256 algorithm.
     Sha256,
 }
 
@@ -49,10 +51,14 @@ impl IetfSdJwtHashAlgorithm {
     }
 }
 
+/// Protected `typ` values supported for an issuer-signed SD-JWT.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IetfSdJwtJwtType {
+    /// IETF Digital Credentials `dc+sd-jwt` media type.
     DcSdJwt,
+    /// Legacy `vc+sd-jwt` media type accepted by the profile.
     VcSdJwt,
+    /// Generic `JWT` type for explicitly configured compatibility.
     Jwt,
 }
 
@@ -66,19 +72,33 @@ impl IetfSdJwtJwtType {
     }
 }
 
+/// Inputs for issuing an IETF SD-JWT VC.
 pub struct IetfSdJwtIssueInput {
+    /// Issuer identifier written to the authenticated `iss` claim.
     pub issuer: String,
+    /// Credential subject covered by the issuer commitment.
     pub subject: Option<String>,
+    /// Issuance time encoded as seconds since the Unix epoch.
     pub issued_at_unix: Option<u64>,
+    /// Optional `nbf` value, in seconds since the Unix epoch.
     pub not_before_unix: Option<u64>,
+    /// Optional `exp` value, in seconds since the Unix epoch.
     pub expires_at_unix: Option<u64>,
+    /// Optional verifiable credential type identifier.
     pub vct: Option<String>,
+    /// Optional holder key written to the issuer-signed `cnf` claim.
     pub confirmation_jwk: Option<Jwk>,
+    /// Optional Me Profile commitment carried in the `me_zk` extension.
     pub me_profile_merkle_binding: Option<MeProfileMerkleBinding>,
+    /// Claims kept visible in the issuer payload.
     pub public_claims: Map<String, Value>,
+    /// Claims converted into issuer-bound disclosures.
     pub selective_claims: Map<String, Value>,
+    /// Digest algorithm declared by `_sd_alg`.
     pub hash_algorithm: IetfSdJwtHashAlgorithm,
+    /// Protected `typ` value written to the issuer JWT.
     pub jwt_type: IetfSdJwtJwtType,
+    /// Disclosure salt length in bytes.
     pub salt_len: usize,
 }
 
@@ -117,6 +137,7 @@ impl Drop for IetfSdJwtIssueInput {
 impl ZeroizeOnDrop for IetfSdJwtIssueInput {}
 
 impl IetfSdJwtIssueInput {
+    /// Creates input using SHA-256, `dc+sd-jwt`, and 128-bit salts.
     pub fn new(issuer: impl Into<String>) -> Self {
         Self {
             issuer: issuer.into(),
@@ -136,9 +157,13 @@ impl IetfSdJwtIssueInput {
     }
 }
 
+/// Issuance result containing the signed JWT and generated disclosures.
 pub struct IetfSdJwtIssueOutput {
+    /// Compact issuer-signed JWT whose signature authenticates the SD-JWT payload.
     pub issuer_signed_jwt: String,
+    /// Encoded disclosures carried by this SD-JWT value.
     pub disclosures: Vec<String>,
+    /// Decoded disclosure records in serialization order.
     pub disclosures_decoded: Vec<SdJwtDisclosure>,
 }
 
@@ -185,6 +210,7 @@ impl IetfSdJwtIssueOutput {
     }
 }
 
+/// Issues an IETF SD-JWT VC with operating-system randomness.
 pub fn issue_ietf_sd_jwt_vc(
     input: &IetfSdJwtIssueInput,
     issuer_jwk: &Jwk,
@@ -194,7 +220,7 @@ pub fn issue_ietf_sd_jwt_vc(
     issue_ietf_sd_jwt_vc_with_rng(input, issuer_jwk, issuer_private_key, &mut rng)
 }
 
-/// Issue an IETF SD-JWT VC using deterministic salt generation.
+/// Issues an IETF SD-JWT VC with deterministic salts for conformance vectors.
 ///
 /// This API exists for conformance vectors and golden fixtures.
 /// It MUST NOT be used in production issuance flows.
@@ -209,6 +235,7 @@ pub fn issue_ietf_sd_jwt_vc_deterministic(
     issue_ietf_sd_jwt_vc_with_rng(input, issuer_jwk, issuer_private_key, &mut rng)
 }
 
+/// Issues an IETF SD-JWT VC through an external signing provider.
 pub fn issue_ietf_sd_jwt_vc_with_signer(
     input: &IetfSdJwtIssueInput,
     issuer_jwk: &Jwk,
@@ -218,7 +245,7 @@ pub fn issue_ietf_sd_jwt_vc_with_signer(
     issue_ietf_sd_jwt_vc_with_signer_and_rng(input, issuer_jwk, signer, &mut rng)
 }
 
-/// Issue an IETF SD-JWT VC using deterministic salt generation and signer abstraction.
+/// Issues an IETF SD-JWT VC through an external signer with deterministic salts.
 ///
 /// This API exists for conformance vectors and golden fixtures.
 /// It MUST NOT be used in production issuance flows.
@@ -279,10 +306,22 @@ impl SaltRng for DeterministicSaltRng {
         let mut offset = 0usize;
         while offset < out.len() {
             let block = self.next_u64().to_le_bytes();
-            let remaining = out.len() - offset;
+            let remaining = out
+                .len()
+                .checked_sub(offset)
+                .ok_or(IetfSdJwtVcError::InvalidInput)?;
             let take = remaining.min(block.len());
-            out[offset..offset + take].copy_from_slice(&block[..take]);
-            offset += take;
+            let end = offset
+                .checked_add(take)
+                .ok_or(IetfSdJwtVcError::InvalidInput)?;
+            let destination = out
+                .get_mut(offset..end)
+                .ok_or(IetfSdJwtVcError::InvalidInput)?;
+            let source = block
+                .get(..take)
+                .ok_or(IetfSdJwtVcError::InvalidInput)?;
+            destination.copy_from_slice(source);
+            offset = end;
         }
         Ok(())
     }

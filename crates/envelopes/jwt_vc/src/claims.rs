@@ -4,8 +4,20 @@
 
 use reallyme_codec::base64url::base64url_to_bytes;
 use serde::{Deserialize, Serialize};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::JwtVcEnvelopeError;
+
+const MAX_CREDENTIAL_CBOR_BYTES: usize = 1024 * 1024;
+const MAX_CREDENTIAL_PROTO_BYTES: usize = 1024 * 1024;
+
+fn maximum_base64url_len(decoded_limit: usize) -> Result<usize, JwtVcEnvelopeError> {
+    decoded_limit
+        .checked_add(2)
+        .and_then(|value| value.checked_div(3))
+        .and_then(|value| value.checked_mul(4))
+        .ok_or(JwtVcEnvelopeError::ResourceLimit)
+}
 
 /// JWT payload for a ReallyMe credential envelope carried as `jwt_vc_json`.
 ///
@@ -13,7 +25,7 @@ use crate::JwtVcEnvelopeError;
 /// subject claims. OpenID4VCI can therefore return a compact JWT while the
 /// authoritative credential semantics remain in the canonical envelope bytes
 /// and, when present, their protobuf transport representation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct JwtVcPayload {
     /// Issuer DID or issuer identifier.
     pub iss: String,
@@ -44,6 +56,22 @@ pub struct JwtVcPayload {
     /// Optional base64url(protobuf credential transport bytes).
     #[serde(rename = "vc_proto", skip_serializing_if = "Option::is_none")]
     pub credential_proto: Option<String>,
+}
+
+impl core::fmt::Debug for JwtVcPayload {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter
+            .debug_struct("JwtVcPayload")
+            .field("iss", &"<redacted>")
+            .field("sub", &"<redacted>")
+            .field("nbf", &self.nbf)
+            .field("exp", &self.exp)
+            .field("iat", &self.iat)
+            .field("jti", &"<redacted>")
+            .field("credential_cbor", &"<redacted>")
+            .field("credential_proto", &"<redacted>")
+            .finish()
+    }
 }
 
 /// Validate JWT-VC claim semantics before signing or after verification.
@@ -79,13 +107,21 @@ pub(crate) fn decode_validated_credential_bytes(
         }
     }
 
+    if payload.credential_cbor.len() > maximum_base64url_len(MAX_CREDENTIAL_CBOR_BYTES)? {
+        return Err(JwtVcEnvelopeError::ResourceLimit);
+    }
     let credential_cbor = base64url_to_bytes(&payload.credential_cbor)?;
     if credential_cbor.is_empty() {
         return Err(JwtVcEnvelopeError::InvalidPayload);
     }
+    reallyme_codec::cbor::decode_dag_cbor(&credential_cbor)
+        .map_err(|_| JwtVcEnvelopeError::InvalidCredentialCbor)?;
 
     let credential_proto = match &payload.credential_proto {
         Some(proto) => {
+            if proto.len() > maximum_base64url_len(MAX_CREDENTIAL_PROTO_BYTES)? {
+                return Err(JwtVcEnvelopeError::ResourceLimit);
+            }
             let proto_bytes = base64url_to_bytes(proto)?;
             if proto_bytes.is_empty() {
                 return Err(JwtVcEnvelopeError::InvalidPayload);

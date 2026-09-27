@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::unwrap_used)]
+#![allow(missing_docs, clippy::indexing_slicing, clippy::unwrap_used)]
 //! Test coverage for this crate.
 
 use openssl::{
@@ -390,4 +390,17 @@ fn parsed_certificate_matches_its_rfc5280_method_one_key_identifier() {
     let extension_value = parsed.subject_key_identifier.clone().unwrap();
 
     assert!(parsed.matches_key_identifier(&extension_value));
+}
+
+#[test]
+fn parsed_certificate_matches_its_rfc5280_method_two_key_identifier() {
+    let (root, _root_key) = build_root("Root");
+    let parsed = parse_cert_der(&root.to_der().unwrap()).unwrap();
+    let method_one = parsed.rfc5280_method_one_key_identifier().unwrap();
+    let mut expected = [0_u8; 8];
+    expected.copy_from_slice(&method_one[12..20]);
+    expected[0] = (expected[0] & 0x0f) | 0x40;
+
+    assert_eq!(parsed.rfc5280_method_two_key_identifier(), Some(expected));
+    assert!(parsed.matches_key_identifier(&expected));
 }

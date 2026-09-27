@@ -5,14 +5,15 @@
 use crate::{
     validate_credential_envelope, validate_credential_with_bundle,
     verify_credential_issuer_signature, verify_credential_status, CredentialEnvelope,
-    CredentialError, CredentialIssuerVerifier, CredentialStatusReason,
+    CredentialError, CredentialIssuerVerifier, CredentialStatusListVerifier, CredentialStatusReason,
 };
 use reallyme_credential_claims::SubjectPrivateBundle;
-use reallyme_credential_status::{StatusList, StatusListVerifier};
+use reallyme_credential_status::StatusList;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Taxonomy validation decision.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialDecision {
     /// Credential satisfies all mandatory local checks.
     Allow,
@@ -26,6 +27,7 @@ pub enum CredentialDecision {
 
 /// Check outcome aligned with the taxonomy `CheckResult` shape.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialCheckOutcome {
     /// Check passed.
     Pass,
@@ -41,6 +43,7 @@ pub enum CredentialCheckOutcome {
 
 /// Check severity aligned with the taxonomy `CheckResult` shape.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialCheckSeverity {
     /// Informational check.
     Info,
@@ -54,6 +57,7 @@ pub enum CredentialCheckSeverity {
 
 /// Local credential validation check name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialCheckName {
     /// DTO and envelope structure.
     Structure,
@@ -69,7 +73,8 @@ pub enum CredentialCheckName {
     KeyBinding,
     /// Credential schema conformance.
     Schema,
-    /// Claim commitment and claim bundle checks.
+    /// Structural claim commitment and claim bundle checks. This does not
+    /// authenticate the issuer or establish semantic truth of claim values.
     Claims,
     /// Caller-required claim presence checks.
     RequiredClaims,
@@ -118,6 +123,7 @@ pub struct CredentialCheckResult {
 
 /// Stable non-PII check code.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialCheckCode {
     /// Check completed successfully.
     Ok,
@@ -143,8 +149,9 @@ pub enum CredentialCheckCode {
 
 /// Taxonomy credential status value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialStatusValue {
-    /// Credential appears valid for locally available evidence.
+    /// Credential status was authoritatively checked and is valid.
     Valid,
     /// Credential is suspended.
     Suspended,
@@ -251,7 +258,7 @@ pub struct CredentialEvidenceValidationInput<'a> {
     /// Status list referenced by the credential envelope.
     pub status_list: &'a StatusList,
     /// Status-list signature verifier with already-resolved status-list key material.
-    pub status_verifier: &'a dyn StatusListVerifier,
+    pub status_verifier: &'a dyn CredentialStatusListVerifier,
     /// Verification time as Unix seconds.
     pub now_unix: i64,
     /// Local policy switches.
@@ -300,7 +307,7 @@ pub fn validate_credential_command(
 
     complete_local_validation(
         envelope,
-        request.verification_context.now_unix,
+        &request.verification_context,
         request.policy,
         &requested_checks,
         checks,
@@ -358,7 +365,7 @@ pub fn validate_credential_envelope_command(
 
     complete_local_validation(
         &envelope,
-        verification_context.now_unix,
+        &verification_context,
         policy,
         &requested_checks,
         checks,

@@ -77,28 +77,6 @@ impl Default for VpPolicy {
 }
 
 impl VpPolicy {
-    /// Policy for local development and interoperability testing.
-    pub fn dev_default() -> Self {
-        Self {
-            require_status: false,
-            ..Self::default()
-        }
-    }
-
-    /// Extremely permissive policy intended for tests only.
-    pub fn unsafe_permissive_for_tests() -> Self {
-        Self {
-            allowed_issuer_algorithms: vec![
-                Algorithm::Ed25519,
-                Algorithm::P256,
-                Algorithm::Secp256k1,
-                Algorithm::MlDsa87,
-            ],
-            require_status: false,
-            ..Self::default()
-        }
-    }
-
     /// Add a required claim constraint.
     pub fn require_claim(mut self, claim_path: impl Into<String>, mode: DisclosureMode) -> Self {
         self.required_claims.push(RequiredClaim {

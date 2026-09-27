@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use time::OffsetDateTime;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::json::{deserialize_strict, MAX_JSON_BYTES};
@@ -17,7 +17,11 @@ mod payload;
 #[cfg(test)]
 mod tests;
 
-pub use jose::{JoseRegistryJwsVerifier, ValidatedJwks};
+#[cfg(test)]
+#[path = "registry_integration_tests.rs"]
+mod integration_tests;
+
+pub use jose::ValidatedJwks;
 
 use jose::{parse_protected_header, select_signing_key, JwksDocument};
 use payload::{
@@ -53,8 +57,9 @@ pub struct RegistryAuthenticationInput<'a> {
     /// [`RegistryPayloadShape::LegacyRawWrp`] carry the identifiers needed for
     /// this check. TS5 intended-use-check results and WRP arrays do not echo
     /// the queried identifiers in the signed payload, so supplying a query for
-    /// those shapes is rejected; their answers are bounded only by signature
-    /// authentication and freshness.
+    /// those shapes is rejected. The intended-use-check shape also fails
+    /// closed after signature and freshness validation because its Boolean
+    /// answer cannot be bound to the request that produced it.
     pub expected_intended_use: Option<RegistryIntendedUseQuery<'a>>,
 }
 
@@ -69,7 +74,7 @@ pub struct RegistryIntendedUseQuery<'a> {
 
 /// Bytes released by a cryptographic backend only after JWS verification.
 #[derive(Zeroize, ZeroizeOnDrop)]
-pub struct AuthenticatedJws {
+pub(super) struct AuthenticatedJws {
     compact_digest: ArtifactDigest,
     payload: Vec<u8>,
     signer_certificate_chain: Option<RegistrarCertificateChain>,
@@ -80,7 +85,7 @@ impl AuthenticatedJws {
     ///
     /// The outer authenticator independently checks the compact digest and the
     /// decoded payload bytes before accepting this receipt.
-    pub fn try_new(
+    fn try_new(
         compact_jws: &[u8],
         payload: &[u8],
         signer_certificate_chain_der: Vec<Vec<u8>>,
@@ -253,7 +258,7 @@ impl RegistrarCertificateChain {
 /// Implementations select a key only from a JWKS response already constrained
 /// by the application's accepted `x-jku-url` policy. This trait proves format
 /// authentication; issuer trust remains a separate application decision.
-pub trait RegistryJwsVerifier {
+trait RegistryJwsVerifier {
     /// Verifies the compact JWS using only the supplied validated JWKS.
     fn verify(
         &self,
@@ -338,6 +343,12 @@ impl AuthenticatedRegistryRecord {
 /// Authenticates and parses exactly the caller-selected registrar shape.
 pub fn authenticate_registry_record(
     input: RegistryAuthenticationInput<'_>,
+) -> Result<AuthenticatedRegistryRecord, RegistrationError> {
+    authenticate_registry_record_with_verifier(input, &jose::JoseRegistryJwsVerifier)
+}
+
+fn authenticate_registry_record_with_verifier(
+    input: RegistryAuthenticationInput<'_>,
     verifier: &dyn RegistryJwsVerifier,
 ) -> Result<AuthenticatedRegistryRecord, RegistrationError> {
     validate_profile_shape(input.profile, input.payload_shape)?;
@@ -371,7 +382,7 @@ pub fn authenticate_registry_record(
     let (payload, metadata) =
         parse_selected_payload(input.payload_shape, &receipt.payload, freshness)?;
     if let Some(query) = input.expected_intended_use.as_ref() {
-        validate_intended_use_query(&payload, query)?;
+        validate_intended_use_query(&payload, query, input.evaluation_time)?;
     }
     let signer_certificate_digest = receipt_chain.leaf_certificate_digest();
     let signer_certificate_chain = receipt.signer_certificate_chain.take().ok_or_else(|| {
@@ -407,6 +418,7 @@ fn validate_query_shape(
 fn validate_intended_use_query(
     payload: &RegistryPayload,
     query: &RegistryIntendedUseQuery<'_>,
+    evaluation_time: OffsetDateTime,
 ) -> Result<(), RegistrationError> {
     let RegistryPayload::Wrp(record) = payload else {
         return Err(RegistrationError::from_reason(
@@ -415,10 +427,10 @@ fn validate_intended_use_query(
     };
     let registered = record.services().iter().any(|service| {
         service.service_identifier() == query.service_id
-            && service
-                .intended_uses()
-                .iter()
-                .any(|intended_use| intended_use.intended_use_identifier() == query.intended_use_id)
+            && service.intended_uses().iter().any(|intended_use| {
+                intended_use.intended_use_identifier() == query.intended_use_id
+                    && intended_use_is_active(intended_use, evaluation_time)
+            })
     });
     if !registered {
         return Err(RegistrationError::from_reason(
@@ -426,4 +438,18 @@ fn validate_intended_use_query(
         ));
     }
     Ok(())
+}
+
+fn intended_use_is_active(
+    intended_use: &crate::IntendedUse,
+    evaluation_time: OffsetDateTime,
+) -> bool {
+    let created = intended_use
+        .created_at()
+        .and_then(|value| OffsetDateTime::parse(value, &Rfc3339).ok());
+    let revoked = intended_use
+        .revoked_at()
+        .and_then(|value| OffsetDateTime::parse(value, &Rfc3339).ok());
+    created.is_none_or(|value| value <= evaluation_time)
+        && revoked.is_none_or(|value| value > evaluation_time)
 }

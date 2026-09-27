@@ -69,6 +69,53 @@ pub fn validate_did_document_transition(
     )
 }
 
+/// Validate an observed successor set and reject authenticated forks.
+///
+/// A compromised key can produce two individually valid successors. Callers
+/// that have observed more than one candidate must evaluate the set together;
+/// accepting whichever response arrived first would make rollback and
+/// equivocation invisible to the validation layer.
+pub fn validate_observed_did_document_successors(
+    previous: &DIDDocument,
+    successors: &[DIDDocument],
+    env: DomainVerificationEnv,
+) -> FullValidationResult {
+    if successors.is_empty() {
+        return transition_invalid_result();
+    }
+    let mut valid_successor: Option<&DIDDocument> = None;
+    for successor in successors {
+        let result = validate_did_document_transition(
+            previous,
+            successor,
+            DomainVerificationEnv {
+                resolve_txt: None,
+                fetch_url: None,
+            },
+        );
+        if result.ok {
+            if valid_successor
+                .is_some_and(|existing| existing.current_core != successor.current_core)
+            {
+                return FullValidationResult {
+                    ok: false,
+                    errors: vec![DidValidationIssue::new(
+                        DidValidationCode::TransitionEquivocation,
+                        DidValidationLocation::Core,
+                    )],
+                    warnings: Vec::new(),
+                    core: None,
+                };
+            }
+            valid_successor = Some(successor);
+        }
+    }
+    match valid_successor {
+        Some(successor) => validate_did_document_transition(previous, successor, env),
+        None => transition_invalid_result(),
+    }
+}
+
 fn transition_links_are_valid(previous: &DIDDocument, next: &DIDDocument) -> bool {
     let Some(expected_sequence) = previous.sequence.checked_add(1) else {
         return false;

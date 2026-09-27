@@ -9,9 +9,13 @@ use super::XmlDsigKeyValue;
 /// PKI representations of the single service identifier required by clause 5.5.3.
 #[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct PkiServiceDigitalIdentity {
+    /// DER-encoded certificates.
     pub certificates_der: Vec<Vec<u8>>,
+    /// Subject name asserted by the certificate representation, when present.
     pub subject_name: Option<String>,
+    /// XMLDSig key value, when present.
     pub key_value: Option<XmlDsigKeyValue>,
+    /// Subject Key Identifier extension bytes when the certificate carries one.
     pub subject_key_identifier: Option<Vec<u8>>,
     pub(crate) subject_public_key_info_der: Vec<u8>,
     pub(crate) certificate_authority: bool,
@@ -73,7 +77,9 @@ impl core::fmt::Debug for TslNonPkiIdentifier {
 /// scheme-defined non-PKI value.
 #[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub enum ServiceDigitalIdentity {
+    /// Certificate-based service identity.
     Pki(Box<PkiServiceDigitalIdentity>),
+    /// Scheme-defined non-PKI service identity.
     NonPki(TslNonPkiIdentifier),
 }
 

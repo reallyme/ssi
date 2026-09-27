@@ -261,13 +261,20 @@ include!("project/coalesce.rs");
 fn normalize_service_history(
     current_start: TslTimestamp,
     history: &mut Vec<TrustServiceHistoryEntry>,
-) {
+) -> Result<(), TslError> {
     history.sort_by(|left, right| {
         timestamp_order_key(right.status_starting_time)
             .cmp(&timestamp_order_key(left.status_starting_time))
     });
     let upper_bound = timestamp_order_key(current_start);
-    history.retain(|entry| timestamp_order_key(entry.status_starting_time) < upper_bound);
+    if history
+        .iter()
+        .any(|entry| timestamp_order_key(entry.status_starting_time) >= upper_bound)
+    {
+        return Err(TslError::InvalidStructure(
+            TslStructureFailure::ServiceHistoryOrder,
+        ));
+    }
     let mut normalized: Vec<TrustServiceHistoryEntry> = Vec::with_capacity(history.len());
     for entry in history.drain(..) {
         if let Some(previous) = normalized.last_mut() {
@@ -283,80 +290,32 @@ fn normalize_service_history(
         normalized.push(entry);
     }
     *history = normalized;
+    Ok(())
 }
 
 fn timestamp_order_key(timestamp: TslTimestamp) -> (i64, u32) {
     (timestamp.unix_seconds(), timestamp.nanosecond())
 }
 
-fn merge_current_certificates(
-    current: &mut ServiceDigitalIdentity,
-    candidate: &ServiceDigitalIdentity,
+fn merge_unique_bounded<T: PartialEq>(
+    target: &mut Vec<T>,
+    values: Vec<T>,
+    limit: usize,
+    reason: TslResourceLimit,
 ) -> Result<(), TslError> {
-    match (current, candidate) {
-        (ServiceDigitalIdentity::Pki(current), ServiceDigitalIdentity::Pki(candidate)) => {
-            for certificate in &candidate.certificates_der {
-                if !current.certificates_der.contains(certificate) {
-                    if current.certificates_der.len() >= MAX_CERTIFICATES_PER_IDENTITY {
-                        return Err(TslError::ResourceLimit(TslResourceLimit::Certificates));
-                    }
-                    current.certificates_der.push(certificate.clone());
-                }
-            }
-            Ok(())
-        }
-        (ServiceDigitalIdentity::NonPki(current), ServiceDigitalIdentity::NonPki(candidate))
-            if current == candidate =>
-        {
-            Ok(())
-        }
-        _ => Err(TslError::DigitalIdentity(
-            TslDigitalIdentityFailure::DuplicateServiceKey,
-        )),
-    }
-}
-
-fn historical_identity_from_current(
-    identity: &ServiceDigitalIdentity,
-) -> Result<ServiceDigitalIdentity, TslError> {
-    let ServiceDigitalIdentity::Pki(identity) = identity else {
-        return Ok(identity.clone());
-    };
-    let subject_key_identifier = if let Some(identifier) = &identity.subject_key_identifier {
-        Some(identifier.clone())
-    } else {
-        let certificate = identity.certificates_der.first().ok_or(
-            TslError::DigitalIdentity(TslDigitalIdentityFailure::MissingCertificate),
-        )?;
-        let facts = parse_certificate_identity_facts(certificate)?;
-        Some(
-            facts
-                .subject_key_identifier
-                .clone()
-                .unwrap_or_else(|| facts.derived_subject_key_identifier.to_vec()),
-        )
-    };
-    let subject_key_identifier = subject_key_identifier.ok_or(TslError::DigitalIdentity(
-        TslDigitalIdentityFailure::MissingHistoricalSubjectKeyIdentifier,
-    ))?;
-    Ok(ServiceDigitalIdentity::Pki(Box::new(
-        PkiServiceDigitalIdentity {
-            certificates_der: Vec::new(),
-            subject_name: identity.subject_name.clone(),
-            key_value: identity.key_value.clone(),
-            subject_key_identifier: Some(subject_key_identifier),
-            subject_public_key_info_der: Vec::new(),
-            certificate_authority: false,
-        },
-    )))
-}
-
-fn merge_unique<T: PartialEq>(target: &mut Vec<T>, values: Vec<T>) {
     for value in values {
         if !target.contains(&value) {
+            let new_length = target
+                .len()
+                .checked_add(1)
+                .ok_or(TslError::ResourceLimit(reason))?;
+            if new_length > limit {
+                return Err(TslError::ResourceLimit(reason));
+            }
             target.push(value);
         }
     }
+    Ok(())
 }
 
 fn parse_service(raw: RawService) -> Result<TrustService, TslError> {
@@ -385,7 +344,7 @@ fn parse_service(raw: RawService) -> Result<TrustService, TslError> {
     let (qualifications, additional_service_information) =
         parse_extensions(information.extensions, &service_type)?;
     let mut history = parse_history(raw.history)?;
-    normalize_service_history(status_starting_time, &mut history);
+    normalize_service_history(status_starting_time, &mut history)?;
     Ok(TrustService {
         service_names,
         service_type,

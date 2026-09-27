@@ -188,6 +188,7 @@ pub(crate) fn parse_sd_alg(
         Some(Value::String(name)) if name == IetfSdJwtHashAlgorithm::Sha256.as_str() => {
             Ok(IetfSdJwtHashAlgorithm::Sha256)
         }
+        Some(Value::String(_)) => Err(IetfSdJwtVcError::UnsupportedHashAlgorithm),
         Some(_) => Err(IetfSdJwtVcError::InvalidInput),
     }
 }

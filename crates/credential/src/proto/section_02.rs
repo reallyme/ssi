@@ -165,6 +165,7 @@ fn status_purpose_to_proto(purpose: StatusPurpose) -> credential_pb::StatusPurpo
     match purpose {
         StatusPurpose::Revocation => credential_pb::StatusPurpose::Revocation,
         StatusPurpose::Suspension => credential_pb::StatusPurpose::Suspension,
+        _ => credential_pb::StatusPurpose::Unspecified,
     }
 }
 
@@ -188,6 +189,7 @@ fn identity_proofing_level_to_proto(
         IdentityProofingLevel::Baseline => audit_pb::IdentityProofingLevel::Baseline,
         IdentityProofingLevel::Extended => audit_pb::IdentityProofingLevel::Extended,
         IdentityProofingLevel::High => audit_pb::IdentityProofingLevel::High,
+        _ => audit_pb::IdentityProofingLevel::Unspecified,
     }
 }
 
@@ -210,6 +212,7 @@ fn qtsp_role_to_proto(value: QtspRole) -> audit_pb::QtspRole {
     match value {
         QtspRole::Unspecified => audit_pb::QtspRole::Unspecified,
         QtspRole::QeaaProvider => audit_pb::QtspRole::QeaaProvider,
+        _ => audit_pb::QtspRole::Unspecified,
     }
 }
 
@@ -228,6 +231,7 @@ fn issuer_credential_kind_to_proto(value: IssuerCredentialKind) -> audit_pb::Iss
     match value {
         IssuerCredentialKind::Unspecified => audit_pb::IssuerCredentialKind::Unspecified,
         IssuerCredentialKind::X509 => audit_pb::IssuerCredentialKind::X509,
+        _ => audit_pb::IssuerCredentialKind::Unspecified,
     }
 }
 
@@ -247,6 +251,7 @@ fn key_protection_to_proto(value: KeyProtection) -> audit_pb::KeyProtection {
         KeyProtection::Unspecified => audit_pb::KeyProtection::Unspecified,
         KeyProtection::Hsm => audit_pb::KeyProtection::Hsm,
         KeyProtection::Qscd => audit_pb::KeyProtection::Qscd,
+        _ => audit_pb::KeyProtection::Unspecified,
     }
 }
 
@@ -266,6 +271,7 @@ fn status_method_to_proto(value: StatusMethod) -> audit_pb::StatusMethod {
     match value {
         StatusMethod::Unspecified => audit_pb::StatusMethod::Unspecified,
         StatusMethod::StatusList => audit_pb::StatusMethod::StatusList,
+        _ => audit_pb::StatusMethod::Unspecified,
     }
 }
 

@@ -219,6 +219,8 @@ pub fn screen_chain_policy_only_no_path_validation(
         ));
     }
 
+    screen_intermediate_algorithms(chain, now, policy)?;
+
     let name_requirement_satisfied = match policy.leaf_name_requirement {
         LeafNameRequirement::None => true,
         LeafNameRequirement::DnsOrIp => !leaf.san_dns.is_empty() || !leaf.san_ip.is_empty(),

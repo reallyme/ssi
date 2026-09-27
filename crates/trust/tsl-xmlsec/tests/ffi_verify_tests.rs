@@ -12,7 +12,7 @@ use identity_trust_tsl_xmlsec::{
 };
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-use std::process::Command;
+use std::mem::MaybeUninit;
 
 const SIGNED_TSL_XML: &str = include_str!("../../tsl-openssl/tests/fixtures/signed_tsl.xml");
 const WRONG_CERTIFICATE_DIGEST_XML: &str =
@@ -65,19 +65,31 @@ fn tampered_signature_xml() -> String {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-fn resident_set_kibibytes() -> u64 {
-    let process_id = std::process::id().to_string();
-    let output = Command::new("ps")
-        .args(["-o", "rss=", "-p", process_id.as_str()])
-        .output()
-        .expect("ps must be available for the native resource regression");
-    assert!(output.status.success());
-    let resident_set = std::str::from_utf8(&output.stdout)
-        .expect("ps RSS output must be UTF-8")
-        .trim();
-    resident_set
-        .parse::<u64>()
-        .expect("ps RSS output must be an integer number of KiB")
+#[allow(unsafe_code)]
+fn peak_resident_set_kibibytes() -> u64 {
+    let mut usage = MaybeUninit::<libc::rusage>::zeroed();
+    // SAFETY: `usage` points to writable storage for exactly one `rusage` value.
+    // `getrusage` initializes that value when it reports success, and the pointer
+    // remains valid for the duration of the call.
+    let status = unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) };
+    assert_eq!(
+        status, 0,
+        "getrusage must succeed for the resource regression"
+    );
+    // SAFETY: the successful `getrusage` call above initialized the complete value.
+    let usage = unsafe { usage.assume_init() };
+    let peak_resident_set =
+        u64::try_from(usage.ru_maxrss).expect("the process peak resident set must be non-negative");
+
+    // Linux reports ru_maxrss in KiB, whereas Darwin reports bytes.
+    #[cfg(target_os = "linux")]
+    {
+        peak_resident_set
+    }
+    #[cfg(target_os = "macos")]
+    {
+        peak_resident_set / 1024
+    }
 }
 
 #[test]
@@ -325,11 +337,11 @@ fn repeated_positive_and_tampered_verification_has_stable_resources() {
     for _ in 0..WARMUP_ITERATIONS {
         exercise_both_paths();
     }
-    let resident_before = resident_set_kibibytes();
+    let resident_before = peak_resident_set_kibibytes();
     for _ in 0..MEASURED_ITERATIONS {
         exercise_both_paths();
     }
-    let resident_after = resident_set_kibibytes();
+    let resident_after = peak_resident_set_kibibytes();
     let growth = resident_after.saturating_sub(resident_before);
     assert!(
         growth <= MAX_RESIDENT_GROWTH_KIB,

@@ -106,12 +106,11 @@ fn build_merkle_tree(
             let right_index = index.checked_add(1).ok_or(ClaimsError::InvalidInput(
                 ClaimsInvalidReason::InvalidPrivateBundleTree,
             ))?;
-            let right = if right_index < leaves.len() {
-                leaves[right_index].as_slice()
-            } else {
-                leaves[index].as_slice()
-            };
-            next.push(merkle_node_hash(tags, leaves[index].as_slice(), right)?);
+            let left = leaves.get(index).ok_or(ClaimsError::InvalidInput(
+                ClaimsInvalidReason::InvalidPrivateBundleTree,
+            ))?;
+            let right = leaves.get(right_index).unwrap_or(left);
+            next.push(merkle_node_hash(tags, left.as_slice(), right.as_slice())?);
             index = index.checked_add(2).ok_or(ClaimsError::InvalidInput(
                 ClaimsInvalidReason::InvalidPrivateBundleTree,
             ))?;
@@ -164,7 +163,7 @@ fn merkle_proof_for_index(
             ClaimsInvalidReason::InvalidPrivateBundleTree,
         ))?;
     let mut proof = Vec::with_capacity(proof_len);
-    for level in &levels[..proof_len] {
+    for level in levels.iter().take(proof_len) {
         if index >= level.len() {
             return Err(ClaimsError::InvalidInput(
                 ClaimsInvalidReason::InvalidPrivateBundleTree,
@@ -180,9 +179,23 @@ fn merkle_proof_for_index(
             ))?
         };
         if sibling_index < level.len() {
-            proof.push(level[sibling_index].clone());
+            proof.push(
+                level
+                    .get(sibling_index)
+                    .ok_or(ClaimsError::InvalidInput(
+                        ClaimsInvalidReason::InvalidPrivateBundleTree,
+                    ))?
+                    .clone(),
+            );
         } else {
-            proof.push(level[index].clone());
+            proof.push(
+                level
+                    .get(index)
+                    .ok_or(ClaimsError::InvalidInput(
+                        ClaimsInvalidReason::InvalidPrivateBundleTree,
+                    ))?
+                    .clone(),
+            );
         }
         index /= 2;
     }
@@ -242,7 +255,7 @@ fn digest_parts(parts: &[&[u8]]) -> Result<Vec<u8>, ClaimsError> {
                 ClaimsInvalidReason::ClaimValueLimitExceeded,
             ))
     })?;
-    let mut input = Vec::with_capacity(capacity);
+    let mut input = Zeroizing::new(Vec::with_capacity(capacity));
     for part in parts {
         input.extend_from_slice(part);
     }
@@ -253,11 +266,20 @@ fn validate_domain_tags(tags: &DomainTags) -> Result<(), ClaimsError> {
     validate_required_label(tags.clm.as_str(), MAX_COMMITMENT_DOMAIN_TAG_BYTES)?;
     validate_required_label(tags.leaf.as_str(), MAX_COMMITMENT_DOMAIN_TAG_BYTES)?;
     validate_required_label(tags.node.as_str(), MAX_COMMITMENT_DOMAIN_TAG_BYTES)
-        .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidCommitmentDomainTags))
+        .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidCommitmentDomainTags))?;
+    if tags.clm == tags.leaf || tags.clm == tags.node || tags.leaf == tags.node {
+        return Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidCommitmentDomainTags,
+        ));
+    }
+    Ok(())
 }
 
 fn validate_commitment_limits(limits: CommitmentLimits) -> Result<(), ClaimsError> {
-    if limits.max_value_len == 0 || limits.salt_len == 0 {
+    if limits.max_value_len == 0
+        || limits.salt_len < MIN_COMMITMENT_SALT_LEN
+        || limits.salt_len > MAX_COMMITMENT_SALT_LEN
+    {
         return Err(ClaimsError::InvalidInput(
             ClaimsInvalidReason::InvalidCommitmentMaterial,
         ));

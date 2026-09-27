@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::indexing_slicing)]
+
 use envelopes_x509::{
     CertificatePolicyId, CertificateProfile, DistinguishedName, KeyUsage, NameAttribute,
     NameAttributeKind, NameAttributeValue, RelativeDistinguishedName, X509Certificate,

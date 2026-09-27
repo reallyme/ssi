@@ -2,7 +2,12 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::unwrap_used)]
+#![allow(
+    missing_docs,
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing,
+    clippy::unwrap_used
+)]
 //! Test coverage for this crate.
 
 use reallyme_credential::{
@@ -22,8 +27,7 @@ use reallyme_credential_status::{
 };
 use serde_json::Value;
 
-const CREDENTIAL_CANONICAL_VECTORS: &str =
-    include_str!("../../../vectors/credential/canonical.json");
+const CREDENTIAL_CANONICAL_VECTORS: &str = include_str!("fixtures/canonical.json");
 
 struct VectorCredentialSigner {
     expected_payload_hash_hex: String,
@@ -100,6 +104,12 @@ impl StatusListVerifier for VectorStatusVerifier {
         } else {
             Err(CredentialStatusError::InvalidSignature)
         }
+    }
+}
+
+impl reallyme_credential::CredentialStatusListVerifier for VectorStatusVerifier {
+    fn verified_signer(&self) -> reallyme_credential::PartyReference {
+        reallyme_credential::PartyReference::Did("did:web:issuer.example".to_owned())
     }
 }
 

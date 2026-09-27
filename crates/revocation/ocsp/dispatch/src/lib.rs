@@ -6,4 +6,4 @@
 
 mod dispatch;
 
-pub use dispatch::parse_ocsp_response_der;
+pub use dispatch::{parse_ocsp_response_der, parse_ocsp_response_der_with_nonce};

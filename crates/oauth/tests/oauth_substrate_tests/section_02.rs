@@ -19,7 +19,7 @@ fn jwk_thumbprint_supports_okp_and_rsa_required_members() -> Result<(), OauthErr
 #[test]
 fn jwk_thumbprint_vectors_match_or_fail_closed() -> Result<(), OauthError> {
     let suite: JwkThumbprintVectorSuite =
-        serde_json::from_str(include_str!("../../../../vectors/jwk-thumbprint.json"))
+        serde_json::from_str(include_str!("../fixtures/jwk-thumbprint.json"))
             .map_err(|_| OauthError::new(Reason::InvalidDpopProof))?;
 
     assert!(!suite.cases.is_empty());
@@ -49,7 +49,7 @@ fn jwk_thumbprint_vectors_match_or_fail_closed() -> Result<(), OauthError> {
 #[test]
 fn jwk_thumbprint_positive_vectors_match() -> Result<(), OauthError> {
     let suite: JwkThumbprintVectorSuite =
-        serde_json::from_str(include_str!("../../../../vectors/jwk-thumbprint.json"))
+        serde_json::from_str(include_str!("../fixtures/jwk-thumbprint.json"))
             .map_err(|_| OauthError::new(Reason::InvalidDpopProof))?;
 
     let mut matched = false;
@@ -68,7 +68,7 @@ fn jwk_thumbprint_positive_vectors_match() -> Result<(), OauthError> {
 #[test]
 fn jwk_thumbprint_negative_vectors_fail_closed() -> Result<(), OauthError> {
     let suite: JwkThumbprintVectorSuite =
-        serde_json::from_str(include_str!("../../../../vectors/jwk-thumbprint.json"))
+        serde_json::from_str(include_str!("../fixtures/jwk-thumbprint.json"))
             .map_err(|_| OauthError::new(Reason::InvalidDpopProof))?;
 
     let mut matched = false;
@@ -248,7 +248,7 @@ fn attestation_client_auth_headers_are_draft_names() -> Result<(), OauthError> {
     assert_eq!(claims.get("aud").and_then(Value::as_str), Some("https://as.example"));
     assert_eq!(claims.get("jti").and_then(Value::as_str), Some("pop-1"));
     assert!(claims.get("iss").is_none());
-    let attestation = client_attestation(test_client_instance_jwk("header-test-x"))?;
+    let attestation = client_attestation(test_client_instance_jwk(TestP256Key::Primary))?;
     let auth = AttestationClientAuthentication::new(
         attestation.as_str().to_owned(),
         pop.as_str().to_owned(),
@@ -339,7 +339,7 @@ fn proof_headers_reject_unprocessed_jose_parameters() -> Result<(), OauthError> 
 
 #[test]
 fn attestation_client_authentication_validation_enforces_replay_hook() -> Result<(), OauthError> {
-    let public_jwk = test_client_instance_jwk("bound-key-x");
+    let public_jwk = test_client_instance_jwk(TestP256Key::Primary);
     let key_thumbprint = jwk_thumbprint(&public_jwk)?;
     let pop = AttestationPopRequest {
         audience: "https://as.example".to_owned(),
@@ -360,6 +360,7 @@ fn attestation_client_authentication_validation_enforces_replay_hook() -> Result
         &auth,
         &AttestationClientAuthenticationValidationContext {
             expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "wallet-client".to_owned(),
             expected_challenge: Some("challenge".to_owned()),
             earliest_iat: 1_699_999_990,
             latest_iat: 1_700_000_010,
@@ -369,7 +370,7 @@ fn attestation_client_authentication_validation_enforces_replay_hook() -> Result
         &verifier,
     )?;
     assert_eq!(verified.client_id(), "wallet-client");
-    assert_eq!(verified.pop_claims.jti, "pop-1");
+    assert_eq!(verified.pop_claims().jti, "pop-1");
     assert_eq!(verified.client_instance_key_thumbprint(), key_thumbprint);
     assert_eq!(
         verified.trust_evidence().decision_evidence().purpose,
@@ -413,8 +414,8 @@ fn attestation_client_authentication_validation_enforces_replay_hook() -> Result
 #[test]
 fn attestation_client_authentication_rejects_pop_signed_by_different_key() -> Result<(), OauthError>
 {
-    let attested_jwk = test_client_instance_jwk("attested-key-x");
-    let different_jwk = test_client_instance_jwk("different-key-x");
+    let attested_jwk = test_client_instance_jwk(TestP256Key::Primary);
+    let different_jwk = test_client_instance_jwk(TestP256Key::Secondary);
     let pop = AttestationPopRequest {
         audience: "https://as.example".to_owned(),
         jti: "pop-mismatched-key".to_owned(),
@@ -435,6 +436,7 @@ fn attestation_client_authentication_rejects_pop_signed_by_different_key() -> Re
         &auth,
         &AttestationClientAuthenticationValidationContext {
             expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "wallet-client".to_owned(),
             expected_challenge: Some("challenge".to_owned()),
             earliest_iat: 1_699_999_990,
             latest_iat: 1_700_000_010,
@@ -456,8 +458,8 @@ fn attestation_client_authentication_rejects_pop_signed_by_different_key() -> Re
 #[test]
 fn attestation_client_authentication_rejects_receipt_for_a_different_jwt() -> Result<(), OauthError>
 {
-    let attestation = client_attestation(test_client_instance_jwk("bound-key-x"))?;
-    let other_attestation = client_attestation(test_client_instance_jwk("other-key-x"))?;
+    let attestation = client_attestation(test_client_instance_jwk(TestP256Key::Primary))?;
+    let other_attestation = client_attestation(test_client_instance_jwk(TestP256Key::Secondary))?;
     let pop = AttestationPopRequest {
         audience: "https://as.example".to_owned(),
         jti: "pop-receipt-mismatch".to_owned(),
@@ -473,6 +475,7 @@ fn attestation_client_authentication_rejects_receipt_for_a_different_jwt() -> Re
         &auth,
         &AttestationClientAuthenticationValidationContext {
             expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "wallet-client".to_owned(),
             expected_challenge: Some("challenge".to_owned()),
             earliest_iat: 1_699_999_990,
             latest_iat: 1_700_000_010,
@@ -517,7 +520,7 @@ fn attestation_client_authentication_rejects_noncurrent_trust_receipts() -> Resu
         }
         .sign(&TestSigner)?;
         let client_attestation =
-            client_attestation(test_client_instance_jwk("trust-freshness-key"))?;
+            client_attestation(test_client_instance_jwk(TestP256Key::Primary))?;
         let authentication = AttestationClientAuthentication::new(
             client_attestation.as_str().to_owned(),
             pop.as_str().to_owned(),
@@ -526,6 +529,7 @@ fn attestation_client_authentication_rejects_noncurrent_trust_receipts() -> Resu
             &authentication,
             &AttestationClientAuthenticationValidationContext {
                 expected_audience: "https://as.example".to_owned(),
+                expected_client_id: "wallet-client".to_owned(),
                 expected_challenge: Some("challenge".to_owned()),
                 earliest_iat: CURRENT_TIME - 10,
                 latest_iat: CURRENT_TIME + 10,
@@ -550,6 +554,7 @@ fn attestation_client_authentication_rejects_unsafe_trust_freshness_configuratio
     for max_trust_evidence_age_seconds in [0, MAX_ATTESTATION_TRUST_EVIDENCE_AGE_SECONDS + 1] {
         let context = AttestationClientAuthenticationValidationContext {
             expected_audience: "https://as.example".to_owned(),
+            expected_client_id: "wallet-client".to_owned(),
             expected_challenge: Some("challenge".to_owned()),
             earliest_iat: 1_699_999_990,
             latest_iat: 1_700_000_010,
@@ -567,7 +572,7 @@ fn attestation_client_authentication_rejects_unsafe_trust_freshness_configuratio
 #[test]
 fn attestation_trust_receipt_preserves_rejected_and_indeterminate_outcomes() {
     assert_eq!(
-        WalletAttestationTrustEvidence::from_trust_decision(&attestation_trust_decision(
+        trust_evidence_for_decision(&attestation_trust_decision(
             TrustOutcome::Rejected,
         ))
         .err()
@@ -575,7 +580,7 @@ fn attestation_trust_receipt_preserves_rejected_and_indeterminate_outcomes() {
         Some(Reason::AttestationTrustRejected)
     );
     assert_eq!(
-        WalletAttestationTrustEvidence::from_trust_decision(&attestation_trust_decision(
+        trust_evidence_for_decision(&attestation_trust_decision(
             TrustOutcome::Indeterminate,
         ))
         .err()
@@ -585,84 +590,14 @@ fn attestation_trust_receipt_preserves_rejected_and_indeterminate_outcomes() {
 }
 
 #[test]
-fn attestation_trust_receipt_rejects_inconsistent_path_evidence() {
-    let mut missing_status = attestation_trust_decision(TrustOutcome::Trusted);
-    missing_status.evidence.certificate_status.clear();
-    assert_eq!(
-        WalletAttestationTrustEvidence::from_trust_decision(&missing_status)
-            .err()
-            .map(|error| error.reason()),
-        Some(Reason::InvalidAttestationReceipt)
-    );
-
-    let mut wrong_anchor_kind = attestation_trust_decision(TrustOutcome::Trusted);
-    if let Some(anchor) = wrong_anchor_kind.evidence.trust_anchor.as_mut() {
-        anchor.kind = TrustAnchorKind::RootCertificate;
-    }
-    assert_eq!(
-        WalletAttestationTrustEvidence::from_trust_decision(&wrong_anchor_kind)
-            .err()
-            .map(|error| error.reason()),
-        Some(Reason::InvalidAttestationReceipt)
-    );
-
-    let mut wrong_position = attestation_trust_decision(TrustOutcome::Trusted);
-    wrong_position.evidence.certificate_status[0].position = CertificatePosition::TrustAnchor;
-    assert_eq!(
-        WalletAttestationTrustEvidence::from_trust_decision(&wrong_position)
-            .err()
-            .map(|error| error.reason()),
-        Some(Reason::InvalidAttestationReceipt)
-    );
-
-    let mut contradictory_status = attestation_trust_decision(TrustOutcome::Trusted);
-    contradictory_status.evidence.certificate_status[0].status = CertificateStatus::Revoked;
-    assert_eq!(
-        WalletAttestationTrustEvidence::from_trust_decision(&contradictory_status)
-            .err()
-            .map(|error| error.reason()),
-        Some(Reason::InvalidAttestationReceipt)
-    );
-
-    let mut contradictory_failure = attestation_trust_decision(TrustOutcome::Trusted);
-    contradictory_failure
-        .failures
-        .push(reallyme_trust_core::TrustFailureReason::StatusRevoked);
-    assert_eq!(
-        WalletAttestationTrustEvidence::from_trust_decision(&contradictory_failure)
-            .err()
-            .map(|error| error.reason()),
-        Some(Reason::InvalidAttestationReceipt)
-    );
-
-    let mut repeated_certificate = attestation_trust_decision(TrustOutcome::Trusted);
-    if let Some(chain) = repeated_certificate.chain.as_mut() {
-        if let Some(certificate) = chain.certs.first().cloned() {
-            chain.certs.push(certificate);
-        }
-    }
-    if let Some(anchor) = repeated_certificate.evidence.trust_anchor.as_mut() {
-        anchor.kind = TrustAnchorKind::RootCertificate;
-    }
-    repeated_certificate
-        .evidence
-        .certificate_status
-        .push(CertificateStatusEvidence {
-            position: CertificatePosition::TrustAnchor,
-            status: CertificateStatus::Exempt,
-        });
-    assert_eq!(
-        WalletAttestationTrustEvidence::from_trust_decision(&repeated_certificate)
-            .err()
-            .map(|error| error.reason()),
-        Some(Reason::InvalidAttestationReceipt)
-    );
-}
-
-#[test]
 fn attestation_trust_receipt_rejects_stale_and_future_evidence() -> Result<(), OauthError> {
     const CURRENT_TIME: i64 = 1_700_000_000;
-    let mut stale = attestation_trust_evidence_for_times(CURRENT_TIME - 100, CURRENT_TIME - 1)?;
+    let attestation = client_attestation(test_client_instance_jwk(TestP256Key::Primary))?;
+    let mut stale = attestation_trust_evidence_for_times(
+        &attestation,
+        CURRENT_TIME - 100,
+        CURRENT_TIME - 1,
+    )?;
     assert_eq!(
         stale
             .validate_freshness_at(CURRENT_TIME, 30)
@@ -671,7 +606,11 @@ fn attestation_trust_receipt_rejects_stale_and_future_evidence() -> Result<(), O
         Some(Reason::AttestationTrustEvidenceStale)
     );
 
-    let mut future = attestation_trust_evidence_for_times(CURRENT_TIME + 1, CURRENT_TIME + 100)?;
+    let mut future = attestation_trust_evidence_for_times(
+        &attestation,
+        CURRENT_TIME + 1,
+        CURRENT_TIME + 100,
+    )?;
     assert_eq!(
         future
             .validate_freshness_at(CURRENT_TIME, 30)
@@ -680,7 +619,11 @@ fn attestation_trust_receipt_rejects_stale_and_future_evidence() -> Result<(), O
         Some(Reason::AttestationTrustEvidenceFutureIssued)
     );
 
-    let mut current = attestation_trust_evidence_for_times(CURRENT_TIME - 10, CURRENT_TIME + 100)?;
+    let mut current = attestation_trust_evidence_for_times(
+        &attestation,
+        CURRENT_TIME - 10,
+        CURRENT_TIME + 100,
+    )?;
     current.validate_freshness_at(CURRENT_TIME, 30)?;
     assert_eq!(current.valid_until_unix(), CURRENT_TIME + 20);
     Ok(())
@@ -691,36 +634,13 @@ fn attestation_trust_receipt_expires_with_the_earliest_path_certificate() -> Res
 {
     const EVALUATED_AT: i64 = 1_700_000_000;
     const ROOT_EXPIRY: i64 = EVALUATED_AT + 40;
-    let mut decision = attestation_trust_decision(TrustOutcome::Trusted);
-    let chain = decision
-        .chain
-        .as_mut()
-        .ok_or(OauthError::new(Reason::InvalidAttestationReceipt))?;
-    let mut root = chain
-        .certs
-        .first()
-        .cloned()
-        .ok_or(OauthError::new(Reason::InvalidAttestationReceipt))?;
-    root.der = vec![0x30, 0x01];
-    root.spki_der = vec![5, 6, 7, 8];
-    root.not_after = time::OffsetDateTime::from_unix_timestamp(ROOT_EXPIRY)
+    let evaluated_at = time::OffsetDateTime::from_unix_timestamp(EVALUATED_AT)
         .map_err(|_| OauthError::new(Reason::InvalidAttestationReceipt))?;
-    chain.certs.push(root);
-    decision
-        .evidence
-        .certificate_status
-        .push(CertificateStatusEvidence {
-            position: CertificatePosition::TrustAnchor,
-            status: CertificateStatus::Exempt,
-        });
-    decision
-        .evidence
-        .trust_anchor
-        .as_mut()
-        .ok_or(OauthError::new(Reason::InvalidAttestationReceipt))?
-        .kind = TrustAnchorKind::RootCertificate;
+    let root_expiry = time::OffsetDateTime::from_unix_timestamp(ROOT_EXPIRY)
+        .map_err(|_| OauthError::new(Reason::InvalidAttestationReceipt))?;
+    let decision = attestation_trust_decision_with_root_expiry(evaluated_at, root_expiry);
 
-    let evidence = WalletAttestationTrustEvidence::from_trust_decision(&decision)?;
+    let evidence = trust_evidence_for_decision(&decision)?;
     assert_eq!(evidence.valid_until_unix(), ROOT_EXPIRY);
     Ok(())
 }

@@ -166,6 +166,8 @@ pub enum CertificateStatus {
     InvalidSignature,
     /// Status mechanism is unsupported.
     Unsupported,
+    /// Status was optional and was not checked.
+    NotChecked,
     /// Position is explicitly exempt by policy.
     Exempt,
 }

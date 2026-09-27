@@ -71,6 +71,8 @@ pub enum DidValidationCode {
     /// The supplied previous document is invalid, deactivated, or does not
     /// directly precede the document under validation.
     TransitionInvalid,
+    /// More than one valid successor was observed for the same previous core.
+    TransitionEquivocation,
     /// A collection or encoded field exceeds the validator's resource limits.
     ResourceLimitExceeded,
 }

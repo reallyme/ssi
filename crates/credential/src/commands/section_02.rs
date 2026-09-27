@@ -150,10 +150,16 @@ fn apply_requested_checks(
     }
 
     for check in checks.iter_mut() {
-        if requested.contains(&check.name) && check.outcome == CredentialCheckOutcome::Skipped {
-            check.outcome = CredentialCheckOutcome::Indeterminate;
-            check.severity = CredentialCheckSeverity::Warning;
+        if requested.contains(&check.name) {
+            // A requested check participates in authorization even when its
+            // default policy treats it as informational. Otherwise an
+            // evaluated failure could remain visible in the report while the
+            // aggregate credential decision still authorizes the credential.
             check.mandatory = true;
+            if check.outcome == CredentialCheckOutcome::Skipped {
+                check.outcome = CredentialCheckOutcome::Indeterminate;
+                check.severity = CredentialCheckSeverity::Warning;
+            }
         }
     }
     // Requested checks narrow the reported optional checks only. Mandatory
@@ -175,7 +181,7 @@ fn push_unevaluated_policy_checks(checks: &mut Vec<CredentialCheckResult>) {
 
 fn complete_local_validation(
     envelope: &CredentialEnvelope,
-    now_unix: i64,
+    verification_context: &CredentialVerificationContext,
     policy: CredentialValidationPolicy,
     requested_checks: &[CredentialCheckName],
     mut checks: Vec<CredentialCheckResult>,
@@ -184,7 +190,7 @@ fn complete_local_validation(
     checks.push(skipped(CredentialCheckName::KeyBinding, false));
     checks.push(skipped(CredentialCheckName::Schema, false));
     checks.push(skipped(CredentialCheckName::RequiredClaims, false));
-    add_time_checks(envelope, now_unix, &mut checks);
+    add_time_checks(envelope, verification_context.now_unix, &mut checks);
     match issuer_verifier {
         Some(verifier) => match verify_credential_issuer_signature(envelope, verifier) {
             Ok(()) => checks.push(pass(CredentialCheckName::Signature, true)),
@@ -208,8 +214,14 @@ fn complete_local_validation(
     ));
     checks.push(skipped(CredentialCheckName::TrustList, false));
     push_unevaluated_policy_checks(&mut checks);
-    checks.push(skipped(CredentialCheckName::Audience, false));
-    checks.push(skipped(CredentialCheckName::Nonce, false));
+    checks.push(binding_expectation_check(
+        CredentialCheckName::Audience,
+        verification_context.audience.as_deref(),
+    ));
+    checks.push(binding_expectation_check(
+        CredentialCheckName::Nonce,
+        verification_context.nonce.as_deref(),
+    ));
     checks.push(skipped(CredentialCheckName::CertificateChain, false));
     checks.push(skipped_or_indeterminate(
         CredentialCheckName::Policy,
@@ -221,8 +233,25 @@ fn complete_local_validation(
     CredentialValidationResult {
         valid: decision == CredentialDecision::Allow,
         decision,
-        status: derive_local_status(envelope, now_unix),
+        status: derive_local_status(envelope, verification_context.now_unix),
         checks,
+    }
+}
+
+/// Fail closed when a caller supplies a presentation binding expectation to
+/// the generic credential-envelope validator. The envelope does not carry
+/// authenticated nonce or audience evidence; envelope-specific verifiers must
+/// perform that comparison before invoking an allow decision.
+fn binding_expectation_check(
+    name: CredentialCheckName,
+    expected: Option<&str>,
+) -> CredentialCheckResult {
+    match expected {
+        None => skipped(name, false),
+        Some(value) if value.trim().is_empty() => {
+            fail_with_code(name, CredentialCheckCode::InvalidCredential)
+        }
+        Some(_) => indeterminate(name, true),
     }
 }
 
@@ -262,7 +291,9 @@ fn derive_local_status(envelope: &CredentialEnvelope, now_unix: i64) -> Credenti
     } else if now_unix < envelope.valid_from {
         CredentialStatusValue::Unknown
     } else {
-        CredentialStatusValue::Valid
+        // Time validity alone is not a revocation or suspension check. Keep
+        // the status unknown until authenticated status evidence is supplied.
+        CredentialStatusValue::Unknown
     }
 }
 
@@ -334,7 +365,13 @@ fn skipped_or_indeterminate(name: CredentialCheckName, mandatory: bool) -> Crede
 
 fn decision_from_checks(checks: &[CredentialCheckResult]) -> CredentialDecision {
     let mut has_indeterminate = false;
+    let mut has_authenticated_signature = false;
     for check in checks {
+        if check.name == CredentialCheckName::Signature
+            && check.outcome == CredentialCheckOutcome::Pass
+        {
+            has_authenticated_signature = true;
+        }
         if !check.mandatory {
             continue;
         }
@@ -347,7 +384,7 @@ fn decision_from_checks(checks: &[CredentialCheckResult]) -> CredentialDecision 
         }
     }
 
-    if has_indeterminate {
+    if has_indeterminate || !has_authenticated_signature {
         CredentialDecision::Indeterminate
     } else {
         CredentialDecision::Allow
@@ -360,9 +397,13 @@ fn derive_status_from_checks(
     checks: &[CredentialCheckResult],
 ) -> CredentialStatusValue {
     for check in checks {
-        if check.name == CredentialCheckName::Status
-            && check.outcome == CredentialCheckOutcome::Fail
-        {
+        if check.name == CredentialCheckName::Status {
+            if check.outcome == CredentialCheckOutcome::Pass {
+                return CredentialStatusValue::Valid;
+            }
+            if check.outcome != CredentialCheckOutcome::Fail {
+                continue;
+            }
             return match check.code {
                 CredentialCheckCode::Revoked => CredentialStatusValue::Revoked,
                 CredentialCheckCode::Suspended => CredentialStatusValue::Suspended,
@@ -449,3 +490,7 @@ impl core::fmt::Debug for CredentialCheckStatusRequest {
             .finish()
     }
 }
+
+#[cfg(test)]
+#[path = "binding_expectation_tests.rs"]
+mod binding_expectation_tests;

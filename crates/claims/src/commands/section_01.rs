@@ -14,6 +14,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Stable outcome for a local claims command.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ClaimsCommandOutcome {
     /// Command succeeded.
     Valid,
@@ -23,6 +24,7 @@ pub enum ClaimsCommandOutcome {
 
 /// Stable sensitivity classification for claim definitions.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ClaimSensitivity {
     /// Low-risk operational metadata.
     Low,
@@ -393,7 +395,7 @@ fn fallback_label(claim_id: &str) -> String {
                 capitalize_next = true;
             }
             b'a'..=b'z' if capitalize_next => {
-                label.push(char::from(byte - b'a' + b'A'));
+                label.push(char::from(byte).to_ascii_uppercase());
                 capitalize_next = false;
             }
             _ => {

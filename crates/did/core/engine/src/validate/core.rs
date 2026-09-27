@@ -6,6 +6,7 @@ use reallyme_codec::cbor::{decode_dag_cbor, verify_dag_cbor_cid, CborValue};
 
 use reallyme_did_types::Controller;
 
+use crate::identifier::{parse_did_me, verify_genesis_core_identifier};
 use crate::validate::diagnostic::{DidValidationCode, DidValidationIssue, DidValidationLocation};
 use crate::validate::limits::MAX_CORE_CBOR_ENCODED_BYTES;
 
@@ -124,6 +125,21 @@ pub fn validate_core_snapshot(doc: DidMeDocCoreView<'_>) -> CoreValidationResult
             core: None,
             cbor_bytes: None,
         };
+    }
+
+    validate_core_members(&core_value, doc.sequence, &mut errors);
+
+    // A did:me core is not self-authenticating unless its method identifier is
+    // well formed and the genesis state derives that exact identifier. This is
+    // part of core validation so callers cannot accidentally omit the method
+    // binding while accepting an otherwise internally consistent snapshot.
+    if parse_did_me(doc.id).is_err()
+        || (doc.sequence == 1 && verify_genesis_core_identifier(doc.id, &core_value).is_err())
+    {
+        errors.push(issue(
+            DidValidationCode::IdentifierInvalid,
+            DidValidationLocation::Id,
+        ));
     }
 
     // ---------------------------------------------------------------------
@@ -252,6 +268,37 @@ fn map_get<'a>(core: &'a CborValue, key: &str) -> Option<&'a CborValue> {
     }
 }
 
+fn validate_core_members(core: &CborValue, sequence: u64, errors: &mut Vec<DidValidationIssue>) {
+    const REQUIRED: &[&str] = &[
+        "id",
+        "sequence",
+        "controller",
+        "controllerKeys",
+        "authenticationKeys",
+        "assertionKeys",
+        "keyAgreementKeys",
+        "services",
+        "projectionHash",
+        "updatePolicy",
+    ];
+    let CborValue::Map(entries) = core else {
+        return;
+    };
+    let valid_optional = if sequence == 1 { "nonce" } else { "prev" };
+    if REQUIRED
+        .iter()
+        .any(|required| !entries.iter().any(|(candidate, _)| candidate == required))
+        || entries
+            .iter()
+            .any(|(key, _)| !REQUIRED.contains(&key.as_str()) && key != valid_optional)
+    {
+        errors.push(issue(
+            DidValidationCode::CoreShapeInvalid,
+            DidValidationLocation::Core,
+        ));
+    }
+}
+
 /// Require the projected controller to equal the signed core controller set.
 fn validate_controller_projection(
     core: &CborValue,
@@ -306,7 +353,7 @@ fn validate_controller_projection(
         }
         ([one], Controller::Multiple(doc_arr)) => {
             // doc MUST NOT expand single controller into an array (unless identical length=1)
-            if !(doc_arr.len() == 1 && doc_arr[0] == *one) {
+            if !matches!(doc_arr.as_slice(), [doc_one] if doc_one == one) {
                 errors.push(issue(
                     DidValidationCode::ControllerInvalid,
                     DidValidationLocation::Controller,
@@ -337,5 +384,9 @@ fn validate_controller_projection(
                 ));
             }
         }
+        _ => errors.push(issue(
+            DidValidationCode::ControllerInvalid,
+            DidValidationLocation::Controller,
+        )),
     }
 }

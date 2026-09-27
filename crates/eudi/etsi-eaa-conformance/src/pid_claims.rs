@@ -268,8 +268,9 @@ fn validate_nationalities(nationalities: &[&str]) -> Result<()> {
     }
     for (index, nationality) in nationalities.iter().enumerate() {
         let valid_code = is_iso_3166_alpha_2(nationality) || matches!(*nationality, "QU" | "QS");
-        let duplicated = nationalities[..index]
+        let duplicated = nationalities
             .iter()
+            .take(index)
             .any(|existing| existing == nationality);
         if !valid_code || duplicated {
             return Err(ConformanceError::InvalidPidClaimEncoding);
@@ -423,7 +424,7 @@ fn inspect_canonical_base64(encoded: &str) -> Option<DecodedBase64Edges> {
         }
         for byte in bytes.iter().take(byte_count).copied() {
             if first_length < first.len() {
-                first[first_length] = byte;
+                *first.get_mut(first_length)? = byte;
                 first_length = first_length.checked_add(1)?;
             }
             last[0] = last[1];
@@ -438,11 +439,11 @@ fn inspect_canonical_base64(encoded: &str) -> Option<DecodedBase64Edges> {
     })
 }
 
-const fn base64_value(byte: u8) -> Option<u8> {
+fn base64_value(byte: u8) -> Option<u8> {
     match byte {
-        b'A'..=b'Z' => Some(byte - b'A'),
-        b'a'..=b'z' => Some(byte - b'a' + 26),
-        b'0'..=b'9' => Some(byte - b'0' + 52),
+        b'A'..=b'Z' => byte.checked_sub(b'A'),
+        b'a'..=b'z' => byte.checked_sub(b'a')?.checked_add(26),
+        b'0'..=b'9' => byte.checked_sub(b'0')?.checked_add(52),
         b'+' => Some(62),
         b'/' => Some(63),
         _ => None,

@@ -59,6 +59,7 @@ fn ingest_eu_trusted_list(
         xml,
         trust_anchors,
         externally_authorized_signer,
+        0,
         now,
         &GoodStatus,
     )
@@ -84,7 +85,7 @@ fn api_verifies_signed_tsl_native() {
     .expect("API must verify signed TSL via native backend");
 
     assert_eq!(tsl.list().name, "MT:Test Trusted List");
-    assert!(tsl.signer_trust().evidence.source.is_some());
+    assert!(tsl.signer_trust().evidence().source.is_some());
 }
 
 #[test]
@@ -105,6 +106,25 @@ fn api_ingests_eu_trusted_list_from_xml_bytes() {
         verified.list().issue_date_time.unix_seconds() > 0,
         "verified list must expose issue date"
     );
+
+    let rejected_sequence = verified
+        .list()
+        .sequence_number
+        .checked_add(1)
+        .expect("fixture sequence leaves headroom");
+    let error = ingest_eu_trusted_list_with_status(
+        SIGNED_TSL_XML.as_bytes(),
+        &anchors,
+        &signer,
+        rejected_sequence,
+        verification_time(),
+        &GoodStatus,
+    )
+    .expect_err("facade ingestion must reject an authenticated older list");
+    assert!(matches!(
+        error,
+        TrustApiError::TrustedList(identity_trust_tsl_core::TslError::SequenceRollback)
+    ));
 }
 
 #[test]

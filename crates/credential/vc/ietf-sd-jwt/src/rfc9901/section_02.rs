@@ -7,6 +7,7 @@ const MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS: u64 = 300;
 // select a substantially shorter request-scoped freshness window.
 const MAX_KB_JWT_AGE_SECONDS: u64 = 86_400;
 
+/// Issues an RFC 9901 SD-JWT with operating-system randomness.
 pub fn issue_rfc9901_sd_jwt(
     input: &Rfc9901IssueInput,
     issuer_jwk: &Jwk,
@@ -16,7 +17,7 @@ pub fn issue_rfc9901_sd_jwt(
     issue_rfc9901_sd_jwt_with_rng(input, issuer_jwk, issuer_private_key, &mut salt_rng)
 }
 
-/// Issue an RFC 9901 SD-JWT with a deterministic salt stream.
+/// Issues an RFC 9901 SD-JWT with a deterministic salt stream.
 ///
 /// This entry point exists only for conformance vectors and golden fixtures.
 /// It is excluded from normal builds so production callers cannot select the
@@ -75,9 +76,15 @@ fn issue_rfc9901_sd_jwt_with_rng(
         object_decoys: input.decoys.object_decoys,
         array_decoys: input.decoys.array_decoys,
         disclosures: Vec::new(),
+        matched_paths: BTreeSet::new(),
     };
 
     let transformed_claims = transform_value(&input.user_claims, "$", &mut ctx, true)?;
+    if input.strategy == SelectiveDisclosureStrategy::JsonPaths
+        && ctx.matched_paths != ctx.json_paths
+    {
+        return Err(IetfSdJwtVcError::DisclosurePathNotFound);
+    }
 
     let mut payload = Map::new();
     payload.insert("iss".to_string(), Value::String(input.issuer.clone()));
@@ -131,6 +138,7 @@ fn issue_rfc9901_sd_jwt_with_rng(
     Ok(artifact)
 }
 
+/// Verifies an RFC 9901 SD-JWT and any required holder key binding.
 pub fn verify_rfc9901_sd_jwt(
     artifact: &SdJwtArtifact,
     issuer_jwk: &Jwk,
@@ -190,8 +198,11 @@ pub fn verify_rfc9901_sd_jwt(
         let compact_without_kb =
             compact_without_key_binding(&artifact.issuer_signed_jwt, &artifact.disclosures)?;
 
-        let expected_sd_hash =
-            bytes_to_base64url(sha2_256_digest(compact_without_kb.as_bytes()).as_bytes());
+        // RFC 9901 binds `sd_hash` to the SD-JWT's declared `_sd_alg`.
+        // Parsing the issuer claim here prevents this verification path from
+        // silently diverging if another registered hash is added later.
+        let hash_algorithm = crate::issue::parse_sd_alg(payload_obj)?;
+        let expected_sd_hash = hash_algorithm.digest_b64url(&compact_without_kb);
         let aud = kb_payload
             .get("aud")
             .and_then(Value::as_str)
@@ -231,7 +242,7 @@ pub fn verify_rfc9901_sd_jwt(
     })
 }
 
-/// Serialize `<issuer-jwt>~<disclosure>~...~` for the KB-JWT `sd_hash` input.
+/// Serializes `<issuer-jwt>~<disclosure>~...~` for the KB-JWT `sd_hash` input.
 fn compact_without_key_binding(
     issuer_signed_jwt: &str,
     disclosures: &[String],
@@ -325,11 +336,21 @@ fn validate_confirmation_key(
     // holder key carried by (or referenced from) the issuer-signed SD-JWT.
     // Checking both representations prevents a caller from pairing an
     // attacker-controlled JWK with unrelated raw verification bytes.
-    if confirmation_public_key.as_slice() != kb.holder_public_key
+    if !same_jwk_key_profile(&confirmation_jwk, kb.holder_jwk)
+        || confirmation_public_key.as_slice() != kb.holder_public_key
         || supplied_jwk_public_key.as_slice() != kb.holder_public_key
     {
         return Err(IetfSdJwtVcError::Verification);
     }
 
     Ok(())
+}
+
+fn same_jwk_key_profile(left: &Jwk, right: &Jwk) -> bool {
+    match (left, right) {
+        (Jwk::Ec(left), Jwk::Ec(right)) => left.kty == right.kty && left.crv == right.crv,
+        (Jwk::Okp(left), Jwk::Okp(right)) => left.kty == right.kty && left.crv == right.crv,
+        (Jwk::Akp(left), Jwk::Akp(right)) => left.kty == right.kty && left.alg == right.alg,
+        _ => false,
+    }
 }

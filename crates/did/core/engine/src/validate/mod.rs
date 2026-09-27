@@ -82,7 +82,7 @@ pub use did_document::{
     validate_did_document, validate_did_document_consistency, FullValidationResult,
 };
 
-pub use transition::validate_did_document_transition;
+pub use transition::{validate_did_document_transition, validate_observed_did_document_successors};
 
 pub use diagnostic::{
     DidValidationCode, DidValidationIssue, DidValidationLocation, DidValidationSeverity,

@@ -6,12 +6,17 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
+use reallyme_did_core::default_context;
+use reallyme_did_core::projection_binding::{projection_binding_hash, ProjectionBinding};
 use reallyme_did_core::validate::{
     validate_projection, DidValidationCode, DidValidationIssue, DidValidationLocation,
 };
 use reallyme_did_core::{Canonical, CoreVerificationMethod};
-use reallyme_did_types::{Controller, DIDDocument, VerificationMethod};
+use reallyme_did_types::{
+    Controller, DIDDocument, DNSBinding, DomainVerification, VerificationMethod,
+};
 
 use reallyme_codec::base64url::bytes_to_base64url;
 use reallyme_codec::cbor::CborValue;
@@ -52,6 +57,19 @@ fn make_valid_core_and_doc() -> (CborValue, DIDDocument) {
     core.authentication = vec!["#ed25519".into()];
     core.update_policy.allowed_verification_methods = vec!["#ed25519".into()];
     core.update_policy.threshold = None;
+    core.projection_hash = projection_binding_hash(&ProjectionBinding {
+        context: &default_context(),
+        also_known_as: &[],
+        hardware_bound: None,
+        biometric_protected: None,
+        user_verification_method: None,
+        device_model: None,
+        key_history: &[],
+        domain_verification: &[],
+        eudi_level_of_assurance: None,
+        eudi_schema_version: None,
+    })
+    .unwrap();
 
     let core_cbor = core.canonical_cbor().unwrap();
     let core_value: CborValue = reallyme_codec::cbor::decode_dag_cbor(&core_cbor).unwrap();
@@ -110,6 +128,48 @@ fn valid_projection_passes() {
 
     assert!(res.ok, "{:?}", res.errors);
     assert!(res.errors.is_empty());
+}
+
+#[test]
+fn every_external_projection_field_is_bound_to_the_signed_core() {
+    let mutations: [fn(&mut DIDDocument); 10] = [
+        |doc| {
+            doc.context
+                .push("https://attacker.example/context".to_owned())
+        },
+        |doc| doc.also_known_as.push("did:example:alias".to_owned()),
+        |doc| doc.hardware_bound = Some(true),
+        |doc| doc.biometric_protected = Some(true),
+        |doc| doc.user_verification_method = Some("pin".to_owned()),
+        |doc| doc.device_model = Some("device".to_owned()),
+        |doc| doc.key_history.push("bafy-forged".to_owned()),
+        |doc| {
+            doc.domain_verification.push(DomainVerification {
+                verification_type: "DomainVerification".to_owned(),
+                method: "dns".to_owned(),
+                domain: "example.com".to_owned(),
+                dns: Some(DNSBinding {
+                    record_name: "_did.example.com".to_owned(),
+                    txt_value: "did=forged".to_owned(),
+                }),
+                wellknown: None,
+            });
+        },
+        |doc| doc.eudi_level_of_assurance = Some("substantial".to_owned()),
+        |doc| doc.eudi_schema_version = Some("1.0".to_owned()),
+    ];
+
+    for mutate in mutations {
+        let (core, mut doc) = make_valid_core_and_doc();
+        mutate(&mut doc);
+        let result = validate_projection(&doc, &core);
+        assert!(!result.ok);
+        assert!(has_issue(
+            &result.errors,
+            DidValidationCode::CoreProjectionMismatch,
+            DidValidationLocation::Core,
+        ));
+    }
 }
 
 #[test]

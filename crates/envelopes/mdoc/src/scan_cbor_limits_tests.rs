@@ -34,7 +34,7 @@ fn header_u64(major: u8, argument: u64) -> Vec<u8> {
 
 fn array_of_zeros(count: u16) -> Vec<u8> {
     let mut out = header_u16(4, count);
-    out.resize(out.len() + usize::from(count), 0x00);
+    out.resize(out.len().saturating_add(usize::from(count)), 0x00);
     out
 }
 

@@ -4,13 +4,20 @@
 
 //! Pure validation for legal-entity did:ebsi registry documents.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value};
+use url::Url;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+use crate::did_url::validate_absolute_did_url;
 use crate::jwk::validate_public_jwk;
+use crate::jwk::EbsiJwkPurposes;
 use crate::{parse_did_ebsi, DidEbsiError, DidEbsiErrorReason};
+
+mod validate_service;
+
+use validate_service::validate_services;
 
 const DID_CORE_CONTEXT: &str = "https://www.w3.org/ns/did/v1";
 const LEGACY_EBSI_DID_CONTEXT: &str = "https://w3id.org/did/v1";
@@ -21,24 +28,10 @@ const RELATIONSHIPS: [&str; 5] = [
     "capabilityInvocation",
     "capabilityDelegation",
 ];
-const SUPPORTED_TOP_LEVEL_PROPERTIES: [&str; 10] = [
-    "@context",
-    "id",
-    "controller",
-    "verificationMethod",
-    "authentication",
-    "assertionMethod",
-    "keyAgreement",
-    "capabilityInvocation",
-    "capabilityDelegation",
-    "service",
-];
-
 /// Lifecycle state expected from an EBSI registry document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DidEbsiDocumentState {
-    /// A mutable legal-entity document with at least one controller and
-    /// capabilityInvocation verification method.
+    /// An active legal-entity document with usable registry invocation authority.
     Active,
     /// An immutable or effectively inactive historical registry document.
     EffectivelyDeactivated,
@@ -93,7 +86,7 @@ impl DidEbsiDocument {
     /// Return whether the active update-authority relationship contains the id.
     #[must_use]
     pub fn capability_invocation_contains(&self, identifier: &str) -> bool {
-        relationship_references(&self.value, "capabilityInvocation")
+        relationship_identifiers(&self.value, "capabilityInvocation")
             .is_some_and(|values| values.contains(&identifier))
     }
 
@@ -102,7 +95,7 @@ impl DidEbsiDocument {
     #[must_use]
     pub fn is_effectively_deactivated(&self) -> bool {
         controller_values(&self.value).is_none_or(|values| values.is_empty())
-            || relationship_references(&self.value, "capabilityInvocation")
+            || relationship_identifiers(&self.value, "capabilityInvocation")
                 .is_none_or(|values| values.is_empty())
     }
 
@@ -229,26 +222,20 @@ fn validate_document(
             DidEbsiErrorReason::DocumentIdentifierMismatch,
         ));
     }
-    if object
-        .keys()
-        .any(|name| !SUPPORTED_TOP_LEVEL_PROPERTIES.contains(&name.as_str()))
-    {
-        return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
-    }
     validate_context(object)?;
+    validate_also_known_as(object)?;
     let controllers = validate_controllers(object, state)?;
-    let methods = validate_verification_methods(requested_did, object, &controllers, state)?;
-    validate_services(requested_did, object)?;
-    validate_relationships(object, &methods)?;
+    let controller_count = controllers.len();
+    let mut methods = validate_verification_methods(requested_did, object, &controllers)?;
+    validate_services(object)?;
+    validate_relationships(requested_did, object, &controllers, &mut methods, state)?;
     let invocation_count =
-        relationship_references(value, "capabilityInvocation").map_or(0, |values| values.len());
+        relationship_identifiers(value, "capabilityInvocation").map_or(0, |values| values.len());
     match state {
-        DidEbsiDocumentState::Active if invocation_count == 0 => Err(DidEbsiError::new(
-            DidEbsiErrorReason::CapabilityInvocationMissing,
-        )),
-        DidEbsiDocumentState::Active => Ok(()),
+        DidEbsiDocumentState::Active if controller_count > 0 && invocation_count > 0 => Ok(()),
+        DidEbsiDocumentState::Active => Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument)),
         DidEbsiDocumentState::EffectivelyDeactivated
-            if controllers.is_empty() || invocation_count == 0 =>
+            if controller_count == 0 || invocation_count == 0 =>
         {
             Ok(())
         }
@@ -258,13 +245,40 @@ fn validate_document(
     }
 }
 
+fn validate_also_known_as(object: &Map<String, Value>) -> Result<(), DidEbsiError> {
+    let Some(values) = object.get("alsoKnownAs") else {
+        return Ok(());
+    };
+    let values = values
+        .as_array()
+        .filter(|values| !values.is_empty())
+        .ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
+    let mut unique = BTreeSet::new();
+    for value in values {
+        let value = value
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
+        if Url::parse(value).is_err() || !unique.insert(value) {
+            return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
+        }
+    }
+    Ok(())
+}
+
 fn validate_context(object: &Map<String, Value>) -> Result<(), DidEbsiError> {
     let valid = match object.get("@context") {
         Some(Value::String(value)) => context_is_supported(value),
-        Some(Value::Array(values)) => values
-            .iter()
-            .filter_map(Value::as_str)
-            .any(context_is_supported),
+        Some(Value::Array(values)) => {
+            values
+                .first()
+                .and_then(Value::as_str)
+                .is_some_and(context_is_supported)
+                && values
+                    .iter()
+                    .skip(1)
+                    .all(|value| matches!(value, Value::String(_) | Value::Object(_)))
+        }
         _ => false,
     };
     if valid {
@@ -287,7 +301,7 @@ fn validate_controllers(
         Some(Value::String(value)) if valid_controller(value) => {
             controllers.insert(value.as_str());
         }
-        Some(Value::Array(values)) => {
+        Some(Value::Array(values)) if !values.is_empty() => {
             for value in values {
                 let controller = value
                     .as_str()
@@ -298,11 +312,10 @@ fn validate_controllers(
                 }
             }
         }
-        None if state == DidEbsiDocumentState::EffectivelyDeactivated => {}
+        Some(Value::Array(values))
+            if values.is_empty() && state == DidEbsiDocumentState::EffectivelyDeactivated => {}
+        None => {}
         _ => return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument)),
-    }
-    if state == DidEbsiDocumentState::Active && controllers.is_empty() {
-        return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
     }
     Ok(controllers)
 }
@@ -315,46 +328,51 @@ fn validate_verification_methods<'a>(
     requested_did: &str,
     object: &'a Map<String, Value>,
     controllers: &BTreeSet<&str>,
-    state: DidEbsiDocumentState,
-) -> Result<BTreeSet<&'a str>, DidEbsiError> {
+) -> Result<BTreeMap<&'a str, EbsiJwkPurposes>, DidEbsiError> {
     let values = match object.get("verificationMethod") {
         Some(Value::Array(values)) => values,
-        None if state == DidEbsiDocumentState::EffectivelyDeactivated => {
-            return Ok(BTreeSet::new());
-        }
+        None => return Ok(BTreeMap::new()),
         _ => return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument)),
     };
-    if state == DidEbsiDocumentState::Active && values.is_empty() {
-        return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
-    }
-    let mut identifiers = BTreeSet::new();
-    let mut supports_es256 = false;
+    let mut methods = BTreeMap::new();
     for value in values {
         let method = value
             .as_object()
             .ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
-        let identifier = required_string(method, "id")?;
-        let controller = required_string(method, "controller")?;
-        if !valid_local_did_url(requested_did, identifier)
-            || !valid_controller(controller)
-            || !controllers.contains(controller)
-            || method.get("type").and_then(Value::as_str) != Some("JsonWebKey2020")
-            || !identifiers.insert(identifier)
-        {
+        let (identifier, purposes) =
+            validate_verification_method(requested_did, controllers, method)?;
+        if methods.insert(identifier, purposes).is_some() {
             return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
         }
-        validate_public_jwk(method.get("publicKeyJwk"), identifier)?;
-        supports_es256 = true;
     }
-    if !supports_es256 && state == DidEbsiDocumentState::Active {
-        return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
-    }
-    Ok(identifiers)
+    Ok(methods)
 }
 
-fn validate_relationships(
-    object: &Map<String, Value>,
-    methods: &BTreeSet<&str>,
+fn validate_verification_method<'a>(
+    requested_did: &str,
+    controllers: &BTreeSet<&str>,
+    method: &'a Map<String, Value>,
+) -> Result<(&'a str, EbsiJwkPurposes), DidEbsiError> {
+    let identifier = required_string(method, "id")?;
+    validate_absolute_did_url(identifier)?;
+    let controller = required_string(method, "controller")?;
+    if !valid_local_verification_method_id(identifier, requested_did)
+        || !valid_controller(controller)
+        || (controller != requested_did && !controllers.contains(controller))
+        || method.get("type").and_then(Value::as_str) != Some("JsonWebKey2020")
+    {
+        return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
+    }
+    let purposes = validate_public_jwk(method.get("publicKeyJwk"), identifier)?;
+    Ok((identifier, purposes))
+}
+
+fn validate_relationships<'a>(
+    requested_did: &str,
+    object: &'a Map<String, Value>,
+    controllers: &BTreeSet<&str>,
+    methods: &mut BTreeMap<&'a str, EbsiJwkPurposes>,
+    state: DidEbsiDocumentState,
 ) -> Result<(), DidEbsiError> {
     for name in RELATIONSHIPS {
         let Some(values) = object.get(name) else {
@@ -363,11 +381,35 @@ fn validate_relationships(
         let values = values
             .as_array()
             .ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
+        if values.is_empty() {
+            if state == DidEbsiDocumentState::EffectivelyDeactivated {
+                continue;
+            }
+            return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
+        }
+        let mut relationship_ids = BTreeSet::new();
         for value in values {
-            let reference = value
-                .as_str()
-                .ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
-            if !methods.contains(reference) {
+            let (identifier, purposes) = match value {
+                Value::String(reference) => {
+                    validate_absolute_did_url(reference)?;
+                    let purposes = *methods
+                        .get(reference.as_str())
+                        .ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
+                    (reference.as_str(), Some(purposes))
+                }
+                Value::Object(method) => {
+                    let (identifier, purposes) =
+                        validate_verification_method(requested_did, controllers, method)?;
+                    if methods.insert(identifier, purposes).is_some() {
+                        return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
+                    }
+                    (identifier, Some(purposes))
+                }
+                _ => return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument)),
+            };
+            if !relationship_ids.insert(identifier)
+                || purposes.is_some_and(|purposes| !purpose_allowed(name, purposes))
+            {
                 return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
             }
         }
@@ -375,41 +417,19 @@ fn validate_relationships(
     Ok(())
 }
 
-fn validate_services(requested_did: &str, object: &Map<String, Value>) -> Result<(), DidEbsiError> {
-    let Some(services) = object.get("service") else {
-        return Ok(());
-    };
-    let services = services
-        .as_array()
-        .ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
-    let mut identifiers = BTreeSet::new();
-    for value in services {
-        let service = value
-            .as_object()
-            .ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
-        let identifier = required_string(service, "id")?;
-        if !valid_local_did_url(requested_did, identifier)
-            || !identifiers.insert(identifier)
-            || required_string(service, "type").is_err()
-            || !service.contains_key("serviceEndpoint")
-        {
-            return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
-        }
+fn purpose_allowed(name: &str, purposes: EbsiJwkPurposes) -> bool {
+    if name == "keyAgreement" {
+        purposes.key_agreement
+    } else {
+        purposes.signature
     }
-    Ok(())
 }
 
-fn valid_local_did_url(did: &str, value: &str) -> bool {
-    let Some(fragment) = value
+fn valid_local_verification_method_id(value: &str, did: &str) -> bool {
+    value
         .strip_prefix(did)
         .and_then(|suffix| suffix.strip_prefix('#'))
-    else {
-        return false;
-    };
-    !fragment.is_empty()
-        && fragment.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b':' | b'@')
-        })
+        .is_some_and(|fragment| !fragment.is_empty())
 }
 
 fn controller_values(value: &Value) -> Option<Vec<&str>> {
@@ -420,12 +440,16 @@ fn controller_values(value: &Value) -> Option<Vec<&str>> {
     }
 }
 
-fn relationship_references<'a>(value: &'a Value, name: &str) -> Option<Vec<&'a str>> {
+fn relationship_identifiers<'a>(value: &'a Value, name: &str) -> Option<Vec<&'a str>> {
     value
         .get(name)?
         .as_array()?
         .iter()
-        .map(Value::as_str)
+        .map(|entry| match entry {
+            Value::String(identifier) => Some(identifier.as_str()),
+            Value::Object(method) => method.get("id").and_then(Value::as_str),
+            _ => None,
+        })
         .collect()
 }
 

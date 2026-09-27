@@ -6,67 +6,96 @@ use thiserror::Error;
 
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
 
+/// Typed failures returned by IETF SD-JWT VC operations.
 #[derive(Debug, Error)]
 pub enum IetfSdJwtVcError {
+    /// The input violates the selected SD-JWT profile.
     #[error("invalid input")]
     InvalidInput,
 
+    /// The signing JWK does not declare a JWT algorithm.
     #[error("missing JWT algorithm in JWK")]
     MissingAlgorithm,
 
+    /// The declared algorithm is not supported by this profile.
     #[error("unsupported algorithm")]
     UnsupportedAlgorithm,
 
+    /// The `_sd_alg` digest algorithm is not implemented by this profile.
+    #[error("unsupported selective-disclosure hash algorithm")]
+    UnsupportedHashAlgorithm,
+
+    /// Signature creation or validation failed.
     #[error("signature error")]
     Signature,
 
+    /// An authenticated value failed semantic verification.
     #[error("verification failed")]
     Verification,
 
+    /// Holder binding is required, but no valid key-binding proof was supplied.
     #[error("missing key binding proof")]
     MissingKeyBinding,
 
+    /// Serialization or deserialization failed.
     #[error("serialization error")]
     Serialization,
 
+    /// The compact SD-JWT serialization is malformed.
     #[error("invalid compact SD-JWT format")]
     InvalidCompactFormat,
 
+    /// A disclosure is malformed or violates the selected profile.
     #[error("invalid disclosure")]
     InvalidDisclosure,
 
+    /// A disclosure does not match an issuer-signed digest.
     #[error("disclosure digest mismatch")]
     DisclosureDigestMismatch,
 
+    /// A claim name appears more than once after disclosure processing.
     #[error("duplicate claim key")]
     DuplicateClaimKey,
 
+    /// Application claims use a name reserved by SD-JWT.
     #[error("reserved claim key")]
     ReservedClaimKey,
 
+    /// A JWT protected header is malformed or violates policy.
     #[error("invalid JWT header")]
     InvalidJwtHeader,
 
+    /// A selectively disclosable payload does not contain `_sd`.
     #[error("missing _sd claim")]
     MissingSdClaim,
 
+    /// The `_sd` claim contains a non-string or duplicate digest.
     #[error("_sd must contain unique digest strings")]
     InvalidSdClaim,
 
+    /// Verification policy is internally inconsistent or exceeds supported bounds.
     #[error("invalid verification policy")]
     InvalidVerificationPolicy,
 
+    /// A temporal claim is malformed or the claims form an invalid interval.
     #[error("invalid temporal claim")]
     InvalidTemporalClaim,
 
+    /// The credential expired at or before the verification time.
     #[error("credential has expired")]
     CredentialExpired,
 
+    /// The credential is not valid at the verification time.
     #[error("credential is not yet valid")]
     CredentialNotYetValid,
 
+    /// Disclosure processing exceeded a configured resource limit.
     #[error("SD-JWT processing limit exceeded")]
     ProcessingLimitExceeded,
+
+    /// A configured selective-disclosure path did not identify any claim.
+    #[error("disclosure path did not match a claim")]
+    DisclosurePathNotFound,
 }
 
 impl From<IetfSdJwtVcError> for IdentityCoreErrorReason {
@@ -78,7 +107,8 @@ impl From<IetfSdJwtVcError> for IdentityCoreErrorReason {
             IetfSdJwtVcError::MissingAlgorithm => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_IETF_SD_JWT_VC_MISSING_ALGORITHM
             }
-            IetfSdJwtVcError::UnsupportedAlgorithm => {
+            IetfSdJwtVcError::UnsupportedAlgorithm
+            | IetfSdJwtVcError::UnsupportedHashAlgorithm => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_IETF_SD_JWT_VC_UNSUPPORTED_ALGORITHM
             }
             IetfSdJwtVcError::Signature => {
@@ -118,7 +148,8 @@ impl From<IetfSdJwtVcError> for IdentityCoreErrorReason {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_IETF_SD_JWT_VC_INVALID_SD_CLAIM
             }
             IetfSdJwtVcError::InvalidVerificationPolicy
-            | IetfSdJwtVcError::ProcessingLimitExceeded => {
+            | IetfSdJwtVcError::ProcessingLimitExceeded
+            | IetfSdJwtVcError::DisclosurePathNotFound => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_IETF_SD_JWT_VC_INVALID_INPUT
             }
             IetfSdJwtVcError::InvalidTemporalClaim

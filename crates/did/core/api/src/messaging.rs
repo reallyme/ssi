@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use reallyme_did_core::validate::validate_services;
 use reallyme_did_types::DIDDocument;
 use reallyme_did_types::Service;
 use reallyme_keys::KeySet;
@@ -92,12 +93,16 @@ pub fn discover_messaging_pre_keys(
 /// are returned. Every transition is authenticated before any pre-key is used.
 pub fn discover_messaging_pre_keys_from_chain(
     chain: &[DIDDocument],
+    minimum_sequence: u64,
 ) -> Result<Vec<MessagingPreKeySnapshot>, DidApiError> {
     let head = chain
         .last()
         .ok_or(DidApiError::MessagingPreKeyDiscoveryInvalid)?;
     let validation = validate_did_chain(chain, no_domain_env());
     if !validation.ok {
+        return Err(DidApiError::MessagingPreKeyDiscoveryInvalid);
+    }
+    if minimum_sequence == 0 || head.sequence < minimum_sequence {
         return Err(DidApiError::MessagingPreKeyDiscoveryInvalid);
     }
     extract_messaging_pre_keys(head)
@@ -196,6 +201,11 @@ pub fn designate_messaging_pre_keys(
 ) -> Result<(DIDDocument, KeySet), DidApiError> {
     let services = services_with_designated_pre_keys(old_doc, service_id, uri, pre_keys)
         .ok_or(DidApiError::MessagingPreKeyDesignationInvalid)?;
+    let mut proposed = old_doc.clone();
+    proposed.service.clone_from(&services);
+    if !validate_services(&proposed).ok {
+        return Err(DidApiError::MessagingPreKeyDesignationInvalid);
+    }
 
     let (doc, new_ks) = update_did(
         old_doc,
@@ -290,7 +300,7 @@ pub(crate) fn services_with_designated_pre_keys(
         .iter()
         .position(|candidate| candidate.id == service_id)
     {
-        Some(index) => services[index] = service,
+        Some(index) => *services.get_mut(index)? = service,
         None => services.push(service),
     }
 

@@ -9,10 +9,14 @@
 
 use identity_core_primitives::Algorithm;
 use reallyme_codec::base64url::bytes_to_base64url;
+use reallyme_did_core::projection_binding::{projection_binding_hash, ProjectionBinding};
 use reallyme_did_core::validate::{
     validate_did_document, DidValidationCode, DidValidationIssue, DomainVerificationEnv,
 };
-use reallyme_did_core::{sign_core, Canonical, CoreVerificationMethod, DidCore, UpdatePolicy};
+use reallyme_did_core::{
+    default_context, generate_did_me, sign_core, Canonical, CoreVerificationMethod, DidCore,
+    UpdatePolicy,
+};
 use reallyme_did_types::{Controller, DIDDocument, DataIntegrityProof, VerificationMethod};
 
 fn has_code(errors: &[DidValidationIssue], code: DidValidationCode) -> bool {
@@ -21,6 +25,10 @@ fn has_code(errors: &[DidValidationIssue], code: DidValidationCode) -> bool {
 
 /// Build a minimal valid DIDDocument + core snapshot
 fn make_valid_doc() -> DIDDocument {
+    make_valid_doc_with_dns_binding(false)
+}
+
+fn make_valid_doc_with_dns_binding(include_dns_binding: bool) -> DIDDocument {
     use reallyme_crypto::core::Algorithm as CryptoAlgorithm;
     use reallyme_crypto::dispatch::{generate_keypair, public_key_to_multikey};
 
@@ -45,7 +53,34 @@ fn make_valid_doc() -> DIDDocument {
         algorithm: Algorithm::Ed25519,
         public_key_multibase: multikey.clone(),
     }];
-    let did = "did:me:test".to_owned();
+    let did = generate_did_me(&nonce, &update_policy, &controller_keys).unwrap();
+    let domain_verification = if include_dns_binding {
+        vec![reallyme_did_types::DomainVerification {
+            verification_type: "DnsTxtVerification".into(),
+            method: "dns".into(),
+            domain: "example.com".into(),
+            dns: Some(reallyme_did_types::DNSBinding {
+                record_name: "_did".into(),
+                txt_value: did.clone(),
+            }),
+            wellknown: None,
+        }]
+    } else {
+        Vec::new()
+    };
+    let projection_hash = projection_binding_hash(&ProjectionBinding {
+        context: &default_context(),
+        also_known_as: &[],
+        hardware_bound: None,
+        biometric_protected: None,
+        user_verification_method: None,
+        device_model: None,
+        key_history: &[],
+        domain_verification: &domain_verification,
+        eudi_level_of_assurance: None,
+        eudi_schema_version: None,
+    })
+    .unwrap();
 
     let core = DidCore {
         id: did.clone(),
@@ -57,6 +92,7 @@ fn make_valid_doc() -> DIDDocument {
         assertion: vec![],
         key_agreement: vec![],
         services: vec![],
+        projection_hash,
         update_policy,
         prev: None,
     };
@@ -126,7 +162,7 @@ fn make_valid_doc() -> DIDDocument {
         eudi_level_of_assurance: None,
         eudi_schema_version: None,
         device_model: None,
-        domain_verification: vec![],
+        domain_verification,
     }
 }
 
@@ -148,7 +184,7 @@ fn valid_document_passes_full_validation() {
 }
 
 #[test]
-fn optional_data_integrity_proof_issue_is_non_fatal_to_did_validity() {
+fn present_data_integrity_proof_must_verify() {
     let mut doc = make_valid_doc();
     doc.data_integrity_proof = Some(DataIntegrityProof {
         proof_type: "WrongProofType".into(),
@@ -167,10 +203,9 @@ fn optional_data_integrity_proof_issue_is_non_fatal_to_did_validity() {
         },
     );
 
-    assert!(res.ok, "{:?}", res.errors);
-    assert!(res.errors.is_empty());
+    assert!(!res.ok);
     assert!(has_code(
-        &res.warnings,
+        &res.errors,
         DidValidationCode::DataIntegrityProofInvalid
     ));
 }
@@ -214,19 +249,7 @@ fn core_validation_error_is_reported() {
 
 #[test]
 fn domain_verification_failure_is_reported() {
-    let mut doc = make_valid_doc();
-
-    doc.domain_verification
-        .push(reallyme_did_types::DomainVerification {
-            verification_type: "DnsTxtVerification".into(),
-            method: "dns".into(),
-            domain: "example.com".into(),
-            dns: Some(reallyme_did_types::DNSBinding {
-                record_name: "_did".into(),
-                txt_value: "did:me:test".into(),
-            }),
-            wellknown: None,
-        });
+    let doc = make_valid_doc_with_dns_binding(true);
 
     let env = DomainVerificationEnv {
         resolve_txt: Some(&|_domain| Ok(vec!["did:me:OTHER".into()])),

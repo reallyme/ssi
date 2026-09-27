@@ -1,0 +1,6 @@
+{
+  "nonce": "1234567890",
+  "aud": "https://example.com/verifier",
+  "iat": 1771771770,
+  "sd_hash": "NT5EVUJz-8ynUrA9x1QwDqRRFjNmAl0cg4FPk5G1ZEQ"
+}

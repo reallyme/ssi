@@ -15,8 +15,11 @@ use crate::sensitive::zeroize_json_value;
 /// The disclosure JSON array shape is `[salt, key, value]`.
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct SdJwtDisclosure {
+    /// Base64url-encoded disclosure salt.
     pub salt_b64u: String,
+    /// Object-property name authenticated by this disclosure.
     pub key: String,
+    /// JSON value revealed by the disclosure.
     pub value: Value,
 }
 

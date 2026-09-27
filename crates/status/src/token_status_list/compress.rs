@@ -13,7 +13,8 @@ use reallyme_codec::base64url::bytes_to_base64url;
 
 use super::model::{
     TokenStatusBits, TokenStatusListError, TokenStatusListInvalidReason, TokenStatusListPayload,
-    VerifiedTokenStatusList, MAX_COMPRESSED_STATUS_BYTES, MAX_TOKEN_STATUS_ENTRIES,
+    TokenStatusValue, VerifiedTokenStatusList, MAX_COMPRESSED_STATUS_BYTES,
+    MAX_TOKEN_STATUS_ENTRIES,
 };
 
 /// Pack status values least-significant-bit first within each byte.
@@ -55,7 +56,12 @@ pub fn pack_token_status_values(
         let shift = u32::try_from(bit_offset % 8).map_err(|_| {
             TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidLength)
         })?;
-        packed[byte_index] |= value << shift;
+        let byte = packed
+            .get_mut(byte_index)
+            .ok_or(TokenStatusListError::InvalidInput(
+                TokenStatusListInvalidReason::InvalidLength,
+            ))?;
+        *byte |= value << shift;
     }
     Ok(packed)
 }
@@ -65,7 +71,7 @@ pub fn pack_token_status_values(
 /// `bits` is supplied by the caller. For an authenticated list, prefer
 /// [`VerifiedTokenStatusList::status`], which reads the width from the signed
 /// `status_list.bits` claim.
-pub fn token_status_value(
+pub(crate) fn token_status_value(
     packed: &[u8],
     bits: TokenStatusBits,
     index: usize,
@@ -89,14 +95,25 @@ pub fn token_status_value(
     Ok((byte >> shift) & bits.maximum_value())
 }
 
+#[cfg(test)]
+#[path = "compress_tests.rs"]
+mod tests;
+
 impl VerifiedTokenStatusList {
     /// Read the status value at `index` using the bit width from the
     /// authenticated `status_list.bits` claim.
-    pub fn status(&self, index: usize) -> Result<u8, TokenStatusListError> {
+    pub fn status(&self, index: usize) -> Result<TokenStatusValue, TokenStatusListError> {
         let bits = TokenStatusBits::from_width(self.claims.status_list.bits).ok_or(
             TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidBits),
         )?;
-        token_status_value(&self.packed_statuses, bits, index)
+        match token_status_value(&self.packed_statuses, bits, index)? {
+            0 => Ok(TokenStatusValue::Valid),
+            1 => Ok(TokenStatusValue::Invalid),
+            2 => Ok(TokenStatusValue::Suspended),
+            _ => Err(TokenStatusListError::InvalidInput(
+                TokenStatusListInvalidReason::UnsupportedStatusValue,
+            )),
+        }
     }
 }
 
@@ -141,7 +158,7 @@ pub(crate) fn decompress_status_bytes(
             TokenStatusListInvalidReason::InvalidCompressedList,
         ));
     }
-    let decoder = ZlibDecoder::new(compressed);
+    let mut decoder = ZlibDecoder::new(compressed);
     let mut output = Vec::new();
     let width = match bits {
         1 | 2 | 4 | 8 => usize::from(bits),
@@ -160,12 +177,20 @@ pub(crate) fn decompress_status_bytes(
         .map_err(|_| TokenStatusListError::Encoding)?
         .checked_add(1)
         .ok_or(TokenStatusListError::Encoding)?;
-    decoder
-        .take(read_limit)
-        .read_to_end(&mut output)
-        .map_err(|_| {
+    {
+        let mut bounded = decoder.by_ref().take(read_limit);
+        bounded.read_to_end(&mut output).map_err(|_| {
             TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidCompressedList)
         })?;
+    }
+    let consumed = usize::try_from(decoder.total_in()).map_err(|_| {
+        TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidCompressedList)
+    })?;
+    if consumed != compressed.len() {
+        return Err(TokenStatusListError::InvalidInput(
+            TokenStatusListInvalidReason::InvalidCompressedList,
+        ));
+    }
     if output.is_empty() || output.len() > maximum_output {
         return Err(TokenStatusListError::InvalidInput(
             TokenStatusListInvalidReason::InvalidCompressedList,

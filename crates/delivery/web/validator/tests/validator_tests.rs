@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::arithmetic_side_effects,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -317,7 +318,11 @@ fn valid_qeaa() -> QeaaCompliance {
         },
         issuer_credential: reallyme_credential_audit::IssuerCredential {
             kind: reallyme_credential_audit::IssuerCredentialKind::X509,
-            cert_fingerprint_sha256: [3u8; 32],
+            cert_fingerprint_sha256: [
+                0x03, 0x90, 0x58, 0xc6, 0xf2, 0xc0, 0xcb, 0x49, 0x2c, 0x53, 0x3b, 0x0a, 0x4d, 0x14,
+                0xef, 0x77, 0xcc, 0x0f, 0x78, 0xab, 0xcc, 0xce, 0xd5, 0x28, 0x7d, 0x84, 0xa1, 0xa2,
+                0x01, 0x1c, 0xfb, 0x81,
+            ],
             cert_chain_der: vec![vec![1, 2, 3]],
             trusted_list_ref: "EU-TL".into(),
             policy_oids: vec![],
@@ -362,6 +367,12 @@ impl StatusListVerifier for AcceptAllStatusVerifier {
     }
 }
 
+impl reallyme_credential::CredentialStatusListVerifier for AcceptAllStatusVerifier {
+    fn verified_signer(&self) -> reallyme_credential::PartyReference {
+        reallyme_credential::PartyReference::Did(ISSUER_DID.to_owned())
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Tests
 // -----------------------------------------------------------------------------
@@ -379,6 +390,10 @@ fn web_accepts_valid_pid() {
     let status_ctx = StatusContext {
         list: &status_list,
         index: 0,
+        expected_index: 0,
+        expected_issuer: ISSUER_DID,
+        expected_list_id: STATUS_LIST_ID,
+        expected_purpose: StatusPurpose::Revocation,
         verifier: &verifier,
     };
 
@@ -471,6 +486,10 @@ fn web_rejects_missing_qeaa() {
     let status_ctx = StatusContext {
         list: &status_list,
         index: 0,
+        expected_index: 0,
+        expected_issuer: ISSUER_DID,
+        expected_list_id: STATUS_LIST_ID,
+        expected_purpose: StatusPurpose::Revocation,
         verifier: &verifier,
     };
 
@@ -643,6 +662,10 @@ fn web_rejects_envelope_signed_for_a_different_claimset() {
         Some(StatusContext {
             list: &status_list,
             index: 0,
+            expected_index: 0,
+            expected_issuer: ISSUER_DID,
+            expected_list_id: STATUS_LIST_ID,
+            expected_purpose: StatusPurpose::Revocation,
             verifier: &verifier,
         }),
         Some(expected_sd_jwt_binding(now)),
@@ -673,6 +696,10 @@ fn web_rejects_status_list_not_referenced_by_envelope() {
             Some(StatusContext {
                 list,
                 index: 0,
+                expected_index: 0,
+                expected_issuer: ISSUER_DID,
+                expected_list_id: STATUS_LIST_ID,
+                expected_purpose: StatusPurpose::Revocation,
                 verifier: &verifier,
             }),
             Some(expected_sd_jwt_binding(now)),
@@ -714,6 +741,10 @@ fn web_rejects_binding_evaluated_at_a_different_time() {
         Some(StatusContext {
             list: &status_list,
             index: 0,
+            expected_index: 0,
+            expected_issuer: ISSUER_DID,
+            expected_list_id: STATUS_LIST_ID,
+            expected_purpose: StatusPurpose::Revocation,
             verifier: &verifier,
         }),
         Some(expected_sd_jwt_binding(now + 1)),
@@ -732,7 +763,13 @@ fn web_rejects_issuer_sd_jwt_that_does_not_commit_to_envelope() {
     let Presentation::SdJwtVc(original) = &fixture.presentation else {
         panic!("fixture must be SD-JWT");
     };
-    let mut tampered = original.as_ref().clone();
+    let mut tampered = identity_presentation_vp_core::model::SdJwtVcPresentation {
+        sd_jwt: original.sd_jwt.clone(),
+        disclosures: original.disclosures.clone(),
+        kb_jwt: original.kb_jwt.clone(),
+        vct: original.vct.clone(),
+        envelope_hash: original.envelope_hash,
+    };
     tampered.sd_jwt = unrelated_sd_jwt;
     tampered.envelope_hash = None;
     let tampered = Presentation::SdJwtVc(Box::new(tampered));

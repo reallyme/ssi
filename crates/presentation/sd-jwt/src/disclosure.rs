@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Internal disclosure item (SD-JSON style).
 ///
 /// This is NOT the SD-JWT wire format.
 /// It is a reusable internal model.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct DisclosureItem {
     /// Canonical claim path disclosed by this item.
     pub claim_path: String,
@@ -21,4 +22,16 @@ pub struct DisclosureItem {
 
     /// Merkle path (bottom-up)
     pub merkle_path: Vec<Vec<u8>>,
+}
+
+impl core::fmt::Debug for DisclosureItem {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter
+            .debug_struct("DisclosureItem")
+            .field("claim_path", &"<redacted>")
+            .field("value", &"<redacted>")
+            .field("salt", &"<redacted>")
+            .field("merkle_path", &"<redacted>")
+            .finish()
+    }
 }

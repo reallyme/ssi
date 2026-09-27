@@ -21,9 +21,9 @@ pub use payload::status_list_signing_payload;
 #[cfg(feature = "proto")]
 pub use proto::{status_list_from_proto, status_list_to_proto};
 pub use token_status_list::{
-    build_token_status_list_payload, pack_token_status_values, token_status_value, TokenStatusBits,
+    build_token_status_list_payload, pack_token_status_values, TokenStatusBits,
     TokenStatusListClaims, TokenStatusListError, TokenStatusListFreshnessPolicy,
-    TokenStatusListInvalidReason, TokenStatusListPayload, TokenStatusListProfile,
+    TokenStatusListInvalidReason, TokenStatusListPayload, TokenStatusListProfile, TokenStatusValue,
     VerifiedTokenStatusList, DEFAULT_TOKEN_STATUS_LIST_MAX_AGE_SECS,
     STATUS_LIST_CWT_CONTENT_FORMAT, STATUS_LIST_CWT_MEDIA_TYPE, STATUS_LIST_JWT_MEDIA_TYPE,
     STATUS_LIST_JWT_TYPE,
@@ -35,5 +35,6 @@ pub use token_status_list::{
     verify_token_status_list_cwt, verify_token_status_list_jwt,
 };
 pub use verify::{
-    status_bit, validate_status_list, verify_status, StatusListVerifier, MAX_STATUS_LIST_ENTRIES,
+    validate_status_list, verify_status, verify_status_with_policy, StatusListFreshnessPolicy,
+    StatusListVerifier, DEFAULT_STATUS_LIST_MAX_AGE_SECS, MAX_STATUS_LIST_ENTRIES,
 };

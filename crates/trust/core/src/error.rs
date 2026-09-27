@@ -8,6 +8,7 @@ use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityC
 
 /// Trust evaluation failures.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrustError {
     /// No acceptable path could be built to a configured trust anchor.
     #[error("no valid trust path found")]
@@ -48,6 +49,7 @@ pub enum TrustError {
 
 /// Fixed resource-limit classes enforced at the trust-core boundary.
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrustResourceLimit {
     /// The configured PKIX root collection exceeded its fixed bound.
     #[error("too many configured trust roots")]
@@ -60,6 +62,7 @@ pub enum TrustResourceLimit {
 
 /// Non-cryptographic chain-link policy violations.
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ChainLinkPolicyViolation {
     /// Issuer and subject distinguished names do not chain.
     #[error("issuer distinguished name mismatch")]

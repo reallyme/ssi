@@ -5,15 +5,15 @@
 use identity_revocation_core::{StatusCheckError, StatusChecker};
 
 use envelopes_x509::{
-    policy::screen_chain_policy_only_no_path_validation, X509Certificate, X509Chain,
-    MAX_X509_CHAIN_CERTIFICATES,
+    eu_policy, eudi_policy, policy::screen_chain_policy_only_no_path_validation, EuPreset,
+    EudiCertificateProfile, X509Certificate, X509Chain, X509Policy, MAX_X509_CHAIN_CERTIFICATES,
 };
 
 use crate::{
     validate_chain_links, CertificatePosition, CertificateStatus, CertificateStatusEvidence,
     DirectTrustEntry, SignatureVerifier, SignatureVerifyError, StatusRequirement,
     TrustAnchorEvidence, TrustAnchorKind, TrustConfig, TrustDecision, TrustError, TrustEvidence,
-    TrustFailureReason, TrustOutcome, TrustResourceLimit,
+    TrustFailureReason, TrustOutcome, TrustPolicyId, TrustResourceLimit,
 };
 
 const MAX_CANDIDATE_PATHS: usize = 64;
@@ -53,7 +53,10 @@ pub fn evaluate_trust_decision(
     sig_verifier: &dyn SignatureVerifier,
     status_checker: Option<&dyn StatusChecker>,
 ) -> Result<TrustDecision, TrustError> {
-    if !cfg.evaluation.purpose_policy_is_consistent() {
+    if !cfg.evaluation.purpose_policy_is_consistent()
+        || !policy_profile_matches_id(cfg.evaluation.policy_id, &cfg.policy)
+        || !status_policy_matches_id(cfg.evaluation.policy_id, cfg.evaluation.status_policy)
+    {
         return Err(TrustError::PurposePolicyMismatch);
     }
     if presented.is_empty() || presented.len() > MAX_X509_CHAIN_CERTIFICATES {
@@ -192,6 +195,50 @@ pub fn evaluate_trust_decision(
     ))
 }
 
+/// Bind named certificate-policy receipts to the X.509 policy that was
+/// actually enforced. Some protocol profiles add checks in their owning
+/// adapter, but their PKIX component is still fixed here so a caller cannot
+/// attach a versioned receipt label to an arbitrary certificate policy.
+fn policy_profile_matches_id(policy_id: TrustPolicyId, policy: &X509Policy) -> bool {
+    match policy_id {
+        TrustPolicyId::EuQwacV1 => *policy == eu_policy(EuPreset::Qwac),
+        TrustPolicyId::EuQsealV1 => *policy == eu_policy(EuPreset::Qsealc),
+        TrustPolicyId::EtsiTs1194126PidProviderV1 => {
+            *policy == eudi_policy(EudiCertificateProfile::PidProviderSignerV1)
+        }
+        TrustPolicyId::EtsiTs1194126WalletProviderV1 => {
+            *policy == eudi_policy(EudiCertificateProfile::WalletProviderSignerV1)
+        }
+        TrustPolicyId::EtsiTs1194118WrpacV1 => {
+            *policy == eudi_policy(EudiCertificateProfile::WrpacLeafV1)
+        }
+        TrustPolicyId::EuQeaaV1 => includes_qualified_service_baseline(policy),
+        TrustPolicyId::EuTrustedListSignerV1
+        | TrustPolicyId::WalletAttestationIssuerV1
+        | TrustPolicyId::EtsiTs119475WrprcV1
+        | TrustPolicyId::EtsiJadesBaselineBV1
+        | TrustPolicyId::EudiPidStatusV1
+        | TrustPolicyId::EudiWalletOrKeyStorageStatusV1
+        | TrustPolicyId::EtsiTs119475WrprcStatusV1
+        | TrustPolicyId::EudiTs5RegistryResponseSigningV1 => includes_default_pkix_baseline(policy),
+        TrustPolicyId::GenericX509V1 => true,
+    }
+}
+
+const fn includes_default_pkix_baseline(policy: &X509Policy) -> bool {
+    policy.require_v3
+        && policy.reject_unknown_critical_extensions
+        && policy.require_leaf_not_ca
+        && policy.require_intermediate_ca
+}
+
+fn includes_qualified_service_baseline(policy: &X509Policy) -> bool {
+    includes_default_pkix_baseline(policy)
+        && policy.require_leaf_digital_signature
+        && policy.trust_anchor_requirement
+            == envelopes_x509::policy::TrustAnchorRequirement::Rfc5280Ca
+}
+
 fn candidate_terminates_at_configured_anchor(candidate: &CandidatePath, cfg: &TrustConfig) -> bool {
     let configured = cfg.trust_roots.get(usize::from(candidate.trust_root_index));
     match (candidate.chain.certs.last(), configured) {
@@ -320,9 +367,8 @@ fn evaluate_status(
         let position = certificate_position(index, chain.certs.len())?;
         let requirement = status_requirement(position, cfg);
         let status = match (requirement, checker, now_unix) {
-            (StatusRequirement::Exempt, _, _) | (StatusRequirement::Optional, None, _) => {
-                CertificateStatus::Exempt
-            }
+            (StatusRequirement::Exempt, _, _) => CertificateStatus::Exempt,
+            (StatusRequirement::Optional, None, _) => CertificateStatus::NotChecked,
             (StatusRequirement::Required, None, _) => CertificateStatus::Unavailable,
             (StatusRequirement::Required | StatusRequirement::Optional, Some(_), None) => {
                 push_failure(&mut failures, TrustFailureReason::InvalidEvaluationTime);
@@ -362,7 +408,7 @@ fn certificate_position(index: usize, chain_len: usize) -> Result<CertificatePos
     if index == 0 {
         return Ok(CertificatePosition::Leaf);
     }
-    if chain_len > 1 && index == chain_len - 1 {
+    if chain_len > 1 && chain_len.checked_sub(1) == Some(index) {
         return Ok(CertificatePosition::TrustAnchor);
     }
     let intermediate_offset = index.checked_sub(1).ok_or(TrustError::Internal)?;
@@ -427,6 +473,11 @@ fn map_status_error(
             TrustFailureReason::StatusUnsupported,
             TrustOutcome::Indeterminate,
         ),
+        _ => (
+            CertificateStatus::Malformed,
+            TrustFailureReason::StatusMalformed,
+            TrustOutcome::Indeterminate,
+        ),
     }
 }
 
@@ -444,3 +495,4 @@ fn combine_outcome(current: TrustOutcome, next: TrustOutcome) -> TrustOutcome {
 }
 
 include!("evaluate/build_paths.rs");
+include!("evaluate/status_policy.rs");

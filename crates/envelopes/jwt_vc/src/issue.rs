@@ -15,7 +15,7 @@ use crate::{validate_jwt_vc_claims, JwtVcEnvelopeError, JwtVcPayload};
 const JWT_VC_JSON_TYP: &str = "vc+jwt";
 
 /// Input for issuing a JWT-VC over already-issued credential bytes.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct JwtVcIssueInput<'a> {
     /// Issuer DID or issuer identifier.
     pub issuer: &'a str,
@@ -43,6 +43,12 @@ pub struct JwtVcIssueInput<'a> {
 
     /// Issuer private key bytes for local signing.
     pub issuer_private_key: &'a [u8],
+}
+
+impl core::fmt::Debug for JwtVcIssueInput<'_> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("JwtVcIssueInput([REDACTED])")
+    }
 }
 
 /// Issue a JWT-VC over canonical credential bytes.

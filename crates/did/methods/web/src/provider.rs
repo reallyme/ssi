@@ -4,7 +4,11 @@
 
 //! Authenticated did:web hosting and publication boundary.
 
-use crate::document::{parse_and_validate_did_web_document, DidWebDocument, DidWebDocumentLimits};
+use crate::document::{
+    parse_and_validate_did_web_document,
+    parse_and_validate_did_web_document_with_json_ld_processor, DidWebDocument,
+    DidWebDocumentLimits, DidWebJsonLdProcessor,
+};
 use crate::error::{DidWebError, DidWebErrorReason, DidWebHostingError};
 use crate::method::{did_web_document_url, parse_did_web};
 
@@ -81,6 +85,25 @@ pub fn create_did_web_document(
         did,
         document_json,
         limits,
+        None,
+    )
+}
+
+/// Validate and publish a new did:web JSON-LD document.
+pub fn create_did_web_document_with_json_ld_processor(
+    provider: Option<&dyn AuthenticatedDidWebHostingProvider>,
+    did: &str,
+    document_json: &[u8],
+    limits: DidWebDocumentLimits,
+    processor: &dyn DidWebJsonLdProcessor,
+) -> Result<DidWebPublicationResult, DidWebError> {
+    publish_document(
+        provider,
+        DidWebHostingOperation::Create,
+        did,
+        document_json,
+        limits,
+        Some(processor),
     )
 }
 
@@ -97,6 +120,25 @@ pub fn update_did_web_document(
         did,
         document_json,
         limits,
+        None,
+    )
+}
+
+/// Validate and replace an existing did:web JSON-LD document.
+pub fn update_did_web_document_with_json_ld_processor(
+    provider: Option<&dyn AuthenticatedDidWebHostingProvider>,
+    did: &str,
+    document_json: &[u8],
+    limits: DidWebDocumentLimits,
+    processor: &dyn DidWebJsonLdProcessor,
+) -> Result<DidWebPublicationResult, DidWebError> {
+    publish_document(
+        provider,
+        DidWebHostingOperation::Update,
+        did,
+        document_json,
+        limits,
+        Some(processor),
     )
 }
 
@@ -123,9 +165,18 @@ fn publish_document(
     did: &str,
     document_json: &[u8],
     limits: DidWebDocumentLimits,
+    processor: Option<&dyn DidWebJsonLdProcessor>,
 ) -> Result<DidWebPublicationResult, DidWebError> {
     let identifier = parse_did_web(did)?;
-    let document = parse_and_validate_did_web_document(&identifier, document_json, limits)?;
+    let document = match processor {
+        Some(processor) => parse_and_validate_did_web_document_with_json_ld_processor(
+            &identifier,
+            document_json,
+            limits,
+            processor,
+        )?,
+        None => parse_and_validate_did_web_document(&identifier, document_json, limits)?,
+    };
     let resolution_url = did_web_document_url(identifier.as_str())?;
     let provider = authenticated_provider(provider, operation)?;
     let receipt = provider.execute(DidWebPublicationRequest {

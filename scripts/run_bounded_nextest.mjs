@@ -18,6 +18,7 @@ const TEST_THREADS =
 const SAFE_BINARY_ID = /^[A-Za-z0-9_.:+-]+$/u;
 
 const laneArguments = new Map([
+  ["default", []],
   ["native", ["--no-default-features", "--features", "native"]],
   ["all-features", ["--all-features"]],
 ]);
@@ -29,7 +30,7 @@ const fail = (message) => {
 
 const lane = process.argv[2];
 if (process.argv.length !== 3 || !laneArguments.has(lane)) {
-  fail("expected exactly one lane: native or all-features");
+  fail("expected exactly one lane: default, native, or all-features");
 }
 
 const selectedLaneArguments = laneArguments.get(lane);
@@ -120,6 +121,7 @@ for (let offset = 0; offset < binaryIds.length; offset += BINARIES_PER_BATCH) {
       ...selectedLaneArguments,
       "--test-threads",
       String(TEST_THREADS),
+      "--no-fail-fast",
       "--no-tests",
       "pass",
       "--filterset",

@@ -102,7 +102,10 @@ fn map_tsl_parse_error(error: identity_trust_tsl_core::TslError) -> TrustApiErro
 ///
 /// Native builds perform full XMLDSig verification before returning normalized
 /// trust metadata. Callers are responsible for fetching XML and providing
-/// trusted signer anchors from their deployment trust store.
+/// trusted signer anchors from their deployment trust store. The persisted
+/// sequence number for the same list location is mandatory so authenticated
+/// rollback is rejected before the verified list leaves this boundary. Pass
+/// zero only when no list has previously been accepted for that location.
 #[cfg(all(
     feature = "native",
     not(any(
@@ -117,21 +120,29 @@ pub fn ingest_eu_trusted_list(
     xml: &[u8],
     trust_anchors: &TrustedListAnchors,
     externally_authorized_signer: &envelopes_x509::X509Certificate,
+    last_accepted_sequence_number: u64,
     now: time::OffsetDateTime,
     status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
     let xml = trust_list_xml_from_bytes(xml)?;
-    verify_trust_list_xml_native_with_external_signer(
+    let verified = verify_trust_list_xml_native_with_external_signer(
         xml,
         trust_anchors.roots(),
         externally_authorized_signer,
         now,
-        envelopes_x509::policy::X509Policy::default(),
+        envelopes_x509::tsl_signer_policy(),
         status_checker,
-    )
+    )?;
+    verified
+        .validate_sequence_number(last_accepted_sequence_number)
+        .map_err(map_tsl_openssl_error)?;
+    Ok(verified)
 }
 
 /// Ingest a named TSL / LOTL from raw XML bytes.
+///
+/// `last_accepted_sequence_number` is the persisted sequence for the same list
+/// location. Pass zero only for the first accepted publication.
 #[cfg(all(
     feature = "native",
     not(any(
@@ -145,17 +156,22 @@ pub fn ingest_eu_trusted_list(
 pub fn ingest_trusted_list_xml(
     xml: &[u8],
     trust_anchors: &TrustedListAnchors,
+    last_accepted_sequence_number: u64,
     now: time::OffsetDateTime,
     status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> TrustApiResult<VerifiedTrustedList> {
     let xml = trust_list_xml_from_bytes(xml)?;
-    verify_trust_list_xml_native(
+    let verified = verify_trust_list_xml_native(
         xml,
         trust_anchors.roots(),
         now,
-        envelopes_x509::policy::X509Policy::default(),
+        envelopes_x509::tsl_signer_policy(),
         status_checker,
-    )
+    )?;
+    verified
+        .validate_sequence_number(last_accepted_sequence_number)
+        .map_err(map_tsl_openssl_error)?;
+    Ok(verified)
 }
 
 /// Verify a TSL / LOTL XML on native targets (xmlsec + OpenSSL).
@@ -239,6 +255,9 @@ fn map_tsl_openssl_error(error: identity_trust_tsl_openssl::TslOpenSslError) -> 
         TslOpenSslError::ExternalSignerCertificateMismatch => TrustApiError::TrustedListPolicy(
             TrustedListPolicyErrorReason::ExternalSignerCertificateMismatch,
         ),
+        TslOpenSslError::InvalidPointerParent => {
+            TrustApiError::TrustedListPolicy(TrustedListPolicyErrorReason::InvalidPointerParent)
+        }
         TslOpenSslError::TrustFailure(_) => TrustApiError::NotTrusted,
         TslOpenSslError::SignerProfile(reason) => TrustApiError::TrustedListPolicy(match reason {
             TslSignerProfileFailureReason::UnauthorizedIssuer => {

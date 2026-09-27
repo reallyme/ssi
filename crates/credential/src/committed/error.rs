@@ -5,7 +5,9 @@ use thiserror::Error;
 
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
 
-#[derive(Debug, Error)]
+/// Typed failures returned by committed-credential operations.
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum VcError {
     /// Canonical CBOR encoding failed.
     #[error("canonicalization failed")]
@@ -18,6 +20,20 @@ pub enum VcError {
     /// Unsupported or inconsistent credential profile.
     #[error("unsupported credential profile")]
     UnsupportedProfile,
+
+    /// Proof material does not describe the credential and holder bundle with
+    /// which it was presented.
+    #[error("credential proof binding mismatch")]
+    ProofBindingMismatch,
+
+    /// The issuer key embedded in the credential does not match the key
+    /// selected by the caller's trust decision.
+    #[error("credential proof binding issuer mismatch")]
+    ProofBindingTrustedIssuerMismatch,
+
+    /// An issuer signature authenticating proof-binding material is invalid.
+    #[error("credential proof binding signature invalid")]
+    ProofBindingSignatureInvalid,
 
     /// Credential issuance could not obtain acceptable entropy.
     ///
@@ -40,6 +56,11 @@ impl From<VcError> for IdentityCoreErrorReason {
             VcError::UnsupportedProfile => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE
             }
+            VcError::ProofBindingMismatch => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_MISMATCH
+            }
+            VcError::ProofBindingTrustedIssuerMismatch => IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_TRUSTED_ISSUER_MISMATCH,
+            VcError::ProofBindingSignatureInvalid => IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_PROOF_BINDING_SIGNATURE_INVALID,
             VcError::EntropyUnavailable => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_API_ISSUANCE_FAILED
             }

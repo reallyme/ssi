@@ -23,7 +23,10 @@ claim names, or unsupported predicate modes into OpenID4VP or ZK proof assembly.
 ## Built-In Profiles
 
 `policy_for_claimset` maps supported predefined claimset identifiers to
-eIDAS-oriented verifier policies. Registry-backed profiles such as `eu.pid.v1`,
+eIDAS-oriented baseline verifier policies. These baselines intentionally do not
+choose relying-party-specific claims or predicate thresholds; callers add those
+requirements explicitly and validate them against the registry. Registry-backed
+profiles such as `eu.pid.v1`,
 `eu.age.v1`, `eu.passport.v1`, `eu.driving_license.v1`, and `eu.eidas-vid.v1`
 must validate against their corresponding `reallyme-credential-claims`
 registries. `eu.kyc.v1` is policy-only because KYC is a relying-party workflow,

@@ -4,7 +4,11 @@
 
 //! Offline DID and DID URL parsing for SDK-facing DID taxonomy commands.
 
+use reallyme_did_method_cheqd::parse_did_cheqd;
 use reallyme_did_method_ebsi::parse_did_ebsi;
+use reallyme_did_method_ion::parse_did_ion;
+use reallyme_did_method_jwk::parse_did_jwk;
+use reallyme_did_method_key::parse_did_key;
 use reallyme_did_method_me::parse_did_me;
 use reallyme_did_method_web::parse_did_web;
 
@@ -12,17 +16,22 @@ use crate::error::DidApiError;
 
 const DID_PREFIX: &str = "did:";
 const DID_ME_METHOD: &str = "me";
+const DID_CHEQD_METHOD: &str = "cheqd";
 const DID_EBSI_METHOD: &str = "ebsi";
+const DID_ION_METHOD: &str = "ion";
+const DID_JWK_METHOD: &str = "jwk";
+const DID_KEY_METHOD: &str = "key";
 const DID_WEB_METHOD: &str = "web";
 
 /// Typed, non-PII failures produced by offline DID and DID URL parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum DidParseError {
     /// The input does not have a valid DID URL structure.
     #[error("invalid DID URL")]
     InvalidDidUrl,
 
-    /// The input has a valid DID shape but fails did:me method validation.
+    /// The input has a valid DID shape but fails method-specific validation.
     #[error("invalid DID")]
     InvalidDid,
 }
@@ -88,13 +97,31 @@ pub fn parse_did_value(did_url: &str) -> Result<DidParseResult, DidParseError> {
     let (before_fragment, fragment) = split_fragment(did_url)?;
     let (before_query, query) = split_query(before_fragment)?;
     let base = split_base_did(before_query)?;
+    validate_did_url_components(base.path, query, fragment)?;
 
-    if base.method == DID_ME_METHOD {
-        parse_did_me(base.did).map_err(|_| DidParseError::InvalidDid)?;
-    } else if base.method == DID_EBSI_METHOD {
-        parse_did_ebsi(base.did).map_err(|_| DidParseError::InvalidDid)?;
-    } else if base.method == DID_WEB_METHOD {
-        parse_did_web(base.did).map_err(|_| DidParseError::InvalidDid)?;
+    match base.method {
+        DID_ME_METHOD => parse_did_me(base.did)
+            .map(|_| ())
+            .map_err(|_| DidParseError::InvalidDid)?,
+        DID_CHEQD_METHOD => parse_did_cheqd(base.did)
+            .map(|_| ())
+            .map_err(|_| DidParseError::InvalidDid)?,
+        DID_EBSI_METHOD => parse_did_ebsi(base.did)
+            .map(|_| ())
+            .map_err(|_| DidParseError::InvalidDid)?,
+        DID_ION_METHOD => parse_did_ion(base.did)
+            .map(|_| ())
+            .map_err(|_| DidParseError::InvalidDid)?,
+        DID_JWK_METHOD => parse_did_jwk(base.did)
+            .map(|_| ())
+            .map_err(|_| DidParseError::InvalidDid)?,
+        DID_KEY_METHOD => parse_did_key(base.did)
+            .map(|_| ())
+            .map_err(|_| DidParseError::InvalidDid)?,
+        DID_WEB_METHOD => parse_did_web(base.did)
+            .map(|_| ())
+            .map_err(|_| DidParseError::InvalidDid)?,
+        _ => {}
     }
 
     let is_did_url = base.path.is_some() || query.is_some() || fragment.is_some();
@@ -109,7 +136,13 @@ pub fn parse_did_value(did_url: &str) -> Result<DidParseResult, DidParseError> {
         is_did_url,
         method_supported: matches!(
             base.method,
-            DID_ME_METHOD | DID_WEB_METHOD | DID_EBSI_METHOD
+            DID_ME_METHOD
+                | DID_CHEQD_METHOD
+                | DID_EBSI_METHOD
+                | DID_ION_METHOD
+                | DID_JWK_METHOD
+                | DID_KEY_METHOD
+                | DID_WEB_METHOD
         ),
     })
 }
@@ -130,7 +163,7 @@ fn split_fragment(did_url: &str) -> Result<(&str, Option<&str>), DidParseError> 
         return Ok((did_url, None));
     };
 
-    if fragment.is_empty() || fragment.contains('#') {
+    if fragment.contains('#') {
         return Err(DidParseError::InvalidDidUrl);
     }
 
@@ -142,10 +175,6 @@ fn split_query(before_fragment: &str) -> Result<(&str, Option<&str>), DidParseEr
         return Ok((before_fragment, None));
     };
 
-    if query.is_empty() {
-        return Err(DidParseError::InvalidDidUrl);
-    }
-
     Ok((before_query, Some(query)))
 }
 
@@ -156,7 +185,9 @@ fn split_base_did(did_part: &str) -> Result<BaseDidParts<'_>, DidParseError> {
     let method_end = without_prefix
         .find(':')
         .ok_or(DidParseError::InvalidDidUrl)?;
-    let method = &without_prefix[..method_end];
+    let method = without_prefix
+        .get(..method_end)
+        .ok_or(DidParseError::InvalidDidUrl)?;
 
     if method.is_empty()
         || !method
@@ -166,7 +197,12 @@ fn split_base_did(did_part: &str) -> Result<BaseDidParts<'_>, DidParseError> {
         return Err(DidParseError::InvalidDidUrl);
     }
 
-    let method_specific_and_path = &without_prefix[method_end + 1..];
+    let method_specific_start = method_end
+        .checked_add(1)
+        .ok_or(DidParseError::InvalidDidUrl)?;
+    let method_specific_and_path = without_prefix
+        .get(method_specific_start..)
+        .ok_or(DidParseError::InvalidDidUrl)?;
     if method_specific_and_path.is_empty() {
         return Err(DidParseError::InvalidDidUrl);
     }
@@ -177,9 +213,10 @@ fn split_base_did(did_part: &str) -> Result<BaseDidParts<'_>, DidParseError> {
         None => method_specific_and_path,
     };
 
-    if method_specific_id.is_empty() {
+    if method_specific_id.is_empty() || method_specific_id.ends_with(':') {
         return Err(DidParseError::InvalidDidUrl);
     }
+    validate_uri_component(method_specific_id, is_method_specific_id_byte)?;
 
     let path = path_start.map(|index| &method_specific_and_path[index..]);
     let method_specific_offset = DID_PREFIX
@@ -197,4 +234,76 @@ fn split_base_did(did_part: &str) -> Result<BaseDidParts<'_>, DidParseError> {
         method_specific_id,
         path,
     })
+}
+
+fn validate_did_url_components(
+    path: Option<&str>,
+    query: Option<&str>,
+    fragment: Option<&str>,
+) -> Result<(), DidParseError> {
+    if let Some(path) = path {
+        validate_uri_component(path, |byte| byte == b'/' || is_path_character(byte))?;
+    }
+    for value in [query, fragment].into_iter().flatten() {
+        validate_uri_component(value, |byte| {
+            is_path_character(byte) || matches!(byte, b'/' | b'?')
+        })?;
+    }
+    Ok(())
+}
+
+fn validate_uri_component(
+    value: &str,
+    allows_raw: impl Fn(u8) -> bool,
+) -> Result<(), DidParseError> {
+    let bytes = value.as_bytes();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        let byte = *bytes.get(index).ok_or(DidParseError::InvalidDidUrl)?;
+        if byte == b'%' {
+            let first = *bytes
+                .get(index.checked_add(1).ok_or(DidParseError::InvalidDidUrl)?)
+                .ok_or(DidParseError::InvalidDidUrl)?;
+            let second = *bytes
+                .get(index.checked_add(2).ok_or(DidParseError::InvalidDidUrl)?)
+                .ok_or(DidParseError::InvalidDidUrl)?;
+            if !first.is_ascii_hexdigit() || !second.is_ascii_hexdigit() {
+                return Err(DidParseError::InvalidDidUrl);
+            }
+            index = index.checked_add(3).ok_or(DidParseError::InvalidDidUrl)?;
+        } else {
+            if !allows_raw(byte) {
+                return Err(DidParseError::InvalidDidUrl);
+            }
+            index = index.checked_add(1).ok_or(DidParseError::InvalidDidUrl)?;
+        }
+    }
+    Ok(())
+}
+
+fn is_method_specific_id_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_' | b':')
+}
+
+fn is_path_character(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'-' | b'.'
+                | b'_'
+                | b'~'
+                | b'!'
+                | b'$'
+                | b'&'
+                | b'\''
+                | b'('
+                | b')'
+                | b'*'
+                | b'+'
+                | b','
+                | b';'
+                | b'='
+                | b':'
+                | b'@'
+        )
 }

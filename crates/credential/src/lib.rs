@@ -73,5 +73,5 @@ pub use verify::{
     verify_credential_status_with_policy, verify_credential_with_revocation,
     verify_credential_with_statuslist_policy, CredentialRevocationVerificationInput,
     CredentialStatusListPolicyInput, CredentialStatusListPolicyStatusInput,
-    CredentialVerificationInput,
+    CredentialStatusListVerifier, CredentialVerificationInput,
 };

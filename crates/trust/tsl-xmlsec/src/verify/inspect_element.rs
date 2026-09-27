@@ -93,12 +93,14 @@ fn inspect_element(
             .signed_info_count
             .checked_add(1)
             .ok_or_else(profile_violation)?;
-        if depth != signature_depth + 1 || profile.signed_info_count != 1 {
+        if !is_direct_child(depth, signature_depth) || profile.signed_info_count != 1 {
             return Err(profile_violation());
         }
         profile.signed_info_depth = Some(depth);
     } else if is_expanded_name(reader, element, XMLDSIG_NAMESPACE, "CanonicalizationMethod") {
-        if profile.signed_info_depth.is_none_or(|parent| depth != parent + 1)
+        if profile
+            .signed_info_depth
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.canonicalization_method_seen
         {
             return Err(profile_violation());
@@ -111,7 +113,9 @@ fn inspect_element(
         }
         profile.canonicalization_method_seen = true;
     } else if is_expanded_name(reader, element, XMLDSIG_NAMESPACE, "SignatureMethod") {
-        if profile.signed_info_depth.is_none_or(|parent| depth != parent + 1)
+        if profile
+            .signed_info_depth
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.signature_algorithm.is_some()
         {
             return Err(profile_violation());
@@ -119,7 +123,9 @@ fn inspect_element(
         let algorithm = required_attribute(element, "Algorithm")?;
         profile.signature_algorithm = Some(parse_signature_algorithm(&algorithm)?);
     } else if is_expanded_name(reader, element, XMLDSIG_NAMESPACE, "Reference") {
-        if profile.signed_info_depth.is_none_or(|parent| depth != parent + 1)
+        if profile
+            .signed_info_depth
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.current_reference.is_some()
             || profile.references.len() >= MAX_REFERENCES
         {
@@ -146,7 +152,7 @@ fn inspect_element(
     } else if is_expanded_name(reader, element, XMLDSIG_NAMESPACE, "Transforms") {
         if profile
             .current_reference_depth
-            .is_none_or(|parent| depth != parent + 1)
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.transforms_depth.is_some()
         {
             return Err(profile_violation());
@@ -158,7 +164,10 @@ fn inspect_element(
             .ok_or_else(profile_violation)?;
         profile.transforms_depth = Some(depth);
     } else if is_expanded_name(reader, element, XMLDSIG_NAMESPACE, "Transform") {
-        if profile.transforms_depth.is_none_or(|parent| depth != parent + 1) {
+        if profile
+            .transforms_depth
+            .is_none_or(|parent| !is_direct_child(depth, parent))
+        {
             return Err(profile_violation());
         }
         let reference = current_reference_mut(profile)?;
@@ -178,7 +187,7 @@ fn inspect_element(
         if profile.certificate_digest_depth.is_some() {
             if profile
                 .certificate_digest_depth
-                .is_none_or(|parent| depth != parent + 1)
+                .is_none_or(|parent| !is_direct_child(depth, parent))
                 || profile.certificate_digest_algorithm.is_some()
             {
                 return Err(profile_violation());
@@ -187,7 +196,7 @@ fn inspect_element(
         } else {
             if profile
                 .current_reference_depth
-                .is_none_or(|parent| depth != parent + 1)
+                .is_none_or(|parent| !is_direct_child(depth, parent))
             {
                 return Err(profile_violation());
             }
@@ -202,7 +211,7 @@ fn inspect_element(
             .key_info_count
             .checked_add(1)
             .ok_or_else(profile_violation)?;
-        if depth != signature_depth + 1 || profile.key_info_count != 1 {
+        if !is_direct_child(depth, signature_depth) || profile.key_info_count != 1 {
             return Err(profile_violation());
         }
         profile.key_info_depth = Some(depth);
@@ -211,7 +220,9 @@ fn inspect_element(
             .x509_data_count
             .checked_add(1)
             .ok_or_else(profile_violation)?;
-        if profile.key_info_depth.is_none_or(|parent| depth != parent + 1)
+        if profile
+            .key_info_depth
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.x509_data_count != 1
         {
             return Err(profile_violation());
@@ -221,7 +232,7 @@ fn inspect_element(
         if empty
             || profile
                 .x509_data_depth
-                .is_none_or(|parent| depth != parent + 1)
+                .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.certificate_text.is_some()
             || profile.key_info_certificates_der.len() >= MAX_KEY_INFO_CERTIFICATES
         {
@@ -234,7 +245,7 @@ fn inspect_element(
     {
         return Err(profile_violation());
     } else if is_expanded_name(reader, element, XMLDSIG_NAMESPACE, "Object") {
-        if depth != signature_depth + 1 || profile.object_depth.is_some() {
+        if !is_direct_child(depth, signature_depth) || profile.object_depth.is_some() {
             return Err(profile_violation());
         }
         profile.object_depth = Some(depth);
@@ -243,7 +254,9 @@ fn inspect_element(
             .qualifying_properties_count
             .checked_add(1)
             .ok_or_else(profile_violation)?;
-        if profile.object_depth.is_none_or(|parent| depth != parent + 1)
+        if profile
+            .object_depth
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.qualifying_properties_count != 1
         {
             return Err(XmlSecError::PolicyViolation(
@@ -264,7 +277,7 @@ fn inspect_element(
             .ok_or_else(profile_violation)?;
         if profile
             .qualifying_properties_depth
-            .is_none_or(|parent| depth != parent + 1)
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.signed_properties_count != 1
         {
             return Err(XmlSecError::PolicyViolation(
@@ -280,7 +293,7 @@ fn inspect_element(
             .ok_or_else(profile_violation)?;
         if profile
             .signed_properties_depth
-            .is_none_or(|parent| depth != parent + 1)
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.signed_signature_properties_count != 1
         {
             return Err(XmlSecError::PolicyViolation(
@@ -296,7 +309,7 @@ fn inspect_element(
         if empty
             || profile
                 .signed_signature_properties_depth
-                .is_none_or(|parent| depth != parent + 1)
+                .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.signing_time_count != 1
             || profile.signing_time_text.is_some()
             || profile.signing_time_validated
@@ -314,7 +327,7 @@ fn inspect_element(
             .ok_or_else(profile_violation)?;
         if profile
             .signed_signature_properties_depth
-            .is_none_or(|parent| depth != parent + 1)
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.signing_certificate_v2_count != 1
         {
             return Err(XmlSecError::PolicyViolation(
@@ -329,7 +342,7 @@ fn inspect_element(
             .ok_or_else(profile_violation)?;
         if profile
             .signing_certificate_v2_depth
-            .is_none_or(|parent| depth != parent + 1)
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.signing_certificate_cert_count != 1
         {
             return Err(XmlSecError::PolicyViolation(
@@ -348,7 +361,7 @@ fn inspect_element(
     } else if is_xades_name(reader, element, "CertDigest") {
         if profile
             .signing_certificate_cert_depth
-            .is_none_or(|parent| depth != parent + 1)
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.certificate_digest_depth.is_some()
         {
             return Err(profile_violation());
@@ -359,7 +372,7 @@ fn inspect_element(
     {
         if profile
             .certificate_digest_depth
-            .is_none_or(|parent| depth != parent + 1)
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || empty
             || profile.certificate_digest_text.is_some()
             || profile.certificate_digest.is_some()
@@ -375,7 +388,7 @@ fn inspect_element(
             .ok_or_else(profile_violation)?;
         if profile
             .signed_properties_depth
-            .is_none_or(|parent| depth != parent + 1)
+            .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.signed_data_object_properties_count != 1
         {
             return Err(XmlSecError::PolicyViolation(
@@ -387,7 +400,7 @@ fn inspect_element(
         if empty
             || profile
                 .signed_data_object_properties_depth
-                .is_none_or(|parent| depth != parent + 1)
+                .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.current_data_object_format.is_some()
             || profile.data_object_formats.len() >= MAX_REFERENCES
         {
@@ -411,7 +424,7 @@ fn inspect_element(
         if empty
             || profile
                 .current_data_object_format_depth
-                .is_none_or(|parent| depth != parent + 1)
+                .is_none_or(|parent| !is_direct_child(depth, parent))
             || profile.mime_type_text.is_some()
             || profile
                 .current_data_object_format
@@ -427,4 +440,8 @@ fn inspect_element(
     }
 
     Ok(())
+}
+
+fn is_direct_child(depth: usize, parent: usize) -> bool {
+    parent.checked_add(1) == Some(depth)
 }

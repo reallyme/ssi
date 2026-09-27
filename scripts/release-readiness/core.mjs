@@ -3733,6 +3733,8 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
 
       let run = null;
       let uses = null;
+      let condition = null;
+      let workingDirectory = null;
       for (let cursor = index + 1; cursor < end; cursor += 1) {
         const runMatch = /^(\s*)run:\s*(.*)\s*$/u.exec(lines[cursor]);
         if (runMatch !== null) {
@@ -3741,10 +3743,7 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
           }
           const runIndent = runMatch[1].length;
           const marker = runMatch[2].trim();
-          if (marker === ">") {
-            fail(`${path} step ${name} uses an unsupported folded run scalar`);
-          }
-          if (marker === "|") {
+          if (/^[>|][-+]?$/u.test(marker)) {
             const blockLines = [];
             for (let blockCursor = cursor + 1; blockCursor < end; blockCursor += 1) {
               const blockLine = lines[blockCursor];
@@ -3758,7 +3757,15 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
               .map((line) => countLeadingSpaces(line));
             const blockIndent =
               nonBlankIndents.length === 0 ? runIndent + 2 : Math.min(...nonBlankIndents);
-            run = blockLines.map((line) => line.slice(Math.min(blockIndent, line.length))).join("\n");
+            const normalizedBlockLines = blockLines.map((line) =>
+              line.slice(Math.min(blockIndent, line.length)).trimEnd(),
+            );
+            run = marker.startsWith(">")
+              ? normalizedBlockLines
+                  .map((line) => line.trim())
+                  .filter((line) => line.length !== 0)
+                  .join(" ")
+              : normalizedBlockLines.join("\n");
           } else {
             run = unquoteWorkflowScalar(marker);
           }
@@ -3771,9 +3778,27 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
           }
           uses = unquoteWorkflowScalar(usesMatch[1]);
         }
+
+        const conditionMatch = /^\s*if:\s*(.+?)\s*$/u.exec(lines[cursor]);
+        if (conditionMatch !== null) {
+          if (condition !== null) {
+            fail(`${path} step ${name} defines if more than once`);
+          }
+          condition = unquoteWorkflowScalar(conditionMatch[1]);
+        }
+
+        const workingDirectoryMatch = /^\s*working-directory:\s*(.+?)\s*$/u.exec(
+          lines[cursor],
+        );
+        if (workingDirectoryMatch !== null) {
+          if (workingDirectory !== null) {
+            fail(`${path} step ${name} defines working-directory more than once`);
+          }
+          workingDirectory = unquoteWorkflowScalar(workingDirectoryMatch[1]);
+        }
       }
 
-      steps.push({ job: jobName, name, run, uses });
+      steps.push({ condition, job: jobName, name, run, uses, workingDirectory });
     }
     return steps;
   };
@@ -3930,9 +3955,39 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
       const lines = readText(path).replace(/\r\n/gu, "\n").split("\n");
       return extractWorkflowStepsFromLines(path, lines, 0, lines.length);
     }
-    return jobs.flatMap((job) =>
-      extractWorkflowStepsFromLines(path, job.lines, job.start, job.end, job.name),
-    );
+    return jobs.flatMap((job) => {
+      const stepHeaders = [];
+      for (let index = job.start + 1; index < job.end; index += 1) {
+        if (/^ {4}steps:\s*$/u.test(job.lines[index])) {
+          stepHeaders.push(index);
+        }
+      }
+      if (stepHeaders.length === 0) {
+        return [];
+      }
+      if (stepHeaders.length > 1) {
+        fail(`${path} job ${job.name} defines steps more than once`);
+      }
+      let stepsEnd = job.end;
+      for (let index = stepHeaders[0] + 1; index < job.end; index += 1) {
+        const line = job.lines[index];
+        if (
+          line.trim().length !== 0 &&
+          !line.trimStart().startsWith("#") &&
+          countLeadingSpaces(line) <= 4
+        ) {
+          stepsEnd = index;
+          break;
+        }
+      }
+      return extractWorkflowStepsFromLines(
+        path,
+        job.lines,
+        stepHeaders[0] + 1,
+        stepsEnd,
+        job.name,
+      );
+    });
   };
 
   const findWorkflowStep = (path, stepName, jobName = null) => {
@@ -3956,13 +4011,40 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
     return steps[0];
   };
 
-  const assertWorkflowRunStep = (path, stepName, expectedRun, jobName = null) => {
+  const conditionIsStaticallyFalse = (condition) => {
+    if (condition === null) {
+      return false;
+    }
+    const normalized = condition
+      .replace(/^\$\{\{\s*/u, "")
+      .replace(/\s*\}\}$/u, "")
+      .trim()
+      .toLowerCase();
+    return normalized === "false" || normalized === "0";
+  };
+
+  const assertWorkflowRunStep = (
+    path,
+    stepName,
+    expectedRun,
+    jobName = null,
+    expectedWorkingDirectory = null,
+  ) => {
     if (typeof expectedRun !== "string" || expectedRun.length === 0) {
       fail(`${path} step ${stepName} requires an expected run command`);
     }
     const step = findWorkflowStep(path, stepName, jobName);
     if (step.run === null) {
       fail(`${path} step ${stepName} does not define a run command`);
+    }
+    if (conditionIsStaticallyFalse(step.condition)) {
+      fail(`${path} step ${stepName} is statically disabled`);
+    }
+    if (
+      expectedWorkingDirectory !== null &&
+      step.workingDirectory !== expectedWorkingDirectory
+    ) {
+      fail(`${path} step ${stepName} must run from ${expectedWorkingDirectory}`);
     }
     const actual = normalizeWorkflowRunCommand(step.run);
     const expected = normalizeWorkflowRunCommand(expectedRun);
@@ -3980,6 +4062,84 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
     if (step.uses !== expected) {
       fail(`${path} step ${stepName} must use ${expected}`);
     }
+    if (conditionIsStaticallyFalse(step.condition)) {
+      fail(`${path} step ${stepName} is statically disabled`);
+    }
+  };
+
+  const parseWorkflowJobScalar = (path, job, key) => {
+    const matches = [];
+    for (let index = job.start + 1; index < job.end; index += 1) {
+      const match = new RegExp(`^ {4}${key}:\\s*(.+?)\\s*$`, "u").exec(job.lines[index]);
+      if (match !== null) {
+        matches.push(unquoteWorkflowScalar(match[1]));
+      }
+    }
+    if (matches.length > 1) {
+      fail(`${path} job ${job.name} defines ${key} more than once`);
+    }
+    return matches[0] ?? null;
+  };
+
+  const parseWorkflowNeeds = (path, job) => {
+    const scalar = parseWorkflowJobScalar(path, job, "needs");
+    if (scalar === null) {
+      return [];
+    }
+    if (scalar.startsWith("[") && scalar.endsWith("]")) {
+      return scalar
+        .slice(1, -1)
+        .split(",")
+        .map((value) => unquoteWorkflowScalar(value))
+        .filter((value) => value.length !== 0);
+    }
+    if (!/^[A-Za-z0-9_-]+$/u.test(scalar)) {
+      fail(`${path} job ${job.name} uses an unsupported needs declaration`);
+    }
+    return [scalar];
+  };
+
+  const assertWorkflowJobs = (path, expectedJobs) => {
+    if (
+      expectedJobs === null ||
+      typeof expectedJobs !== "object" ||
+      Array.isArray(expectedJobs)
+    ) {
+      fail(`${path} workflow job policy must be an object`);
+    }
+    const jobs = extractWorkflowJobs(path);
+    const jobsByName = new Map(jobs.map((job) => [job.name, job]));
+    for (const job of jobs) {
+      const condition = parseWorkflowJobScalar(path, job, "if");
+      if (conditionIsStaticallyFalse(condition)) {
+        fail(`${path} job ${job.name} is statically disabled`);
+      }
+      for (const dependency of parseWorkflowNeeds(path, job)) {
+        if (!jobsByName.has(dependency)) {
+          fail(`${path} job ${job.name} needs unknown job ${dependency}`);
+        }
+      }
+    }
+    for (const [jobName, policy] of Object.entries(expectedJobs)) {
+      const job = jobsByName.get(jobName);
+      if (job === undefined) {
+        fail(`${path} is missing required job ${jobName}`);
+      }
+      const expectedNeeds = policy?.needs ?? [];
+      if (
+        !Array.isArray(expectedNeeds) ||
+        expectedNeeds.some((value) => typeof value !== "string")
+      ) {
+        fail(`${path} job ${jobName} expected needs must be an array of strings`);
+      }
+      const actualNeeds = parseWorkflowNeeds(path, job);
+      if (
+        actualNeeds.length !== expectedNeeds.length ||
+        actualNeeds.some((value) => !expectedNeeds.includes(value))
+      ) {
+        fail(`${path} job ${jobName} dependency chain changed`);
+      }
+    }
   };
 
   const assertWorkflowPolicy = (policy) => {
@@ -3989,6 +4149,7 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
       forbidden = [],
       runSteps = [],
       usesSteps = [],
+      jobs = {},
     } = policy ?? {};
     if (typeof path !== "string" || path.length === 0) {
       fail("workflow policy requires a path");
@@ -4007,6 +4168,7 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
     if (!Array.isArray(runSteps) || !Array.isArray(usesSteps)) {
       fail(`${path} workflow step policies must be arrays`);
     }
+    assertWorkflowJobs(path, jobs);
     for (const needle of required) {
       assertContains(path, needle);
     }
@@ -4014,7 +4176,13 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
       assertNotContains(path, needle);
     }
     for (const step of runSteps) {
-      assertWorkflowRunStep(path, step?.name, step?.run, step?.job ?? null);
+      assertWorkflowRunStep(
+        path,
+        step?.name,
+        step?.run,
+        step?.job ?? null,
+        step?.workingDirectory ?? null,
+      );
     }
     for (const step of usesSteps) {
       assertWorkflowUsesStep(path, step?.name, step?.uses, step?.job ?? null);

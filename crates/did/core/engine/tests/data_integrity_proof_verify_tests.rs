@@ -6,11 +6,14 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
 use envelopes_data_integrity::suites::es256_jws_cid_2025::{
     verify_es256_jws_cid_2025, Es256JwsCid2025Error,
 };
-use reallyme_did_core::{create_engine, CreateOptions};
+use reallyme_did_core::{
+    create_engine, generate_did_me, CoreVerificationMethod, CreateOptions, UpdatePolicy,
+};
 use reallyme_did_types::VerificationMethod;
 
 use std::collections::HashMap;
@@ -41,7 +44,25 @@ fn proof_fixture() -> ProofFixture {
     )
     .unwrap();
 
-    let did = "did:me:test".to_owned();
+    let update_policy = UpdatePolicy {
+        allowed_verification_methods: vec!["#ed25519".into()],
+        threshold: None,
+    };
+    let canonical_keys = [
+        CoreVerificationMethod {
+            id: "#ed25519".into(),
+            vm_type: "Multikey".into(),
+            algorithm: identity_core_primitives::Algorithm::Ed25519,
+            public_key_multibase: ed_multikey.clone(),
+        },
+        CoreVerificationMethod {
+            id: "#p256".into(),
+            vm_type: "Multikey".into(),
+            algorithm: identity_core_primitives::Algorithm::P256,
+            public_key_multibase: p256_multikey.clone(),
+        },
+    ];
+    let did = generate_did_me(&nonce, &update_policy, &canonical_keys).unwrap();
 
     let opts = CreateOptions {
         id: did.clone(),
@@ -113,6 +134,52 @@ fn verify_proof_fails_if_current_core_changes() {
     let err = verify_es256_jws_cid_2025(&res.document).unwrap_err();
 
     assert!(matches!(err, Es256JwsCid2025Error::PayloadMismatch));
+}
+
+#[test]
+fn verify_proof_rejects_a_well_formed_foreign_payload() {
+    let fixture = proof_fixture();
+    let mut res = create_engine(&fixture.opts, |id| fixture.secrets.get(id).cloned()).unwrap();
+    let proof = res
+        .document
+        .data_integrity_proof
+        .as_mut()
+        .expect("expected proof");
+    let jws = proof.jws.as_mut().expect("expected compact JWS");
+    let mut parts = jws.split('.');
+    let protected = parts.next().expect("protected header");
+    let _payload = parts.next().expect("payload");
+    let signature = parts.next().expect("signature");
+    *jws = format!("{protected}.Zm9yZWlnbi1wYXlsb2Fk.{signature}");
+
+    let error = verify_es256_jws_cid_2025(&res.document).unwrap_err();
+    assert!(matches!(error, Es256JwsCid2025Error::PayloadMismatch));
+}
+
+#[test]
+fn verify_proof_rejects_a_bad_signature() {
+    let fixture = proof_fixture();
+    let mut res = create_engine(&fixture.opts, |id| fixture.secrets.get(id).cloned()).unwrap();
+    let proof = res
+        .document
+        .data_integrity_proof
+        .as_mut()
+        .expect("expected proof");
+    let jws = proof.jws.as_mut().expect("expected compact JWS");
+    let mut parts = jws.split('.');
+    let protected = parts.next().expect("protected header");
+    let payload = parts.next().expect("payload");
+    let encoded_signature = parts.next().expect("signature");
+    let mut signature = reallyme_codec::base64url::base64url_to_bytes(encoded_signature)
+        .expect("fixture signature must be base64url");
+    signature[0] ^= 1;
+    *jws = format!(
+        "{protected}.{payload}.{}",
+        reallyme_codec::base64url::bytes_to_base64url(&signature)
+    );
+
+    let error = verify_es256_jws_cid_2025(&res.document).unwrap_err();
+    assert!(matches!(error, Es256JwsCid2025Error::VerifyFailed));
 }
 
 #[test]

@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
 use identity_core_primitives::Algorithm;
 use reallyme_did_core::update::{

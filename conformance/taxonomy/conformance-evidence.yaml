@@ -4,8 +4,8 @@
 
 schema: reallyme.identity.conformance_evidence_map.v1
 repository: reallyme/ssi
-# Add a row only after reviewing every required source and test locator against
-# the pinned requirement digest. Unmapped requirements are generated as planned.
+# Each row binds a pinned requirement digest to verified source and test
+# locators. Requirements without an accepted binding remain in the planned state.
 requirements:
   type-rule:types.DidResolutionResult.document:
     accepted_requirement_sha256: 0213da1134fb04725cad9473a6f4ad74677e9043739ef586c21b61d03fc353db

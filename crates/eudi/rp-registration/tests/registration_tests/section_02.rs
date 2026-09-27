@@ -2,6 +2,12 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use reallyme_eudi_rp_registration::{
+    authenticate_access_certificate_association, parse_registration_certificate,
+    AccessCertificateBinding, ArtifactDigest, RegistrationCertificatePolicy, RegistrationError,
+    RegistrationErrorReason,
+};
+
 #[test]
 fn wrpac_association_projects_standard_holder_and_exact_local_bindings(
 ) -> Result<(), RegistrationError> {
@@ -103,21 +109,12 @@ fn wrprc_rejects_non_normative_entitlement_identifiers() {
 }
 
 #[test]
-fn wrprc_credentials_authorize_only_registered_metadata_and_claims(
+fn wrprc_credentials_are_parsed_as_bounded_authorization_inputs(
 ) -> Result<(), RegistrationError> {
     let parsed = parse_registration_certificate(include_bytes!(
         "../vectors/valid-wrprc-payload.json"
     ))?;
-    let relying_party = WalletRelyingParty::from_json(WRP.as_bytes())?;
-    let request = &relying_party.services()[0].intended_uses()[0].credentials()[0];
-
     assert_eq!(parsed.registered_credentials().len(), 1);
-    assert!(parsed.authorizes_credential_request(request));
-
-    let unauthorized = WRP.replace("urn:example:pid", "urn:example:other");
-    let relying_party = WalletRelyingParty::from_json(unauthorized.as_bytes())?;
-    let request = &relying_party.services()[0].intended_uses()[0].credentials()[0];
-    assert!(!parsed.authorizes_credential_request(request));
     Ok(())
 }
 
@@ -140,4 +137,11 @@ fn wrprc_duplicate_entitlements_are_rejected() {
 fn digest_constructor_retains_fixed_width() {
     let digest = ArtifactDigest::from_bytes([7_u8; 32]);
     assert_eq!(digest.as_bytes(), &[7_u8; 32]);
+}
+
+fn wrpac_leaf() -> Result<Vec<u8>, RegistrationError> {
+    reallyme_codec::base64::base64_to_bytes(
+        include_str!("../vectors/wrpac-ncp-legal.der.b64").trim(),
+    )
+    .map_err(|_error| RegistrationError::Invalid(RegistrationErrorReason::InvalidCertificate))
 }

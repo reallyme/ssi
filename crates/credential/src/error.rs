@@ -8,6 +8,7 @@ use thiserror::Error;
 
 /// Stable reasons for canonical credential payload failures.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialCanonicalReason {
     /// A timestamp, status index, or resource limit cannot fit the canonical CBOR profile.
     #[error("integer out of range")]
@@ -24,6 +25,7 @@ pub enum CredentialCanonicalReason {
 
 /// Stable reasons for credential issuer signature failures.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialSignatureReason {
     /// The credential algorithm is not a supported signature algorithm.
     #[error("unsupported signature algorithm")]
@@ -44,6 +46,7 @@ pub enum CredentialSignatureReason {
 
 /// Stable reasons for credential status verification failures.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialStatusReason {
     /// The supplied status list is not the list referenced by the credential.
     #[error("status pointer mismatch")]
@@ -80,6 +83,7 @@ pub enum CredentialStatusReason {
 
 /// Stable reasons for rejecting a credential outside its own validity window.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialValidityReason {
     /// The verification time is before the credential's inclusive `valid_from`.
     #[error("credential not yet valid")]
@@ -92,6 +96,7 @@ pub enum CredentialValidityReason {
 
 /// Stable fields used when mapping malformed protobuf inputs.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialProtoField {
     /// The credential kind enum is absent or unspecified.
     #[error("kind")]
@@ -156,6 +161,7 @@ pub enum CredentialProtoField {
 
 /// Stable reasons for malformed protobuf credential boundaries.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialProtoReason {
     /// A required message field is absent.
     #[error("missing field")]
@@ -176,6 +182,7 @@ pub enum CredentialProtoReason {
 
 /// Stable reasons for invalid credential inputs.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialInvalidReason {
     /// Credential profile identifier is absent or oversized.
     #[error("invalid profile id")]
@@ -232,6 +239,7 @@ pub enum CredentialInvalidReason {
 
 /// Credential model and boundary validation errors.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialError {
     /// Credential model input is malformed.
     #[error("invalid credential")]

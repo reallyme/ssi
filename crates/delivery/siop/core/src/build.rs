@@ -11,6 +11,14 @@ pub const SIOP_NONCE_BYTES: usize = 32;
 /// Maximum UTF-8 bytes accepted for one SIOP identifier or mode.
 pub const MAX_SIOP_TEXT_BYTES: usize = 2048;
 
+/// Minimum encoded length required for the opaque SIOP state correlation value.
+///
+/// Validation is deliberately length-only: entropy cannot be inferred from an
+/// arbitrary encoded string. Callers must generate state with a CSPRNG and
+/// preserve at least 128 bits of entropy after encoding. Twenty-two unpadded
+/// base64url characters are required to carry a 16-byte random value.
+pub const MIN_SIOP_STATE_BYTES: usize = 22;
+
 /// Maximum number of scopes accepted in one request.
 pub const MAX_SIOP_SCOPES: usize = 32;
 
@@ -29,8 +37,11 @@ pub struct BuildSiopAuthenticationRequestInput {
     /// Strong challenge nonce bytes; this implementation requires 32 bytes.
     pub nonce: Vec<u8>,
 
-    /// Audience expected in the resulting SIOP ID token.
-    pub audience: String,
+    /// Strong opaque correlation value returned by the response.
+    ///
+    /// The builder enforces length only. The caller is responsible for using
+    /// a CSPRNG and retaining at least 128 bits of entropy after encoding.
+    pub state: String,
 
     /// Response mode requested by the relying party.
     pub response_mode: String,
@@ -61,7 +72,7 @@ pub fn build_siop_authentication_request(
     validate_request_fields(
         input.client_id.as_str(),
         input.nonce.as_slice(),
-        input.audience.as_str(),
+        input.state.as_str(),
         input.response_mode.as_str(),
         input.scope.as_slice(),
     )?;
@@ -77,7 +88,7 @@ pub fn build_siop_authentication_request(
     Ok(SiopAuthenticationRequest {
         client_id: core::mem::take(&mut input.client_id),
         nonce: core::mem::take(&mut input.nonce),
-        audience: core::mem::take(&mut input.audience),
+        state: core::mem::take(&mut input.state),
         response_mode: core::mem::take(&mut input.response_mode),
         scope: core::mem::take(&mut input.scope),
         created_at: input.now_unix,
@@ -93,7 +104,7 @@ pub fn validate_siop_authentication_request(
     validate_request_fields(
         req.client_id.as_str(),
         req.nonce.as_slice(),
-        req.audience.as_str(),
+        req.state.as_str(),
         req.response_mode.as_str(),
         req.scope.as_slice(),
     )?;
@@ -118,17 +129,17 @@ pub fn validate_siop_authentication_request(
 fn validate_request_fields(
     client_id: &str,
     nonce: &[u8],
-    audience: &str,
+    state: &str,
     response_mode: &str,
     scopes: &[String],
 ) -> Result<(), SiopDeliveryError> {
     if client_id.is_empty()
         || client_id.len() > MAX_SIOP_TEXT_BYTES
-        || audience.is_empty()
-        || audience.len() > MAX_SIOP_TEXT_BYTES
         || response_mode.is_empty()
         || response_mode.len() > MAX_SIOP_TEXT_BYTES
         || nonce.len() != SIOP_NONCE_BYTES
+        || state.len() < MIN_SIOP_STATE_BYTES
+        || state.len() > MAX_SIOP_TEXT_BYTES
         || scopes.is_empty()
         || scopes.len() > MAX_SIOP_SCOPES
     {
@@ -139,7 +150,8 @@ fn validate_request_fields(
         if scope.is_empty() || scope.len() > MAX_SIOP_SCOPE_BYTES {
             return Err(SiopDeliveryError::InvalidInput);
         }
-        if scopes[..index].iter().any(|existing| existing == scope) {
+        let preceding = scopes.get(..index).ok_or(SiopDeliveryError::InvalidInput)?;
+        if preceding.iter().any(|existing| existing == scope) {
             return Err(SiopDeliveryError::InvalidInput);
         }
     }

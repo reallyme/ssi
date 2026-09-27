@@ -4,14 +4,14 @@
 
 [package]
 name = "identity-trust-tsl-xmlsec-sys"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
 
 [features]
 default = []
-# The workspace frequently runs `--features native`; keep an empty feature for compatibility.
+# Accept workspace-wide native builds without implicitly enabling the optional XMLSec backend.
 native = []
 # Build/link the libxmlsec backend. Off by default.
 xmlsec-ffi = []

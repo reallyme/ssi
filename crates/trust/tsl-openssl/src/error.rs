@@ -41,6 +41,11 @@ pub enum TslOpenSslError {
     #[error("trusted-list signer does not match the externally authorized certificate")]
     ExternalSignerCertificateMismatch,
 
+    /// Pointer traversal was attempted from a list that was not the EU LOTL
+    /// authenticated by the external bootstrap procedure.
+    #[error("authenticated pointer parent is not the externally bootstrapped EU LOTL")]
+    InvalidPointerParent,
+
     /// Trust-root input failed validation before backend processing.
     #[error("invalid TSL trust-root input")]
     TrustRoots(TslTrustRootErrorReason),
@@ -427,6 +432,9 @@ impl From<TslOpenSslError> for IdentityCoreErrorReason {
             }
             TslOpenSslError::ExternalSignerCertificateMismatch => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_SIGNER_EXTERNAL_CERTIFICATE_MISMATCH
+            }
+            TslOpenSslError::InvalidPointerParent => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT
             }
             TslOpenSslError::TrustRoots(reason) => reason.into(),
             TslOpenSslError::TrustFailure(reason) => reason.into(),

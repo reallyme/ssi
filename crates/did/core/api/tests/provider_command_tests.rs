@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 //! Test coverage for provider-gated DID SDK commands.
 
 include!("provider_command_tests/section_01.rs");

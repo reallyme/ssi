@@ -4,12 +4,9 @@
 
 //! Safe XMLDSig verification wrapper for ETSI TSL/LOTL documents.
 //!
-//! This crate is intentionally small:
-//! - it enforces strict URI constraints for TSL/LOTL (same-document only)
-//! - it delegates signature math to a backend:
-//! - `xmlsec-ffi` feature: libxmlsec1 via a tiny C shim
-//!
-//! NOTE: This verifies XMLDSig only. Certificate trust-chain validation is handled elsewhere.
+//! The verifier enforces same-document URI constraints and delegates signature
+//! operations to libxmlsec1 when the `xmlsec-ffi` feature is enabled.
+//! Certificate path validation remains a separate trust-layer responsibility.
 //!
 //! # Threading model
 //!

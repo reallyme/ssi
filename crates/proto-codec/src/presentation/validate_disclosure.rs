@@ -34,6 +34,7 @@ pub(super) fn validate_disclosure_model(model: &vp::ClaimDisclosure) -> Result<(
                     .is_some_and(|value| value.min <= value.max)
         }
         vp::DisclosureMode::MemberOfSet => !revealed && !threshold && !range && set,
+        _ => return Err(VpProtoError::InvalidEnumValue),
     };
     if consistent {
         Ok(())

@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(feature = "mdoc-crypto")]
+#[path = "cbor/mso.rs"]
+mod mso;
+#[cfg(feature = "mdoc-crypto")]
 mod mso_status;
 mod scan_cbor_limits;
 

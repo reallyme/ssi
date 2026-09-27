@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
-
 //! Committed-claim credential processing.
 //!
 //! This module extends the package-owned credential model with deterministic
@@ -11,18 +9,25 @@
 //! cryptographic verification. Network I/O and protocol orchestration remain
 //! outside `reallyme-credential`.
 
+/// Canonical byte encodings used by commitment and signature calculations.
 pub mod canonical;
+/// Typed committed-credential processing errors.
 pub mod error;
+/// Public committed-credential envelopes, proofs, and private subject material.
 pub mod model;
 
+/// Binding between an issuer signature, commitment root, and subject key.
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub mod proof_binding;
 
+/// Committed-credential issuance.
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub mod issue;
 
+/// Committed-credential verification.
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub mod verify;
 
+/// Deterministic signed-envelope CBOR encoding and decoding.
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub mod signed_envelope;

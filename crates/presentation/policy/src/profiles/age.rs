@@ -6,7 +6,11 @@
 use crate::VpPolicy;
 use identity_core_primitives::Algorithm;
 
-/// Build the verifier policy for an EU age credential presentation.
+/// Build the baseline verifier policy for an EU age credential presentation.
+///
+/// This baseline selects trust, status, algorithm, and format requirements but
+/// intentionally requests no age fact. Use [`eu_age_over_policy`] when the
+/// relying party needs a concrete age predicate.
 pub fn eu_age_policy() -> VpPolicy {
     VpPolicy {
         require_status: false, // often ephemeral
@@ -26,4 +30,13 @@ pub fn eu_age_policy() -> VpPolicy {
 
         ..VpPolicy::default()
     }
+}
+
+/// Build an EU age policy that requires proof of the supplied minimum age.
+pub fn eu_age_over_policy(minimum_age: u64) -> VpPolicy {
+    eu_age_policy().require_threshold_claim(
+        "/claims/age",
+        identity_credential_claims_core::DisclosureMode::Gte,
+        minimum_age,
+    )
 }

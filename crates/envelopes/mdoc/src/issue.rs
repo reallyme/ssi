@@ -6,18 +6,19 @@
 mod assign_digest_id;
 use crate::cbor::{encode_issuer_signed_item, encode_mso_cbor, encode_tagged_cbor_bytes};
 use crate::device_auth::device_public_key_from_cose_key_cbor;
-use crate::validate_item_random::validate_issuance_item_random;
 use crate::validity::validate_validity_window;
 use crate::{
-    DeviceKeyInfo, IssuerAuthSigner, IssuerNameSpaces, IssuerSigned, IssuerSignedItem,
-    MdocEnvelopeError, MdocInvalidInputReason, MdocIssuerSignedDocument, MdocStatus,
-    MobileSecurityObject, ValidityInfo, ValueDigests, DIGEST_ALG_SHA256,
-    MAX_MDOC_ELEMENTS_PER_NAMESPACE, MAX_MDOC_ELEMENT_VALUE_BYTES, MAX_MDOC_ISSUER_ELEMENTS,
-    MAX_MDOC_NAMESPACES, MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES, MSO_VERSION, SHA256_DIGEST_LEN,
+    DeviceKeyAuthorizations, DeviceKeyInfo, IssuerAuthSigner, IssuerNameSpaces, IssuerSigned,
+    IssuerSignedItem, MdocEnvelopeError, MdocInvalidInputReason, MdocIssuerSignedDocument,
+    MdocStatus, MobileSecurityObject, ValidityInfo, ValueDigests, DIGEST_ALG_SHA256,
+    DIGEST_ALG_SHA384, DIGEST_ALG_SHA512, MAX_MDOC_ELEMENTS_PER_NAMESPACE,
+    MAX_MDOC_ELEMENT_VALUE_BYTES, MAX_MDOC_IDENTIFIER_BYTES, MAX_MDOC_ISSUER_ELEMENTS,
+    MAX_MDOC_KEY_INFO_BYTES, MAX_MDOC_NAMESPACES, MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES,
+    MIN_MDOC_ITEM_RANDOM_BYTES, MSO_VERSION, SHA256_DIGEST_LEN,
 };
 use assign_digest_id::assign_digest_id;
-use reallyme_crypto::core::HashAlgorithm;
-use reallyme_crypto::csprng::{OsSecureRandom, SecureRandom};
+use reallyme_crypto::core::{HashAlgorithm, RngOutputKind};
+use reallyme_crypto::csprng::{generate_bytes, OsSecureRandom, SecureRandom};
 use reallyme_crypto::dispatch::hash_digest;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -39,7 +40,7 @@ pub struct MdocIssueConfig {
     /// Include issuer namespaces in the returned document.
     pub include_namespaces: bool,
 
-    /// Digest algorithm label. Only SHA-256 is supported.
+    /// ISO value-digest algorithm label (`SHA-256`, `SHA-384`, or `SHA-512`).
     pub digest_algorithm: String,
 
     /// If true, random digest identifiers need only be unique within each namespace.
@@ -47,6 +48,12 @@ pub struct MdocIssueConfig {
 
     /// Optional ISO/IEC 18013-5 status mechanism to authenticate in the MSO.
     pub status: Option<MdocStatus>,
+
+    /// Optional issuer-authenticated limits on device-signed namespaces and elements.
+    pub key_authorizations: Option<DeviceKeyAuthorizations>,
+
+    /// Optional implementation-defined `KeyInfo` map encoded as bounded CBOR.
+    pub key_info_cbor: Option<Vec<u8>>,
 }
 
 impl MdocIssueConfig {
@@ -64,12 +71,26 @@ impl MdocIssueConfig {
             digest_algorithm: DIGEST_ALG_SHA256.to_owned(),
             digest_id_per_namespace: false,
             status: None,
+            key_authorizations: None,
+            key_info_cbor: None,
         }
     }
 
     /// Authenticate an ISO/IEC 18013-5 status reference in the issued MSO.
     pub fn with_status(mut self, status: MdocStatus) -> Self {
         self.status = Some(status);
+        self
+    }
+
+    /// Authenticate device-key authorization limits in the MSO.
+    pub fn with_key_authorizations(mut self, authorizations: DeviceKeyAuthorizations) -> Self {
+        self.key_authorizations = Some(authorizations);
+        self
+    }
+
+    /// Authenticate implementation-defined device-key information in the MSO.
+    pub fn with_key_info_cbor(mut self, key_info_cbor: Vec<u8>) -> Self {
+        self.key_info_cbor = Some(key_info_cbor);
         self
     }
 }
@@ -87,7 +108,11 @@ pub struct MdocElement {
     /// Canonical CBOR bytes for the element value.
     pub element_value_cbor: Vec<u8>,
 
-    /// Per-item randomizer bytes.
+    /// Legacy caller randomizer input.
+    ///
+    /// Issuance ignores this field and generates a fresh randomizer from the
+    /// supplied CSPRNG. It remains only for source compatibility with 0.3.0
+    /// prerelease callers and will be removed in the next breaking release.
     pub random: Vec<u8>,
 }
 
@@ -156,15 +181,18 @@ pub fn build_mso_mdoc_with_random(
             &mut global_digest_ids
         };
         let digest_id = assign_digest_id(used_ids, random)?;
+        let item_random =
+            generate_bytes::<MIN_MDOC_ITEM_RANDOM_BYTES>(random, RngOutputKind::Generic)
+                .map_err(|_| MdocEnvelopeError::RandomnessUnavailable)?;
         let item = IssuerSignedItem {
             digest_id,
-            random: element.random.clone(),
+            random: item_random.as_bytes().to_vec(),
             element_identifier: element.element_identifier.clone(),
             element_value_cbor: element.element_value_cbor.clone(),
         };
         let item_bytes = encode_issuer_signed_item(&item)?;
         let encoded_item_bytes = encode_tagged_cbor_bytes(&item_bytes.bstr)?;
-        let digest = sha256(&encoded_item_bytes)?;
+        let digest = value_digest(cfg.digest_algorithm.as_str(), &encoded_item_bytes)?;
 
         namespaces
             .entry(element.namespace.clone())
@@ -173,7 +201,7 @@ pub fn build_mso_mdoc_with_random(
         value_digests
             .entry(element.namespace.clone())
             .or_default()
-            .insert(digest_id, digest.to_vec());
+            .insert(digest_id, digest);
     }
 
     let mobile_security_object = MobileSecurityObject {
@@ -183,6 +211,8 @@ pub fn build_mso_mdoc_with_random(
         validity_info: cfg.validity,
         device_key_info: DeviceKeyInfo {
             device_key_cose_key_cbor: cfg.device_key_cose_key_cbor.clone(),
+            key_authorizations: cfg.key_authorizations.clone(),
+            key_info_cbor: cfg.key_info_cbor.clone(),
         },
         value_digests,
         status: cfg.status.clone(),
@@ -223,13 +253,27 @@ fn validate_issue_config(
         MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::InvalidDeviceAuthentication)
     })?;
     validate_validity_window(&cfg.validity)?;
-    if cfg.digest_algorithm != DIGEST_ALG_SHA256 {
+    if !is_supported_digest_algorithm(cfg.digest_algorithm.as_str()) {
         return Err(MdocEnvelopeError::InvalidInput(
             MdocInvalidInputReason::UnsupportedDigestAlgorithm,
         ));
     }
     if let Some(status) = &cfg.status {
         status.validate()?;
+    }
+    if let Some(authorizations) = &cfg.key_authorizations {
+        crate::validate_device_key_authorizations::validate_device_key_authorizations(
+            authorizations,
+        )?;
+    }
+    if cfg
+        .key_info_cbor
+        .as_ref()
+        .is_some_and(|key_info| key_info.len() > MAX_MDOC_KEY_INFO_BYTES)
+    {
+        return Err(MdocEnvelopeError::InvalidInput(
+            MdocInvalidInputReason::KeyInfoTooLarge,
+        ));
     }
     if elements.is_empty() {
         return Err(MdocEnvelopeError::InvalidInput(
@@ -301,9 +345,19 @@ fn validate_element(element: &MdocElement) -> Result<(), MdocEnvelopeError> {
             MdocInvalidInputReason::EmptyNamespace,
         ));
     }
+    if element.namespace.len() > MAX_MDOC_IDENTIFIER_BYTES {
+        return Err(MdocEnvelopeError::InvalidInput(
+            MdocInvalidInputReason::IdentifierTooLong,
+        ));
+    }
     if element.element_identifier.trim().is_empty() {
         return Err(MdocEnvelopeError::InvalidInput(
             MdocInvalidInputReason::EmptyElementIdentifier,
+        ));
+    }
+    if element.element_identifier.len() > MAX_MDOC_IDENTIFIER_BYTES {
+        return Err(MdocEnvelopeError::InvalidInput(
+            MdocInvalidInputReason::IdentifierTooLong,
         ));
     }
     if element.element_value_cbor.is_empty() {
@@ -311,12 +365,31 @@ fn validate_element(element: &MdocElement) -> Result<(), MdocEnvelopeError> {
             MdocInvalidInputReason::EmptyElementValue,
         ));
     }
-    validate_issuance_item_random(&element.random)?;
-
     Ok(())
 }
 
 pub(crate) fn sha256(data: &[u8]) -> Result<[u8; SHA256_DIGEST_LEN], MdocEnvelopeError> {
     let digest = hash_digest(HashAlgorithm::Sha2_256, data).map_err(|_| MdocEnvelopeError::Cbor)?;
     <[u8; SHA256_DIGEST_LEN]>::try_from(digest.as_slice()).map_err(|_| MdocEnvelopeError::Cbor)
+}
+
+pub(crate) fn is_supported_digest_algorithm(algorithm: &str) -> bool {
+    matches!(
+        algorithm,
+        DIGEST_ALG_SHA256 | DIGEST_ALG_SHA384 | DIGEST_ALG_SHA512
+    )
+}
+
+pub(crate) fn value_digest(algorithm: &str, data: &[u8]) -> Result<Vec<u8>, MdocEnvelopeError> {
+    let hash_algorithm = match algorithm {
+        DIGEST_ALG_SHA256 => HashAlgorithm::Sha2_256,
+        DIGEST_ALG_SHA384 => HashAlgorithm::Sha2_384,
+        DIGEST_ALG_SHA512 => HashAlgorithm::Sha2_512,
+        _ => {
+            return Err(MdocEnvelopeError::InvalidInput(
+                MdocInvalidInputReason::UnsupportedDigestAlgorithm,
+            ));
+        }
+    };
+    hash_digest(hash_algorithm, data).map_err(|_| MdocEnvelopeError::Cbor)
 }

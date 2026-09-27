@@ -9,6 +9,23 @@ use crate::{
 
 /// Maximum number of credential entries accepted in one status list.
 pub const MAX_STATUS_LIST_ENTRIES: u64 = 1_000_000;
+/// Default relying-party maximum age for the legacy signed status-list format.
+pub const DEFAULT_STATUS_LIST_MAX_AGE_SECS: u64 = 86_400;
+
+/// Relying-party freshness ceiling for a legacy signed status list.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StatusListFreshnessPolicy {
+    /// Maximum accepted age in seconds from `issued_at`. Must be non-zero.
+    pub max_age_secs: u64,
+}
+
+impl Default for StatusListFreshnessPolicy {
+    fn default() -> Self {
+        Self {
+            max_age_secs: DEFAULT_STATUS_LIST_MAX_AGE_SECS,
+        }
+    }
+}
 
 /// Trait for verifying issuer signatures over status-list payloads.
 pub trait StatusListVerifier {
@@ -82,11 +99,36 @@ pub fn verify_status(
     now_unix: u64,
     verifier: &dyn StatusListVerifier,
 ) -> Result<(), CredentialStatusError> {
+    verify_status_with_policy(
+        list,
+        index,
+        now_unix,
+        StatusListFreshnessPolicy::default(),
+        verifier,
+    )
+}
+
+/// Verify one credential's status with an explicit local freshness ceiling.
+pub fn verify_status_with_policy(
+    list: &StatusList,
+    index: u64,
+    now_unix: u64,
+    freshness: StatusListFreshnessPolicy,
+    verifier: &dyn StatusListVerifier,
+) -> Result<(), CredentialStatusError> {
     validate_status_list(list)?;
+    if freshness.max_age_secs == 0 {
+        return Err(CredentialStatusError::InvalidInput(
+            CredentialStatusInvalidReason::InvalidTimeWindow,
+        ));
+    }
     if now_unix < list.issued_at {
         return Err(CredentialStatusError::NotYetValid);
     }
-    if now_unix > list.next_update {
+    let local_expiry = list.issued_at.checked_add(freshness.max_age_secs).ok_or(
+        CredentialStatusError::InvalidInput(CredentialStatusInvalidReason::InvalidTimeWindow),
+    )?;
+    if now_unix >= local_expiry || now_unix >= list.next_update {
         return Err(CredentialStatusError::Expired);
     }
     if index >= list.length {
@@ -112,7 +154,7 @@ pub fn verify_status(
 }
 
 /// Return whether a status bit is set after bounds validation.
-pub fn status_bit(list: &StatusList, index: u64) -> Result<bool, CredentialStatusError> {
+pub(crate) fn status_bit(list: &StatusList, index: u64) -> Result<bool, CredentialStatusError> {
     if index >= list.length {
         return Err(CredentialStatusError::InvalidInput(
             CredentialStatusInvalidReason::InvalidIndex,

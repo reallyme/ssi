@@ -7,7 +7,7 @@ use reallyme_credential::committed::issue::IssueInput as CoreIssueInput;
 use reallyme_credential::committed::issue::{
     issue_credential, issue_credential_with_signer, OsSaltRng, SaltRng,
 };
-use reallyme_credential_audit::validate_qeaa_compliance;
+use reallyme_credential_audit::screen_qeaa_metadata;
 use std::collections::BTreeMap;
 
 use crypto_signer::Signer;
@@ -18,9 +18,6 @@ use crate::model::{
     IssuerSigning, PublicFormat,
 };
 
-// --------------------------------------------------
-// Feature-safe issuer config aliases
-// --------------------------------------------------
 #[cfg(feature = "jwt")]
 use crate::model::JwtIssuerConfig;
 #[cfg(not(feature = "jwt"))]
@@ -31,13 +28,17 @@ use crate::model::IetfSdJwtIssuerConfig;
 #[cfg(not(feature = "ietf-sd-jwt"))]
 type IetfSdJwtIssuerConfig = ();
 
+/// Optional public encoders applied after committed-credential issuance.
 #[derive(Clone, Copy)]
 pub struct PublicEncoderConfigs<'a> {
+    /// Issuer parameters required when the selected format is JWT VC.
     pub jwt: Option<&'a JwtIssuerConfig>,
+    /// Issuer parameters required when the selected format is IETF SD-JWT VC.
     pub ietf_sd_jwt: Option<&'a IetfSdJwtIssuerConfig>,
 }
 
 impl<'a> PublicEncoderConfigs<'a> {
+    /// Selects committed-credential issuance without an additional public encoding.
     pub const fn none() -> Self {
         Self {
             jwt: None,
@@ -82,6 +83,7 @@ fn validate_claim_type(def_type: ClaimType, v: &serde_json::Value) -> Result<(),
         ClaimType::Object => ClaimValueErrorReason::ExpectedObject,
         ClaimType::Array if matches!(v, Value::Array(_)) => return Ok(()),
         ClaimType::Array => ClaimValueErrorReason::ExpectedArray,
+        _ => ClaimValueErrorReason::Unspecified,
     };
 
     Err(VcApiError::InvalidClaimValue(invalid_reason))
@@ -114,7 +116,7 @@ fn validate_claims_against_registry(
     Ok(())
 }
 
-/// Issue a VC using caller-provided RNG (deterministic tests, etc).
+/// Issues a credential with an application-provided commitment-salt source.
 pub fn issue_with_rng<R: SaltRng>(
     req: IssueCredentialRequest,
     signing: &IssuerSigning,
@@ -137,7 +139,7 @@ pub fn issue_with_rng<R: SaltRng>(
     })
 }
 
-/// Issue a VC using an abstract signer (HSM/QSCD/remote signing friendly).
+/// Issues a credential through an external signing provider.
 pub fn issue_with_signer_with_rng<R: SaltRng>(
     req: IssueCredentialRequest,
     signer: &dyn Signer,
@@ -155,7 +157,7 @@ pub fn issue_with_signer_with_rng<R: SaltRng>(
     })
 }
 
-/// Convenience issuance using OS RNG.
+/// Issues a credential using the operating system random-number generator.
 pub fn issue_with_os_rng(
     req: IssueCredentialRequest,
     signing: &IssuerSigning,
@@ -165,7 +167,7 @@ pub fn issue_with_os_rng(
     issue_with_rng(req, signing, &mut rng, now_unix)
 }
 
-/// Convenience issuance using OS RNG + abstract signer.
+/// Issues a credential through an external signer using operating-system randomness.
 pub fn issue_with_signer_with_os_rng(
     req: IssueCredentialRequest,
     signer: &dyn Signer,
@@ -175,7 +177,7 @@ pub fn issue_with_signer_with_os_rng(
     issue_with_signer_with_rng(req, signer, &mut rng, now_unix)
 }
 
-/// Issue + encode the public credential.
+/// Issues a credential and encodes it in the selected public format.
 pub fn issue_and_encode_with_rng<R: SaltRng>(
     req: IssueCredentialRequest,
     signing: &IssuerSigning,
@@ -184,7 +186,8 @@ pub fn issue_and_encode_with_rng<R: SaltRng>(
     public_format: PublicFormat,
     encoder_cfgs: PublicEncoderConfigs<'_>,
 ) -> Result<IssuedAndEncoded, VcApiError> {
-    // Keep optional encoder config arguments referenced across feature-gated builds.
+    // Referencing disabled-format configuration preserves one API shape across
+    // feature combinations without conditionally changing the function signature.
     #[cfg(not(feature = "jwt"))]
     let _ = &encoder_cfgs.jwt;
 
@@ -260,7 +263,7 @@ pub fn issue_and_encode_with_rng<R: SaltRng>(
     })
 }
 
-/// Issue + encode the public credential using an abstract signer (HSM/QSCD/remote-sign friendly).
+/// Issues and encodes a credential through an external signing provider.
 pub fn issue_and_encode_with_signer_with_rng<R: SaltRng>(
     req: IssueCredentialRequest,
     signer: &dyn Signer,
@@ -269,7 +272,8 @@ pub fn issue_and_encode_with_signer_with_rng<R: SaltRng>(
     public_format: PublicFormat,
     encoder_cfgs: PublicEncoderConfigs<'_>,
 ) -> Result<IssuedAndEncoded, VcApiError> {
-    // Keep optional encoder config arguments referenced across feature-gated builds.
+    // Referencing disabled-format configuration preserves one API shape across
+    // feature combinations without conditionally changing the function signature.
     #[cfg(not(feature = "jwt"))]
     let _ = &encoder_cfgs.jwt;
 
@@ -340,7 +344,7 @@ pub fn issue_and_encode_with_signer_with_rng<R: SaltRng>(
     })
 }
 
-/// Convenience: issue+encode using OS RNG.
+/// Issues and encodes a credential using operating-system randomness.
 pub fn issue_and_encode_with_os_rng(
     req: IssueCredentialRequest,
     signing: &IssuerSigning,
@@ -359,7 +363,7 @@ pub fn issue_and_encode_with_os_rng(
     )
 }
 
-/// Convenience: issue+encode using OS RNG + abstract signer.
+/// Issues and encodes a credential through an external signer using operating-system randomness.
 pub fn issue_and_encode_with_signer_with_os_rng(
     req: IssueCredentialRequest,
     signer: &dyn Signer,
@@ -377,7 +381,3 @@ pub fn issue_and_encode_with_signer_with_os_rng(
         encoder_cfgs,
     )
 }
-
-// -----------------------------------------------------------------------------
-// Small helpers
-// -----------------------------------------------------------------------------

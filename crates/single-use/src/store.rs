@@ -4,14 +4,20 @@
 
 //! Single-use value store trait, typed errors, and an in-memory implementation.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
 use thiserror::Error;
-use zeroize::Zeroize;
 
+mod track_expirations;
+
+use track_expirations::{SingleUseKeyKind, SingleUseState, StoredExpiration, StoredKey};
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 const DEFAULT_MAX_ENTRIES: usize = 65_536;
+const SINGLE_USE_NAMESPACE_COUNT: usize = 5;
 const MAX_SINGLE_USE_KEY_BYTES: usize = 1_024;
 /// Default maximum lifetime of a stored value, in seconds.
 ///
@@ -68,6 +74,72 @@ impl From<SingleUseError> for IdentityCoreErrorReason {
     }
 }
 
+/// Protocol partition for a single-use value.
+///
+/// The namespace is part of the stored key. A value used by one protocol
+/// therefore cannot collide with or consume a value from another protocol.
+/// The in-memory implementation applies both a global memory ceiling and a
+/// per-namespace quota so one protocol cannot exhaust every slot.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[non_exhaustive]
+pub enum SingleUseNamespace {
+    /// RFC 9449 DPoP proof identifiers.
+    Dpop,
+    /// OAuth wallet-attestation proof identifiers.
+    WalletAttestation,
+    /// OpenID4VCI credential nonces.
+    OpenId4VciCredentialNonce,
+    /// OpenID4VP request nonces.
+    OpenId4VpRequestNonce,
+    /// Application-owned single-use values.
+    Application,
+}
+
+/// Wall and monotonic time sampled as one clock reading.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SingleUseTime {
+    /// Current Unix time used to validate caller-supplied absolute expiries.
+    pub unix_seconds: u64,
+    /// Process-monotonic seconds used for stored expiry deadlines.
+    pub monotonic_seconds: u64,
+}
+
+/// Trusted time source owned by the store boundary.
+pub trait SingleUseClock: Send + Sync {
+    /// Returns wall and monotonic time from a trusted, process-owned source.
+    fn now(&self) -> SingleUseResult<SingleUseTime>;
+}
+
+/// Operating-system clock used by the default in-memory store.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[derive(Debug)]
+pub struct SystemSingleUseClock {
+    monotonic_origin: Instant,
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+impl Default for SystemSingleUseClock {
+    fn default() -> Self {
+        Self {
+            monotonic_origin: Instant::now(),
+        }
+    }
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+impl SingleUseClock for SystemSingleUseClock {
+    fn now(&self) -> SingleUseResult<SingleUseTime> {
+        let unix_seconds = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| SingleUseError::Unavailable)?
+            .as_secs();
+        Ok(SingleUseTime {
+            unix_seconds,
+            monotonic_seconds: self.monotonic_origin.elapsed().as_secs(),
+        })
+    }
+}
+
 /// Stores opaque, server-issued values that may be consumed exactly once before
 /// they expire.
 ///
@@ -76,23 +148,33 @@ impl From<SingleUseError> for IdentityCoreErrorReason {
 pub trait SingleUseStore: Send + Sync {
     /// Stores a freshly issued value with an absolute expiry timestamp.
     ///
-    /// `expires_at_unix` must be after `now_unix` and within the store's
+    /// `expires_at_unix` must be after the clock's current Unix time and within the store's
     /// maximum lifetime; otherwise [`SingleUseError::InvalidExpiry`] is
-    /// returned. Values expired at `now_unix` are pruned before capacity is
+    /// returned. Values whose absolute or monotonic deadlines have elapsed are pruned before capacity is
     /// checked.
-    fn put(&self, key: &str, now_unix: u64, expires_at_unix: u64) -> SingleUseResult<()>;
+    fn put(
+        &self,
+        namespace: SingleUseNamespace,
+        key: &str,
+        expires_at_unix: u64,
+    ) -> SingleUseResult<()>;
 
     /// Atomically records an unexpired value only if it has never been seen.
     ///
     /// The same expiry bounds as [`SingleUseStore::put`] apply.
-    fn record_once(&self, key: &str, now_unix: u64, expires_at_unix: u64) -> SingleUseResult<()>;
+    fn record_once(
+        &self,
+        namespace: SingleUseNamespace,
+        key: &str,
+        expires_at_unix: u64,
+    ) -> SingleUseResult<()>;
 
     /// Consumes a value if it is present and unexpired, removing it so it can
     /// never be consumed again. Returns [`SingleUseError::Rejected`] otherwise.
-    fn consume(&self, key: &str, now_unix: u64) -> SingleUseResult<()>;
+    fn consume(&self, namespace: SingleUseNamespace, key: &str) -> SingleUseResult<()>;
 
-    /// Opportunistically removes values that expired at or before `now_unix`.
-    fn prune(&self, now_unix: u64) -> SingleUseResult<()>;
+    /// Opportunistically removes values whose absolute or monotonic deadline has elapsed.
+    fn prune(&self) -> SingleUseResult<()>;
 }
 
 /// In-memory, single-process [`SingleUseStore`].
@@ -102,80 +184,10 @@ pub trait SingleUseStore: Send + Sync {
 /// storage so single-use semantics hold across replicas.
 pub struct InMemorySingleUseStore {
     inner: Mutex<SingleUseState>,
+    clock: Arc<dyn SingleUseClock>,
     max_entries: usize,
+    max_entries_per_namespace: usize,
     max_ttl_secs: u64,
-}
-
-#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-enum SingleUseKeyKind {
-    Consumable,
-    Recorded,
-}
-
-#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
-struct StoredKey {
-    kind: SingleUseKeyKind,
-    value: String,
-}
-
-impl StoredKey {
-    fn new(kind: SingleUseKeyKind, value: &str) -> Self {
-        Self {
-            kind,
-            value: value.to_owned(),
-        }
-    }
-}
-
-impl Drop for StoredKey {
-    fn drop(&mut self) {
-        self.value.zeroize();
-    }
-}
-
-#[derive(Default)]
-struct SingleUseState {
-    entries: HashMap<StoredKey, u64>,
-    expirations: BTreeMap<u64, BTreeSet<StoredKey>>,
-}
-
-impl SingleUseState {
-    fn schedule_expiration(&mut self, key: &StoredKey, expires_at_unix: u64) {
-        self.expirations
-            .entry(expires_at_unix)
-            .or_default()
-            .insert(key.clone());
-    }
-
-    fn unschedule_expiration(&mut self, key: &StoredKey, expires_at_unix: u64) {
-        let remove_bucket = if let Some(keys) = self.expirations.get_mut(&expires_at_unix) {
-            let _removed_key = keys.take(key);
-            keys.is_empty()
-        } else {
-            false
-        };
-
-        if remove_bucket {
-            self.expirations.remove(&expires_at_unix);
-        }
-    }
-
-    fn prune(&mut self, now_unix: u64) {
-        while let Some((&expires_at_unix, _)) = self.expirations.first_key_value() {
-            if expires_at_unix > now_unix {
-                break;
-            }
-
-            let Some((_, mut keys)) = self.expirations.pop_first() else {
-                break;
-            };
-            while let Some(key) = keys.pop_first() {
-                if self.entries.get(&key).copied() == Some(expires_at_unix) {
-                    let _removed_entry = self.entries.remove_entry(&key);
-                }
-            }
-        }
-    }
 }
 
 impl core::fmt::Debug for InMemorySingleUseStore {
@@ -184,6 +196,7 @@ impl core::fmt::Debug for InMemorySingleUseStore {
             .debug_struct("InMemorySingleUseStore")
             .field("entries", &"<redacted>")
             .field("max_entries", &self.max_entries)
+            .field("max_entries_per_namespace", &self.max_entries_per_namespace)
             .field("max_ttl_secs", &self.max_ttl_secs)
             .finish()
     }
@@ -196,17 +209,23 @@ impl Drop for InMemorySingleUseStore {
             Err(poisoned) => poisoned.into_inner(),
         };
         entries.entries.clear();
-        while let Some((_, mut keys)) = entries.expirations.pop_first() {
+        while let Some((_, mut keys)) = entries.monotonic_expirations.pop_first() {
+            keys.clear();
+        }
+        while let Some((_, mut keys)) = entries.absolute_expirations.pop_first() {
             keys.clear();
         }
     }
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl Default for InMemorySingleUseStore {
     fn default() -> Self {
         Self {
             inner: Mutex::new(SingleUseState::default()),
+            clock: Arc::new(SystemSingleUseClock::default()),
             max_entries: DEFAULT_MAX_ENTRIES,
+            max_entries_per_namespace: namespace_limit(DEFAULT_MAX_ENTRIES),
             max_ttl_secs: DEFAULT_MAX_SINGLE_USE_TTL_SECS,
         }
     }
@@ -214,18 +233,35 @@ impl Default for InMemorySingleUseStore {
 
 impl InMemorySingleUseStore {
     /// Creates an empty store.
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Creates an empty store with an explicit hard entry ceiling.
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     pub fn with_max_entries(max_entries: usize) -> SingleUseResult<Self> {
         Self::with_limits(max_entries, DEFAULT_MAX_SINGLE_USE_TTL_SECS)
     }
 
     /// Creates an empty store with explicit entry and lifetime ceilings.
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     pub fn with_limits(max_entries: usize, max_ttl_secs: u64) -> SingleUseResult<Self> {
+        Self::with_clock_and_limits(
+            Arc::new(SystemSingleUseClock::default()),
+            max_entries,
+            max_ttl_secs,
+        )
+    }
+
+    /// Creates an empty store with an injected trusted clock and explicit
+    /// global entry and lifetime limits.
+    pub fn with_clock_and_limits(
+        clock: Arc<dyn SingleUseClock>,
+        max_entries: usize,
+        max_ttl_secs: u64,
+    ) -> SingleUseResult<Self> {
         if max_entries == 0 {
             return Err(SingleUseError::CapacityExceeded);
         }
@@ -234,7 +270,9 @@ impl InMemorySingleUseStore {
         }
         Ok(Self {
             inner: Mutex::new(SingleUseState::default()),
+            clock,
             max_entries,
+            max_entries_per_namespace: namespace_limit(max_entries),
             max_ttl_secs,
         })
     }
@@ -250,79 +288,167 @@ impl InMemorySingleUseStore {
         Ok(())
     }
 
-    fn validate_expiry(&self, now_unix: u64, expires_at_unix: u64) -> SingleUseResult<()> {
-        let latest_expiry = now_unix
+    fn expiration(
+        &self,
+        now: SingleUseTime,
+        expires_at_unix: u64,
+    ) -> SingleUseResult<StoredExpiration> {
+        let latest_expiry = now
+            .unix_seconds
             .checked_add(self.max_ttl_secs)
             .ok_or(SingleUseError::InvalidExpiry)?;
-        if expires_at_unix <= now_unix || expires_at_unix > latest_expiry {
+        if expires_at_unix <= now.unix_seconds || expires_at_unix > latest_expiry {
             return Err(SingleUseError::InvalidExpiry);
+        }
+        let ttl = expires_at_unix
+            .checked_sub(now.unix_seconds)
+            .ok_or(SingleUseError::InvalidExpiry)?;
+        let monotonic_deadline = now
+            .monotonic_seconds
+            .checked_add(ttl)
+            .ok_or(SingleUseError::InvalidExpiry)?;
+        Ok(StoredExpiration {
+            expires_at_unix,
+            monotonic_deadline,
+        })
+    }
+
+    fn lock_at_current_time(
+        &self,
+    ) -> SingleUseResult<(MutexGuard<'_, SingleUseState>, SingleUseTime)> {
+        let mut state = self.lock()?;
+        // Read the clock after acquiring the state lock. Otherwise two callers
+        // can sample time in one order and update state in the opposite order.
+        let mut now = self.clock.now()?;
+        now.monotonic_seconds = state.observe_monotonic_time(now.monotonic_seconds);
+        state.prune(now.monotonic_seconds, now.unix_seconds);
+        Ok((state, now))
+    }
+
+    fn ensure_capacity(
+        &self,
+        state: &SingleUseState,
+        namespace: SingleUseNamespace,
+    ) -> SingleUseResult<()> {
+        let namespace_count = state
+            .namespace_counts
+            .get(namespace_index(namespace))
+            .ok_or(SingleUseError::CapacityExceeded)?;
+        if state.entries.len() >= self.max_entries
+            || *namespace_count >= self.max_entries_per_namespace
+        {
+            return Err(SingleUseError::CapacityExceeded);
         }
         Ok(())
     }
 }
 
+const fn namespace_limit(max_entries: usize) -> usize {
+    max_entries.div_ceil(SINGLE_USE_NAMESPACE_COUNT)
+}
+
+const fn namespace_index(namespace: SingleUseNamespace) -> usize {
+    match namespace {
+        SingleUseNamespace::Dpop => 0,
+        SingleUseNamespace::WalletAttestation => 1,
+        SingleUseNamespace::OpenId4VciCredentialNonce => 2,
+        SingleUseNamespace::OpenId4VpRequestNonce => 3,
+        SingleUseNamespace::Application => 4,
+    }
+}
+
 impl SingleUseStore for InMemorySingleUseStore {
-    fn put(&self, key: &str, now_unix: u64, expires_at_unix: u64) -> SingleUseResult<()> {
+    fn put(
+        &self,
+        namespace: SingleUseNamespace,
+        key: &str,
+        expires_at_unix: u64,
+    ) -> SingleUseResult<()> {
         Self::validate_key(key)?;
-        self.validate_expiry(now_unix, expires_at_unix)?;
-        let stored_key = StoredKey::new(SingleUseKeyKind::Consumable, key);
-        let mut state = self.lock()?;
-        state.prune(now_unix);
-        if let Some(previous_expiry) = state.entries.get_mut(&stored_key) {
-            if *previous_expiry == expires_at_unix {
+        let (mut state, now) = self.lock_at_current_time()?;
+        let expiration = self.expiration(now, expires_at_unix)?;
+        let stored_key = StoredKey::new(namespace, SingleUseKeyKind::Consumable, key);
+        if let Some(previous_expiration) = state.entries.get_mut(&stored_key) {
+            if previous_expiration.expires_at_unix == expires_at_unix {
                 return Ok(());
             }
-            let replaced_expiry = *previous_expiry;
-            *previous_expiry = expires_at_unix;
-            state.unschedule_expiration(&stored_key, replaced_expiry);
-            state.schedule_expiration(&stored_key, expires_at_unix);
+            let replaced_expiration = *previous_expiration;
+            *previous_expiration = expiration;
+            state.unschedule_expiration(&stored_key, replaced_expiration);
+            state.schedule_expiration(&stored_key, expiration);
             return Ok(());
         }
-        if state.entries.len() >= self.max_entries {
-            return Err(SingleUseError::CapacityExceeded);
-        }
-        state.schedule_expiration(&stored_key, expires_at_unix);
-        state.entries.insert(stored_key, expires_at_unix);
+        self.ensure_capacity(&state, namespace)?;
+        let namespace_index = namespace_index(namespace);
+        let next_count = state
+            .namespace_counts
+            .get(namespace_index)
+            .ok_or(SingleUseError::CapacityExceeded)?
+            .checked_add(1)
+            .ok_or(SingleUseError::CapacityExceeded)?;
+        state.schedule_expiration(&stored_key, expiration);
+        state.entries.insert(stored_key, expiration);
+        let count = state
+            .namespace_counts
+            .get_mut(namespace_index)
+            .ok_or(SingleUseError::CapacityExceeded)?;
+        *count = next_count;
         Ok(())
     }
 
-    fn record_once(&self, key: &str, now_unix: u64, expires_at_unix: u64) -> SingleUseResult<()> {
+    fn record_once(
+        &self,
+        namespace: SingleUseNamespace,
+        key: &str,
+        expires_at_unix: u64,
+    ) -> SingleUseResult<()> {
         Self::validate_key(key)?;
-        self.validate_expiry(now_unix, expires_at_unix)?;
-        let stored_key = StoredKey::new(SingleUseKeyKind::Recorded, key);
-        let mut state = self.lock()?;
-        state.prune(now_unix);
+        let (mut state, now) = self.lock_at_current_time()?;
+        let expiration = self.expiration(now, expires_at_unix)?;
+        let stored_key = StoredKey::new(namespace, SingleUseKeyKind::Recorded, key);
         if state.entries.contains_key(&stored_key) {
             return Err(SingleUseError::Rejected);
         }
-        if state.entries.len() >= self.max_entries {
-            return Err(SingleUseError::CapacityExceeded);
-        }
-        state.schedule_expiration(&stored_key, expires_at_unix);
-        state.entries.insert(stored_key, expires_at_unix);
+        self.ensure_capacity(&state, namespace)?;
+        let namespace_index = namespace_index(namespace);
+        let next_count = state
+            .namespace_counts
+            .get(namespace_index)
+            .ok_or(SingleUseError::CapacityExceeded)?
+            .checked_add(1)
+            .ok_or(SingleUseError::CapacityExceeded)?;
+        state.schedule_expiration(&stored_key, expiration);
+        state.entries.insert(stored_key, expiration);
+        let count = state
+            .namespace_counts
+            .get_mut(namespace_index)
+            .ok_or(SingleUseError::CapacityExceeded)?;
+        *count = next_count;
         Ok(())
     }
 
-    fn consume(&self, key: &str, now_unix: u64) -> SingleUseResult<()> {
+    fn consume(&self, namespace: SingleUseNamespace, key: &str) -> SingleUseResult<()> {
         Self::validate_key(key)?;
-        let stored_key = StoredKey::new(SingleUseKeyKind::Consumable, key);
-        let mut state = self.lock()?;
-        match state.entries.remove_entry(&stored_key) {
-            Some((owned_key, expires_at)) if expires_at > now_unix => {
-                state.unschedule_expiration(&owned_key, expires_at);
+        let stored_key = StoredKey::new(namespace, SingleUseKeyKind::Consumable, key);
+        let (mut state, now) = self.lock_at_current_time()?;
+        match state.remove_entry(&stored_key) {
+            Some((owned_key, expiration))
+                if expiration.monotonic_deadline > now.monotonic_seconds
+                    && expiration.expires_at_unix > now.unix_seconds =>
+            {
+                state.unschedule_expiration(&owned_key, expiration);
                 Ok(())
             }
-            Some((owned_key, expires_at)) => {
-                state.unschedule_expiration(&owned_key, expires_at);
+            Some((owned_key, expiration)) => {
+                state.unschedule_expiration(&owned_key, expiration);
                 Err(SingleUseError::Rejected)
             }
             _ => Err(SingleUseError::Rejected),
         }
     }
 
-    fn prune(&self, now_unix: u64) -> SingleUseResult<()> {
-        let mut entries = self.lock()?;
-        entries.prune(now_unix);
+    fn prune(&self) -> SingleUseResult<()> {
+        let _state = self.lock_at_current_time()?;
         Ok(())
     }
 }

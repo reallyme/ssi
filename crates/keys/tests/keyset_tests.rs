@@ -11,7 +11,14 @@ use reallyme_codec::multikey::encode_multikey;
 use reallyme_keys::{ExportedKeySet, ExportedPrivateKey, KeySet, KeySetError};
 
 fn public_key(seed: u8) -> String {
-    encode_multikey("ed25519-pub", &[seed; 32]).expect("test public key should encode")
+    let (public, _private) =
+        reallyme_crypto::ed25519::generate_ed25519_keypair_from_seed(&[seed; 32])
+            .expect("test seed should derive an Ed25519 key pair");
+    encode_multikey("ed25519-pub", &public).expect("test public key should encode")
+}
+
+fn private_key(seed: u8) -> Vec<u8> {
+    vec![seed; 32]
 }
 
 #[test]
@@ -20,7 +27,7 @@ fn insert_and_retrieve_keys() {
     let public = public_key(1);
 
     key_set
-        .put_key("#k1", vec![1, 2, 3], public.clone())
+        .put_key("#k1", private_key(1), public.clone())
         .expect("valid key pair should insert");
 
     assert_eq!(
@@ -28,14 +35,14 @@ fn insert_and_retrieve_keys() {
             .private_key("#k1")
             .expect("private key should exist")
             .expose_secret(),
-        &[1, 2, 3]
+        private_key(1).as_slice()
     );
     assert_eq!(
         key_set
             .get_private("#k1")
             .expect("private key copy should succeed")
             .as_slice(),
-        [1, 2, 3].as_slice()
+        private_key(1).as_slice()
     );
     assert_eq!(
         key_set.get_public("#k1").expect("public key should exist"),
@@ -68,7 +75,7 @@ fn invalid_inputs_are_rejected() {
 
     assert_eq!(
         key_set
-            .put_key("", vec![1], public.clone())
+            .put_key("", private_key(1), public.clone())
             .expect_err("empty verification method id should fail"),
         KeySetError::InvalidVerificationMethodId
     );
@@ -80,7 +87,7 @@ fn invalid_inputs_are_rejected() {
     );
     assert_eq!(
         key_set
-            .put_key("#bad", vec![1], "not-multibase")
+            .put_key("#bad", private_key(1), "not-multibase")
             .expect_err("non-multibase public key should fail"),
         KeySetError::InvalidPublicKeyMultibase
     );
@@ -115,7 +122,7 @@ fn oversized_inputs_are_rejected() {
 
     assert_eq!(
         key_set
-            .put_key(oversized_id, vec![1], public.clone())
+            .put_key(oversized_id, private_key(1), public.clone())
             .expect_err("oversized verification method id should fail"),
         KeySetError::InvalidVerificationMethodId
     );
@@ -160,7 +167,7 @@ fn copy_into_is_deep_copy() {
     let public_a = public_key(10);
     let public_b = public_key(11);
     source
-        .put_key("#k1", vec![9], public_a.clone())
+        .put_key("#k1", private_key(10), public_a.clone())
         .expect("valid source key should insert");
 
     let mut target = KeySet::new();
@@ -171,7 +178,7 @@ fn copy_into_is_deep_copy() {
             .get_private("#k1")
             .expect("copied private key should exist")
             .as_slice(),
-        [9].as_slice()
+        private_key(10).as_slice()
     );
     assert_eq!(
         target
@@ -181,7 +188,7 @@ fn copy_into_is_deep_copy() {
     );
 
     source
-        .put_key("#k1", vec![7], public_b)
+        .put_key("#k1", private_key(11), public_b)
         .expect("valid overwrite should succeed");
 
     assert_eq!(
@@ -189,7 +196,7 @@ fn copy_into_is_deep_copy() {
             .get_private("#k1")
             .expect("target private key should remain unchanged")
             .as_slice(),
-        [9].as_slice()
+        private_key(10).as_slice()
     );
     assert_eq!(
         target
@@ -207,13 +214,13 @@ fn trim_to_vms_removes_unlisted_keys() {
     let public_3 = public_key(3);
 
     key_set
-        .put_key("#k1", vec![1], public_1)
+        .put_key("#k1", private_key(1), public_1)
         .expect("valid key should insert");
     key_set
-        .put_key("#k2", vec![2], public_2)
+        .put_key("#k2", private_key(2), public_2)
         .expect("valid key should insert");
     key_set
-        .put_key("#k3", vec![3], public_3)
+        .put_key("#k3", private_key(3), public_3)
         .expect("valid key should insert");
 
     key_set
@@ -225,14 +232,14 @@ fn trim_to_vms_removes_unlisted_keys() {
             .get_private("#k1")
             .expect("kept private key should exist")
             .as_slice(),
-        [1].as_slice()
+        private_key(1).as_slice()
     );
     assert_eq!(
         key_set
             .get_private("#k3")
             .expect("kept private key should exist")
             .as_slice(),
-        [3].as_slice()
+        private_key(3).as_slice()
     );
 
     assert_eq!(
@@ -255,7 +262,7 @@ fn export_and_import_roundtrip() {
     let public_1 = public_key(1);
     let public_2 = public_key(2);
     original
-        .put_key("#k1", vec![0, 1, 2], public_1.clone())
+        .put_key("#k1", private_key(1), public_1.clone())
         .expect("valid key should insert");
     original
         .put_public("#k2", public_2.clone())
@@ -269,7 +276,7 @@ fn export_and_import_roundtrip() {
             .get_private("#k1")
             .expect("imported private key should exist")
             .as_slice(),
-        [0, 1, 2].as_slice()
+        private_key(1).as_slice()
     );
     assert_eq!(
         imported
@@ -302,7 +309,7 @@ fn import_rejects_invalid_private_base64() {
 
     let exported = ExportedKeySet {
         private,
-        public: BTreeMap::new(),
+        public: BTreeMap::from([("#k1".to_owned(), public_key(1))]),
     };
 
     assert_eq!(
@@ -312,27 +319,123 @@ fn import_rejects_invalid_private_base64() {
 }
 
 #[test]
+fn key_pair_mismatches_are_rejected_without_partial_insertion() {
+    let mut key_set = KeySet::new();
+
+    assert_eq!(
+        key_set.put_key("#k1", private_key(1), public_key(2)),
+        Err(KeySetError::KeyPairMismatch)
+    );
+    assert_eq!(
+        key_set.private_key("#k1").map(|_| ()),
+        Err(KeySetError::MissingPrivateKey)
+    );
+    assert_eq!(
+        key_set.public_key("#k1").map(|_| ()),
+        Err(KeySetError::MissingPublicKey)
+    );
+}
+
+#[test]
+fn import_requires_and_validates_the_public_half_of_every_private_key() {
+    let private = BTreeMap::from([(
+        "#k1".to_owned(),
+        ExportedPrivateKey::new(reallyme_codec::base64::bytes_to_base64(&private_key(1))),
+    )]);
+    let without_public = ExportedKeySet {
+        private,
+        public: BTreeMap::new(),
+    };
+
+    assert_eq!(
+        KeySet::import(without_public).expect_err("missing public half must fail"),
+        KeySetError::MissingPublicKey
+    );
+
+    let private = BTreeMap::from([(
+        "#k1".to_owned(),
+        ExportedPrivateKey::new(reallyme_codec::base64::bytes_to_base64(&private_key(1))),
+    )]);
+    let mismatched = ExportedKeySet {
+        private,
+        public: BTreeMap::from([("#k1".to_owned(), public_key(2))]),
+    };
+
+    assert_eq!(
+        KeySet::import(mismatched).expect_err("mismatched key pair must fail"),
+        KeySetError::KeyPairMismatch
+    );
+}
+
+#[test]
+fn replacing_public_material_removes_a_stale_private_half() {
+    let mut key_set = KeySet::new();
+    key_set
+        .put_key("#k1", private_key(1), public_key(1))
+        .expect("matching key pair should insert");
+
+    key_set
+        .put_public("#k1", public_key(2))
+        .expect("replacement public key should insert");
+
+    assert_eq!(
+        key_set.private_key("#k1").map(|_| ()),
+        Err(KeySetError::MissingPrivateKey)
+    );
+    assert_eq!(
+        key_set.get_public("#k1").expect("public key should exist"),
+        public_key(2)
+    );
+}
+
+#[test]
+fn exported_key_set_json_rejects_duplicate_identifiers_and_fields() {
+    let duplicate_private = r##"{"private":{"#k1":"AQ==","#k1":"Ag=="},"public":{}}"##;
+    let duplicate_public = r##"{"private":{},"public":{"#k1":"z6Mk","#k1":"z6Mk"}}"##;
+    let duplicate_field = r#"{"private":{},"private":{},"public":{}}"#;
+
+    assert!(serde_json::from_str::<ExportedKeySet>(duplicate_private).is_err());
+    assert!(serde_json::from_str::<ExportedKeySet>(duplicate_public).is_err());
+    assert!(serde_json::from_str::<ExportedKeySet>(duplicate_field).is_err());
+}
+
+#[test]
+fn exported_key_set_json_rejects_encoded_values_over_the_boundary_limit() {
+    let oversized_private = "A".repeat(21_849);
+    let private_json = format!(r##"{{"private":{{"#k1":"{oversized_private}"}},"public":{{}}}}"##);
+    let oversized_public = "z".repeat((32 * 1_024) + 1);
+    let public_json = format!(r##"{{"private":{{}},"public":{{"#k1":"{oversized_public}"}}}}"##);
+
+    assert!(serde_json::from_str::<ExportedKeySet>(&private_json).is_err());
+    assert!(serde_json::from_str::<ExportedKeySet>(&public_json).is_err());
+}
+
+#[test]
 fn export_serializes_deterministically() {
     let mut first = KeySet::new();
     first
-        .put_key("#b", vec![2], public_key(2))
+        .put_key("#b", private_key(2), public_key(2))
         .expect("valid key should insert");
     first
-        .put_key("#a", vec![1], public_key(1))
+        .put_key("#a", private_key(1), public_key(1))
         .expect("valid key should insert");
 
     let mut second = KeySet::new();
     second
-        .put_key("#a", vec![1], public_key(1))
+        .put_key("#a", private_key(1), public_key(1))
         .expect("valid key should insert");
     second
-        .put_key("#b", vec![2], public_key(2))
+        .put_key("#b", private_key(2), public_key(2))
         .expect("valid key should insert");
 
-    let first_json =
-        serde_json::to_string(&first.export()).expect("exported key set should serialize");
-    let second_json =
-        serde_json::to_string(&second.export()).expect("exported key set should serialize");
+    let first_json = first
+        .export()
+        .to_json()
+        .expect("exported key set should serialize");
+    let second_json = second
+        .export()
+        .to_json()
+        .expect("exported key set should serialize");
 
     assert_eq!(first_json, second_json);
 }
@@ -342,7 +445,7 @@ fn debug_output_redacts_private_material() {
     let mut key_set = KeySet::new();
     let public = public_key(7);
     key_set
-        .put_key("#k1", vec![7, 8, 9], public.clone())
+        .put_key("#k1", private_key(7), public.clone())
         .expect("valid key should insert");
 
     let key_set_debug = format!("{key_set:?}");
@@ -360,11 +463,11 @@ fn rejected_put_key_leaves_no_private_material_behind() {
     let mut key_set = KeySet::new();
 
     assert_eq!(
-        key_set.put_key("bad id\n", vec![1, 2, 3], public_key(40)),
+        key_set.put_key("bad id\n", private_key(40), public_key(40)),
         Err(KeySetError::InvalidVerificationMethodId)
     );
     assert_eq!(
-        key_set.put_key("#k1", vec![1, 2, 3], "not-a-multikey"),
+        key_set.put_key("#k1", private_key(1), "not-a-multikey"),
         Err(KeySetError::InvalidPublicKeyMultibase)
     );
     assert_eq!(

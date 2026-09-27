@@ -7,11 +7,8 @@ vulnerability reports seriously and appreciate coordinated disclosure.
 
 **Do not open a public issue for a security vulnerability.**
 
-Report privately through either channel:
-
-- GitHub private vulnerability reporting: use the **"Report a vulnerability"**
-  button under this repository's **Security** tab.
-- Email: **security@really.me**. For end-to-end encrypted disclosure, request
+Report privately by email at **security@really.me**. For end-to-end encrypted
+disclosure, request
   our current PGP key in a first, contentless message; we will reply with it
   before you send details.
 
@@ -55,7 +52,7 @@ Out of scope:
 
 ## Supported Versions
 
-This repository has not published a supported release yet. Security fixes are
-developed against `main` during the pre-release period. After the first release,
-this section will identify the exact supported release line. Source-based users
-should pin an exact commit and watch GitHub releases and security advisories.
+The currently published component-crate line is `0.2.x`. Security fixes are
+developed against `main`; the `0.3.x` line becomes supported only after its
+release is published. Source-based users should pin an exact commit and watch
+GitHub releases and security advisories.

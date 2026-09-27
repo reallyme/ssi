@@ -164,12 +164,10 @@
     "feature": "nist_ecdh_es_encrypt_decrypt",
     "implementation": ["reallyme-jose/crates/src/jwe/encrypt.rs", "reallyme-jose/crates/src/jwe/kdf.rs", "reallyme_crypto::p256", "reallyme_crypto::p384", "reallyme_crypto::p521"],
     "positive_tests": [
-      "encrypts_and_decrypts_p256_ecdh_es_a128gcm_json",
-      "encrypts_and_decrypts_p384_ecdh_es_a192gcm_json",
-      "encrypts_and_decrypts_p521_ecdh_es_a256gcm_json",
+      "encrypts_and_decrypts_p256_ecdh_es_with_fresh_ephemeral_key",
       "jwe_compact_vectors_decrypt_or_fail_closed"
     ],
-    "negative_tests": ["ecdh_es_rejects_wrong_recipient_private_key", "rejects_key_management_algorithm_outside_policy"],
+    "negative_tests": ["rejects_invalid_ecdh_es_shared_secret_length_before_kdf", "rejects_key_management_algorithm_outside_policy"],
     "applicable": true,
     "exclusion_reason": null
   },

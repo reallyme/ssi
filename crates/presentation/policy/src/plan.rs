@@ -33,6 +33,8 @@ pub struct DerivationInput {
     pub claim_path: String,
     /// Disclosure predicate a proof mechanism must satisfy for this claim.
     pub mode: DisclosureMode,
+    /// Exact public predicate operand to bind into proof inputs.
+    pub operand: crate::PredicateOperand,
 }
 
 /// Chooses disclosure or derivation for a policy without invoking a prover.
@@ -52,6 +54,7 @@ pub fn plan_satisfaction(policy: &VpPolicy) -> Result<SatisfactionPlan, VpPolicy
             .map(|claim| DerivationInput {
                 claim_path: claim.claim_path.clone(),
                 mode: claim.mode,
+                operand: claim.operand.clone(),
             })
             .collect(),
     }))

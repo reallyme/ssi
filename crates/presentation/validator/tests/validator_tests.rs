@@ -13,7 +13,8 @@
 
 use identity_presentation_vp_policy::VpPolicyError;
 use identity_presentation_vp_validator::{
-    validate_presentation, CryptoContext, QeaaContext, VpValidationError, VpValidationInput,
+    evaluate_presentation_policy as validate_presentation, CryptoContext, QeaaContext,
+    VpValidationError, VpValidationInput,
 };
 
 use identity_core_primitives::Algorithm;
@@ -65,7 +66,11 @@ fn valid_qeaa() -> QeaaCompliance {
         },
         issuer_credential: reallyme_credential_audit::IssuerCredential {
             kind: reallyme_credential_audit::IssuerCredentialKind::X509,
-            cert_fingerprint_sha256: [3u8; 32],
+            cert_fingerprint_sha256: [
+                0x03, 0x90, 0x58, 0xc6, 0xf2, 0xc0, 0xcb, 0x49, 0x2c, 0x53, 0x3b, 0x0a, 0x4d, 0x14,
+                0xef, 0x77, 0xcc, 0x0f, 0x78, 0xab, 0xcc, 0xce, 0xd5, 0x28, 0x7d, 0x84, 0xa1, 0xa2,
+                0x01, 0x1c, 0xfb, 0x81,
+            ],
             cert_chain_der: vec![vec![1, 2, 3]],
             trusted_list_ref: "EU-TL".into(),
             policy_oids: vec![],
@@ -111,6 +116,12 @@ impl StatusListVerifier for AcceptAllStatusVerifier {
     }
 }
 
+impl reallyme_credential::CredentialStatusListVerifier for AcceptAllStatusVerifier {
+    fn verified_signer(&self) -> reallyme_credential::PartyReference {
+        reallyme_credential::PartyReference::Did("did:test:issuer".to_owned())
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Tests
 // -----------------------------------------------------------------------------
@@ -129,7 +140,7 @@ fn validator_accepts_valid_pid_with_qeaa_and_binding() {
         next_update: 1_800_000_000,
         encoded_list: vec![0u8],
         length: 1,
-        list_id: None,
+        list_id: Some([0_u8; 32]),
         signature: StatusListSignature {
             alg: StatusListAlgorithm::Ed25519,
             sig_bytes: vec![1, 2, 3],
@@ -141,6 +152,10 @@ fn validator_accepts_valid_pid_with_qeaa_and_binding() {
     let status_ctx = StatusContext {
         list: &status_list,
         index: 0,
+        expected_index: 0,
+        expected_issuer: "did:test:issuer",
+        expected_list_id: [0_u8; 32],
+        expected_purpose: StatusPurpose::Revocation,
         verifier: &verifier,
     };
 

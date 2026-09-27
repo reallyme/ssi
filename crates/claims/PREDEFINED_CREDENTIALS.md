@@ -1,8 +1,8 @@
 # Predefined Credential Claim Catalogs
 
 This matrix records the claim catalogs owned by `reallyme-credential-claims`.
-It separates registry-backed credentials from policy-only claimsets so release
-review can distinguish supported validation from relying-party policy intent.
+It separates registry-backed credentials from policy-only claimsets to identify
+which claims receive schema validation and which express relying-party policy.
 
 ## Registry-Backed Profiles
 

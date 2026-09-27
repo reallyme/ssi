@@ -91,6 +91,26 @@ fn generic_dispatch_rejects_tampered_current_core() {
 }
 
 #[test]
+fn es256_jws_cid_2025_rejects_tampered_created_time() {
+    let keypair = generate_multikey_keypair(Algorithm::P256).expect("P-256 keypair");
+    let mut proof = sign_data_integrity_proof(&DataIntegritySignInput {
+        cryptosuite: DataIntegrityCryptosuite::Es256JwsCid2025,
+        current_core: CURRENT_CORE,
+        secret_key: keypair.secret_key.as_ref(),
+        verification_method: VERIFICATION_METHOD,
+        created: CREATED,
+    })
+    .expect("proof signs");
+    proof.created = Some("2026-01-02T00:00:00Z".to_owned());
+    let document = did_document(keypair.public_key_multikey, Some(proof));
+
+    assert_eq!(
+        verify_es256_jws_cid_2025(&document),
+        Err(Es256JwsCid2025Error::PayloadMismatch)
+    );
+}
+
+#[test]
 fn es256_jws_cid_2025_rejects_extra_protected_header_members() {
     let keypair = generate_multikey_keypair(Algorithm::P256).expect("P-256 keypair");
     let mut proof = sign_data_integrity_proof(&DataIntegritySignInput {

@@ -13,6 +13,7 @@
 
 use std::collections::BTreeMap;
 
+use buffa::Message;
 use reallyme_credential::committed::issue::{issue_credential, IssueInput, OsSaltRng};
 use reallyme_credential::committed::model::{
     AssuranceLevel, CommitmentLimits, CredentialAlgorithm, CredentialKind, CredentialStatus,
@@ -22,12 +23,15 @@ use reallyme_credential::committed::model::{
 use reallyme_credential::committed::signed_envelope::{
     decode_signed_envelope_cbor, encode_signed_envelope_cbor,
 };
+use reallyme_credential_claims::public_key_ref_to_proto;
 
 use codec_cbor::{encode_dag_cbor, CborValue};
 use crypto_core::Algorithm as CryptoAlgorithm;
 use crypto_dispatch::{generate_keypair, verify};
 
 const OVERSIZED_SIGNED_ENVELOPE_BYTES: usize = (1024 * 1024) + 1;
+const MAX_CANONICAL_CREDENTIAL_BYTES: usize = 960 * 1024;
+const MAX_SIGNATURE_BYTES: usize = 8192;
 
 fn base_input() -> IssueInput {
     IssueInput {
@@ -76,6 +80,31 @@ fn ed25519_key(did_url: &str, marker: u8) -> PublicKeyRef {
         },
         assurance: KeyAssurance::None,
     }
+}
+
+fn verification_key_bytes() -> Vec<u8> {
+    public_key_ref_to_proto(&ed25519_key("did:test:issuer#key-1", 2)).encode_to_vec()
+}
+
+fn encode_signed_fields(fields: Vec<(ciborium::value::Value, ciborium::value::Value)>) -> Vec<u8> {
+    let mut encoded = Vec::new();
+    ciborium::ser::into_writer(&ciborium::value::Value::Map(fields), &mut encoded).unwrap();
+    encoded
+}
+
+fn field(name: &str, value: Vec<u8>) -> (ciborium::value::Value, ciborium::value::Value) {
+    (
+        ciborium::value::Value::Text(name.to_owned()),
+        ciborium::value::Value::Bytes(value),
+    )
+}
+
+fn signed_fields(vc_canon: Vec<u8>, verification_key: Vec<u8>, sig: Vec<u8>) -> Vec<u8> {
+    encode_signed_fields(vec![
+        field("vc_canon", vc_canon),
+        field("verification_key", verification_key),
+        field("sig", sig),
+    ])
 }
 
 #[test]
@@ -162,6 +191,64 @@ fn signed_envelope_decoder_rejects_malformed_ambiguous_and_oversized_inputs() {
     .unwrap();
     trailing.push(0_u8);
     assert!(decode_signed_envelope_cbor(&trailing).is_err());
+}
+
+#[test]
+fn signed_envelope_decoder_enforces_each_field_boundary() {
+    let key = verification_key_bytes();
+
+    for invalid in [
+        signed_fields(Vec::new(), key.clone(), vec![1]),
+        signed_fields(vec![1], key.clone(), Vec::new()),
+        signed_fields(
+            vec![1; MAX_CANONICAL_CREDENTIAL_BYTES + 1],
+            key.clone(),
+            vec![1],
+        ),
+        signed_fields(vec![1], key.clone(), vec![1; MAX_SIGNATURE_BYTES + 1]),
+    ] {
+        assert!(decode_signed_envelope_cbor(&invalid).is_err());
+    }
+
+    for valid in [
+        signed_fields(
+            vec![1; MAX_CANONICAL_CREDENTIAL_BYTES],
+            key.clone(),
+            vec![1],
+        ),
+        signed_fields(vec![1], key, vec![1; MAX_SIGNATURE_BYTES]),
+    ] {
+        assert!(decode_signed_envelope_cbor(&valid).is_ok());
+    }
+}
+
+#[test]
+fn signed_envelope_decoder_rejects_duplicate_required_fields() {
+    let key = verification_key_bytes();
+    let cases = [
+        vec![
+            field("vc_canon", vec![1]),
+            field("vc_canon", vec![2]),
+            field("verification_key", key.clone()),
+            field("sig", vec![3]),
+        ],
+        vec![
+            field("vc_canon", vec![1]),
+            field("verification_key", key.clone()),
+            field("verification_key", key.clone()),
+            field("sig", vec![3]),
+        ],
+        vec![
+            field("vc_canon", vec![1]),
+            field("verification_key", key),
+            field("sig", vec![3]),
+            field("sig", vec![4]),
+        ],
+    ];
+
+    for duplicate in cases {
+        assert!(decode_signed_envelope_cbor(&encode_signed_fields(duplicate)).is_err());
+    }
 }
 
 #[test]

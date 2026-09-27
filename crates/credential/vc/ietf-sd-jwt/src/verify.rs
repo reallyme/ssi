@@ -23,11 +23,42 @@ use crate::validate_temporal_claims::{
     validate_credential_temporal_claims, IetfSdJwtTemporalPolicy,
 };
 
+/// Verified issuer payload, disclosed claims, and optional key binding.
 pub struct VerifiedIetfSdJwtVc {
-    pub payload: Value,
-    pub disclosed_claims: BTreeMap<String, Value>,
-    pub disclosures: Vec<SdJwtDisclosure>,
-    pub kb_jwt: Option<String>,
+    /// Authenticated issuer payload.
+    payload: Value,
+    /// Claims reconstructed from disclosures authenticated by the issuer payload.
+    disclosed_claims: BTreeMap<String, Value>,
+    /// Encoded disclosures carried by this SD-JWT value.
+    disclosures: Vec<SdJwtDisclosure>,
+    /// Optional key-binding JWT.
+    kb_jwt: Option<String>,
+}
+
+impl VerifiedIetfSdJwtVc {
+    /// Borrow the authenticated issuer payload.
+    #[must_use]
+    pub const fn payload(&self) -> &Value {
+        &self.payload
+    }
+
+    /// Borrow claims reconstructed from authenticated disclosures.
+    #[must_use]
+    pub const fn disclosed_claims(&self) -> &BTreeMap<String, Value> {
+        &self.disclosed_claims
+    }
+
+    /// Borrow the authenticated disclosures.
+    #[must_use]
+    pub fn disclosures(&self) -> &[SdJwtDisclosure] {
+        &self.disclosures
+    }
+
+    /// Borrow the key-binding JWT, when present.
+    #[must_use]
+    pub fn key_binding_jwt(&self) -> Option<&str> {
+        self.kb_jwt.as_deref()
+    }
 }
 
 impl fmt::Debug for VerifiedIetfSdJwtVc {
@@ -59,6 +90,7 @@ impl Drop for VerifiedIetfSdJwtVc {
 
 impl ZeroizeOnDrop for VerifiedIetfSdJwtVc {}
 
+/// Verifies an IETF SD-JWT VC and returns a typed failure for any rejected check.
 pub fn verify_ietf_sd_jwt_vc(
     compact_sd_jwt: &str,
     issuer_jwk: &Jwk,
@@ -145,22 +177,25 @@ fn parse_compact_sd_jwt(compact: &str) -> Result<ParsedCompactSdJwt, IetfSdJwtVc
     }
 
     let parts: Vec<&str> = compact.split('~').collect();
-    if parts.len() < 2 {
-        return Err(IetfSdJwtVcError::InvalidCompactFormat);
-    }
+    let (issuer, remainder) = parts
+        .split_first()
+        .ok_or(IetfSdJwtVcError::InvalidCompactFormat)?;
+    let (last, middle) = remainder
+        .split_last()
+        .ok_or(IetfSdJwtVcError::InvalidCompactFormat)?;
 
-    let issuer_signed_jwt = parts[0].to_string();
+    let issuer_signed_jwt = (*issuer).to_string();
     if issuer_signed_jwt.split('.').count() != 3 {
         return Err(IetfSdJwtVcError::InvalidCompactFormat);
     }
 
-    let trailing_empty = parts.last().map(|s| s.is_empty()).unwrap_or(false);
+    let trailing_empty = last.is_empty();
 
     let mut disclosures = Vec::new();
     let mut kb_jwt = None;
 
     if trailing_empty {
-        for p in &parts[1..parts.len() - 1] {
+        for p in middle {
             if p.is_empty() {
                 return Err(IetfSdJwtVcError::InvalidCompactFormat);
             }
@@ -170,13 +205,13 @@ fn parse_compact_sd_jwt(compact: &str) -> Result<ParsedCompactSdJwt, IetfSdJwtVc
         if parts.len() < 3 {
             return Err(IetfSdJwtVcError::InvalidCompactFormat);
         }
-        for p in &parts[1..parts.len() - 1] {
+        for p in middle {
             if p.is_empty() {
                 return Err(IetfSdJwtVcError::InvalidCompactFormat);
             }
             disclosures.push((*p).to_string());
         }
-        let final_part = parts[parts.len() - 1];
+        let final_part = *last;
         if final_part.is_empty() {
             return Err(IetfSdJwtVcError::InvalidCompactFormat);
         }

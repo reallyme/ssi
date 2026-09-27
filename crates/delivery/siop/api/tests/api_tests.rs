@@ -20,6 +20,7 @@ use envelopes_jwt::jwt::encode_signed_jwt;
 use identity_presentation_delivery_siop_api::{
     build_siop_authentication_request, validate_siop_authentication_request,
     verify_siop_authentication_response, BuildSiopAuthenticationRequestInput,
+    SiopAuthenticationResponse,
 };
 use identity_presentation_delivery_siop_verifier::SiopKeyResolver;
 
@@ -31,6 +32,10 @@ struct StaticResolver {
 impl SiopKeyResolver for StaticResolver {
     fn resolve(&self, _kid: Option<&str>) -> Option<(Jwk, Vec<u8>)> {
         Some((self.jwk.clone(), self.pk.clone()))
+    }
+
+    fn is_authentication_method(&self, subject_did: &str, kid: &str) -> bool {
+        subject_did == "did:example:holder" && kid == "did:example:holder#key-1"
     }
 }
 
@@ -56,7 +61,7 @@ fn api_builds_and_verifies_flow() {
     let req = build_siop_authentication_request(BuildSiopAuthenticationRequestInput {
         client_id: "did:example:rp".into(),
         nonce: vec![1u8; 32],
-        audience: "https://rp.example".into(),
+        state: "state-1234567890abcdef".into(),
         response_mode: "direct_post".into(),
         scope: vec!["openid".into()],
         now_unix: 100,
@@ -72,6 +77,7 @@ fn api_builds_and_verifies_flow() {
         iss: "did:example:holder".into(),
         sub: "did:example:holder".into(),
         aud: vec![req.client_id.clone()],
+        azp: None,
         nonce: nonce_b64url,
         iat: 100,
         exp: 200,
@@ -79,6 +85,10 @@ fn api_builds_and_verifies_flow() {
     };
 
     let jwt = encode_signed_jwt(&claims, &jwk, &sk).unwrap();
-    let verified = verify_siop_authentication_response(&req, &jwt, &resolver, 120).unwrap();
-    assert_eq!(verified.claims.iss, "did:example:holder");
+    let response = SiopAuthenticationResponse {
+        id_token: jwt.into_bytes(),
+        state: req.state.clone(),
+    };
+    let verified = verify_siop_authentication_response(&req, &response, &resolver, 120).unwrap();
+    assert_eq!(verified.claims().iss, "did:example:holder");
 }

@@ -34,7 +34,7 @@ pub(crate) fn validate_verification_options(
     Ok(())
 }
 
-/// Validate `exp`, `nbf`, and `iat` against the verifier's current time.
+/// Validates `exp`, `nbf`, and `iat` against the verifier's current time.
 ///
 /// Each claim is optional, but when present it must be a non-negative
 /// NumericDate, `exp` must follow `nbf`, and every claim must satisfy the

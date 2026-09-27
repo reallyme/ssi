@@ -298,10 +298,7 @@ impl ParsedRegistrationCertificate {
         &self.registered_credentials
     }
 
-    /// Reports whether every metadata value and claim path in `requested` is
-    /// covered by one signed WRPRC credential authorization.
-    #[must_use]
-    pub fn authorizes_credential_request(&self, requested: &crate::CredentialRequest) -> bool {
+    fn authorizes_credential_request(&self, requested: &crate::CredentialRequest) -> bool {
         self.registered_credentials
             .iter()
             .any(|registered| registered.authorizes(requested))
@@ -353,6 +350,13 @@ impl AuthenticatedRegistrationCertificate {
     #[must_use]
     pub const fn binding(&self) -> &RegistrationCertificateBinding {
         &self.binding
+    }
+
+    /// Reports whether every metadata value and claim path in `requested` is
+    /// covered by one signature-authenticated WRPRC credential authorization.
+    #[must_use]
+    pub fn authorizes_credential_request(&self, requested: &crate::CredentialRequest) -> bool {
+        self.parsed.authorizes_credential_request(requested)
     }
 }
 

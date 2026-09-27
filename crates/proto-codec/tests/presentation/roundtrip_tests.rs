@@ -128,7 +128,7 @@ fn zk_presentation_round_trips_through_proto_json_and_brotli() -> Result<(), VpP
 #[test]
 fn invalid_hash_length_is_rejected() -> Result<(), VpProtoError> {
     let mut proto =
-        reallyme_ssi_proto_codec::presentation::presentation_to_proto(&sd_jwt_presentation());
+        reallyme_ssi_proto_codec::presentation::presentation_to_proto(&sd_jwt_presentation())?;
     if let Some(
         reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::presentation::Kind::SdJwtVc(model),
     ) = proto.kind.as_mut()
@@ -150,7 +150,7 @@ fn invalid_hash_length_is_rejected() -> Result<(), VpProtoError> {
 #[test]
 fn missing_suite_or_invalid_artifact_digest_fails_closed() -> Result<(), VpProtoError> {
     let mut proto =
-        reallyme_ssi_proto_codec::presentation::presentation_to_proto(&zk_presentation());
+        reallyme_ssi_proto_codec::presentation::presentation_to_proto(&zk_presentation())?;
     let Some(
         reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::presentation::Kind::Zk(model),
     ) = proto.kind.as_mut()
@@ -167,7 +167,7 @@ fn missing_suite_or_invalid_artifact_digest_fails_closed() -> Result<(), VpProto
     );
 
     let mut proto =
-        reallyme_ssi_proto_codec::presentation::presentation_to_proto(&zk_presentation());
+        reallyme_ssi_proto_codec::presentation::presentation_to_proto(&zk_presentation())?;
     let Some(
         reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::presentation::Kind::Zk(model),
     ) = proto.kind.as_mut()
@@ -271,7 +271,7 @@ where
     ) -> Result<(), VpProtoError>,
 {
     let mut proto =
-        reallyme_ssi_proto_codec::presentation::presentation_to_proto(&zk_presentation());
+        reallyme_ssi_proto_codec::presentation::presentation_to_proto(&zk_presentation())?;
     let Some(
         reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::presentation::Kind::Zk(model),
     ) = proto.kind.as_mut()

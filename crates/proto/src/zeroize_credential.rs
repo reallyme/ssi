@@ -10,10 +10,11 @@ use zeroize::Zeroize;
 
 /// Recursively clears identifying credential and audit material in place.
 ///
-/// Buffa messages intentionally remain generator-compatible and therefore do
-/// not implement `Drop`. They also implement `Clone` and ProtoJSON; callers
-/// must not create unmanaged copies of holder-private material. Boundary
-/// owners must call this function before the allocation graph is released.
+/// General credential messages remain generator-compatible and therefore do
+/// not implement `Drop`. Holder-private bundle and opening messages are the
+/// exception: they own salts and disclosed values and zeroize automatically.
+/// Boundary owners must still call this function for ordinary credential
+/// envelopes before their allocation graph is released.
 pub fn zeroize_credential_envelope(envelope: &mut pb::CredentialEnvelope) {
     envelope.kind = Default::default();
     envelope.profile_id.zeroize();
@@ -104,16 +105,49 @@ pub fn zeroize_subject_private_bundle(bundle: &mut pb::SubjectPrivateBundle) {
     }
     bundle.tree = Default::default();
     for claim in &mut bundle.claims {
-        claim.claim_path.zeroize();
-        claim.salt.zeroize();
-        claim.value.zeroize();
-        claim.index.zeroize();
-        zeroize_byte_vectors(&mut claim.merkle_path);
-        claim.__buffa_unknown_fields.clear();
+        zeroize_claim_opening(claim);
     }
     bundle.claims.clear();
     bundle.__buffa_unknown_fields.clear();
 }
+
+/// Clear one holder-private claim opening in place.
+pub fn zeroize_claim_opening(claim: &mut pb::ClaimOpening) {
+    claim.claim_path.zeroize();
+    claim.salt.zeroize();
+    claim.value.zeroize();
+    claim.index.zeroize();
+    zeroize_byte_vectors(&mut claim.merkle_path);
+    claim.__buffa_unknown_fields.clear();
+}
+
+impl Zeroize for pb::SubjectPrivateBundle {
+    fn zeroize(&mut self) {
+        zeroize_subject_private_bundle(self);
+    }
+}
+
+impl Drop for pb::SubjectPrivateBundle {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for pb::SubjectPrivateBundle {}
+
+impl Zeroize for pb::ClaimOpening {
+    fn zeroize(&mut self) {
+        zeroize_claim_opening(self);
+    }
+}
+
+impl Drop for pb::ClaimOpening {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for pb::ClaimOpening {}
 
 fn zeroize_timestamp(
     timestamp: &mut buffa::MessageField<

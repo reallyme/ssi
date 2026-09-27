@@ -28,12 +28,10 @@ pub enum DidProfile {
     Payment,
 }
 
-/// Helper to construct VerificationMethod templates.
-/// `public_key_multibase` is left empty and populated by the API layer.
+/// Constructs a document-layer verification-method template.
 ///
-/// NOTE:
-/// - This is a *document-layer* type
-/// - Algorithms must remain strings here
+/// The API layer supplies `public_key_multibase`. Algorithm identifiers remain
+/// strings at this document boundary and are derived from the typed algorithm.
 fn vm(id: &str, did: &str, alg: Algorithm) -> VerificationMethod {
     VerificationMethod {
         id: id.into(),
@@ -44,14 +42,10 @@ fn vm(id: &str, did: &str, alg: Algorithm) -> VerificationMethod {
     }
 }
 
-/// Build a DID profile → partial CreateOptions.
+/// Builds creation options for a built-in did:me document profile.
 ///
-/// This is a **direct semantic port** of the TS `buildProfile(profile, did)`
-/// with **Algorithm enums as the source of truth**.
-///
-/// IMPORTANT INVARIANT:
-/// - All *engine* semantics use `Algorithm` enums
-/// - Strings appear ONLY in document-layer structs
+/// Engine decisions use typed [`Algorithm`] values. String algorithm names are
+/// introduced only when constructing document-layer verification methods.
 pub fn build_profile(profile: DidProfile, did: &str) -> CreateOptions {
     match profile {
         // -----------------------------------------------------------

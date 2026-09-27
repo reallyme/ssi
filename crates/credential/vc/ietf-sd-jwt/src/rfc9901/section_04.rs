@@ -12,6 +12,7 @@ struct TransformCtx<'a> {
     object_decoys: u8,
     array_decoys: u8,
     disclosures: Vec<DisclosureRecord>,
+    matched_paths: BTreeSet<String>,
 }
 
 trait Rfc9901SaltRng {
@@ -59,22 +60,35 @@ impl Rfc9901DeterministicSaltRng {
         x.wrapping_mul(0x2545_F491_4F6C_DD1D)
     }
 
-    fn fill(&mut self, out: &mut [u8]) {
+    fn fill(&mut self, out: &mut [u8]) -> Result<(), IetfSdJwtVcError> {
         let mut idx = 0usize;
         while idx < out.len() {
             let block = self.next_u64().to_le_bytes();
-            let take = (out.len() - idx).min(block.len());
-            out[idx..idx + take].copy_from_slice(&block[..take]);
-            idx += take;
+            let remaining = out
+                .len()
+                .checked_sub(idx)
+                .ok_or(IetfSdJwtVcError::InvalidInput)?;
+            let take = remaining.min(block.len());
+            let end = idx
+                .checked_add(take)
+                .ok_or(IetfSdJwtVcError::InvalidInput)?;
+            let destination = out
+                .get_mut(idx..end)
+                .ok_or(IetfSdJwtVcError::InvalidInput)?;
+            let source = block
+                .get(..take)
+                .ok_or(IetfSdJwtVcError::InvalidInput)?;
+            destination.copy_from_slice(source);
+            idx = end;
         }
+        Ok(())
     }
 }
 
 #[cfg(feature = "conformance-vectors")]
 impl Rfc9901SaltRng for Rfc9901DeterministicSaltRng {
     fn fill_bytes(&mut self, out: &mut [u8]) -> Result<(), IetfSdJwtVcError> {
-        self.fill(out);
-        Ok(())
+        self.fill(out)
     }
 }
 
@@ -119,7 +133,8 @@ fn transform_object(
 
         let transformed_child = transform_value(v, &child_path, ctx, false)?;
 
-        if should_disclose(&child_path, ctx.strategy, &ctx.json_paths) {
+        if should_disclose(&child_path, is_root, ctx.strategy, &ctx.json_paths) {
+            ctx.matched_paths.insert(child_path.clone());
             let encoded = encode_object_disclosure(ctx.salt_rng, k, transformed_child.clone())?;
             let digest = bytes_to_base64url(sha2_256_digest(encoded.as_bytes()).as_bytes());
             sd_digests.push(digest.clone());
@@ -168,7 +183,8 @@ fn transform_array(
         let child_path = format!("{path}[{idx}]");
         let transformed = transform_value(v, &child_path, ctx, false)?;
 
-        if should_disclose(&child_path, ctx.strategy, &ctx.json_paths) {
+        if should_disclose(&child_path, false, ctx.strategy, &ctx.json_paths) {
+            ctx.matched_paths.insert(child_path.clone());
             let encoded = encode_array_disclosure(ctx.salt_rng, transformed.clone())?;
             let digest = bytes_to_base64url(sha2_256_digest(encoded.as_bytes()).as_bytes());
             out.push(serde_json::json!({"...": digest.clone()}));
@@ -205,14 +221,22 @@ fn random_insert_position(
         .ok_or(IetfSdJwtVcError::InvalidInput)?;
     // Rejection sampling removes modulo bias; the acceptance zone is at least
     // half of the u64 range, so the expected number of draws is below two.
-    let zone = u64::MAX - (u64::MAX % bound);
+    let remainder = u64::MAX
+        .checked_rem(bound)
+        .ok_or(IetfSdJwtVcError::InvalidInput)?;
+    let zone = u64::MAX
+        .checked_sub(remainder)
+        .ok_or(IetfSdJwtVcError::InvalidInput)?;
     for _ in 0..MAX_POSITION_SAMPLING_ATTEMPTS {
         let mut sample = [0_u8; 8];
         rng.fill_bytes(&mut sample)?;
         let value = u64::from_le_bytes(sample);
         sample.zeroize();
         if value < zone {
-            return usize::try_from(value % bound).map_err(|_| IetfSdJwtVcError::InvalidInput);
+            let position = value
+                .checked_rem(bound)
+                .ok_or(IetfSdJwtVcError::InvalidInput)?;
+            return usize::try_from(position).map_err(|_| IetfSdJwtVcError::InvalidInput);
         }
     }
     Err(IetfSdJwtVcError::InvalidInput)
@@ -220,17 +244,12 @@ fn random_insert_position(
 
 fn should_disclose(
     path: &str,
+    is_direct_root_member: bool,
     strategy: SelectiveDisclosureStrategy,
     json_paths: &BTreeSet<String>,
 ) -> bool {
     match strategy {
-        SelectiveDisclosureStrategy::TopLevel => {
-            if !path.starts_with("$.") {
-                return false;
-            }
-            let rest = &path[2..];
-            !rest.contains('.') && !rest.contains('[')
-        }
+        SelectiveDisclosureStrategy::TopLevel => is_direct_root_member,
         SelectiveDisclosureStrategy::AllLevels => true,
         SelectiveDisclosureStrategy::JsonPaths => json_paths.contains(path),
     }

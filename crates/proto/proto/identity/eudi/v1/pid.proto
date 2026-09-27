@@ -164,13 +164,13 @@ message EudiPidPortrait {
 message EudiNaturalPersonPidClaims {
   string family_name = 1 [debug_redact = true];
   string given_name = 2 [debug_redact = true];
-  EudiCalendarDate birth_date = 3;
-  EudiPidBirthPlace birth_place = 4;
-  repeated string nationalities = 5;
+  EudiCalendarDate birth_date = 3 [debug_redact = true];
+  EudiPidBirthPlace birth_place = 4 [debug_redact = true];
+  repeated string nationalities = 5 [debug_redact = true];
   EudiPidPortrait portrait = 6;
   EudiCalendarDate assessment_date = 7;
   optional string resident_address = 8 [debug_redact = true];
-  optional string resident_country = 9;
+  optional string resident_country = 9 [debug_redact = true];
   optional string resident_state = 10 [debug_redact = true];
   optional string resident_city = 11 [debug_redact = true];
   optional string resident_postal_code = 12 [debug_redact = true];
@@ -178,7 +178,7 @@ message EudiNaturalPersonPidClaims {
   optional string personal_administrative_number = 14 [debug_redact = true];
   optional string family_name_birth = 15 [debug_redact = true];
   optional string given_name_birth = 16 [debug_redact = true];
-  optional EudiPidSex sex = 17;
+  optional EudiPidSex sex = 17 [debug_redact = true];
   optional string email = 18 [debug_redact = true];
   optional string mobile_phone_number = 19 [debug_redact = true];
 }

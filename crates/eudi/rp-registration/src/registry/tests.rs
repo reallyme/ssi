@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::jose::JoseRegistryJwsVerifier;
 use super::jose::{bind_jwk_to_certificate, parse_protected_header, validate_key_operations};
-use super::{JoseRegistryJwsVerifier, RegistryJwsVerifier, ValidatedJwks};
+use super::{RegistryJwsVerifier, ValidatedJwks};
 use crate::json::StrictValue;
 use crate::{RegistrationError, RegistrationErrorReason};
 

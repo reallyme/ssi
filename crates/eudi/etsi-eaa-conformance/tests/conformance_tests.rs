@@ -2,22 +2,27 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(missing_docs, clippy::indexing_slicing)]
 
 use reallyme_etsi_eaa_conformance::{
-    authorize_eu_presentation, evaluate_wallet_disclosure_policy, validate_attestation,
-    validate_eu_issuance, validate_eu_mdoc_status, validate_eu_mdoc_status_capabilities,
-    validate_eu_mediating_api, validate_issuance, validate_legal_person_pid,
-    validate_mdoc_presentation, validate_natural_person_pid, validate_openid4vp_presentation,
-    validate_openid4vp_presentation_for_profile, validate_pid_allocation,
-    validate_pid_issuance_authorization, validate_pid_revocation, validate_relying_party_pseudonym,
-    validate_sd_jwt_presentation, validate_wallet_attestation_profile,
-    validate_wallet_attestation_revocation, validate_wallet_cryptographic_capabilities,
-    validate_wallet_format_capabilities, validate_wallet_transaction_log, AttestationCategory,
-    AttestationCategorySignal, AttestationFormat, AttestationIdentifier, AttributeEvidence,
-    BirthPlace, CalendarDate, CommonAttestationFacts, CommonProfileData, ConformanceError,
-    CredentialFormatSet, CredentialProofFacts, EmbeddedDisclosurePolicy, EtsiPart2Profile,
-    EuMdocStatusAlgorithm, EuMdocStatusCapabilities, EuMdocStatusTokenFacts, EuMediatingApiFacts,
+    authorize_eu_presentation, evaluate_eu_issuance_conformance as validate_eu_issuance,
+    evaluate_eu_mediating_api_conformance as validate_eu_mediating_api,
+    evaluate_issuance_conformance as validate_issuance,
+    evaluate_mdoc_presentation_conformance as validate_mdoc_presentation,
+    evaluate_openid4vp_presentation_conformance as validate_openid4vp_presentation,
+    evaluate_openid4vp_presentation_conformance_for_profile as validate_openid4vp_presentation_for_profile,
+    evaluate_sd_jwt_presentation_conformance as validate_sd_jwt_presentation,
+    evaluate_wallet_attestation_profile as validate_wallet_attestation_profile,
+    evaluate_wallet_disclosure_policy, validate_attestation, validate_eu_mdoc_status,
+    validate_eu_mdoc_status_capabilities, validate_legal_person_pid, validate_natural_person_pid,
+    validate_pid_allocation, validate_pid_issuance_authorization, validate_pid_revocation,
+    validate_relying_party_pseudonym, validate_wallet_attestation_revocation,
+    validate_wallet_cryptographic_capabilities, validate_wallet_format_capabilities,
+    validate_wallet_transaction_log, AttestationCategory, AttestationCategorySignal,
+    AttestationFormat, AttestationIdentifier, AttributeEvidence, BirthPlace, CalendarDate,
+    CommonAttestationFacts, CommonProfileData, ConformanceError, CredentialFormatSet,
+    CredentialProofFacts, EmbeddedDisclosurePolicy, EtsiPart2Profile, EuMdocStatusAlgorithm,
+    EuMdocStatusCapabilities, EuMdocStatusTokenFacts, EuMediatingApiFacts,
     FailedRegistrationPolicy, FormatFacts, IssuanceFacts, IssuanceFlow, IssuedOnBehalf,
     IssuerMetadataFacts, IssuerSignature, JsonLdFacts, KeyAttestationIndexPolicy,
     KeyAttestationProof, LegalPersonPidClaims, LegalPersonPidFacts, MdocFacts,

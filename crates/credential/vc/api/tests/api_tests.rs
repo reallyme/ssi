@@ -4,6 +4,7 @@
 
 #![allow(
     missing_docs,
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -373,10 +374,10 @@ fn issues_merkle_credential_and_encodes_standardized_formats() {
         &IetfSdJwtTemporalPolicy::new(now),
     )
     .unwrap();
-    assert!(verified.payload.get("cnf").is_none());
-    assert_eq!(verified.disclosed_claims["age"], serde_json::json!(42));
+    assert!(verified.payload().get("cnf").is_none());
+    assert_eq!(verified.disclosed_claims()["age"], serde_json::json!(42));
     assert_eq!(
-        verified.disclosed_claims["family_name"],
+        verified.disclosed_claims()["family_name"],
         serde_json::json!("Doe")
     );
 }

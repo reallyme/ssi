@@ -8,8 +8,9 @@
 //! encoders. Protocol request state, nonce services, offers, OAuth metadata,
 //! and HTTP error shapes stay in the protocol repositories.
 //!
-//! [`JwtVcPayload`] is the W3C JWT-VC envelope profile. It is not wire
-//! compatible with the legacy credential-model JWT adapter in
+//! [`JwtVcPayload`] is the ReallyMe JWT wrapper for a canonical signed
+//! credential-envelope CBOR value. It is not a W3C VC JWT/JSON representation
+//! and is not wire compatible with the legacy credential-model JWT adapter in
 //! `identity-vc-jwt`; callers must select this profile from authenticated
 //! protocol metadata before decoding.
 
