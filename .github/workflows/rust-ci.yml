@@ -12,6 +12,10 @@ on:
   push:
     branches:
       - main
+    # Release preflight still requires a successful exact-commit run. Manually
+    # dispatch this workflow when a Markdown-only HEAD is a release candidate.
+    paths-ignore:
+      - "**/*.md"
 
 permissions:
   contents: read

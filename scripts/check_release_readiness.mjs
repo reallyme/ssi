@@ -895,9 +895,10 @@ for (const needle of requiredCiNeedles) {
   }
 }
 const rustCiMarkdownIgnoreCount = ci.match(/- "\*\*\/\*\.md"/gu)?.length ?? 0;
-if (rustCiMarkdownIgnoreCount !== 1) {
-  fail("rust-ci.yml may ignore Markdown-only pull requests but must scan every push to main");
+if (rustCiMarkdownIgnoreCount !== 2) {
+  fail("rust-ci.yml must ignore Markdown-only pull requests and pushes to main");
 }
+assertContains(".github/workflows/rust-ci.yml", "workflow_dispatch:");
 const allFeaturesCheckCount =
   ci.match(/cargo check --locked --workspace --all-features/gu)?.length ?? 0;
 if (allFeaturesCheckCount !== 1) {

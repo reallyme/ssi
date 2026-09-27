@@ -2,6 +2,8 @@
 
 `manifest.tsv` records the 31 UTF-8 national trusted-list documents selected from the authenticated Commission LOTL on 2026-09-17. `corpus-manifest.tsv` and `corpus/` preserve the later 2026-09-27 audit snapshot: the Commission LOTL and 29 fetched national documents, fixed by SHA-256. All 30 preserved documents must pass portable projection in `live_tsl_corpus_tests.rs`.
 
+**These files are frozen test fixtures only. They MUST NOT be used as current trusted lists, trust anchors, revocation evidence, or inputs to any production trust decision. Production systems must obtain, authenticate, freshness-check, and evaluate current publications through an independently operated trust service.**
+
 The stable derived cases in `tests/tsl_parse/etsi_119612_v2_4_1_tests.rs` reproduce individual parser semantics and the preserved corpus guards against interactions that synthetic fixtures miss. The original manifest's final column identifies the corresponding derived test. The snapshots remain signed operator publications and are retained unmodified as test evidence.
 
 ## Clause decisions
