@@ -117,10 +117,6 @@ fn vector_case(name: &str) -> PathBuf {
     ietf_vectors_root().join(name)
 }
 
-fn local_vectors_available() -> bool {
-    ietf_vectors_root().exists()
-}
-
 fn decode_jwt_payload(jwt: &str) -> Value {
     let mut parts = jwt.split('.');
     let _header = parts.next().expect("JWT header segment");
@@ -421,10 +417,6 @@ fn json_serialization_rejects_excessive_signature_fanout() {
 
 #[test]
 fn process_sd_jwt_payload_resolves_recursive_owf_vector() {
-    if !local_vectors_available() {
-        return;
-    }
-
     let case_dir = vector_case("array_recursive_sd_some_disclosed");
     let payload = load_json(&case_dir.join("sd_jwt_payload.json"));
     let expected = load_json(&case_dir.join("verified_contents.json"));
@@ -444,10 +436,6 @@ fn process_sd_jwt_payload_resolves_recursive_owf_vector() {
 #[test]
 fn process_sd_jwt_payload_resolves_each_local_owf_presentation_vector() {
     let root = ietf_vectors_root();
-    if !root.exists() {
-        return;
-    }
-
     let entries = fs::read_dir(&root).unwrap_or_else(|err| {
         panic!("failed to read {}: {err}", root.display());
     });

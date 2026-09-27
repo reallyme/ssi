@@ -25,7 +25,6 @@ use reallyme_credential::committed::signed_envelope::{
 };
 use reallyme_credential_claims::public_key_ref_to_proto;
 
-use codec_cbor::{encode_dag_cbor, CborValue};
 use crypto_core::Algorithm as CryptoAlgorithm;
 use crypto_dispatch::{generate_keypair, verify};
 
@@ -166,29 +165,16 @@ fn signed_envelope_decoder_rejects_malformed_ambiguous_and_oversized_inputs() {
     .unwrap();
     assert!(decode_signed_envelope_cbor(&duplicate).is_err());
 
-    let unknown = encode_dag_cbor(&CborValue::Map(vec![
-        ("vc_canon".into(), CborValue::Bytes(vec![1])),
-        ("sig_alg".into(), CborValue::String("ed25519".into())),
-        (
-            "verification_method".into(),
-            CborValue::String("did:test:issuer#key-1".into()),
-        ),
-        ("sig".into(), CborValue::Bytes(vec![2])),
-        ("unexpected".into(), CborValue::Bytes(vec![3])),
-    ]))
-    .unwrap();
+    let unknown = encode_signed_fields(vec![
+        field("vc_canon", vec![1]),
+        field("verification_key", verification_key_bytes()),
+        field("sig", vec![2]),
+        field("unexpected", vec![3]),
+    ]);
     assert!(decode_signed_envelope_cbor(&unknown).is_err());
 
-    let mut trailing = encode_dag_cbor(&CborValue::Map(vec![
-        ("vc_canon".into(), CborValue::Bytes(vec![1])),
-        ("sig_alg".into(), CborValue::String("ed25519".into())),
-        (
-            "verification_method".into(),
-            CborValue::String("did:test:issuer#key-1".into()),
-        ),
-        ("sig".into(), CborValue::Bytes(vec![2])),
-    ]))
-    .unwrap();
+    let mut trailing = signed_fields(vec![1], verification_key_bytes(), vec![2]);
+    assert!(decode_signed_envelope_cbor(&trailing).is_ok());
     trailing.push(0_u8);
     assert!(decode_signed_envelope_cbor(&trailing).is_err());
 }

@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{OcspCertStatus, OcspPolicy, ParsedOcspResponse};
+use identity_revocation_ocsp_core::{OcspCertStatus, OcspPolicy};
+
+use crate::ParsedOcspResponse;
 use envelopes_x509::{model::X509Certificate, parse_cert_der};
 use identity_revocation_core::{
     CompositeRevocationPolicy, OcspStatusChecker, StatusCheckError, StatusChecker,

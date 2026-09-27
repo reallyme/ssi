@@ -113,8 +113,18 @@ pub fn validate_did_chain_from_trusted_head(
             DidValidationLocation::Core,
         );
     };
-    let mut previous = first;
-    for document in middle {
+    validate_did_with_successors_from_trusted_head(first, middle, head, env)
+}
+
+/// Validate a head and its intervening successors from a pinned document.
+pub fn validate_did_with_successors_from_trusted_head(
+    trusted_document: &DIDDocument,
+    intervening_successors: &[DIDDocument],
+    head: &DIDDocument,
+    env: DomainVerificationEnv,
+) -> FullValidationResult {
+    let mut previous = trusted_document;
+    for document in intervening_successors {
         let result = validate_did_transition(previous, document, no_domain_env());
         if !result.ok {
             return result;

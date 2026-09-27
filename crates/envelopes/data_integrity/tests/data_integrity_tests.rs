@@ -30,6 +30,19 @@ fn data_integrity_status_is_active() {
 }
 
 #[test]
+fn signing_input_debug_redacts_secret_material() {
+    let input = DataIntegritySignInput {
+        cryptosuite: DataIntegrityCryptosuite::Es256JwsCid2025,
+        current_core: CURRENT_CORE,
+        secret_key: &[222, 173, 190, 239],
+        verification_method: VERIFICATION_METHOD,
+        created: CREATED,
+    };
+
+    assert_eq!(format!("{input:?}"), "DataIntegritySignInput([REDACTED])");
+}
+
+#[test]
 fn generic_dispatch_signs_and_verifies_es256_jws_cid_2025() {
     let keypair = generate_multikey_keypair(Algorithm::P256).expect("P-256 keypair");
     let proof = sign_data_integrity_proof(&DataIntegritySignInput {

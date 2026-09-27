@@ -151,6 +151,32 @@ fn verify_accepts_valid_issued_sd_jwt_and_restores_claims() {
 }
 
 #[test]
+fn verifies_more_than_one_hundred_selective_disclosures() {
+    let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).expect("keygen");
+    let issuer_jwk = issuer_jwk_from_public_key(&issuer_pub);
+    let mut input = IetfSdJwtIssueInput::new("did:me:issuer:large-disclosure-set");
+    for index in 0_u16..128 {
+        input
+            .selective_claims
+            .insert(format!("claim_{index:03}"), json!(u64::from(index)));
+    }
+
+    let issued = issue_ietf_sd_jwt_vc(&input, &issuer_jwk, &issuer_priv).expect("issue");
+    assert_eq!(issued.disclosures.len(), 128);
+    let compact = issued.to_compact().expect("compact serialization");
+    let verified =
+        verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub, &VERIFY_TEMPORAL_POLICY)
+            .expect("verify");
+
+    assert_eq!(verified.disclosures().len(), 128);
+    assert_eq!(verified.disclosed_claims().len(), 129);
+    assert_eq!(
+        verified.disclosed_claims().get("claim_127"),
+        Some(&json!(127_u64))
+    );
+}
+
+#[test]
 fn verify_rejects_tampered_disclosure() {
     let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).expect("keygen");
     let issuer_jwk = issuer_jwk_from_public_key(&issuer_pub);

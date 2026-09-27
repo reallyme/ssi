@@ -31,7 +31,7 @@
     "feature": "qcstatements_and_qwac_policy",
     "implementation": ["crates/trust/x509/src/qcstatements.rs", "crates/trust/x509/src/policy.rs", "crates/trust/x509/src/presets.rs"],
     "positive_tests": ["parses_qc_compliance_and_qctype_web", "qwac_policy_accepts_valid_shape", "x509_trust_policy_vectors_validate_or_fail_closed"],
-    "negative_tests": ["rejects_malformed_qcstatements_der", "qwac_policy_rejects_missing_qctype", "qwac_policy_rejects_wrong_qctype", "qwac_policy_rejects_missing_qc_compliance_statement", "qwac_policy_rejects_wrong_certificate_policy_oid", "x509_trust_policy_vectors_validate_or_fail_closed"],
+    "negative_tests": ["rejects_malformed_qcstatements_der", "qwac_policy_rejects_missing_qctype", "qwac_policy_rejects_wrong_qctype", "qwac_policy_rejects_missing_qc_compliance_statement", "qwac_policy_rejects_wrong_certificate_policy_oid"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -55,7 +55,7 @@
     "feature": "tsl_policy",
     "implementation": ["crates/trust/api/src/authorize.rs", "crates/trust/x509/src/tsl.rs", "crates/trust/x509/src/wasm.rs"],
     "positive_tests": ["authorizes_qeaa_issuer", "authorizes_ca_qc_leaf_through_matching_qualification_criteria", "tsl_policy_accepts_granted_bound_service", "tsl_policy_accepts_der_certificate_binding", "x509_trust_policy_vectors_validate_or_fail_closed"],
-    "negative_tests": ["rejects_wrong_service_type", "qualified_website_policy_does_not_replace_trusted_list_purpose", "matching_not_qualified_extension_overrides_certificate_claims", "rejects_a_list_that_is_not_fresh_at_the_evaluation_time", "tsl_policy_rejects_non_granted_service", "tsl_policy_rejects_wrong_service_type", "tsl_policy_rejects_stale_service_status", "tsl_policy_rejects_missing_ca_binding", "wasm_lane_reports_xmldsig_unavailable", "x509_trust_policy_vectors_validate_or_fail_closed"],
+    "negative_tests": ["rejects_wrong_service_type", "qualified_website_policy_does_not_replace_trusted_list_purpose", "matching_not_qualified_extension_overrides_certificate_claims", "rejects_a_list_that_is_not_fresh_at_the_evaluation_time", "tsl_policy_rejects_non_granted_service", "tsl_policy_rejects_wrong_service_type", "tsl_policy_rejects_stale_service_status", "tsl_policy_rejects_missing_ca_binding", "wasm_lane_reports_xmldsig_unavailable"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -67,7 +67,7 @@
     "feature": "tsl_territory_and_effective_time_policy",
     "implementation": ["crates/trust/x509/src/tsl.rs"],
     "positive_tests": ["tsl_policy_accepts_granted_bound_service", "x509_trust_policy_vectors_validate_or_fail_closed"],
-    "negative_tests": ["tsl_policy_rejects_wrong_territory", "tsl_policy_rejects_service_not_yet_effective", "tsl_policy_rejects_stale_service_status", "x509_trust_policy_vectors_validate_or_fail_closed"],
+    "negative_tests": ["tsl_policy_rejects_wrong_territory", "tsl_policy_rejects_service_not_yet_effective", "tsl_policy_rejects_stale_service_status"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -103,7 +103,7 @@
     "feature": "tsl_certificate_binding",
     "implementation": ["crates/trust/api/src/authorize.rs", "crates/trust/x509/src/tsl.rs"],
     "positive_tests": ["authorizes_qeaa_issuer", "authorizes_ca_qc_leaf_through_matching_qualification_criteria", "tsl_policy_accepts_granted_bound_service", "tsl_policy_accepts_der_certificate_binding", "x509_trust_policy_vectors_validate_or_fail_closed"],
-    "negative_tests": ["ca_qc_service_key_on_the_leaf_alone_does_not_authorize", "historical_match_ignores_a_self_asserted_subject_key_identifier", "tsl_policy_rejects_missing_ca_binding", "tsl_policy_rejects_ca_binding_mismatch", "x509_trust_policy_vectors_validate_or_fail_closed"],
+    "negative_tests": ["ca_qc_service_key_on_the_leaf_alone_does_not_authorize", "historical_match_ignores_a_self_asserted_subject_key_identifier", "tsl_policy_rejects_missing_ca_binding", "tsl_policy_rejects_ca_binding_mismatch"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -115,7 +115,7 @@
     "feature": "typed_conditional_key_identifier_aia_qscd_and_revocation_pointer_policy",
     "implementation": ["crates/trust/x509/src/policy.rs", "crates/trust/x509/src/presets.rs"],
     "positive_tests": ["typed_conditional_profile_rules_enforce_key_ids_aia_and_qscd"],
-    "negative_tests": ["typed_conditional_profile_rules_enforce_key_ids_aia_and_qscd", "ca_issuers_aia_alone_does_not_satisfy_revocation_pointer_policy"],
+    "negative_tests": ["ca_issuers_aia_alone_does_not_satisfy_revocation_pointer_policy"],
     "applicable": true,
     "exclusion_reason": null
   },

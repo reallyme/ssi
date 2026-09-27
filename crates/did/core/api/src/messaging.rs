@@ -13,8 +13,8 @@ use crate::error::DidApiError;
 use crate::rotate::rotate_keys;
 use crate::update::{update_did, UpdateConfig};
 use crate::validate::{
-    validate_did, validate_did_chain, validate_did_consistency, validate_did_transition,
-    DomainVerificationEnv,
+    validate_did, validate_did_chain_from_trusted_head, validate_did_consistency,
+    validate_did_transition, DidTrustedHead, DomainVerificationEnv,
 };
 
 const MESSAGING_SERVICE_TYPE: &str = "MessagingService";
@@ -93,12 +93,13 @@ pub fn discover_messaging_pre_keys(
 /// are returned. Every transition is authenticated before any pre-key is used.
 pub fn discover_messaging_pre_keys_from_chain(
     chain: &[DIDDocument],
+    trusted_head: DidTrustedHead<'_>,
     minimum_sequence: u64,
 ) -> Result<Vec<MessagingPreKeySnapshot>, DidApiError> {
     let head = chain
         .last()
         .ok_or(DidApiError::MessagingPreKeyDiscoveryInvalid)?;
-    let validation = validate_did_chain(chain, no_domain_env());
+    let validation = validate_did_chain_from_trusted_head(chain, trusted_head, no_domain_env());
     if !validation.ok {
         return Err(DidApiError::MessagingPreKeyDiscoveryInvalid);
     }

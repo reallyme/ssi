@@ -7,7 +7,7 @@
     "feature": "strict_versioned_registrar_shapes_and_jws_authentication",
     "implementation": ["crates/eudi/rp-registration/src/model.rs", "crates/eudi/rp-registration/src/registry.rs"],
     "positive_tests": ["current_envelope_preserves_profile_and_metadata", "current_array_preserves_pagination_and_current_intended_use_fields", "authentication_receipt_must_preserve_the_exact_jwks_chain", "accepts_standard_jwt_header_without_optional_typ", "verifies_jws_with_certificate_bound_jwks_key"],
-    "negative_tests": ["duplicate_member_is_rejected_before_semantic_parsing", "oversized_and_recursively_nested_json_are_rejected_before_model_allocation", "credential_format_cannot_be_substituted_across_metadata_profiles", "profile_shape_downgrade_is_rejected", "cross_origin_jwks_redirect_is_rejected", "incoherent_current_pagination_is_rejected", "authentication_receipt_must_preserve_the_exact_jwks_chain", "authentication_receipt_rejects_empty_and_oversized_chains", "jwks_rejects_same_algorithm_certificate_key_substitution", "rejects_jwk_certificate_public_key_mismatch", "rejects_non_verification_jwks_key_operation"],
+    "negative_tests": ["duplicate_member_is_rejected_before_semantic_parsing", "oversized_and_recursively_nested_json_are_rejected_before_model_allocation", "credential_format_cannot_be_substituted_across_metadata_profiles", "profile_shape_downgrade_is_rejected", "cross_origin_jwks_redirect_is_rejected", "incoherent_current_pagination_is_rejected", "authentication_receipt_rejects_empty_and_oversized_chains", "jwks_rejects_same_algorithm_certificate_key_substitution", "rejects_jwk_certificate_public_key_mismatch", "rejects_non_verification_jwks_key_operation"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -19,7 +19,7 @@
     "feature": "bounded_relying_party_service_intended_use_and_intermediary_models",
     "implementation": ["crates/eudi/rp-registration/src/model.rs", "crates/eudi/rp-registration/src/document.rs"],
     "positive_tests": ["legacy_encoder_is_exactly_one_element_and_has_no_secret_field", "service_requires_one_contact_channel_but_not_support_uri_specifically"],
-    "negative_tests": ["duplicate_member_is_rejected_before_semantic_parsing", "oversized_and_recursively_nested_json_are_rejected_before_model_allocation", "credential_format_cannot_be_substituted_across_metadata_profiles", "service_requires_one_contact_channel_but_not_support_uri_specifically", "entitlement_uris_and_attestation_provider_semantics_are_enforced"],
+    "negative_tests": ["duplicate_member_is_rejected_before_semantic_parsing", "oversized_and_recursively_nested_json_are_rejected_before_model_allocation", "credential_format_cannot_be_substituted_across_metadata_profiles", "entitlement_uris_and_attestation_provider_semantics_are_enforced"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -55,7 +55,7 @@
     "feature": "purpose_and_policy_scoped_ts5_registry_response_signer_trust",
     "implementation": ["crates/trust/core/src/model.rs", "crates/trust/core/src/evaluate.rs", "crates/trust/api/src/dto.rs", "crates/proto/proto/identity/trust/v1/trust.proto"],
     "positive_tests": ["ts5_registry_signing_direct_trust_vector_is_purpose_scoped", "ts5_registry_signing_pkix_vector_retains_exact_identity", "eudi_purpose_policy_pairs_round_trip_without_generic_fallback"],
-    "negative_tests": ["ts5_registry_signing_direct_trust_vector_is_purpose_scoped", "ts5_registry_signing_rejects_cross_purpose_policy_aliases", "ts5_registry_signing_proto_rejects_cross_identity_aliases"],
+    "negative_tests": ["ts5_registry_signing_rejects_cross_purpose_policy_aliases", "ts5_registry_signing_proto_rejects_cross_identity_aliases"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -67,7 +67,7 @@
     "feature": "proof_only_wrprc_jades_authentication_with_exact_expected_leaf",
     "implementation": ["crates/trust/jades/src/validate.rs", "crates/eudi/rp-registration/src/wrprc/proof.rs"],
     "positive_tests": ["authenticates_proof_only_against_the_exact_expected_leaf", "wrprc_receipt_binds_authenticated_representation_and_local_issuance_state"],
-    "negative_tests": ["authenticates_proof_only_against_the_exact_expected_leaf", "wrprc_proof_verifiers_reject_tampering_wrong_leaf_and_algorithm_substitution", "wrprc_proof_rejects_non_certificate_signer_bytes"],
+    "negative_tests": ["wrprc_proof_verifiers_reject_tampering_wrong_leaf_and_algorithm_substitution", "wrprc_proof_rejects_non_certificate_signer_bytes"],
     "applicable": true,
     "exclusion_reason": null
   },

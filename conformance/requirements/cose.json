@@ -115,7 +115,7 @@
     "feature": "portable_cose_vectors",
     "implementation": ["reallyme-cose/vectors/cose-sign1.json", "reallyme-cose/vectors/cose-key.json"],
     "positive_tests": ["portable_cose_sign1_vectors_verify", "portable_cose_key_vectors_roundtrip"],
-    "negative_tests": ["portable_cose_sign1_vectors_verify"],
+    "negative_tests": ["cose_rejects_tampered_payload"],
     "applicable": true,
     "exclusion_reason": null
   }

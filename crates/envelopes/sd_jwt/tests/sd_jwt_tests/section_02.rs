@@ -187,6 +187,37 @@ fn verify_sd_jwt_validates_key_binding_jwt() {
     assert_eq!(verified.key_binding_jwt(), Some(kb_jwt.as_str()));
     assert_eq!(verified.key_binding_payload(), Some(&kb_payload));
 
+    let mut stale_iat_payload = kb_payload.clone();
+    stale_iat_payload["iat"] = json!(1_683_000_000u64);
+    let stale_iat_jwt = encode_signed_jwt_with_header_options(
+        &stale_iat_payload,
+        &holder.jwk,
+        &holder.private,
+        &JwtHeaderEncodeOptions::new(Some("kb+jwt".to_owned())),
+    )
+    .expect("stale-iat KB JWT fixture");
+    let stale_iat_compact = format!("{compact_without_kb}{stale_iat_jwt}");
+    let stale_iat_error = verify_sd_jwt(
+        &stale_iat_compact,
+        &issuer.jwk,
+        &issuer.public,
+        &SdJwtVerificationOptions {
+            require_key_binding: true,
+            key_binding: Some(KeyBindingVerificationOptions {
+                holder_jwk: &holder.jwk,
+                holder_public_key: &holder.public,
+                expected_audience: "https://verifier.example",
+                expected_nonce: "nonce-123",
+                now_unix: 1_683_000_301,
+                max_future_iat_skew_seconds: 60,
+                max_iat_age_seconds: 300,
+            }),
+            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
+        },
+    )
+    .expect_err("KB-JWT older than the configured maximum must fail");
+    assert_eq!(stale_iat_error, SdJwtEnvelopeError::InvalidKeyBindingJwt);
+
     let bearer_payload = json!({
         "iss": "https://example.com/issuer",
         "vct": "urn:example:test",

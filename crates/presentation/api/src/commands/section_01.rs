@@ -224,28 +224,9 @@ pub struct PresentationDisclosureFact {
     pub claim_path: String,
     /// Disclosure mode satisfied by the presentation.
     pub mode: DisclosureMode,
+    /// Authenticated public operand carried by a predicate proof.
+    pub operand: reallyme_disclosure_policy::PredicateOperand,
 }
-
-impl core::fmt::Debug for PresentationDisclosureFact {
-    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        formatter.write_str("PresentationDisclosureFact(<redacted>)")
-    }
-}
-
-impl Zeroize for PresentationDisclosureFact {
-    fn zeroize(&mut self) {
-        self.claim_path.zeroize();
-        self.mode = DisclosureMode::Unspecified;
-    }
-}
-
-impl Drop for PresentationDisclosureFact {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
-impl ZeroizeOnDrop for PresentationDisclosureFact {}
 
 /// Status fact supplied by a credential-status verifier.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

@@ -8,10 +8,12 @@ use envelopes_x509::parse_cert_der;
 
 use subtle::ConstantTimeEq;
 
-use crate::{OcspError, ParsedOcspResponse, UnverifiedOcspResponse};
+use identity_revocation_ocsp_core::OcspError;
+
+use crate::model::{UnverifiedOcspResponse, VerifiedOcspResponse};
 
 /// Largest OCSP nonce accepted from a responder or host projection.
-pub const MAX_OCSP_NONCE_BYTES: usize = 32;
+const MAX_OCSP_NONCE_BYTES: usize = 32;
 const OCSP_NONCE_OID: &str = "1.3.6.1.5.5.7.48.1.2";
 
 /// Cross-check a response produced by a host platform verifier against the
@@ -27,22 +29,14 @@ const OCSP_NONCE_OID: &str = "1.3.6.1.5.5.7.48.1.2";
 /// RFC 5280 method (1) over the issuer subjectPublicKey bits. The certificate
 /// issuer name is matched exactly, and a present authorityKeyIdentifier must
 /// independently identify that issuer key.
-pub fn bind_response_to_certificates(
-    response: UnverifiedOcspResponse,
-    cert_der: &[u8],
-    issuer_der: &[u8],
-) -> Result<ParsedOcspResponse, OcspError> {
-    bind_response_to_certificates_with_nonce(response, cert_der, issuer_der, None)
-}
-
 /// Bind a host-produced response and require its authenticated nonce to equal
 /// the nonce sent in the corresponding OCSP request.
-pub fn bind_response_to_certificates_with_nonce(
+pub(crate) fn bind_response_to_certificates_with_nonce(
     response: UnverifiedOcspResponse,
     cert_der: &[u8],
     issuer_der: &[u8],
     expected_nonce: Option<&[u8]>,
-) -> Result<ParsedOcspResponse, OcspError> {
+) -> Result<VerifiedOcspResponse, OcspError> {
     if response.extensions.as_ref().is_some_and(|extensions| {
         extensions
             .iter()
@@ -87,7 +81,7 @@ pub fn bind_response_to_certificates_with_nonce(
     }
 
     let certificate_sha256 = reallyme_crypto::sha2::digest(cert_der);
-    Ok(ParsedOcspResponse::from_verified_backend(
+    Ok(VerifiedOcspResponse::new(
         response.issuer_key,
         *certificate_sha256.as_bytes(),
         response.serial,
@@ -99,7 +93,7 @@ pub fn bind_response_to_certificates_with_nonce(
 }
 
 /// Validate bounded OCSP nonce presence and equality.
-pub fn validate_response_nonce(
+pub(crate) fn validate_response_nonce(
     response_nonce: Option<&[u8]>,
     expected_nonce: Option<&[u8]>,
 ) -> Result<(), OcspError> {
@@ -123,3 +117,7 @@ pub fn validate_response_nonce(
 #[cfg(test)]
 #[path = "bind_response_unit_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "bind_response_tests.rs"]
+mod integration_tests;

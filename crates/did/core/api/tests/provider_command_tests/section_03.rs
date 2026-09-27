@@ -7,7 +7,7 @@ fn messaging_pre_key_rotation_rejects_malformed_or_incompatible_requests() {
     let Some((old_document, rotated_document)) =
         messaging_rotation_documents("did:me:provider-messaging-rotation-invalid-request")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let provider = SuccessfulRotateProvider {
         document: rotated_document,
@@ -47,14 +47,14 @@ fn messaging_pre_key_rotation_rejects_partial_rotation_and_provider_substitution
     let Some((old_document, rotated_document)) =
         messaging_rotation_documents("did:me:provider-messaging-rotation-substitution")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let Some(old_x25519) = old_document
         .verification_method
         .iter()
         .find(|method| method.id == "#x25519")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     let mut partial_rotation = rotated_document.clone();
     let Some(rotated_x25519) = partial_rotation
@@ -62,7 +62,7 @@ fn messaging_pre_key_rotation_rejects_partial_rotation_and_provider_substitution
         .iter_mut()
         .find(|method| method.id == "#x25519")
     else {
-        return;
+        panic!("required test fixture was not produced");
     };
     rotated_x25519.public_key_multibase = old_x25519.public_key_multibase.clone();
     let request = DidRotateMessagingPreKeysRequest {

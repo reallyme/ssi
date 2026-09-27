@@ -6,7 +6,10 @@ use super::{
     validate_did_ebsi_resolution, DidEbsiRegistryMetadata, DidEbsiResolution,
     DidEbsiResolutionAssurance, DidEbsiResolutionStatus, DidEbsiResolveRequest,
 };
-use crate::{parse_and_validate_did_ebsi_document, DidEbsiDocumentLimits, DidEbsiErrorReason};
+use crate::{
+    parse_and_validate_did_ebsi_document, parse_and_validate_did_ebsi_document_for_state,
+    DidEbsiDocumentLimits, DidEbsiDocumentState, DidEbsiErrorReason,
+};
 
 const DID: &str = "did:ebsi:zub5ZZUfHLLptCduwEy8xRj";
 const P256_X: &str = "axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpY";
@@ -17,6 +20,18 @@ fn document() -> Result<crate::DidEbsiDocument, crate::DidEbsiError> {
         r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{DID}","controller":"{DID}","verificationMethod":[{{"id":"{DID}#key-1","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{P256_X}","y":"{P256_Y}"}}}}],"assertionMethod":["{DID}#key-1"],"capabilityInvocation":["{DID}#key-1"]}}"#
     );
     parse_and_validate_did_ebsi_document(DID, bytes.as_bytes(), DidEbsiDocumentLimits::default())
+}
+
+fn deactivated_document() -> Result<crate::DidEbsiDocument, crate::DidEbsiError> {
+    let bytes = format!(
+        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{DID}","controller":[],"verificationMethod":[],"assertionMethod":[],"capabilityInvocation":[]}}"#
+    );
+    parse_and_validate_did_ebsi_document_for_state(
+        DID,
+        bytes.as_bytes(),
+        DidEbsiDocumentLimits::default(),
+        DidEbsiDocumentState::EffectivelyDeactivated,
+    )
 }
 
 fn request(version_id: Option<&str>, version_time: Option<&str>) -> DidEbsiResolveRequest {
@@ -112,6 +127,35 @@ fn absent_and_present_result_shapes_cannot_be_conflated() -> Result<(), crate::D
         validate_did_ebsi_resolution(&request(None, None), &missing_document)
             .err()
             .map(|error| error.reason),
+        Some(DidEbsiErrorReason::ResolutionResultInvalid)
+    );
+    Ok(())
+}
+
+#[test]
+fn registry_status_must_match_the_documents_deactivation_state() -> Result<(), crate::DidEbsiError>
+{
+    let mut deactivated_status_with_active_document = active()?;
+    deactivated_status_with_active_document.status = DidEbsiResolutionStatus::Deactivated;
+    assert_eq!(
+        validate_did_ebsi_resolution(
+            &request(None, None),
+            &deactivated_status_with_active_document,
+        )
+        .err()
+        .map(|error| error.reason),
+        Some(DidEbsiErrorReason::ResolutionResultInvalid)
+    );
+
+    let mut active_status_with_deactivated_document = active()?;
+    active_status_with_deactivated_document.document = Some(deactivated_document()?);
+    assert_eq!(
+        validate_did_ebsi_resolution(
+            &request(None, None),
+            &active_status_with_deactivated_document,
+        )
+        .err()
+        .map(|error| error.reason),
         Some(DidEbsiErrorReason::ResolutionResultInvalid)
     );
     Ok(())

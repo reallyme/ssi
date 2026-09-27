@@ -59,6 +59,14 @@ fn issue_input<'a>(key: &'a TestKey) -> JwtVcIssueInput<'a> {
     }
 }
 
+#[test]
+fn issue_input_debug_redacts_private_material() {
+    let key = gen_ed25519();
+    let input = issue_input(&key);
+
+    assert_eq!(format!("{input:?}"), "JwtVcIssueInput([REDACTED])");
+}
+
 fn valid_payload() -> JwtVcPayload {
     JwtVcPayload {
         iss: "did:me:issuer".to_owned(),

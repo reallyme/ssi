@@ -6,8 +6,8 @@
 
 use identity_core_primitives::Algorithm;
 use reallyme_disclosure_policy::{
-    eu_pid_policy, EvaluationContext, ExtractedDisclosure, QeaaContext, StatusContext,
-    VpPolicyError,
+    eu_pid_policy, EvaluationContext, ExtractedDisclosure, PredicateOperand, QeaaContext,
+    StatusContext, VpPolicyError,
 };
 use reallyme_vp_api::{
     classify_failures, validate_vp, validate_vp_strict, VpApiError, VpFailureClass,
@@ -32,6 +32,7 @@ fn validate_vp_returns_truth_first_acceptance_report() {
     let disclosures = [ExtractedDisclosure {
         claim_path: "/given_name".to_owned(),
         mode: DisclosureMode::Reveal,
+        operand: PredicateOperand::None,
     }];
     let status = StatusContext {
         checked: true,
@@ -73,6 +74,7 @@ fn validate_vp_preserves_all_policy_rejection_classes() {
     let disclosures = [ExtractedDisclosure {
         claim_path: "/given_name".to_owned(),
         mode: DisclosureMode::Hidden,
+        operand: PredicateOperand::None,
     }];
     let ctx = EvaluationContext {
         binding_ok: false,
@@ -93,7 +95,7 @@ fn validate_vp_preserves_all_policy_rejection_classes() {
     assert!(classes.contains(&VpFailureClass::Binding));
     assert!(classes.contains(&VpFailureClass::Algorithm));
     assert!(classes.contains(&VpFailureClass::Claims));
-    assert!(classes.contains(&VpFailureClass::Disclosure));
+    assert!(classes.contains(&VpFailureClass::Predicate));
     assert!(classes.contains(&VpFailureClass::Status));
     assert!(classes.contains(&VpFailureClass::Qeaa));
 

@@ -6,6 +6,7 @@ use identity_core_primitives::Algorithm;
 use identity_credential_claims_core::DisclosureMode;
 
 use crate::model::{RequiredClaim, VpPolicy};
+use crate::VpPolicyError;
 
 /// ----------------------------------------------------------------
 /// Default verifier policy (trait-based, idiomatic Rust)
@@ -61,15 +62,21 @@ impl Default for VpPolicy {
 impl VpPolicy {
     /// Add a required claim constraint.
     ///
-    /// Example:
-    /// policy.require_claim("/claims/age", DisclosureMode::Gte)
-    pub fn require_claim(mut self, claim_path: impl Into<String>, mode: DisclosureMode) -> Self {
+    /// Predicate modes require an explicit operand and are rejected here.
+    pub fn require_claim(
+        mut self,
+        claim_path: impl Into<String>,
+        mode: DisclosureMode,
+    ) -> Result<Self, VpPolicyError> {
+        if !matches!(mode, DisclosureMode::Hidden | DisclosureMode::Reveal) {
+            return Err(VpPolicyError::PolicyMisconfiguration);
+        }
         self.required_claims.push(RequiredClaim {
             claim_path: claim_path.into(),
             mode,
             operand: crate::PredicateOperand::None,
         });
-        self
+        Ok(self)
     }
 
     /// Add a numeric threshold predicate requirement.
@@ -78,12 +85,15 @@ impl VpPolicy {
         claim_path: impl Into<String>,
         mode: DisclosureMode,
         threshold: u64,
-    ) -> Self {
+    ) -> Result<Self, VpPolicyError> {
+        if !matches!(mode, DisclosureMode::Gte | DisclosureMode::Lte) {
+            return Err(VpPolicyError::PolicyMisconfiguration);
+        }
         self.required_claims.push(RequiredClaim {
             claim_path: claim_path.into(),
             mode,
             operand: crate::PredicateOperand::Threshold(threshold),
         });
-        self
+        Ok(self)
     }
 }

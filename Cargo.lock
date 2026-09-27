@@ -1386,7 +1386,6 @@ dependencies = [
  "reallyme-ssi-proto",
  "reallyme-trust-x509",
  "serde",
- "subtle",
  "thiserror",
  "time",
 ]
@@ -1400,7 +1399,11 @@ dependencies = [
  "js-sys",
  "openssl",
  "reallyme-codec-base64url",
+ "reallyme-crypto",
+ "reallyme-revocation",
+ "reallyme-trust-x509",
  "serde_json",
+ "time",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]
@@ -1414,6 +1417,7 @@ dependencies = [
  "reallyme-crypto",
  "reallyme-ssi-proto",
  "reallyme-trust-x509",
+ "subtle",
  "thiserror",
  "time",
 ]

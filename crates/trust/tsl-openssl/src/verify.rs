@@ -16,10 +16,12 @@ use crate::signer_profile::{TslSignatureAlgorithm, TslSignerProfileEvidence};
 #[cfg(feature = "native")]
 use crate::trust_roots::validate_trust_root_budget;
 
+mod signer_policy;
 #[cfg(feature = "native")]
 mod trust_error;
 #[cfg(feature = "native")]
 mod xmlsec_backend;
+use signer_policy::bind_tsl_signer_policy;
 #[cfg(feature = "native")]
 use trust_error::map_trust_failure;
 #[cfg(feature = "native")]
@@ -259,6 +261,8 @@ fn verify_tsl_xml_openssl_impl(
     use identity_trust_tsl_core::parse_tsl_xml;
     use reallyme_trust_core::{evaluate_trust_decision, TrustConfig, TrustOutcome};
 
+    let policy = bind_tsl_signer_policy(policy)?;
+
     // Root count and byte budgets are checked before XML parsing, OpenSSL DER
     // parsing, or backend allocation. This keeps configuration input from
     // moving work ahead of the trust core's fixed MAX_TRUST_ROOTS invariant.
@@ -452,19 +456,6 @@ fn verify_tsl_xml_openssl_impl(
     })
 }
 
-fn map_tsl_core_error(error: identity_trust_tsl_core::TslError) -> TslOpenSslError {
-    match error {
-        identity_trust_tsl_core::TslError::InvalidTag => TslOpenSslError::InvalidTag,
-        identity_trust_tsl_core::TslError::InvalidUpdateWindow => {
-            TslOpenSslError::InvalidUpdateWindow
-        }
-        identity_trust_tsl_core::TslError::UnsupportedCriticalExtension => {
-            TslOpenSslError::UnsupportedCriticalExtension
-        }
-        other => TslOpenSslError::TrustedList(other),
-    }
-}
-
 #[cfg(feature = "native")]
 fn sha256(value: &[u8]) -> [u8; 32] {
     *reallyme_crypto::sha2::digest(value).as_bytes()
@@ -479,9 +470,10 @@ fn verify_tsl_xml_openssl_impl(
     _community_lists: &[&VerifiedTrustedList],
     signer_authorization: TslSignerAuthorization<'_>,
     _now: time::OffsetDateTime,
-    _policy: envelopes_x509::policy::X509Policy,
+    policy: envelopes_x509::policy::X509Policy,
     _status_checker: &dyn identity_revocation_core::StatusChecker,
 ) -> Result<VerifiedTrustedList, TslOpenSslError> {
+    let _ = bind_tsl_signer_policy(policy)?;
     // Retain the exact external certificate in the portable typed API despite no verifier.
     match signer_authorization {
         TslSignerAuthorization::AuthenticatedPointer(pointer) => {

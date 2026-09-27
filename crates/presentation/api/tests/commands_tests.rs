@@ -6,7 +6,7 @@
 //! Test coverage for SDK-facing presentation commands.
 
 use identity_core_primitives::Algorithm;
-use reallyme_disclosure_policy::{eu_age_policy, eu_pid_policy};
+use reallyme_disclosure_policy::{eu_age_policy, eu_pid_policy, PredicateOperand};
 use reallyme_vp_api::error::PresentationCommandReason;
 use reallyme_vp_api::{
     create_presentation_request, evaluate_presentation_policy as verify_presentation, present,
@@ -28,6 +28,7 @@ fn disclosure() -> PresentationDisclosureFact {
     PresentationDisclosureFact {
         claim_path: "/given_name".to_owned(),
         mode: DisclosureMode::Reveal,
+        operand: PredicateOperand::None,
     }
 }
 
@@ -77,6 +78,14 @@ fn expired_zk_presentation() -> Presentation {
         },
         qeaa: None,
     }))
+}
+
+fn valid_zk_presentation() -> Presentation {
+    let mut presentation = expired_zk_presentation();
+    if let Presentation::Zk(zk) = &mut presentation {
+        zk.freshness.expiry_unix = 1_700_000_001;
+    }
+    presentation
 }
 
 fn facts() -> PresentationVerificationFacts {
@@ -148,6 +157,7 @@ fn create_presentation_request_rejects_invalid_disclosure() {
         required_claims: vec![PresentationDisclosureFact {
             claim_path: "/given_name".to_owned(),
             mode: DisclosureMode::Hidden,
+            operand: PredicateOperand::None,
         }],
         expires_at_unix: 1_800_000_000,
         purpose: None,
@@ -420,6 +430,69 @@ fn verify_presentation_compares_authenticated_nonce_and_audience_evidence() {
 }
 
 #[test]
+fn zk_verification_compares_authenticated_nonce_and_audience_evidence() {
+    for (verified_nonce, verified_audience_hash, failed_check) in [
+        (
+            Some([9_u8; 32]),
+            Some([2_u8; 32]),
+            PresentationCheckName::Nonce,
+        ),
+        (
+            Some([1_u8; 32]),
+            Some([9_u8; 32]),
+            PresentationCheckName::Audience,
+        ),
+        (None, Some([2_u8; 32]), PresentationCheckName::Nonce),
+        (Some([1_u8; 32]), None, PresentationCheckName::Audience),
+    ] {
+        let mut unbound = facts();
+        unbound.binding_ok = true;
+        unbound.verified_nonce = verified_nonce;
+        unbound.verified_audience_hash = verified_audience_hash;
+        let mut request = verify_request_with(expected_binding(), unbound, Vec::new());
+        request.presentation = valid_zk_presentation();
+
+        let result = verify_presentation(request);
+
+        assert_eq!(result.decision, PresentationDecision::Deny);
+        assert!(result.presentation_checks.iter().any(|check| {
+            check.name == failed_check
+                && check.outcome == PresentationCheckOutcome::Fail
+                && check.code == PresentationCheckCode::BindingMismatch
+        }));
+    }
+}
+
+#[test]
+fn verification_rejects_zero_or_future_presentation_times_for_every_format() {
+    for use_zk in [false, true] {
+        for context in [
+            PresentationVerificationContext {
+                evaluation_time_unix: 0,
+                presentation_time_unix: 0,
+            },
+            PresentationVerificationContext {
+                evaluation_time_unix: 1_700_000_000,
+                presentation_time_unix: 1_700_000_001,
+            },
+        ] {
+            let mut request = verify_request_with(expected_binding(), facts(), Vec::new());
+            request.presentation = if use_zk {
+                valid_zk_presentation()
+            } else {
+                presentation()
+            };
+            request.verification_context = context;
+
+            let result = verify_presentation(request);
+
+            assert_eq!(result.decision, PresentationDecision::Deny);
+            assert!(!result.valid);
+        }
+    }
+}
+
+#[test]
 fn verify_presentation_rejects_an_expired_zk_binding() {
     let mut request = verify_request_with(expected_binding(), facts(), Vec::new());
     request.presentation = expired_zk_presentation();
@@ -652,6 +725,7 @@ fn present_rejects_selections_over_the_command_ceiling() {
         .map(|index| PresentationDisclosureFact {
             claim_path: format!("/claim_{index}"),
             mode: DisclosureMode::Reveal,
+            operand: PredicateOperand::None,
         })
         .collect::<Vec<_>>();
     let oversized_claims = present(PresentationPresentRequest {

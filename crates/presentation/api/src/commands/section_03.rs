@@ -219,6 +219,7 @@ fn extracted_disclosures(disclosures: &[PresentationDisclosureFact]) -> Vec<Extr
         .map(|disclosure| ExtractedDisclosure {
             claim_path: disclosure.claim_path.clone(),
             mode: disclosure.mode,
+            operand: disclosure.operand.clone(),
         })
         .collect()
 }

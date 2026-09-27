@@ -243,6 +243,7 @@ fn validate_resolution_result_accepts_active_document() {
         version_id: Some(doc.current_core.clone()),
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -259,6 +260,7 @@ fn validate_resolution_result_rejects_absent_with_document() {
         version_id: None,
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -280,6 +282,7 @@ fn validate_resolution_result_requires_typed_not_found_for_absent_result() {
         version_id: None,
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -311,6 +314,7 @@ fn validate_resolution_result_rejects_oversized_request_before_provider_use() {
         version_id: None,
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -343,6 +347,7 @@ fn validate_resolution_result_rejects_unknown_requested_version() {
         version_id: Some("bafk-missing".into()),
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -361,6 +366,7 @@ fn validate_resolution_result_rejects_malformed_provider_timestamps() {
         version_id: None,
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -381,6 +387,7 @@ fn resolution_selectors_assurance_and_freshness_fail_closed() {
         version_id: Some(doc.current_core.clone()),
         version_time: Some("2026-02-01T00:00:00Z".into()),
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -394,6 +401,7 @@ fn resolution_selectors_assurance_and_freshness_fail_closed() {
         version_id: None,
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: Some(DidResolutionAssurance::ChainVerified),
         freshness: Some(DidResolutionFreshness {
             maximum_staleness_seconds: 60,
@@ -421,6 +429,7 @@ fn validate_resolution_result_accepts_deactivation_document() {
         version_id: Some(terminal.current_core.clone()),
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -469,6 +478,7 @@ fn resolve_did_with_provider_validates_provider_result() {
         version_id: None,
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -498,6 +508,7 @@ fn resolve_did_with_provider_preserves_domain_verification_warning() {
         version_id: None,
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };
@@ -521,6 +532,7 @@ fn owned_resolution_result_redacts_and_clears_provider_material() {
         version_id: None,
         version_time: None,
         minimum_version_sequence: None,
+        trusted_head: None,
         assurance: None,
         freshness: None,
     };

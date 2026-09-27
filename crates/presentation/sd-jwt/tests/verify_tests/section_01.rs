@@ -195,7 +195,7 @@ fn sd_jwt_vp_verifies_successfully() {
     let issuer_sd_jwt = issuer_sd_jwt_for_issued(&issued, &issuer_jwk, &issuer_priv);
 
     // Holder builds VP (disclosures + kb_jwt)
-    let vp = build_sd_jwt_presentation_with_kb_binding(
+    let mut vp = build_sd_jwt_presentation_with_kb_binding(
         &issued.subject_bundle,
         issuer_sd_jwt.clone(),
         &["/claims/age".into()],
@@ -277,6 +277,28 @@ fn sd_jwt_vp_verifies_successfully() {
     )
     .unwrap_err();
     assert!(matches!(stripped_kb_error, SdJwtVpError::MissingKeyBinding));
+
+    let grafted_disclosure = vp.disclosures[0].clone();
+    vp.disclosures.push(grafted_disclosure);
+    let grafted_disclosure_error = verify_sd_jwt_vp_with_binding(
+        &vp,
+        &issued.envelope,
+        &issuer_jwk,
+        &issuer_pub,
+        Some(&holder_pub),
+        ExpectedKbJwtBinding {
+            expected_audience: "verifier.example",
+            expected_nonce_32: sha2_256_digest(b"nonce-123").into_bytes(),
+            now_unix: 1_750_000_000,
+            max_iat_age_seconds: 300,
+            max_future_iat_skew_seconds: 60,
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(
+        grafted_disclosure_error,
+        SdJwtVpError::DisclosureSetMismatch
+    ));
 
     let future_iat = build_sd_jwt_presentation_with_kb_binding(
         &issued.subject_bundle,

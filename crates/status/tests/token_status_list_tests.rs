@@ -188,6 +188,45 @@ fn verifier_rejects_expired_token() {
 }
 
 #[test]
+fn verifier_rejects_exp_at_the_exact_boundary_without_a_ttl_shortcut() {
+    let mut expiring = claims();
+    expiring.ttl = None;
+    expiring.exp = Some(expiring.iat + 600);
+
+    assert_eq!(
+        verify_jwt_at(
+            &expiring,
+            expiring.exp.expect("fixture expiration"),
+            TokenStatusListFreshnessPolicy {
+                max_age_secs: 3_600
+            },
+        )
+        .unwrap_err(),
+        TokenStatusListError::Expired
+    );
+}
+
+#[test]
+fn verifier_rejects_a_future_issued_at_even_when_expiration_is_future() {
+    let mut future = claims();
+    future.iat = 1_800_001_000;
+    future.exp = Some(1_800_002_000);
+    future.ttl = None;
+
+    assert_eq!(
+        verify_jwt_at(
+            &future,
+            1_800_000_999,
+            TokenStatusListFreshnessPolicy {
+                max_age_secs: 3_600
+            },
+        )
+        .unwrap_err(),
+        TokenStatusListError::NotYetValid
+    );
+}
+
+#[test]
 fn draft_21_compression_vector_matches_exactly() {
     let statuses = [1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1];
     let payload = build_token_status_list_payload(&statuses, TokenStatusBits::One, None)

@@ -22,24 +22,15 @@
 //! - ASN.1 parsing.
 //! - Signature verification.
 //!
-//! Backends (OpenSSL, WASM, Swift, Kotlin) produce `ParsedOcspResponse`.
+//! Backend crates keep verified response construction private and expose only
+//! opaque receipts through the platform dispatch crate.
 
-/// Binding of host-produced OCSP results to submitted certificates.
-pub mod bind_response;
-/// Portable OCSP status checker.
-pub mod checker;
 /// Typed OCSP evaluation errors.
 pub mod error;
-/// Parsed OCSP response model and policy knobs.
+/// OCSP status model and policy knobs.
 pub mod model;
 
-pub use bind_response::{
-    bind_response_to_certificates, bind_response_to_certificates_with_nonce,
-    validate_response_nonce, MAX_OCSP_NONCE_BYTES,
-};
-pub use checker::OcspChecker;
 pub use error::OcspError;
 pub use model::{
-    OcspCertStatus, OcspExtension, OcspPolicy, ParsedOcspResponse, UnverifiedOcspResponse,
-    DEFAULT_MAX_OCSP_AGE_SECS,
+    OcspCertStatus, OcspExtension, OcspPolicy, DEFAULT_MAX_OCSP_AGE_SECS, MAX_OCSP_NONCE_BYTES,
 };
