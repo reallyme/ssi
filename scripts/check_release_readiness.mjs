@@ -7,10 +7,34 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  createReleaseReadinessContext,
-  scrubCommentsForAssertion,
-} from "./release-readiness/core.mjs";
+
+const releaseReadinessCoreUrl = process.env.RELEASE_READINESS_CORE_URL;
+if (typeof releaseReadinessCoreUrl !== "string" || releaseReadinessCoreUrl.length === 0) {
+  console.error("release readiness check failed: pinned runner did not supply its policy core");
+  process.exit(1);
+}
+
+let releaseReadinessCore;
+try {
+  const parsedCoreUrl = new URL(releaseReadinessCoreUrl);
+  if (parsedCoreUrl.protocol !== "file:") {
+    console.error("release readiness check failed: pinned runner policy core is invalid");
+    process.exit(1);
+  }
+  releaseReadinessCore = await import(parsedCoreUrl.href);
+} catch {
+  console.error("release readiness check failed: pinned runner policy core is invalid");
+  process.exit(1);
+}
+
+const { createReleaseReadinessContext, scrubCommentsForAssertion } = releaseReadinessCore;
+if (
+  typeof createReleaseReadinessContext !== "function" ||
+  typeof scrubCommentsForAssertion !== "function"
+) {
+  console.error("release readiness check failed: pinned runner policy core is incomplete");
+  process.exit(1);
+}
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const shared = createReleaseReadinessContext({
@@ -58,9 +82,9 @@ function assertFixtureCopies() {
   }
 }
 
-shared.assertReallyMeVendoredCorePolicy({
+shared.assertReallyMeReleasePackagePolicy({
   scriptPath: "scripts/check_release_readiness.mjs",
-  version: "0.6.3",
+  version: "0.6.4",
 });
 shared.assertWorkflowActionsPinned();
 shared.assertWorkflowPolicy({
@@ -294,7 +318,6 @@ shared.assertRustSourcePolicy({
 // validated in the repository that owns each SDK.
 shared.assertSpdxHeaders({
   exclusions: [
-    { path: "scripts/release-readiness/core.mjs", reason: "vendored" },
     { path: "crates/proto/src/generated/buffa", reason: "generated" },
     {
       path: "crates/credential/vc/ietf-sd-jwt/tests/demos.rs",
@@ -640,19 +663,14 @@ const readExpandedRustSource = (path, visited = new Set()) => {
 
 const readSearchableSource = (path) => {
   const source = path.endsWith(".rs") ? readExpandedRustSource(path) : readText(path);
-  // Repository-specific assertions share the same lexer-aware comment
-  // scrubbing as the reusable readiness controls. This matters for command
-  // flags: an inline or trailing comment must not preserve a retired control.
+  // Repository-specific assertions share the runner's lexer-aware comment
+  // scrubbing. Inline or trailing comments must not preserve retired controls.
   return scrubCommentsForAssertion(path, source);
 };
 
 const assertContains = (path, needle) => {
   const sourcePaths = [path, ...(focusedSourceContinuations.get(path) ?? [])];
-  if (
-    !sourcePaths.some((sourcePath) =>
-      readSearchableSource(sourcePath).includes(needle),
-    )
-  ) {
+  if (!sourcePaths.some((sourcePath) => readSearchableSource(sourcePath).includes(needle))) {
     fail(`${sourcePaths.join(" or ")} does not contain ${needle}`);
   }
 };
@@ -761,16 +779,13 @@ const apacheOnlySources = new Set([
 ]);
 const thirdPartyOnlySource =
   "crates/credential/vc/ietf-sd-jwt/tests/utils/mod.rs";
-const vendoredReleaseReadinessCore = "scripts/release-readiness/core.mjs";
 assertNoDocumentationSpdxHeaders();
 for (const path of findHeaderPolicyFiles()) {
   const source = readText(path);
   const sourceLines = source.split("\n");
   const headerRegion = sourceLines.slice(0, 40).join("\n");
   const expectedCopyright =
-    path === vendoredReleaseReadinessCore
-      ? "SPDX-FileCopyrightText: 2026 ReallyMe LLC"
-      : path === thirdPartyOnlySource
+    path === thirdPartyOnlySource
       ? "SPDX-FileCopyrightText: Copyright (c) 2024 DSR Corporation, Denver, Colorado."
       : "SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved";
   const expectedLicense = apacheOnlySources.has(path)
@@ -1166,19 +1181,23 @@ assertContains(
 );
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "ref: 3e66f9ecae25bbe3bd5fe21b1b5c7b7f182bce44",
+  "ref: dc6a067b31ec731a44eeb416a514ab218d27dd06",
 );
 assertContains(
   ".github/workflows/crates-package-preflight.yml",
-  "ref: 3e66f9ecae25bbe3bd5fe21b1b5c7b7f182bce44",
+  "ref: dc6a067b31ec731a44eeb416a514ab218d27dd06",
 );
 assertContains(
   "scripts/run_pinned_release_readiness.mjs",
-  'const RELEASE_READINESS_COMMIT = "3e66f9ecae25bbe3bd5fe21b1b5c7b7f182bce44";',
+  'const RELEASE_READINESS_COMMIT = "dc6a067b31ec731a44eeb416a514ab218d27dd06";',
 );
 assertContains(
   "scripts/run_pinned_release_readiness.mjs",
-  '"df73ee8fbbd9c6cbe90fc7dc94a880bfa48fa7ebb0a902d5862c9de393cc9d41"',
+  '"eb2cefa283a60fb21a2e51b5cc8d03600bb986ca0409d0318f764338a20395ba"',
+);
+assertContains(
+  "scripts/run_pinned_release_readiness.mjs",
+  '"ff5a11153e9fa365bbb0bbd98b6215eb50f91dbe1f2fbf20d498ecc512e37699"',
 );
 assertExists(".github/workflows/crates-package-preflight.yml");
 assertExists(".github/workflows/crates-release.yml");

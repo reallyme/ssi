@@ -10,7 +10,9 @@ import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
-const coreUrl = new URL("./release-readiness/core.mjs", import.meta.url).href;
+const coreUrl =
+  process.env.RELEASE_READINESS_CORE_URL ??
+  new URL("../.release-readiness/core.mjs", import.meta.url).href;
 
 const validWorkflow = `name: Gate fixture
 
