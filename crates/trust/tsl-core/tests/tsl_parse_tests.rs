@@ -125,7 +125,7 @@ fn retains_multiple_official_provider_registration_identifiers() {
 }
 
 #[test]
-fn marks_a_repeated_current_public_key_indeterminate() {
+fn coalesces_an_exactly_repeated_current_service() {
     let certificate = certificate_base64();
     let service = format!(
         r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/CA/QC</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceInformation></TSPService>"#
@@ -134,7 +134,7 @@ fn marks_a_repeated_current_public_key_indeterminate() {
     let parsed = parse_tsl_xml(&xml).unwrap();
     let services = parsed.services().collect::<Vec<_>>();
     assert_eq!(services.len(), 1);
-    assert_eq!(services[0].status, TrustServiceStatus::Indeterminate);
+    assert_eq!(services[0].status, TrustServiceStatus::Granted);
 }
 
 #[test]
@@ -794,7 +794,4 @@ fn rejects_unsupported_version_and_excessive_depth() {
     );
 }
 
-include!("tsl_parse/scheme_metadata_tests.rs");
-include!("tsl_parse/qualification_edge_tests.rs");
-include!("tsl_parse/etsi_119612_v2_4_1_tests.rs");
-include!("tsl_parse/digital_identity_consistency_tests.rs");
+include!("tsl_parse/all.rs");

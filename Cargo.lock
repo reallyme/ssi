@@ -1451,6 +1451,7 @@ version = "0.3.0"
 dependencies = [
  "quick-xml",
  "reallyme-codec-base64",
+ "reallyme-crypto",
  "reallyme-ssi-proto",
  "reallyme-trust-x509",
  "serde",
@@ -3085,6 +3086,7 @@ name = "reallyme-did-method-web"
 version = "0.3.0"
 dependencies = [
  "percent-encoding",
+ "reallyme-codec",
  "reallyme-did-method-jwk",
  "reallyme-did-method-key",
  "reallyme-ssi-core",

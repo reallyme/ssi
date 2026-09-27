@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# capture-date: 2026-09-27
+# columns: territory sha256 source
+EU	28ba00501a30c86259602e776f527780e76a1029363ac28fa53112ec19648680	https://ec.europa.eu/tools/lotl/eu-lotl.xml
+AT	f91bbd67a2bf913dfea5f35e9d3bf9157a1bac7d3d2377558ebf071e251e557b	https://www.signatur.rtr.at/vertrauensliste.xml
+BE	cabba95e3100a45edaf923b72d4fb6fa38a5b4bd5ab3a3555c2d79563e83396b	https://tsl.belgium.be/tsl-be.xml
+BG	b7ac246a31e6d805f4830cb36449ed86cdecef328a66a37b9bca9c2969b6fd66	https://crc.bg/files/_en/TSL_BG.xml
+CY	e6fdfec4ffc3f40aeb3231936a8097fc22e07a4f0e26e79d28a7e843da8203a8	https://dec.dmrid.gov.cy/dmrid/dec/ws_dec.nsf/all/5064247FF4FC3DCCC2258506002EEA17/$file/TSL-CY-sign.xml
+CZ	d491de75685929fec2274b2a259715013398b780a5eb2ea1c15f8776aaf8de95	https://tsl.gov.cz/publ/TSL_CZ.xtsl
+DE	18a60da7a4f9bcddb0c208c735f34b3c588b3d227b17b27e936c90481a807bc3	https://tl.bundesnetzagentur.de/TL-DE.xml
+DK	4fcbf5c7d4a3e6b62d54efd36123ae467dfd6f3dee6961a30a3df59e83c03326	https://www.digst.dk/TSLDK_v6xml
+EE	c6b7b872fadcafdd24ad772f7b6649c5c87e3aa27ea44952727ea73d2c435918	https://sr.riik.ee/tsl/estonian-tsl.xml
+EL	6ca821dc9e6781f974fa90e11cf896166d6d64cdae8fd5579d305106001a0bb1	https://www.eett.gr/tsl/tl-el.xml
+ES	19edfb5923cd27289ba78548255ca79ae5c9ae4b7dc8a5a334170d4a821a73cf	https://tsl.digital.gob.es/TSL.xml
+FI	1b5ba620df63a93a0810a0a6ccbdbfb55d34b40141a5dc8a6560a989db8b6f89	https://dp.trustedlist.fi/fi-tl-v6.xml
+FR	07578f8f158efcd070c67f47d198f54c94c79a268cbdde567287d7c9701bba16	https://messervices.cyber.gouv.fr/visas/tl-fr_v6.xml
+HR	1e51b2987fc41e54848e91c76cfc7017cd2ff0043b146b95efff018528468ae3	https://gov.hr/UserDocsImages/Usluge%20povjerenja/Pouzdani_popis_RH.xml
+HU	aa2dabaaea6266d907e12c4225d4173262466b9c6add91776776a00dd6c528a3	https://www.nmhh.hu/tl/pub/HU_TL.xml
+IE	9e88d44c3f33013b47463b2e473f672f23e69b20ae93c770228b0635707d4c3c	https://eidas.gov.ie/Irelandtslsignedv6.xml
+IS	ea3ff288d1e6c6668ea98bfc5b7c1a4e174aae855e093c0afc2648058d97d777	https://tsl.fjarskiptastofa.is/library/skrar/tsl/tsl.xml
+IT	4dc43dc5ee19c23d1b65262b8df65ac7c4f16f12727e59175fa76e092e0a6889	https://eidas.agid.gov.it/TL/TSL-IT.xml
+LI	f406b0346fd742340f5173c9080aa1368534b7e5503de1697bb827a6baf7ca1f	https://www.llv.li/serviceportal2/amtsstellen/amt-fuer-kommunikation/trustedlist-li.xml
+LT	c13de0bda8711b98b3b43c02a3f7daaed0598bf17a706b9a0b3df731384d85e5	https://rrt.lt/static/files/LT-TSL.xml
+LU	979384a04a416d6601c86fdd25a2921602a8e031be0f4df0a50d805f3913666c	https://trusted-list.lu/tsl.xml
+LV	406073daa0dcf04670002803ad91026001d85274da64a9264739027d88566be1	https://trustlist.gov.lv/tsl/latvian-tsl.xml
+MT	cf942917c4855535fddb101f4c10f0ff122e723a1c48bc7f717029e764cf211c	https://tsl.mca.org.mt/MT_TSL.xml
+NL	0a0cc4cbdec9e989318f2c5da634cb24cb69b349d57c39acc7e3804c62fb7979	https://www.rdi.nl/site/binaries/content/assets/site-content/bestanden/current-tsl.xml
+NO	1f4c834cd55fb32482bdc68351f3614bb77d44767c2b8631dcefb6430eef2ce4	https://nkom.no/files/TL/NO_TL.xml
+PL	30dd1589f76467f10f15062866e576c214be9c4b0f62529eea0e56e5045cad76	https://www.nccert.pl/tsl/PL_TSL.xml
+RO	f3e6d50c908c74bb9580f970af1ba3a2b7a144bd2d3e7bd4b28abb7eef5de839	https://trustedlist.adr.gov.ro/trustedlist.xml
+SE	fddd4a9af4bbfa89059b32eba6d821dc036ffba6a3839dc4abba7b668c104789	https://trustedlist.pts.se/tlv6/SE-TL.xml
+SI	03cece6d16b87f9740a263bce140b6cfa5405f2cceabd1840c7a4a6f729e2a85	https://www.tl.gov.si/SI_TL.xml
+SK	48ca61b4a2197aaec0bc2d75bfb0ab5e5bfde07722ee4f7fd08aea837155311f	http://tl.nbu.gov.sk/kca/tsl/tsl.xml

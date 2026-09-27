@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{
-    normalize_serial, CrlChecker, IndexedCrl, DEFAULT_CRL_ALLOWED_SKEW_SECS,
-    DEFAULT_MAX_CRL_AGE_SECS,
-};
+use super::{normalize_serial, CrlChecker, IndexedCrl, DEFAULT_CRL_ALLOWED_SKEW_SECS};
 use envelopes_x509::{parse_cert_der, X509Certificate};
 use identity_revocation_core::{StatusCheckError, StatusChecker};
 use openssl::hash::MessageDigest;
@@ -41,7 +38,7 @@ fn checker(crls: Vec<IndexedCrl>) -> CrlChecker {
     CrlChecker {
         crls,
         allowed_skew_secs: DEFAULT_CRL_ALLOWED_SKEW_SECS,
-        max_age_secs: DEFAULT_MAX_CRL_AGE_SECS,
+        max_age_secs: None,
     }
 }
 
@@ -63,7 +60,7 @@ fn future_this_update_is_not_yet_valid_outside_allowed_skew() {
     let checker = CrlChecker {
         crls: vec![crl_for(&leaf, Vec::new(), 1_000, 2_000)],
         allowed_skew_secs: 10,
-        max_age_secs: DEFAULT_MAX_CRL_AGE_SECS,
+        max_age_secs: None,
     };
 
     assert_eq!(checker.check(&leaf, 990), Ok(()));
@@ -84,7 +81,7 @@ fn inverted_window_and_skew_overflow_are_invalid_lists() {
     let overflow = CrlChecker {
         crls: vec![crl_for(&leaf, Vec::new(), 1_000, u64::MAX)],
         allowed_skew_secs: 1,
-        max_age_secs: DEFAULT_MAX_CRL_AGE_SECS,
+        max_age_secs: None,
     };
     assert_eq!(
         overflow.check(&leaf, 1_500),
@@ -98,11 +95,20 @@ fn relying_party_max_age_rejects_long_lived_crl() {
     let checker = CrlChecker {
         crls: vec![crl_for(&leaf, Vec::new(), 1_000, 10_000)],
         allowed_skew_secs: 0,
-        max_age_secs: 100,
+        max_age_secs: Some(100),
     };
 
     assert_eq!(checker.check(&leaf, 1_099), Ok(()));
     assert_eq!(checker.check(&leaf, 1_100), Err(StatusCheckError::Expired));
+}
+
+#[test]
+fn default_policy_honors_a_long_lived_crls_next_update() {
+    let leaf = leaf();
+    let one_year = 365 * 86_400;
+    let checker = checker(vec![crl_for(&leaf, Vec::new(), 1_000, 1_000 + one_year)]);
+
+    assert_eq!(checker.check(&leaf, 1_000 + one_year - 1), Ok(()));
 }
 
 #[test]

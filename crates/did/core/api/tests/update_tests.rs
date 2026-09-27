@@ -15,7 +15,10 @@ use reallyme_did_api::{
         deactivate_did, deactivate_did_validated, set_key_relationships, update_did,
         RelationshipAssignmentConfig, UpdateConfig,
     },
-    validate::{validate_did, validate_did_transition, DidValidationCode, DomainVerificationEnv},
+    validate::{
+        validate_did, validate_did_transition, validate_observed_did_successors, DidValidationCode,
+        DomainVerificationEnv,
+    },
     CreateConfig, KeySet,
 };
 
@@ -449,6 +452,44 @@ fn deactivate_did_validated_returns_terminal_document_and_validation_result() {
     assert_eq!(result.document.sequence, doc1.sequence + 1);
     assert!(result.document.verification_method.is_empty());
     assert!(result.keyset.get_public("#ed25519").is_ok());
+}
+
+#[test]
+fn observed_successors_bind_the_candidate_that_validated() {
+    let (previous, keys) = create_did(
+        CreateConfig {
+            profile: Some(DidProfile::Messaging),
+            also_known_as: None,
+            hardware_bound: None,
+            biometric_protected: None,
+            user_verification_method: None,
+            device_model: None,
+            services: None,
+            update_policy: None,
+            domain_verification: None,
+            verification_methods: None,
+            authentication: None,
+            assertion: None,
+            invocation: None,
+            key_agreement: None,
+            created: None,
+        },
+        "did:me:observed-successor",
+    )
+    .expect("create_did failed");
+    let (valid, _) = deactivate_did(&previous, &keys).expect("deactivate_did failed");
+    let mut invalid_first = valid.clone();
+    invalid_first.id = "did:invalid:successor".to_owned();
+
+    let validation = validate_observed_did_successors(
+        &previous,
+        &[invalid_first, valid],
+        DomainVerificationEnv {
+            resolve_txt: None,
+            fetch_url: None,
+        },
+    );
+    assert!(validation.ok, "{:?}", validation.errors);
 }
 
 #[test]

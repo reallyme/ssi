@@ -69,7 +69,18 @@ pub fn validate_observed_did_successors(
     env: DomainVerificationEnv,
 ) -> FullValidationResult {
     let mut result = core_validate_observed_successors(previous, successors, env);
-    if let Some(successor) = successors.first() {
+    let validated_successor = successors.iter().find(|successor| {
+        core_validate_did_document_transition(
+            previous,
+            successor,
+            DomainVerificationEnv {
+                resolve_txt: None,
+                fetch_url: None,
+            },
+        )
+        .ok
+    });
+    if let Some(successor) = validated_successor {
         apply_identifier_binding(successor, &mut result);
     }
     result

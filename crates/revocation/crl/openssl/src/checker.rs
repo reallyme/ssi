@@ -13,14 +13,14 @@ use openssl::x509::X509;
 
 /// Default clock-skew allowance applied to CRL `thisUpdate`/`nextUpdate`.
 pub const DEFAULT_CRL_ALLOWED_SKEW_SECS: u64 = 300;
-/// Default relying-party ceiling measured from CRL `thisUpdate`.
+/// Seven-day relying-party ceiling available as an explicit policy choice.
 pub const DEFAULT_MAX_CRL_AGE_SECS: u64 = 7 * 86_400;
 
 /// CRL-based status checker backed by verified OpenSSL CRLs
 pub struct CrlChecker {
     crls: Vec<IndexedCrl>,
     allowed_skew_secs: u64,
-    max_age_secs: u64,
+    max_age_secs: Option<u64>,
 }
 
 /// A CRL with its revoked serials normalized into an ordered set so lookups
@@ -68,7 +68,7 @@ impl CrlChecker {
         Self {
             crls,
             allowed_skew_secs: DEFAULT_CRL_ALLOWED_SKEW_SECS,
-            max_age_secs: DEFAULT_MAX_CRL_AGE_SECS,
+            max_age_secs: None,
         }
     }
 
@@ -81,7 +81,7 @@ impl CrlChecker {
     /// Override the relying-party age ceiling applied even when a CRL carries
     /// a much later `nextUpdate`.
     pub fn with_max_age_secs(mut self, max_age_secs: u64) -> Self {
-        self.max_age_secs = max_age_secs;
+        self.max_age_secs = Some(max_age_secs);
         self
     }
 }
@@ -97,7 +97,13 @@ fn normalize_serial(serial: &[u8]) -> &[u8] {
 }
 
 impl IndexedCrl {
-    fn evaluate(&self, serial: &[u8], now_unix: u64, skew: u64, max_age_secs: u64) -> CrlVerdict {
+    fn evaluate(
+        &self,
+        serial: &[u8],
+        now_unix: u64,
+        skew: u64,
+        max_age_secs: Option<u64>,
+    ) -> CrlVerdict {
         // RFC 5280 Section 5.1.2.4/5.1.2.5: a CRL is only usable between
         // thisUpdate and nextUpdate. Skew widens the window in the accepting
         // direction and every addition is checked so extreme values cannot
@@ -117,15 +123,17 @@ impl IndexedCrl {
         if now_unix > expires_at {
             return CrlVerdict::Rejected(StatusCheckError::Expired);
         }
-        let Some(max_age_expires_at) = self
-            .this_update_unix
-            .checked_add(max_age_secs)
-            .and_then(|value| value.checked_add(skew))
-        else {
-            return CrlVerdict::Rejected(StatusCheckError::InvalidList);
-        };
-        if now_unix >= max_age_expires_at {
-            return CrlVerdict::Rejected(StatusCheckError::Expired);
+        if let Some(max_age_secs) = max_age_secs {
+            let Some(max_age_expires_at) = self
+                .this_update_unix
+                .checked_add(max_age_secs)
+                .and_then(|value| value.checked_add(skew))
+            else {
+                return CrlVerdict::Rejected(StatusCheckError::InvalidList);
+            };
+            if now_unix >= max_age_expires_at {
+                return CrlVerdict::Rejected(StatusCheckError::Expired);
+            }
         }
 
         if self.revoked_serials.contains(serial) {

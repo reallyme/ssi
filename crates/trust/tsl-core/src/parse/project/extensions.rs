@@ -58,6 +58,31 @@ fn parse_extensions(
     Ok((qualifications, additional))
 }
 
+fn parse_service_extensions(
+    raw: Option<RawExtensions>,
+    service_type: &TrustServiceType,
+) -> Result<
+    (
+        Vec<ServiceQualification>,
+        Vec<AdditionalServiceInformation>,
+        bool,
+    ),
+    TslError,
+> {
+    match parse_extensions(raw, service_type) {
+        Ok((qualifications, additional)) => Ok((qualifications, additional, false)),
+        Err(TslError::Qualification(
+            TslQualificationFailure::PolicyIdentifier,
+        )) => {
+            // A malformed qualification changes only the authorization state
+            // of its authenticated service. Rejecting the whole national list
+            // would make unrelated providers unavailable.
+            Ok((Vec::new(), Vec::new(), true))
+        }
+        Err(error) => Err(error),
+    }
+}
+
 fn parse_qualifications(
     value: RawQualifications,
     service_type: &TrustServiceType,

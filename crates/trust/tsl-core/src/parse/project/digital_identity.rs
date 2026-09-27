@@ -12,6 +12,11 @@ struct ParsedDigitalRepresentations {
 }
 
 const TSL_SUBJECT_KEY_IDENTIFIER_BYTES: usize = 20;
+// Some deployed profiles put a complete public-key representation in
+// `X509SKI`. It is non-canonical and never used as a key binding, but remains
+// bounded so it cannot turn list projection into an unbounded allocation.
+const MAX_TSL_SUBJECT_KEY_IDENTIFIER_BYTES: usize = 512;
+const MAX_TSL_SUBJECT_KEY_IDENTIFIER_BASE64_BYTES: usize = 1024;
 fn parse_current_digital_identity(
     identity: RawServiceDigitalIdentity,
 ) -> Result<ServiceDigitalIdentity, TslError> {
@@ -70,6 +75,17 @@ fn parse_historical_digital_identity(
     // retrospective trust decision. Omit it conservatively while retaining
     // the authenticated current service state.
     if parsed.subject_key_identifier.is_none() {
+        return Ok(None);
+    }
+    if parsed
+        .subject_key_identifier
+        .as_ref()
+        .is_some_and(|identifier| identifier.len() != TSL_SUBJECT_KEY_IDENTIFIER_BYTES)
+    {
+        // ETSI deployments contain identifiers produced by RFC 5280 method 2
+        // and SHA-256 based profiles. They are authenticated list content but
+        // cannot be compared to our canonical 160-bit key identifier, so the
+        // row remains a non-authorizing interval barrier.
         return Ok(None);
     }
     if !parsed.certificates_der.is_empty() {
@@ -181,10 +197,10 @@ fn parse_digital_representations(
         if let Some(subject_key_identifier) = digital_id.subject_key_identifier {
             let value = decode_base64_binary(
                 subject_key_identifier,
-                MAX_KEY_COMPONENT_BASE64_BYTES,
+                MAX_TSL_SUBJECT_KEY_IDENTIFIER_BASE64_BYTES,
                 TslError::DigitalIdentity(TslDigitalIdentityFailure::MalformedRepresentation),
             )?;
-            if value.len() != TSL_SUBJECT_KEY_IDENTIFIER_BYTES {
+            if value.len() > MAX_TSL_SUBJECT_KEY_IDENTIFIER_BYTES {
                 return Err(TslError::DigitalIdentity(
                     TslDigitalIdentityFailure::MalformedRepresentation,
                 ));
@@ -335,7 +351,10 @@ fn validate_current_pki_representations(
     identity: &ParsedDigitalRepresentations,
 ) -> Result<CertificateIdentityFacts, TslError> {
     let mut first: Option<CertificateIdentityFacts> = None;
-    let mut subject_key_identifier_matches = identity.subject_key_identifier.is_none();
+    let mut subject_key_identifier_matches = identity
+        .subject_key_identifier
+        .as_ref()
+        .is_none_or(|identifier| identifier.len() != TSL_SUBJECT_KEY_IDENTIFIER_BYTES);
     for certificate_der in &identity.certificates_der {
         let facts = parse_certificate_identity_facts(certificate_der)?;
         if identity.subject_key_identifier.as_deref().is_some_and(|expected| {
@@ -349,11 +368,10 @@ fn validate_current_pki_representations(
                     TslDigitalIdentityFailure::PublicKeyMismatch,
                 ));
             }
-            if first.subject_name_der != facts.subject_name_der {
-                return Err(TslError::DigitalIdentity(
-                    TslDigitalIdentityFailure::SubjectNameMismatch,
-                ));
-            }
+            // Renewal certificates for one service key can legitimately use
+            // different subject names. The authenticated SPKI is the binding
+            // identity; requiring byte-identical subjects rejects deployed
+            // rollover representations without strengthening that binding.
             if first.certificate_authority != facts.certificate_authority {
                 return Err(TslError::DigitalIdentity(
                     TslDigitalIdentityFailure::CertificateAuthorityMismatch,

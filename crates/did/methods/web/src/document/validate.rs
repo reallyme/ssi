@@ -15,6 +15,8 @@ use crate::error::{DidWebError, DidWebErrorReason};
 use crate::method::{parse_did_web, DidWebIdentifier};
 
 const DID_CORE_CONTEXT: &str = "https://www.w3.org/ns/did/v1";
+const MAX_PUBLIC_KEY_MULTIBASE_BYTES: usize = 8 * 1024;
+const MAX_MULTICODEC_VARINT_BYTES: usize = 10;
 const RELATIONSHIPS: [&str; 5] = [
     "authentication",
     "assertionMethod",
@@ -194,62 +196,7 @@ fn validate_verification_method(
     validate_public_key_material(method_type, object)
 }
 
-fn validate_public_key_material(
-    method_type: &str,
-    object: &Map<String, Value>,
-) -> Result<(), DidWebError> {
-    let multibase = object.get("publicKeyMultibase");
-    let jwk = object.get("publicKeyJwk");
-    let account = object.get("blockchainAccountId");
-    let count = usize::from(multibase.is_some())
-        .checked_add(usize::from(jwk.is_some()))
-        .and_then(|value| value.checked_add(usize::from(account.is_some())))
-        .ok_or(DidWebError::new(
-            DidWebErrorReason::InvalidVerificationMethod,
-        ))?;
-    if count != 1 {
-        return Err(DidWebError::new(
-            DidWebErrorReason::InvalidVerificationMethod,
-        ));
-    }
-    if let Some(value) = multibase {
-        let encoded = value
-            .as_str()
-            .filter(|value| !value.is_empty())
-            .ok_or(DidWebError::new(
-                DidWebErrorReason::InvalidVerificationMethod,
-            ))?;
-        let mut did_key = String::from("did:key:");
-        did_key.push_str(encoded);
-        if reallyme_did_method_key::parse_did_key(&did_key).is_err()
-            || !matches!(
-                method_type,
-                "Multikey" | "Ed25519VerificationKey2020" | "X25519KeyAgreementKey2020"
-            )
-        {
-            return Err(DidWebError::new(
-                DidWebErrorReason::InvalidVerificationMethod,
-            ));
-        }
-    }
-    if let Some(value) = account {
-        if value.as_str().is_none_or(str::is_empty) {
-            return Err(DidWebError::new(
-                DidWebErrorReason::InvalidVerificationMethod,
-            ));
-        }
-    }
-    if let Some(value) = jwk {
-        if method_type != "JsonWebKey2020"
-            || reallyme_did_method_jwk::validate_public_jwk(value).is_err()
-        {
-            return Err(DidWebError::new(
-                DidWebErrorReason::InvalidVerificationMethod,
-            ));
-        }
-    }
-    Ok(())
-}
+include!("validate/key_material.rs");
 
 fn validate_relationship_set(value: Option<&Value>) -> Result<(), DidWebError> {
     let Some(value) = value else {

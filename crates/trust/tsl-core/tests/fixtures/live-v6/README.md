@@ -1,8 +1,8 @@
 # ETSI TS 119 612 v2.4.1 live-v6 conformance evidence
 
-`manifest.tsv` records the exact 31 UTF-8 national trusted-list documents selected from the authenticated Commission LOTL on 2026-09-17. Each row fixes the source document by SHA-256; all 31 documents pass portable projection. The documents themselves are not copied into the repository because they are signed, mutable publications owned by their scheme operators.
+`manifest.tsv` records the 31 UTF-8 national trusted-list documents selected from the authenticated Commission LOTL on 2026-09-17. `corpus-manifest.tsv` and `corpus/` preserve the later 2026-09-27 audit snapshot: the Commission LOTL and 29 fetched national documents, fixed by SHA-256. All 30 preserved documents must pass portable projection in `live_tsl_corpus_tests.rs`.
 
-The stable derived cases in `tests/tsl_parse/etsi_119612_v2_4_1_tests.rs` reproduce the parser semantics exercised by those documents without copying operator data. The manifest's final column identifies the corresponding test.
+The stable derived cases in `tests/tsl_parse/etsi_119612_v2_4_1_tests.rs` reproduce individual parser semantics and the preserved corpus guards against interactions that synthetic fixtures miss. The original manifest's final column identifies the corresponding derived test. The snapshots remain signed operator publications and are retained unmodified as test evidence.
 
 ## Clause decisions
 

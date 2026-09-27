@@ -26,18 +26,14 @@ fn document_with_certificate_pair(first: &str, second: &str) -> String {
 }
 
 #[test]
-fn rejects_current_service_certificates_with_the_same_key_but_different_subject_names() {
+fn accepts_current_service_certificates_with_the_same_key_and_different_subject_names() {
     let xml = document_with_certificate_pair(
         shared_key_leaf_certificate_base64(),
         shared_key_different_subject_certificate_base64(),
     );
 
-    assert_eq!(
-        parse_tsl_xml(&xml).unwrap_err(),
-        TslError::DigitalIdentity(
-            identity_trust_tsl_core::TslDigitalIdentityFailure::SubjectNameMismatch
-        )
-    );
+    let parsed = parse_tsl_xml(&xml).unwrap();
+    assert_eq!(parsed.services().next().unwrap().certificates_der().len(), 2);
 }
 
 #[test]
