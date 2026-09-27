@@ -6,148 +6,158 @@
 
 [![Rust CI](https://github.com/reallyme/ssi/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/reallyme/ssi/actions/workflows/rust-ci.yml)
 [![Fuzz](https://github.com/reallyme/ssi/actions/workflows/fuzz.yml/badge.svg)](https://github.com/reallyme/ssi/actions/workflows/fuzz.yml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.96-475569)](Cargo.toml)
 [![Security Policy](https://img.shields.io/badge/security-policy-0f766e)](SECURITY.md)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE-MIT)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
+
+[Identity](https://github.com/reallyme/identity) · **SSI** · [OpenID4VCI](https://github.com/reallyme/openid4vci) · [OpenID4VP](https://github.com/reallyme/openid4vp) · [Wallet](https://github.com/reallyme/wallet) · [ZK](https://github.com/reallyme/zk)
 
 </div>
 
-`reallyme-ssi` provides the shared identity foundation for digital credentials
-across the ReallyMe stack. It defines protocol-neutral models and operations
-for credentials, presentations, claims, DIDs, trust, status, and selective
-disclosure.
+ReallyMe SSI is the protocol-neutral identity and credential semantics layer of
+the ReallyMe stack. It defines shared models and policy for credentials,
+presentations, claims, canonical claim paths and commitments, selective
+disclosure, DIDs, trust, status and revocation evidence, credential formats,
+identity-oriented OAuth primitives, EUDI profiles, and stable protobuf/domain
+integration contracts.
 
-Credential formats including SD-JWT, mdoc, and the ReallyMe canonical-envelope JWT profile are
-implemented here independently of issuance and presentation protocols.
-OpenID4VCI and OpenID4VP build on these capabilities without duplicating
-credential, trust, or disclosure logic.
+Credential and presentation envelopes such as SD-JWT and mdoc are implemented
+independently of issuance and presentation sequencing. ReallyMe OpenID4VCI and
+OpenID4VP build on these capabilities without duplicating credential, trust,
+status, or disclosure logic.
 
-The core is independent of HTTP frameworks, persistence, network access, key
-management, and platform SDKs. External evidence and capabilities are supplied
-through explicit interfaces, keeping identity processing portable across
-server, native, and WebAssembly environments.
+SSI does not own HTTP orchestration, persistence, wallet lifecycle, key
+management, generic cryptography, concrete ZK circuits, or platform SDK
+packaging. External evidence and capabilities enter through explicit
+interfaces, keeping the semantic core portable across server, native, and
+WebAssembly environments.
 
 > **Looking for the ReallyMe SDK?** Start with
 > [ReallyMe Identity](https://github.com/reallyme/identity), the
 > application-facing SDK for building issuers, verifiers, wallets, and
-> identity-enabled applications. This repository provides the underlying
-> credential, presentation, trust, and identity primitives.
-
-This repository is in active pre-1.0 development. Its public contracts are
-standards-level Rust and protobuf surfaces; application operations and platform
-packages remain in ReallyMe Identity.
+> identity-enabled applications. This repository supplies the shared identity
+> and credential foundation beneath those SDKs.
 
 ## Capabilities
 
-| Area | Support |
+| Area | Responsibility |
 | --- | --- |
-| Identity data | Typed DID documents, verification methods, credentials, presentations, normalized claims, and canonical paths |
-| Credential formats | RFC 9901 SD-JWT, issuer-signed mdoc issuance and verification, a ReallyMe canonical-envelope JWT profile, and W3C Data Integrity |
-| Presentations | Protocol-neutral presentation construction, validation, and disclosure requirements |
-| Trust | X.509 helpers, trust policy, trusted-list processing, registration evidence, and Wasm-safe trust boundaries |
-| Status and revocation | Status-list validation and composition of resolved OCSP, CRL, and StatusList evidence |
-| Selective disclosure | Claim matching, disclosure planning, derivation requirements, and credential commitments |
-| DIDs | Method-neutral DID models, resolution boundaries, and pluggable DID methods |
-| OAuth | Shared OAuth primitives consumed by higher-level protocol implementations |
-| EUDI | ETSI EAA metadata, EU PID profiles, relying-party registration, and normative requirement indexes |
+| Identity data | Typed credentials, presentations, normalized claims, canonical paths, and DID documents |
+| Credential and presentation envelopes | RFC 9901 SD-JWT, construction and verification of issuer-signed mdoc documents, DeviceResponse processing, the ReallyMe canonical-envelope JWT profile, and the `did:me` proof profile |
+| Presentations | Protocol-neutral construction, validation, requested paths, and disclosure requirements |
+| Claims and commitments | Claim registries, canonical commitments, matching, disclosure planning, and derivation requirements |
+| Trust | X.509 policy, trusted-list processing, registration evidence, and native/Wasm trust boundaries |
+| Status and revocation | Status-list validation and composition of supplied OCSP, CRL, and StatusList evidence |
+| DIDs | Method-neutral DID models, validation, resolution boundaries, and pluggable method implementations |
+| OAuth | Shared, transport-injected OAuth primitives consumed by higher-level protocol implementations |
+| EUDI | ETSI EAA policy, EU PID profiles, relying-party registration, and requirement evidence |
 | Integration | Rust APIs, canonical protobuf schemas, ProtoJSON, bounded codecs, and typed errors |
-| Verification | Standards vectors, negative cases, conformance evidence, and fuzz testing |
+| Assurance evidence | Standards vectors, negative cases, requirement mappings, fuzzing, and release gates |
 
 ## Architecture
 
-```text
-                    Credential semantics
-                           SSI
-                            │
-                 canonical credential model
-                            │
-           ┌────────────────┼────────────────┐
-           ▼                ▼                ▼
-       SD-JWT VC          mdoc        ReallyMe ZK proof
-           └────────────────┼────────────────┘
-                            ▼
-                       OpenID4VP
-                            │
-                         Verifier
-```
-
-SSI owns credential meaning, canonical commitments, and format-independent
-disclosure requirements. SD-JWT VC, mdoc, and ReallyMe ZK proofs are different
-ways to represent or prove those semantics. The relationship is semantic: SSI
-does not depend on the ZK repository or select concrete circuits.
+This diagram describes conceptual ownership and composition, not Cargo
+dependency edges.
 
 ```text
-                 reallyme/crypto
-                  /           \
-                 ▼             ▼
-                SSI            ZK
-                 \             /
-                  └─────┬─────┘
-                        ▼
-                    OpenID4VP
-                        │
-                      Wallet
-                        │
-                     Identity
+                           Applications
+                                │
+                                ▼
+                       ReallyMe Identity
+                 application SDKs and composition
+                                │
+            ┌───────────────────┼───────────────────┐
+            ▼                   ▼                   ▼
+       OpenID4VCI          OpenID4VP              Wallet
+         issuance       presentation/session   state · consent
+            │               /       \          lifecycle · audit
+            │              /         \
+            └─────────────▼           ▼
+                          SSI      ReallyMe ZK
+                identity and credential   circuits and proof
+                      semantics           infrastructure
+                       /      \               /
+                    JOSE      COSE            /
+                       \       │             /
+                        └──────┴────────────┘
+                               ▼
+                        reallyme/crypto
 ```
 
-SSI and ZK are independently buildable sibling foundations. OpenID4VP composes
-their public contracts, Wallet manages presentation state and consent, and
-ReallyMe Identity provides the application-facing SDK layer.
+SSI defines what credentials, claims, commitments, trust evidence, status
+evidence, and disclosure requirements mean. SD-JWT and mdoc implement
+credential and presentation envelopes over those semantics. ReallyMe ZK is a
+sibling foundation: it defines circuits, proof contracts, artifacts, and proof
+providers for statements about SSI-owned semantics and commitments; it does
+not become the owner of credential semantics.
 
-SSI provides the protocol-neutral identity capabilities shared by ReallyMe's
-issuance, presentation, wallet, and application layers.
+OpenID4VCI sequences issuance. OpenID4VP sequences presentation and composes
+credential and proof capabilities into verifier-bound sessions. Wallet owns
+durable inventory, lifecycle, consent, persistence policy, and audit state.
+ReallyMe Identity packages the complete stack for applications.
 
-Cryptographic operations and generic JOSE and COSE structures are provided by
+Generic cryptographic operations and JOSE and COSE mechanics remain in
 [`reallyme/crypto`](https://github.com/reallyme/crypto),
 [`reallyme/jose`](https://github.com/reallyme/jose), and
-[`reallyme/cose`](https://github.com/reallyme/cose). SSI builds credential
-formats, identity models, trust evaluation, status validation, DIDs, and
-disclosure policy on those foundations.
+[`reallyme/cose`](https://github.com/reallyme/cose). SSI builds identity and
+credential semantics on those foundations rather than reimplementing them.
 
-Protocol sequencing is implemented by
-[`reallyme/openid4vci`](https://github.com/reallyme/openid4vci) and
-[`reallyme/openid4vp`](https://github.com/reallyme/openid4vp). Wallet inventory,
-consent, storage, lifecycle, and audit state are provided by
-[`reallyme/wallet`](https://github.com/reallyme/wallet).
+### Repository boundaries
 
-The DID framework is method-neutral. Individual DID methods integrate through
-explicit method interfaces rather than being coupled to credential or protocol
-implementations.
-
-Platform packaging is provided by ReallyMe Identity. Swift, Kotlin, TypeScript,
-native, and WebAssembly distributions compose the lower-level Rust components
-into application-facing artifacts rather than loading independent runtimes.
+| Layer | Responsibility |
+| --- | --- |
+| [ReallyMe Identity](https://github.com/reallyme/identity) | Application SDKs, platform facades, and final composition |
+| [ReallyMe OpenID4VCI](https://github.com/reallyme/openid4vci) | Issuance protocol mechanics and sequencing |
+| [ReallyMe OpenID4VP](https://github.com/reallyme/openid4vp) | Presentation protocol mechanics, session binding, and credential/proof composition |
+| ReallyMe SSI | Credential and identity semantics, envelopes, commitments, trust, status, DIDs, and disclosure policy |
+| [ReallyMe Wallet](https://github.com/reallyme/wallet) | Inventory, lifecycle, consent, persistence policy, and audit state |
+| [ReallyMe ZK](https://github.com/reallyme/zk) | Circuits, proof contracts, artifacts, and provider infrastructure |
+| [crypto](https://github.com/reallyme/crypto) / [JOSE](https://github.com/reallyme/jose) / [COSE](https://github.com/reallyme/cose) | Lower-level cryptographic, signing, encryption, and encoding mechanics |
 
 ## Standards
 
-| Standard or profile | SSI responsibility |
+The table describes the implemented SSI surface. It does not claim complete
+implementation of every feature in a cited specification or external
+certification.
+
+| Standard or profile | Implemented SSI responsibility |
 | --- | --- |
-| RFC 9901 — Selective Disclosure for JWTs (SD-JWT) | Disclosure construction, parsing, key binding, presentation, and validation policy |
+| RFC 9901 — Selective Disclosure for JWTs | SD-JWT issuance, disclosures, parsing, key binding, presentation, and validation policy |
 | ISO/IEC 18013-5:2021 mdoc and mDL | Issuer-signed documents, DeviceResponse construction, issuer authentication, and DeviceAuth verification |
-| W3C Verifiable Credentials Data Model 2.0 | Protocol-neutral credential and presentation semantics |
-| ReallyMe `did:me` proof | Dispatch and validation for the ReallyMe-defined `es256-jws-cid-2025` proof suite; this is not presented as a general W3C Data Integrity cryptosuite implementation |
-| W3C Decentralized Identifiers (DIDs) v1.0 | Method-neutral DID document types, resolution boundaries, and pluggable DID methods |
-| IETF Token Status List draft-21 | JWT and CWT status-evidence validation with bounded inputs |
-| ETSI EAA and EU PID profiles | Typed conformance policy and requirement evidence used by eIDAS-aligned applications |
+| W3C Verifiable Credentials Data Model 2.0 | Protocol-neutral credential and presentation models used by the supported envelope profiles |
+| ReallyMe `did:me` proof | Dispatch and validation for the ReallyMe-defined `es256-jws-cid-2025` suite; this is not a general W3C Data Integrity cryptosuite implementation |
+| W3C Decentralized Identifiers 1.0 | Method-neutral DID document types, validation and resolution boundaries, and pluggable DID methods |
+| IETF Token Status List draft-21 | Bounded JWT and CWT status-evidence parsing and validation |
+| ETSI EAA and EU PID profiles | Typed metadata and policy checks plus executable requirement evidence for the supported eIDAS-aligned surface |
 
 Generic JWS, JWT, JWE, COSE Sign1, and COSE Key mechanics remain in their
 foundational repositories rather than being reimplemented here.
 
-## Workspace
+## Which layer should I use?
+
+| Goal | Start here |
+| --- | --- |
+| Build an issuer, verifier, wallet, or identity-enabled application | Use [ReallyMe Identity](https://github.com/reallyme/identity) |
+| Implement issuance or presentation protocol behavior | Use [ReallyMe OpenID4VCI](https://github.com/reallyme/openid4vci) or [ReallyMe OpenID4VP](https://github.com/reallyme/openid4vp) |
+| Integrate protocol-neutral credential, trust, status, DID, or disclosure behavior | Compose the `reallyme-ssi` facade in the ReallyMe source workspace |
+| Use one independently published primitive | Select the corresponding component crate from its manifest and documentation |
+| Develop or audit SSI | Use this repository and the complete gate described under Development |
+
+## Repository structure
 
 | Path | Purpose |
 | --- | --- |
-| `crates/ssi` | Composed Rust facade consumed by protocols and services. |
-| `crates/proto`, `crates/proto-codec` | Canonical SSI protobuf schemas, generated messages, bounded codecs, and validated mappings. |
-| `crates/credential`, `crates/claims` | Credential semantics, issuance APIs, normalized claims, and disclosure validation. |
-| `crates/envelopes/*` | SD-JWT, mdoc, canonical-envelope JWT, Data Integrity, and envelope-profile implementations. |
-| `crates/did/*` | DID primitives, resolution engine, APIs, and method adapters. |
-| `crates/presentation/*` | Protocol-neutral presentation policy, validation, and SD-JWT support. |
-| `crates/trust/*` | Trust policy, X.509, trusted lists, JAdES, and Wasm boundaries. |
-| `crates/status`, `crates/revocation` | Local status validation and resolved revocation-evidence composition. |
-| `crates/delivery/*`, `crates/oauth` | Delivery artifacts and shared OAuth primitives. |
-| `crates/eudi/*`, `crates/audit` | EUDI registration, ETSI EAA, QEAA metadata, and audit-evidence policy. |
-| `conformance`, `vectors`, `fuzz` | Requirement inventory, standards vectors, negative cases, and adversarial testing. |
+| `crates/ssi` | Source-composition facade consumed by ReallyMe protocols and services |
+| `crates/proto`, `crates/proto-codec` | Canonical SSI protobuf schemas, generated messages, bounded codecs, and validated mappings |
+| `crates/credential`, `crates/claims` | Credential semantics, issuance APIs, normalized claims, commitments, and disclosure validation |
+| `crates/envelopes/*` | SD-JWT, mdoc, canonical-envelope JWT, supported Data Integrity proof, and envelope-profile implementations |
+| `crates/did/*` | DID primitives, validation and resolution engines, APIs, and method implementations |
+| `crates/presentation/*` | Protocol-neutral presentation models, policy, validation, and SD-JWT support |
+| `crates/trust/*` | Trust policy, X.509, trusted lists, JAdES, and Wasm trust boundaries |
+| `crates/status`, `crates/revocation` | Local status validation and supplied revocation-evidence composition |
+| `crates/delivery/*`, `crates/oauth` | Delivery artifacts and shared, transport-injected OAuth primitives |
+| `crates/eudi/*`, `crates/audit` | EUDI registration, ETSI EAA, QEAA metadata, and audit-evidence policy |
+| `conformance`, `vectors`, `fuzz` | Requirement inventory, standards vectors, negative cases, and adversarial testing |
 
 The facade exposes identity-owned capabilities through stable paths including
 `reallyme_ssi::credential::api`, `reallyme_ssi::delivery`,
@@ -155,16 +165,38 @@ The facade exposes identity-owned capabilities through stable paths including
 `reallyme_ssi::presentation`, `reallyme_ssi::oauth`, and
 `reallyme_ssi::single_use`.
 
-## Getting Started
+## Architecture boundaries
 
-| Goal | Start here |
-| --- | --- |
-| Build an application with ReallyMe | Use [ReallyMe Identity](https://github.com/reallyme/identity), the application-facing SDK. |
-| Integrate a credential protocol | Consume the `reallyme-ssi` facade from the corresponding ReallyMe source workspace. |
-| Use bounded Brotli independently | Use the published `reallyme-compression-brotli` crate. |
-| Develop SSI | Clone this repository and run the repository gate. The complete gate also uses sibling checkouts of `reallyme/jose`, `reallyme/cose`, and `me-id/protos` as described below. |
+Credential models own credential kind, profile, assurance, issuer, validity,
+status, subject binding, claim commitments, optional compliance evidence, and
+issuer signatures. OpenID exchange state, wallet persistence, and
+envelope-specific parsing remain outside those generic models.
 
-The repository scripts expect the same checkout layout used by CI:
+Status components validate supplied evidence. Hosts are responsible for
+fetching, caching, and native OCSP or CRL provider selection. Trust components
+evaluate supplied evidence without acquiring ambient network authority.
+
+Disclosure policy determines which claims may be disclosed and which verifier
+requirements need derivation. Concrete ZK circuit selection, witness building,
+proving, verification, and protocol-specific proof formats remain outside SSI
+and are composed by OpenID4VP.
+
+The DID framework is method-neutral. Individual DID methods integrate through
+explicit method interfaces rather than coupling credential or protocol models
+to a specific DID implementation.
+
+Generated protobuf types and bounded codecs form the durable integration
+contract. JSON is used where standards require interoperability; it is not a
+second in-process operation protocol.
+
+Platform packaging is provided by ReallyMe Identity. Swift, Kotlin,
+TypeScript, native, and WebAssembly artifacts are composed there rather than
+shipped as independent SSI runtimes.
+
+## Development
+
+SSI is developed alongside the JOSE, COSE, and shared protobuf repositories.
+Use the checkout layout required by CI:
 
 ```text
 <workspace>/reallyme/ssi
@@ -173,44 +205,11 @@ The repository scripts expect the same checkout layout used by CI:
 <workspace>/me-id/protos
 ```
 
-The `me-id/protos` checkout supplies imported protobuf contracts for linting,
-generation, freshness, and wire-compatibility checks. The JOSE and COSE
-checkouts supply the pinned upstream conformance suites executed by the full
-repository gate.
-
+`me-id/protos` supplies imported protobuf contracts for linting, generation,
+freshness, and wire-compatibility checks. The JOSE and COSE checkouts supply the
+pinned upstream conformance suites exercised by the complete repository gate.
 Published foundational crates—`reallyme-crypto`, `reallyme-codec`,
-`reallyme-jose`, and `reallyme-cose`—are version-pinned workspace dependencies.
-The SSI facade remains a source-workspace composition crate. Its reusable
-component crates are published separately when their manifests opt into
-publication; `cargo metadata` and the release preflight are the authoritative
-package inventory.
-
-## Architecture Boundaries
-
-Credential models define credential kind, profile, assurance, issuer, validity,
-status, subject binding, claim commitments, optional compliance evidence, and
-issuer signatures. OpenID exchanges, wallet persistence, and envelope-specific
-parsing remain outside those models.
-
-Status components validate supplied evidence; hosts are responsible for
-fetching, caching, and native OCSP or CRL provider selection. Trust components
-evaluate supplied evidence without acquiring ambient network access.
-
-Disclosure policy determines which claims may be disclosed and which verifier
-requirements need derivation. Concrete ZK circuit selection, witness building,
-proving, verification, and protocol-specific proof formats remain outside SSI
-and are composed by OpenID4VP.
-
-Generated protobuf types and bounded codecs form the durable integration
-contract. JSON remains an interoperability format where required by a standard
-rather than a second in-process operation protocol.
-
-## Development
-
-Contributor-facing repository boundaries are documented in
-[Architecture](docs/ARCHITECTURE.md). Standards requirements and generated
-verification evidence are documented alongside the executable
-[conformance inventory](conformance/README.md).
+`reallyme-jose`, and `reallyme-cose`—remain version-pinned dependencies.
 
 Run the repository gate and core workspace checks before submitting changes:
 
@@ -224,16 +223,35 @@ cargo check --workspace --no-default-features --features wasm --target wasm32-un
 cargo deny check
 ```
 
+Contributor-facing crate boundaries are documented in
+[Architecture](docs/ARCHITECTURE.md). Standards requirements and generated
+evidence are documented in the executable
+[conformance inventory](conformance/README.md). Cargo metadata and release
+preflight are the authoritative package inventory.
+
 ## Security
 
 SSI processes credentials, identity attributes, trust evidence, and
-cryptographic bindings. Production paths use typed errors, reject malformed
-signatures and proofs, and keep secret material behind explicit ownership
+cryptographic bindings. Parsers and codecs apply explicit input bounds;
+verification receives trust, status, time, and network-derived evidence through
+typed boundaries rather than ambient access. Production paths use typed errors,
+reject malformed or invalid credential signatures and SSI-owned proofs, and
+keep secret-bearing material behind explicit ownership and redacted diagnostic
 boundaries.
 
-Follow the [security policy](SECURITY.md) when reporting a vulnerability. Do
-not include credentials, identity attributes, private keys, trust evidence, or
-production identity data in reports.
+Report vulnerabilities through the [security policy](SECURITY.md). Do not
+include credentials, identity attributes, private keys, trust evidence, access
+tokens, or production identity data in reports.
+
+## Versioning
+
+SSI is in active pre-1.0 development. Workspace crates advance in lockstep, but
+only component crates whose manifests opt into publication are released to
+crates.io; the `reallyme-ssi` facade remains a source-workspace composition
+crate. Public Rust API changes follow Cargo's pre-1.0 compatibility rules.
+Protobuf schemas additionally pass freshness and wire-compatibility gates
+because they form cross-language integration contracts. Public crates declare
+Rust 1.96 as their minimum supported Rust version.
 
 ## License
 

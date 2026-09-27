@@ -1512,10 +1512,10 @@ assertContains("docs/ARCHITECTURE.md", "[`reallyme/jose`](https://github.com/rea
 assertContains("docs/ARCHITECTURE.md", "[`reallyme/cose`](https://github.com/reallyme/cose)");
 assertContains("docs/ARCHITECTURE.md", "`reallyme_ssi::credential::api`");
 assertContains("docs/ARCHITECTURE.md", "generated-protobuf surfaces under the SSI facade");
-assertContains("docs/ARCHITECTURE.md", "issuer-signed mdoc issuance and verification");
+assertContains("docs/ARCHITECTURE.md", "construction and verification of issuer-signed mdoc documents");
 assertContains("docs/ARCHITECTURE.md", "SSI has no dependency on `reallyme/zk`");
 assertContains("README.md", "Platform packaging is provided by ReallyMe Identity");
-assertContains("README.md", "issuer-signed mdoc issuance and verification");
+assertContains("README.md", "construction and verification of issuer-signed mdoc documents");
 assertContains("README.md", "[`reallyme/jose`](https://github.com/reallyme/jose)");
 assertContains("README.md", "[`reallyme/cose`](https://github.com/reallyme/cose)");
 assertContains("README.md", "`reallyme_ssi::credential::api`");
