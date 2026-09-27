@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-openid4vc-profiles"
-version = "0.3.0"
+version = "0.3.1"
 description = "Shared HAIP and EUDI profile identities for OpenID4VCI and OpenID4VP."
 edition.workspace = true
 rust-version.workspace = true

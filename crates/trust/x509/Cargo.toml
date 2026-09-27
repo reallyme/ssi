@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-trust-x509"
-version = "0.3.0"
+version = "0.3.1"
 description = "X.509 parsing and policy helpers for ReallyMe identity trust decisions."
 edition.workspace = true
 rust-version.workspace = true

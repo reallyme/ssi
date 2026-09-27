@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1
+
+This patch release exposes the already-validated metadata connection port at
+the OAuth transport boundary, allowing HTTP adapters to consume one complete
+DNS-pinned connection authority without reparsing the URL.
+
+### API hardening
+
+- `MetadataFetchRequest::port()` returns the validated destination as a
+  `NonZeroU16`. Standard HTTPS produces port 443, explicit HTTPS ports are
+  preserved, and an explicit zero port fails closed with `InvalidUrl` before
+  DNS resolution or metadata retrieval.
+- All workspace crates, including source-only internal crates, advance in
+  lockstep to version 0.3.1.
+
 ## 0.3.0
 
 This release hardens authentication and verification boundaries while preserving
