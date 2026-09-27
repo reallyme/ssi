@@ -148,5 +148,5 @@ pub(crate) fn canonical_disclosure_set_hash(
 }
 
 #[cfg(test)]
-#[path = "build/protocol_wire_vector_tests.rs"]
+#[path = "build_protocol_wire_vector_tests.rs"]
 mod protocol_wire_vector_tests;

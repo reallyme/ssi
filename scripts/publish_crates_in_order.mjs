@@ -461,15 +461,6 @@ function isEarlierWorkspaceDependency(pkg, depName) {
 }
 
 function inspectPackage(pkg) {
-  const listArgs = ["package", "-p", pkg.name, "--list", "--locked"];
-  if (allowDirty) {
-    listArgs.push("--allow-dirty");
-  }
-  const listResult = run("cargo", listArgs);
-  if (listResult.status !== 0) {
-    process.exit(listResult.status ?? 1);
-  }
-
   const manifestPath = path.join(unpackDirectory, `${pkg.name}-${pkg.version}`, "Cargo.toml");
   const patchArgs = [];
   for (const dependency of ordered) {

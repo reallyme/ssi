@@ -941,11 +941,10 @@ assertNotContains(".github/workflows/crates-package-preflight.yml", "Install XML
 assertContains(".github/workflows/fuzz.yml", "path: reallyme/ssi");
 assertNotContains(".github/workflows/fuzz.yml", "repository: reallyme/zk");
 assertContains(".github/workflows/fuzz.yml", "working-directory: reallyme/ssi");
-const fuzzCi = readText(".github/workflows/fuzz.yml");
-const fuzzMarkdownIgnoreCount = fuzzCi.match(/- "!\*\*\/\*\.md"/gu)?.length ?? 0;
-if (fuzzMarkdownIgnoreCount !== 2) {
-  fail("fuzz.yml must ignore Markdown-only pushes and pull requests");
-}
+assertNotContains(".github/workflows/fuzz.yml", "  pull_request:");
+assertNotContains(".github/workflows/fuzz.yml", "  push:");
+assertContains(".github/workflows/fuzz.yml", "  schedule:");
+assertContains(".github/workflows/fuzz.yml", "  workflow_dispatch:");
 
 assertContains(
   ".github/workflows/rust-ci.yml",
@@ -1425,7 +1424,7 @@ assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-trust-x509");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-mdoc");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-sd-jwt");
 assertExists(".github/workflows/fuzz.yml");
-assertContains(".github/workflows/fuzz.yml", "cargo +nightly-2026-09-01 fuzz build");
+assertNotContains(".github/workflows/fuzz.yml", "cargo +nightly-2026-09-01 fuzz build");
 for (const target of requiredFuzzTargets) {
   assertContains("fuzz/Cargo.toml", `name = "${target}"`);
   assertContains("fuzz/README.md", `\`${target}\``);
