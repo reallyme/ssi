@@ -9,9 +9,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
-const RELEASE_READINESS_COMMIT = "dc6a067b31ec731a44eeb416a514ab218d27dd06";
+const RELEASE_READINESS_COMMIT = "586890e2999043d77e07e589cd3dbdfe3ae3e154";
 const RELEASE_READINESS_CORE_SHA256 =
-  "eb2cefa283a60fb21a2e51b5cc8d03600bb986ca0409d0318f764338a20395ba";
+  "4ca93c819c4e5713fe2fd95eb13421dbd10b60e57518086281c28a1041772e1e";
 const RELEASE_READINESS_RUNNER_SHA256 =
   "ff5a11153e9fa365bbb0bbd98b6215eb50f91dbe1f2fbf20d498ecc512e37699";
 const RELEASE_READINESS_BASE_URL =
