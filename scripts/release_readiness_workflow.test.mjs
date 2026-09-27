@@ -48,7 +48,7 @@ const policy = {
   ],
 };
 
-function runFixture(workflow) {
+function runFixture(workflow, selectedPolicy = policy) {
   const root = mkdtempSync(join(tmpdir(), "ssi-workflow-policy-"));
   mkdirSync(join(root, ".github", "workflows"), { recursive: true });
   mkdirSync(join(root, "scripts"), { recursive: true });
@@ -62,7 +62,7 @@ function runFixture(workflow) {
       repoRoot: "..",
       failurePrefix: "workflow fixture failed",
     });
-    context.assertWorkflowPolicy(${JSON.stringify(policy)});
+    context.assertWorkflowPolicy(${JSON.stringify(selectedPolicy)});
   `;
   return spawnSync(process.execPath, ["--input-type=module", "--eval", source], {
     cwd: root,
@@ -73,6 +73,15 @@ function runFixture(workflow) {
 test("workflow policy accepts an active control in the required job and directory", () => {
   const result = runFixture(validWorkflow);
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("workflow required text rejects a value that appears only in a comment", () => {
+  const result = runFixture(`${validWorkflow}\n# required-active-marker\n`, {
+    path: ".github/workflows/gate.yml",
+    required: ["required-active-marker"],
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /workflow fixture failed/u);
 });
 
 for (const [name, mutate] of [

@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 // This module is intentionally written as a standalone, vendorable release
 // readiness core. Sister repositories should copy it byte-for-byte or consume a
 // pinned upstream revision so release-critical checks do not drift silently.
-export const RELEASE_READINESS_VERSION = "0.6.2";
+export const RELEASE_READINESS_VERSION = "0.6.3";
 
 const DEFAULT_FAILURE_PREFIX = "release readiness check failed";
 const MAX_PRODUCTION_SOURCE_LINES = 500;
@@ -371,6 +371,119 @@ const scrubSlashCommentsAndStrings = (source, options = {}) => {
   return output;
 };
 
+const scrubSlashCommentsPreservingStrings = (source) => {
+  let output = "";
+  let state = "normal";
+  let blockDepth = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    const next = source[index + 1];
+    if (state === "normal") {
+      if (character === "/" && next === "/") {
+        output += "  ";
+        index += 1;
+        state = "line-comment";
+      } else if (character === "/" && next === "*") {
+        output += "  ";
+        index += 1;
+        blockDepth = 1;
+        state = "block-comment";
+      } else {
+        output += character;
+        if (character === '"' || character === "'") {
+          state = character === '"' ? "double-quoted-string" : "single-quoted-string";
+        }
+      }
+      continue;
+    }
+    if (state === "line-comment") {
+      if (character === "\n") {
+        output += "\n";
+        state = "normal";
+      } else {
+        output += " ";
+      }
+      continue;
+    }
+    if (state === "block-comment") {
+      if (character === "/" && next === "*") {
+        output += "  ";
+        index += 1;
+        blockDepth += 1;
+      } else if (character === "*" && next === "/") {
+        output += "  ";
+        index += 1;
+        blockDepth -= 1;
+        if (blockDepth === 0) {
+          state = "normal";
+        }
+      } else {
+        output += character === "\n" ? "\n" : " ";
+      }
+      continue;
+    }
+    output += character;
+    if (character === "\\" && next !== undefined) {
+      output += next;
+      index += 1;
+    } else if (
+      (state === "double-quoted-string" && character === '"') ||
+      (state === "single-quoted-string" && character === "'")
+    ) {
+      state = "normal";
+    }
+  }
+  return output;
+};
+
+const scrubHashCommentsPreservingStrings = (source) =>
+  source
+    .split("\n")
+    .map((line) => {
+      let quote = null;
+      for (let index = 0; index < line.length; index += 1) {
+        const character = line[index];
+        if (quote !== null) {
+          if (character === "\\") {
+            index += 1;
+          } else if (character === quote) {
+            quote = null;
+          }
+          continue;
+        }
+        if (character === '"' || character === "'") {
+          quote = character;
+        } else if (character === "#" && (index === 0 || /\s/u.test(line[index - 1]))) {
+          return line.slice(0, index);
+        }
+      }
+      return line;
+    })
+    .join("\n");
+
+const scrubHtmlComments = (source) => source.replace(/<!--[\s\S]*?-->/gu, (comment) =>
+  comment.replace(/[^\n]/gu, " "));
+
+const scrubCommentsForAssertion = (path, source) => {
+  const extension = extname(path).toLowerCase();
+  if ([".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"].includes(extension)) {
+    return scrubJavaScriptCommentsAndStrings(source, { preserveStrings: true });
+  }
+  if (
+    [".c", ".cc", ".cpp", ".h", ".hpp", ".java", ".kt", ".kts", ".proto", ".rs", ".swift"]
+      .includes(extension)
+  ) {
+    return scrubSlashCommentsPreservingStrings(source);
+  }
+  if ([".py", ".rb", ".sh", ".toml", ".yaml", ".yml"].includes(extension) || path.endsWith("/.gitignore")) {
+    return scrubHashCommentsPreservingStrings(source);
+  }
+  if (extension === ".md") {
+    return scrubHtmlComments(source);
+  }
+  return source;
+};
+
 export function createReleaseReadinessContext(options) {
   const {
     scriptUrl,
@@ -663,7 +776,7 @@ export function createReleaseReadinessContext(options) {
   };
 
   const assertContains = (path, needle) => {
-    if (!readText(path).includes(needle)) {
+    if (!scrubCommentsForAssertion(path, readText(path)).includes(needle)) {
       fail(`${path} does not contain ${needle}`);
     }
   };
@@ -3743,6 +3856,9 @@ cargo install protoc-gen-buffa-packaging --version "$BUFFA_VERSION" --locked`,
           }
           const runIndent = runMatch[1].length;
           const marker = runMatch[2].trim();
+          if (marker === ">") {
+            fail(`${path} step ${name} uses an unsupported folded run scalar`);
+          }
           if (/^[>|][-+]?$/u.test(marker)) {
             const blockLines = [];
             for (let blockCursor = cursor + 1; blockCursor < end; blockCursor += 1) {

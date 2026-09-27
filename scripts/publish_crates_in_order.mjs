@@ -42,6 +42,8 @@ const unknownArgs = args.slice(1).filter((arg) => arg !== "--allow-dirty");
 const releaseVersion = process.env.RELEASE_VERSION ?? "";
 const publicationLedgerPath = process.env.PUBLICATION_LEDGER_PATH ?? "";
 const releaseSha = process.env.RELEASE_SHA ?? "";
+const reviewedArchiveDirectoryValue =
+  process.env.REVIEWED_CRATE_ARCHIVES_DIRECTORY ?? "";
 
 if (
   (mode !== MODE_INSPECT && mode !== MODE_ORDER && mode !== MODE_PUBLISH) ||
@@ -60,6 +62,11 @@ if (allowDirty && mode !== MODE_INSPECT && mode !== MODE_ORDER) {
 
 if (mode === MODE_PUBLISH && releaseVersion.length === 0) {
   console.error("RELEASE_VERSION must be set when publishing crates.");
+  process.exit(2);
+}
+
+if (mode === MODE_PUBLISH && reviewedArchiveDirectoryValue.length === 0) {
+  console.error("REVIEWED_CRATE_ARCHIVES_DIRECTORY must be set when publishing crates.");
   process.exit(2);
 }
 
@@ -123,6 +130,10 @@ if (metadataResult.status !== 0) {
 
 const metadata = JSON.parse(metadataResult.stdout);
 const packageDirectory = path.join(metadata.target_directory, "package");
+const reviewedArchiveDirectory =
+  reviewedArchiveDirectoryValue.length === 0
+    ? null
+    : path.resolve(reviewedArchiveDirectoryValue);
 
 function isPublishablePackage(pkg) {
   return !(Array.isArray(pkg.publish) && pkg.publish.length === 0);
@@ -324,6 +335,59 @@ checkPathDependencyVersions();
 checkRequiredPublishOrderEdges();
 checkReleaseVersion();
 
+function reviewedArchivePath(pkg) {
+  if (reviewedArchiveDirectory === null) {
+    return null;
+  }
+  return path.join(reviewedArchiveDirectory, `${pkg.name}-${pkg.version}.crate`);
+}
+
+function validateReviewedArchiveSet() {
+  if (mode !== MODE_PUBLISH || reviewedArchiveDirectory === null) {
+    return;
+  }
+
+  let directoryStatus;
+  let entries;
+  try {
+    directoryStatus = fs.lstatSync(reviewedArchiveDirectory);
+    entries = fs.readdirSync(reviewedArchiveDirectory).filter((entry) => entry.endsWith(".crate"));
+  } catch {
+    console.error("reviewed crate archive directory is unavailable");
+    process.exit(1);
+  }
+  if (directoryStatus.isSymbolicLink() || !directoryStatus.isDirectory()) {
+    console.error("reviewed crate archive directory is not a regular directory");
+    process.exit(1);
+  }
+
+  const expected = ordered.map((pkg) => `${pkg.name}-${pkg.version}.crate`).sort();
+  const actual = entries.sort();
+  if (
+    actual.length !== expected.length ||
+    actual.some((entry, index) => entry !== expected[index])
+  ) {
+    console.error("reviewed crate archive set does not match the publish set");
+    process.exit(1);
+  }
+
+  for (const archive of actual) {
+    let status;
+    try {
+      status = fs.lstatSync(path.join(reviewedArchiveDirectory, archive));
+    } catch {
+      console.error("reviewed crate archive set cannot be inspected");
+      process.exit(1);
+    }
+    if (status.isSymbolicLink() || !status.isFile() || status.size === 0) {
+      console.error("reviewed crate archive set contains a non-regular file");
+      process.exit(1);
+    }
+  }
+}
+
+validateReviewedArchiveSet();
+
 if (mode === MODE_ORDER) {
   process.exit(0);
 }
@@ -507,11 +571,13 @@ function publishPackage(pkg) {
     process.stderr.write(result.stderr);
 
     if (result.status === 0) {
+      verifyPublishedPackageMatches(pkg);
       return "published";
     }
 
     const combined = `${result.stdout}\n${result.stderr}`;
     if (combined.includes("already uploaded") || combined.includes("already exists")) {
+      packageForPublishedComparison(pkg);
       verifyPublishedPackageMatches(pkg);
       console.log(`${pkg.name} ${pkg.version} is already published; continuing.`);
       return "verified_existing";
@@ -590,6 +656,19 @@ function archiveSha256(pkg) {
   return createHash("sha256").update(fs.readFileSync(archive)).digest("hex");
 }
 
+function packageForPublishedComparison(pkg) {
+  const result = run(
+    "cargo",
+    ["package", "-p", pkg.name, "--no-verify", "--locked"],
+    { capture: true },
+  );
+  process.stdout.write(result.stdout);
+  process.stderr.write(result.stderr);
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
 if (mode === MODE_PUBLISH) {
   publicationLedger.state = "in_progress";
   writePublicationLedger();
@@ -599,6 +678,24 @@ function verifyPublishedPackageMatches(pkg) {
   const localArchive = path.join(packageDirectory, `${pkg.name}-${pkg.version}.crate`);
   if (!fs.existsSync(localArchive)) {
     console.error(`${pkg.name} ${pkg.version} local package archive is missing`);
+    process.exit(1);
+  }
+
+  const reviewedArchive = reviewedArchivePath(pkg);
+  if (reviewedArchive === null || !fs.existsSync(reviewedArchive)) {
+    console.error(`${pkg.name} ${pkg.version} reviewed package archive is missing`);
+    process.exit(1);
+  }
+
+  const localChecksum = createHash("sha256").update(fs.readFileSync(localArchive)).digest("hex");
+  const reviewedChecksum = createHash("sha256")
+    .update(fs.readFileSync(reviewedArchive))
+    .digest("hex");
+  // The predecessor job verifies provenance for the immutable artifact. Both
+  // the release-time package and the registry response must match those exact
+  // reviewed bytes; source equality alone is not sufficient release evidence.
+  if (localChecksum !== reviewedChecksum) {
+    console.error(`${pkg.name} ${pkg.version} package bytes differ from reviewed preflight`);
     process.exit(1);
   }
 
@@ -633,13 +730,12 @@ function verifyPublishedPackageMatches(pkg) {
       process.exit(downloadResult.status ?? 1);
     }
 
-    const localChecksum = createHash("sha256").update(fs.readFileSync(localArchive)).digest("hex");
     const publishedChecksum = createHash("sha256")
       .update(fs.readFileSync(publishedArchive))
       .digest("hex");
-    if (localChecksum !== publishedChecksum) {
+    if (reviewedChecksum !== publishedChecksum) {
       console.error(
-        `${pkg.name} ${pkg.version} is already published from different source bytes`,
+        `${pkg.name} ${pkg.version} published bytes differ from reviewed preflight`,
       );
       process.exit(1);
     }

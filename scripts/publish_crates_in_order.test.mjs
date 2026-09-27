@@ -4,29 +4,69 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 const script = fileURLToPath(new URL("./publish_crates_in_order.mjs", import.meta.url));
+const publishedPackages = [
+  "reallyme-compression-brotli",
+  "reallyme-ssi-proto",
+  "reallyme-ssi-core",
+  "reallyme-did-types",
+  "reallyme-vp-core",
+  "reallyme-ssi-proto-codec",
+  "reallyme-trust-x509",
+  "reallyme-credential-status",
+  "reallyme-credential-audit",
+  "reallyme-credential-claims",
+  "reallyme-revocation",
+  "reallyme-trust-core",
+  "reallyme-openid-oauth",
+  "reallyme-openid4vc-profiles",
+  "reallyme-disclosure-policy",
+  "reallyme-credential",
+  "reallyme-mdoc",
+  "reallyme-sd-jwt",
+];
 
 function runFixture({ mode = "publish", scenario = "success", requirement = "^0.1.0", version = "0.1.0" } = {}) {
   const directory = mkdtempSync(join(tmpdir(), "ssi-publish-test-"));
   try {
     const callsPath = join(directory, "calls.json");
     const ledgerPath = join(directory, "publication-ledger.json");
+    const reviewedArchiveDirectory = join(directory, "reviewed-crates");
+    if (mode === "publish") {
+      mkdirSync(reviewedArchiveDirectory);
+      for (const packageName of publishedPackages) {
+        writeFileSync(
+          join(reviewedArchiveDirectory, `${packageName}-${version}.crate`),
+          "reviewed archive",
+        );
+      }
+    }
     const preload = join(directory, "mock.mjs");
     // Intercept every child process: these tests must never invoke Cargo,
     // access a registry, publish a crate, or perform real retry waits.
     writeFileSync(preload, `
 import childProcess from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 const calls = [];
 const scenario = ${JSON.stringify(scenario)};
 let attempts = 0;
+const writeArchive = (packageName) => {
+  const archive = join(
+    ${JSON.stringify(directory)},
+    "package",
+    packageName + "-" + ${JSON.stringify(version)} + ".crate",
+  );
+  mkdirSync(dirname(archive), { recursive: true });
+  writeFileSync(archive, scenario === "reviewed-mismatch" ? "different archive" : "reviewed archive");
+};
 Atomics.wait = (_array, _index, _value, delay) => {
   calls.push(["wait", delay]);
   writeFileSync(${JSON.stringify(callsPath)}, JSON.stringify(calls));
@@ -36,6 +76,11 @@ childProcess.spawnSync = (command, args) => {
   calls.push([command, ...args]);
   writeFileSync(${JSON.stringify(callsPath)}, JSON.stringify(calls));
   const ok = { status: 0, stdout: "", stderr: "" };
+  if (command === "curl") {
+    const output = args[args.indexOf("--output") + 1];
+    writeFileSync(output, "reviewed archive");
+    return ok;
+  }
   if (command !== "cargo") return { ...ok, status: 99 };
   if (args[0] === "metadata") return { ...ok, stdout: JSON.stringify({
     target_directory: ${JSON.stringify(directory)},
@@ -84,6 +129,8 @@ childProcess.spawnSync = (command, args) => {
           { name: "reallyme-trust-core", source: null, path: "crates/trust/core", kind: null, req: ${JSON.stringify(requirement)} },
           { name: "reallyme-ssi-proto", source: null, path: "crates/proto", kind: null, req: ${JSON.stringify(requirement)} },
         ] },
+      { name: "reallyme-openid4vc-profiles", version: ${JSON.stringify(version)}, publish: null,
+        dependencies: [] },
       { name: "reallyme-disclosure-policy", version: ${JSON.stringify(version)}, publish: null,
         dependencies: [
           { name: "reallyme-credential-claims", source: null, path: "crates/claims", kind: null, req: ${JSON.stringify(requirement)} },
@@ -111,7 +158,10 @@ childProcess.spawnSync = (command, args) => {
       { name: "reallyme-ssi", version: ${JSON.stringify(version)}, publish: [], dependencies: [] },
     ],
   }) };
-  if (args[0] === "package") return ok;
+  if (args[0] === "package") {
+    writeArchive(args[args.indexOf("-p") + 1]);
+    return ok;
+  }
   if (args[0] !== "publish") return { ...ok, status: 99 };
   attempts += 1;
   const failAfter = /^fail-after-([0-9]+)$/.exec(scenario);
@@ -131,7 +181,11 @@ childProcess.spawnSync = (command, args) => {
       stderr: 'failed to select a version for the requirement \`reallyme-compression-brotli = "=0.1.0"\`',
     };
   }
+  if (scenario === "already-exists") {
+    return { ...ok, status: 101, stderr: "crate version already exists" };
+  }
   if (scenario === "failure") return { ...ok, status: 101, stderr: "package verification failed" };
+  writeArchive(args[args.indexOf("-p") + 1]);
   return ok;
 };
 syncBuiltinESMExports();
@@ -145,6 +199,7 @@ syncBuiltinESMExports();
         PUBLICATION_LEDGER_PATH: ledgerPath,
         RELEASE_SHA: "0123456789abcdef0123456789abcdef01234567",
         RELEASE_VERSION: version,
+        REVIEWED_CRATE_ARCHIVES_DIRECTORY: reviewedArchiveDirectory,
       },
     });
     assert.equal(result.error, undefined);
@@ -159,28 +214,38 @@ test("successful publication respects dependency order", () => {
   const result = runFixture();
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.calls.filter((call) => call[1] === "publish").map((call) => call[3]),
-    [
-      "reallyme-compression-brotli",
-      "reallyme-ssi-proto",
-      "reallyme-ssi-core",
-      "reallyme-did-types",
-      "reallyme-vp-core",
-      "reallyme-ssi-proto-codec",
-      "reallyme-trust-x509",
-      "reallyme-credential-status",
-      "reallyme-credential-audit",
-      "reallyme-credential-claims",
-      "reallyme-revocation",
-      "reallyme-trust-core",
-      "reallyme-openid-oauth",
-      "reallyme-disclosure-policy",
-      "reallyme-credential",
-      "reallyme-mdoc",
-      "reallyme-sd-jwt",
-    ]);
+    publishedPackages);
   assert.equal(result.ledger.state, "completed");
   assert.equal(result.ledger.source_commit, "0123456789abcdef0123456789abcdef01234567");
   assert.ok(result.ledger.crates.every((entry) => entry.state === "published"));
+});
+
+test("resumed publication rebuilds each existing archive before comparing crates.io bytes", () => {
+  const result = runFixture({ scenario: "already-exists" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.calls.filter((call) => call[1] === "package").length, publishedPackages.length);
+  assert.equal(result.calls.filter((call) => call[0] === "curl").length, publishedPackages.length);
+  for (const packageName of publishedPackages) {
+    const publishIndex = result.calls.findIndex(
+      (call) => call[1] === "publish" && call[3] === packageName,
+    );
+    const packageIndex = result.calls.findIndex(
+      (call) => call[1] === "package" && call[3] === packageName,
+    );
+    const nextCurlIndex = result.calls.findIndex(
+      (call, index) => index > packageIndex && call[0] === "curl",
+    );
+    assert.ok(publishIndex >= 0 && packageIndex > publishIndex && nextCurlIndex > packageIndex);
+  }
+  assert.ok(result.ledger.crates.every((entry) => entry.state === "verified_existing"));
+});
+
+test("publication stops when rebuilt bytes differ from the reviewed archive", () => {
+  const result = runFixture({ scenario: "reviewed-mismatch" });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /package bytes differ from reviewed preflight/u);
+  assert.equal(result.calls.filter((call) => call[1] === "publish").length, 1);
+  assert.equal(result.calls.filter((call) => call[0] === "curl").length, 0);
 });
 
 test("rate-limit exhaustion fails without publishing dependent crates", () => {

@@ -20,4 +20,4 @@ jobs:
       - name: Verify private vulnerability reporting
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api "repos/${GITHUB_REPOSITORY}/private-vulnerability-reporting" > /dev/null
+        run: gh api "repos/${GITHUB_REPOSITORY}/private-vulnerability-reporting" --jq '.enabled' | grep -qx true
