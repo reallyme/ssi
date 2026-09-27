@@ -11,7 +11,9 @@ use identity_core_primitives::Algorithm;
 use identity_credential_claims_core::{validate_disclosure, ClaimsRegistry};
 use identity_credential_status_core::{CredentialStatusError, StatusList, StatusPurpose};
 use identity_presentation_vp_core::model::Presentation;
-use reallyme_credential::CredentialStatusListVerifier;
+use reallyme_credential::{
+    CredentialEnvelope, CredentialError, CredentialStatusListVerifier, CredentialStatusReason,
+};
 use reallyme_credential_audit::QeaaCompliance;
 
 /// Maximum number of presentation disclosures evaluated against policy.
@@ -89,6 +91,28 @@ pub struct StatusContext<'a> {
 /// - performs no cryptography directly
 /// - makes all accept/reject decisions explicit
 pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
+    evaluate_internal(policy, ctx, None)
+}
+
+/// Evaluate a presentation whose credential envelope was cryptographically verified.
+///
+/// The verified envelope supplies the authenticated status-list reference for
+/// formats such as SD-JWT VC that carry only an envelope hash in the
+/// presentation. Callers must pass the same envelope whose hash and issuer
+/// signature were verified for `ctx.presentation`.
+pub fn evaluate_with_verified_credential(
+    policy: &VpPolicy,
+    ctx: &EvaluationContext<'_>,
+    credential: &CredentialEnvelope,
+) -> PolicyDecision {
+    evaluate_internal(policy, ctx, Some(credential))
+}
+
+fn evaluate_internal(
+    policy: &VpPolicy,
+    ctx: &EvaluationContext<'_>,
+    verified_credential: Option<&CredentialEnvelope>,
+) -> PolicyDecision {
     let mut errors = Vec::new();
 
     let status_constraint_without_status =
@@ -249,7 +273,9 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
     // ---------------------------------------------------------------------
     match &ctx.status {
         Some(sc) => {
-            if let Some(reference) = presentation_status_reference(ctx.presentation) {
+            if let Some(credential) = verified_credential {
+                validate_verified_credential_status(policy, ctx, sc, credential, &mut errors);
+            } else if let Some(reference) = presentation_status_reference(ctx.presentation) {
                 validate_bound_status(policy, ctx, sc, &reference, &mut errors);
             } else {
                 errors.push(VpPolicyError::StatusCheckFailed);
@@ -298,6 +324,39 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext) -> PolicyDecision {
     // Final decision
     // ---------------------------------------------------------------------
     finish_decision(errors)
+}
+
+fn validate_verified_credential_status(
+    policy: &VpPolicy,
+    ctx: &EvaluationContext<'_>,
+    status: &StatusContext<'_>,
+    credential: &CredentialEnvelope,
+    errors: &mut Vec<VpPolicyError>,
+) {
+    match reallyme_credential::verify_credential_status(
+        credential,
+        status.list,
+        ctx.now_unix,
+        status.verifier,
+    ) {
+        Ok(()) => {
+            if !status_age_within_policy(policy, status, ctx.now_unix) {
+                errors.push(VpPolicyError::StatusTooOld);
+            }
+        }
+        Err(CredentialError::Status(CredentialStatusReason::Revoked)) => {
+            errors.push(VpPolicyError::CredentialRevoked);
+        }
+        Err(CredentialError::Status(CredentialStatusReason::Suspended)) => {
+            errors.push(VpPolicyError::CredentialSuspended);
+        }
+        Err(CredentialError::Status(CredentialStatusReason::Expired)) => {
+            errors.push(VpPolicyError::StatusTooOld);
+        }
+        Err(_) => {
+            errors.push(VpPolicyError::StatusCheckFailed);
+        }
+    }
 }
 
 struct PresentationStatusReference<'a> {

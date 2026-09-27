@@ -12,7 +12,8 @@
 //! Web, mdoc, etc.).
 
 use identity_presentation_vp_policy::{
-    evaluate, selector::policy_for_claimset, EvaluationContext, PolicyDecision, StatusContext,
+    evaluate, evaluate_with_verified_credential, selector::policy_for_claimset, EvaluationContext,
+    PolicyDecision, StatusContext,
 };
 
 use identity_core_primitives::Algorithm;
@@ -89,6 +90,24 @@ pub struct VpValidationInput<'a> {
 pub fn evaluate_presentation_policy<'a>(
     input: VpValidationInput<'a>,
 ) -> Result<PolicyDecision, VpValidationError> {
+    evaluate_presentation_policy_internal(input, None)
+}
+
+/// Evaluate policy using the credential envelope authenticated by the caller.
+///
+/// This entry point is for delivery boundaries that have already verified the
+/// presentation-to-envelope commitment and the envelope issuer signature.
+pub fn evaluate_presentation_policy_with_verified_credential<'a>(
+    input: VpValidationInput<'a>,
+    credential: &'a reallyme_credential::CredentialEnvelope,
+) -> Result<PolicyDecision, VpValidationError> {
+    evaluate_presentation_policy_internal(input, Some(credential))
+}
+
+fn evaluate_presentation_policy_internal<'a>(
+    input: VpValidationInput<'a>,
+    verified_credential: Option<&'a reallyme_credential::CredentialEnvelope>,
+) -> Result<PolicyDecision, VpValidationError> {
     // ---------------------------------------------------------------------
     // 1) Select policy for the requested claimset
     // ---------------------------------------------------------------------
@@ -156,7 +175,10 @@ pub fn evaluate_presentation_policy<'a>(
     // 4) Evaluate policy
     // ---------------------------------------------------------------------
 
-    let decision = evaluate(&policy, &ctx);
+    let decision = match verified_credential {
+        Some(credential) => evaluate_with_verified_credential(&policy, &ctx, credential),
+        None => evaluate(&policy, &ctx),
+    };
 
     // ---------------------------------------------------------------------
     // 5) Canonical mapping from policy decision to validator error

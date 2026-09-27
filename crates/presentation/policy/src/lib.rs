@@ -40,7 +40,8 @@ pub mod selector;
 pub use disclosure::{extract_disclosed_claims, DisclosedClaim};
 pub use error::{PolicyDecision, VpPolicyError};
 pub use evaluate::{
-    evaluate, EvaluationContext, StatusContext, MAX_POLICY_DISCLOSURES, MAX_POLICY_REQUIRED_CLAIMS,
+    evaluate, evaluate_with_verified_credential, EvaluationContext, StatusContext,
+    MAX_POLICY_DISCLOSURES, MAX_POLICY_REQUIRED_CLAIMS,
 };
 pub use model::{PredicateOperand, RequiredClaim, VpPolicy};
 pub use plan::{plan_satisfaction, DerivationInput, DerivationPlan, SatisfactionPlan};

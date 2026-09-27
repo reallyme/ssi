@@ -19,7 +19,10 @@ use identity_presentation_vp_validator::{
 
 use identity_core_primitives::Algorithm;
 use identity_credential_claims_core::ClaimsRegistry;
-use identity_presentation_vp_core::model::{Presentation, SdJwtVcPresentation};
+use identity_presentation_vp_core::model::{
+    CredentialReference, CredentialStatusRef, Presentation, PresentationFreshness,
+    StatusPurpose as PresentationStatusPurpose, ZkPresentation, ZkProof, ZkProofSuite,
+};
 
 use reallyme_credential_audit::{IdentityProofingLevel, QeaaCompliance};
 
@@ -44,12 +47,33 @@ fn empty_registry(claimset_id: &str) -> ClaimsRegistry {
 }
 
 fn dummy_presentation() -> Presentation {
-    Presentation::SdJwtVc(Box::new(SdJwtVcPresentation {
-        sd_jwt: "dummy.jwt".into(),
-        disclosures: vec![],
-        kb_jwt: None,
-        vct: None,
-        envelope_hash: None,
+    Presentation::Zk(Box::new(ZkPresentation {
+        freshness: PresentationFreshness {
+            challenge: [1; 32],
+            audience_hash: [2; 32],
+            expiry_unix: 1_800_000_000,
+        },
+        credential: CredentialReference {
+            envelope_hash: [3; 32],
+            issuer_did: "did:test:issuer".to_owned(),
+            status: CredentialStatusRef {
+                status_list_url: "https://example.test/status".to_owned(),
+                status_list_id: [0; 32],
+                status_list_index: 0,
+                purpose: PresentationStatusPurpose::Revocation,
+            },
+        },
+        disclosures: Vec::new(),
+        zk_proof: ZkProof {
+            circuit_id: "test-circuit".to_owned(),
+            circuit_version: "1".to_owned(),
+            vk_id: "test-vk".to_owned(),
+            proof_bytes: vec![1],
+            public_inputs: BTreeMap::new(),
+            proof_suite: ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
+            artifact_manifest_sha256: [4; 32],
+        },
+        qeaa: None,
     }))
 }
 
@@ -151,12 +175,6 @@ fn validator_accepts_valid_pid_with_qeaa_and_binding() {
 
     let status_ctx = StatusContext {
         list: &status_list,
-        index: 0,
-        expected_index: 0,
-        expected_issuer: "did:test:issuer",
-        expected_signer: reallyme_credential::PartyReference::Did("did:test:issuer".to_owned()),
-        expected_list_id: [0_u8; 32],
-        expected_purpose: StatusPurpose::Revocation,
         verifier: &verifier,
     };
 
