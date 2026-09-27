@@ -19,5 +19,9 @@ zeroize = { workspace = true, features = ["derive"] }
 time = { workspace = true, features = ["parsing"] }
 url = { workspace = true }
 codec-base64 = { package = "reallyme-codec-base64", version = "0.2.3" }
+
+[dev-dependencies]
+reallyme-crypto = { workspace = true, features = ["sha2"] }
+
 [lints]
 workspace = true

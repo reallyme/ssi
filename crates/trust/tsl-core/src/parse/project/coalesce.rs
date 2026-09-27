@@ -165,6 +165,9 @@ fn coalesce_duplicate_current_services(
                 let existing = output
                     .get_mut(*entry.get())
                     .ok_or(TslError::ResourceLimit(TslResourceLimit::Services))?;
+                if trust_services_are_identical(existing, &service) {
+                    continue;
+                }
                 // An ambiguous row must fail closed for its service key, not
                 // make every unrelated provider in the authenticated list
                 // unusable. Distinct ASi scopes remain separate keys.
@@ -178,6 +181,18 @@ fn coalesce_duplicate_current_services(
         }
     }
     Ok(output)
+}
+
+fn trust_services_are_identical(left: &TrustService, right: &TrustService) -> bool {
+    left.service_names == right.service_names
+        && left.service_type == right.service_type
+        && left.status == right.status
+        && left.status_starting_time == right.status_starting_time
+        && left.supply_points == right.supply_points
+        && left.digital_identity == right.digital_identity
+        && left.qualifications == right.qualifications
+        && left.additional_service_information == right.additional_service_information
+        && left.history == right.history
 }
 
 fn additional_service_information_key(

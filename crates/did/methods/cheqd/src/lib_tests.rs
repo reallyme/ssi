@@ -91,8 +91,10 @@ fn did_cheqd_rejects_noncanonical_uppercase_uuid_hex() {
         Ok("did:cheqd:de9786cd-ec53-458c-857c-9342cf264f80".to_owned())
     );
     assert_eq!(
-        canonicalize_did_cheqd("did:cheqd:MAINNET:DE9786CD-EC53-458C-857C-9342CF264F80"),
-        Ok("did:cheqd:de9786cd-ec53-458c-857c-9342cf264f80".to_owned())
+        canonicalize_did_cheqd("did:cheqd:MAINNET:DE9786CD-EC53-458C-857C-9342CF264F80")
+            .err()
+            .map(|error| error.reason),
+        Some(DidCheqdErrorReason::InvalidNamespace)
     );
 }
 

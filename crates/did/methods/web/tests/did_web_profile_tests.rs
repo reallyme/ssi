@@ -670,9 +670,10 @@ fn resolver_rejects_private_dns_rebinding_media_size_and_cancellation() {
     assert_resolution_reason(&cancelled, &AlwaysCancelled, DidWebErrorReason::Cancelled);
 }
 
+#[path = "did_web_profile_tests/key_material_tests.rs"]
+mod key_material_tests;
 #[path = "did_web_profile_tests/provider_tests.rs"]
 mod provider_tests;
-
 #[test]
 fn resolver_rejects_ipv6_transition_prefixes_embedding_private_ipv4(
 ) -> Result<(), Box<dyn std::error::Error>> {

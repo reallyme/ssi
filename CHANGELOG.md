@@ -19,9 +19,15 @@ changes to authenticate its externally visible projection commitment.
   and oversized nonces, and treats response certificates as untrusted
   chain-building material. Parsed responses are sealed verification receipts;
   the WebAssembly lane fails closed when no Rust verifier is available.
+- OCSP response and delegated-responder certificate signatures using SHA-1 or
+  MD5 are rejected. Embedded delegated-responder certificates must carry an
+  appropriate digital-signature key usage. JAdES validation rejects the
+  unsupported `sigD` signature-detached mechanism instead of ignoring it.
 - CRL parsing validates the issuer CA profile, authority-key identifiers, and
   revocation reasons before issuing an opaque parsed-CRL capability. Checking a
   CRL also verifies that its issuer key authenticates the target certificate.
+  The default freshness policy honors the authenticated `nextUpdate`; a maximum
+  age remains available as an explicit relying-party policy.
 - `did:me` signs every externally visible projection field, binds the genesis
   identifier inside the core engine, and exposes trusted-head and observed-
   successor validation for rollback and equivocation resistance.
@@ -32,6 +38,11 @@ changes to authenticate its externally visible projection commitment.
   mask a withdrawal with a sibling grant. Structurally ambiguous service rows
   become non-authorizing without discarding unrelated providers, and semantic
   projection occurs only after XML signature validation.
+- Trusted-list projection accepts bounded deployed SKI representations, exact
+  duplicate service rows, and repeated current-state history rows without
+  weakening authorization. Noncanonical SKIs remain non-binding, while a
+  conflicting duplicate or malformed policy qualifier makes only that service
+  key indeterminate. A fixed 30-document EU snapshot corpus guards this boundary.
 - Presentation verification requires configured nonce and audience bindings,
   validates ZK expiry, and removes the stateless SIOP response entry point.
 - Committed-credential proofs verify against a caller-trusted issuer key and
@@ -57,13 +68,17 @@ changes to authenticate its externally visible projection commitment.
   authentication applies the same restriction to JWT `aud` and configured
   expected-audience URLs.
 - `did:web` rejects path-normalization aliases and percent-encoded unreserved
-  characters. `did:key` accepts only its canonical base58btc representation;
+  characters, including percent-encoded port separators such as `%3A443`.
+  Standard JWK verification-method pairs and extensible Multikey codecs remain
+  accepted. `did:key` accepts only its canonical base58btc representation;
   `did:cheqd` UUIDs are canonical lowercase; and EBSI verification methods are
   restricted to P-256 with absent `alg` or `ES256`, and secp256k1 with absent
   `alg` or `ES256K`, for the current legal-entity profile. Active EBSI registry
   documents must identify at least one controller.
 - `did:jwk` rejects RSA public keys below 2,048 bits or above 16,384 bits,
-  even moduli, and public exponents longer than eight bytes.
+  even moduli, public exponents longer than eight bytes, and fully specified
+  algorithm names such as `Ed25519` and `ESP256` where JOSE identifiers are
+  required.
 - Authenticated TSL pointer-parent failures map to the dedicated protobuf
   reason `TSL_POINTER_INVALID_PARENT` (1071), preserving the failure on the wire.
 - mdoc issuance bounds authorization identifiers and implementation-defined
@@ -96,6 +111,11 @@ changes to authenticate its externally visible projection commitment.
   revocation, trust, X.509, and presentation crates are now non-exhaustive.
   Callers must use wildcard match arms and must not rely on implicit numeric
   discriminants, which changed where typed failure variants were added.
+- Typed additions include `KeySetError` reasons,
+  `OcspError::Unsupported`, `TslStructureFailure::ServiceHistoryOrder`,
+  `DidValidationCode::TransitionEquivocation`, and
+  `CertificateStatus::NotChecked`. The `KeySetError` protobuf mapping changes
+  the stable reason transmitted to Swift, Kotlin, and TypeScript callers.
 - `TrustDecision`, `VerifiedTokenStatusList`, and parsed CRL values can only be
   created by their verification or parsing pipelines. Callers use read-only
   accessors instead of constructing these security capabilities directly.
@@ -164,6 +184,9 @@ changes to authenticate its externally visible projection commitment.
   field are replaced by CA-bound `TslCertificateBinding`,
   `evaluate_tsl_service_policy_for_ca`, and `require_ca_binding`.
   `CertificateIdentityFacts` also adds the canonical `subject_name_der` field.
+- X.509 policy evaluation no longer accepts `PublicKeyProfile::Other`, including
+  unclassified RSA-PSS and ML-DSA keys, under the default policy. Callers must
+  select a policy with an explicitly supported public-key profile.
 - The permissive disclosure-policy constructors `VpPolicy::dev_default` and
   `VpPolicy::unsafe_permissive_for_tests` have been removed; callers construct
   an explicit policy.

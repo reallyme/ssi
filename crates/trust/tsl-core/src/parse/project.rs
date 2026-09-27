@@ -258,18 +258,28 @@ include!("project/coalesce.rs");
 /// providers. Rows sharing one starting time collapse to one entry; when they
 /// disagree, the surviving entry becomes a non-authorizing barrier.
 fn normalize_service_history(
-    current_start: TslTimestamp,
+    current: &TrustService,
     history: &mut Vec<TrustServiceHistoryEntry>,
 ) -> bool {
     history.sort_by(|left, right| {
         timestamp_order_key(right.status_starting_time)
             .cmp(&timestamp_order_key(left.status_starting_time))
     });
-    let upper_bound = timestamp_order_key(current_start);
-    let has_out_of_order_row = history
-        .iter()
-        .any(|entry| timestamp_order_key(entry.status_starting_time) >= upper_bound);
-    history.retain(|entry| timestamp_order_key(entry.status_starting_time) < upper_bound);
+    let upper_bound = timestamp_order_key(current.status_starting_time);
+    let mut has_out_of_order_row = false;
+    history.retain(|entry| {
+        let order = timestamp_order_key(entry.status_starting_time).cmp(&upper_bound);
+        if order.is_lt() {
+            return true;
+        }
+        if order.is_eq() && history_entry_matches_current(entry, current) {
+            // Several deployed lists repeat the current state as the newest
+            // history row. It carries no additional interval and is dropped.
+            return false;
+        }
+        has_out_of_order_row = true;
+        false
+    });
     let mut normalized: Vec<TrustServiceHistoryEntry> = Vec::with_capacity(history.len());
     for entry in history.drain(..) {
         if let Some(previous) = normalized.last_mut() {
@@ -286,6 +296,36 @@ fn normalize_service_history(
     }
     *history = normalized;
     has_out_of_order_row
+}
+
+fn history_entry_matches_current(
+    history: &TrustServiceHistoryEntry,
+    current: &TrustService,
+) -> bool {
+    history.service_type == current.service_type
+        && history.service_names == current.service_names
+        && history.status == current.status
+        && history_identity_matches_current(
+            history.digital_identity.as_ref(),
+            &current.digital_identity,
+        )
+        && history.qualifications == current.qualifications
+        && history.additional_service_information == current.additional_service_information
+}
+
+fn history_identity_matches_current(
+    history: Option<&ServiceDigitalIdentity>,
+    current: &ServiceDigitalIdentity,
+) -> bool {
+    match (history, current) {
+        (Some(ServiceDigitalIdentity::Pki(history)), ServiceDigitalIdentity::Pki(current)) => {
+            history.subject_key_identifier.as_deref() == current.subject_key_identifier.as_deref()
+        }
+        (Some(ServiceDigitalIdentity::NonPki(history)), ServiceDigitalIdentity::NonPki(current)) => {
+            history == current
+        }
+        _ => false,
+    }
 }
 
 fn timestamp_order_key(timestamp: TslTimestamp) -> (i64, u32) {
@@ -336,17 +376,13 @@ fn parse_service(raw: RawService) -> Result<TrustService, TslError> {
         information.identity,
         TslRequiredField::ServiceDigitalIdentity,
     )?)?;
-    let (qualifications, additional_service_information) =
-        parse_extensions(information.extensions, &service_type)?;
-    let mut history = parse_history(raw.history)?;
-    if normalize_service_history(status_starting_time, &mut history) {
-        // A malformed history sequence affects only this authenticated
-        // service key. Preserve the remainder of the list and make this key
-        // explicitly non-authorizing.
+    let (qualifications, additional_service_information, invalid_qualifications) =
+        parse_service_extensions(information.extensions, &service_type)?;
+    if invalid_qualifications {
         status = TrustServiceStatus::Indeterminate;
-        history.clear();
     }
-    Ok(TrustService {
+    let mut history = parse_history(raw.history)?;
+    let mut service = TrustService {
         service_names,
         service_type,
         status,
@@ -355,8 +391,17 @@ fn parse_service(raw: RawService) -> Result<TrustService, TslError> {
         digital_identity,
         qualifications,
         additional_service_information,
-        history,
-    })
+        history: Vec::new(),
+    };
+    if normalize_service_history(&service, &mut history) {
+        // A malformed history sequence affects only this authenticated
+        // service key. Preserve the remainder of the list and make this key
+        // explicitly non-authorizing.
+        service.status = TrustServiceStatus::Indeterminate;
+        history.clear();
+    }
+    service.history = history;
+    Ok(service)
 }
 
 fn parse_history(
@@ -370,7 +415,7 @@ fn parse_history(
     for entry in entries {
         let service_type =
             parse_service_type(required(entry.service_type, TslRequiredField::ServiceType)?)?;
-        let status =
+        let mut status =
             parse_service_status(required(entry.status, TslRequiredField::ServiceStatus)?)?;
         let status_starting_time = parse_timestamp(required(
             entry.status_time,
@@ -384,8 +429,11 @@ fn parse_history(
             entry.identity,
             TslRequiredField::ServiceDigitalIdentity,
         )?)?;
-        let (qualifications, additional_service_information) =
-            parse_extensions(entry.extensions, &service_type)?;
+        let (qualifications, additional_service_information, invalid_qualifications) =
+            parse_service_extensions(entry.extensions, &service_type)?;
+        if invalid_qualifications {
+            status = TrustServiceStatus::Indeterminate;
+        }
         history.push(TrustServiceHistoryEntry {
             service_type,
             service_names,

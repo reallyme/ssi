@@ -5,6 +5,7 @@
 # Preserve byte-for-byte upstream fixtures and licensed schemas. Their source
 # formatting includes significant historical whitespace that is not owned here.
 crates/trust/tsl-xmlsec/schemas/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space
+crates/trust/tsl-core/tests/fixtures/live-v6/corpus/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space
 vectors/ietf-sd-jwt/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space
 crates/envelopes/sd_jwt/tests/vectors/ietf-sd-jwt/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space
 crates/envelopes/sd_jwt/tests/vectors/sd-jwt-rfc9901/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space

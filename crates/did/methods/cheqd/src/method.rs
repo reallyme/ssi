@@ -131,22 +131,18 @@ pub fn canonicalize_did_cheqd(did: &str) -> Result<String, DidCheqdError> {
     let (namespace, unique_id) = match parts.as_slice() {
         [unique_id] => (None, *unique_id),
         [namespace, unique_id] => {
-            if namespace.is_empty() || !namespace.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
-                return Err(DidCheqdError::new(DidCheqdErrorReason::InvalidNamespace));
-            }
+            validate_namespace(namespace)?;
             (Some(*namespace), *unique_id)
         }
         _ => return Err(DidCheqdError::new(DidCheqdErrorReason::UnexpectedSegment)),
     };
-    let canonical_namespace = namespace
-        .map(str::to_ascii_lowercase)
-        .filter(|value| value != DEFAULT_NAMESPACE);
+    let canonical_namespace = namespace.filter(|value| *value != DEFAULT_NAMESPACE);
     let canonical_unique_id = if is_uuid_with_any_hex_case(unique_id) {
         unique_id.to_ascii_lowercase()
     } else {
         unique_id.to_owned()
     };
-    generate_did_cheqd(canonical_namespace.as_deref(), &canonical_unique_id)
+    generate_did_cheqd(canonical_namespace, &canonical_unique_id)
 }
 
 /// Return the effective namespace for a did:cheqd identifier.
