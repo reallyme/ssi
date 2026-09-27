@@ -63,15 +63,6 @@ pub struct ExpectedKbJwtBinding<'a> {
 /// 3) Verify the holder KB-JWT whenever the credential is cryptographically
 ///    holder-bound or an expected OpenID4VP binding is supplied
 /// 4) Verify the Merkle proof for each disclosure against the envelope root
-///
-/// Inputs:
-/// - `vp`: SD-JWT VP presentation (sd_jwt + disclosures + optional kb_jwt)
-/// - `vc`: public VC envelope containing merkle_root + domain tags + limits
-/// - `issuer_jwk`: issuer public JWK (must match issuer alg)
-/// - `issuer_public_key`: issuer raw public key bytes; it must verify both the
-///   issuer SD-JWT and the envelope issuer signature
-/// - `holder_public_key`: optional holder public key bytes (required only if kb_jwt present)
-/// - `now_unix`: trusted verifier time in Unix seconds
 pub fn verify_sd_jwt_vp(
     vp: &SdJwtVcPresentation,
     vc: &CredentialEnvelope,

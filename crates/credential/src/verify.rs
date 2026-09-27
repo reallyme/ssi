@@ -58,6 +58,12 @@ pub struct CredentialRevocationVerificationInput<'a> {
     /// Already-composed revocation checker.
     pub status_checker: &'a dyn StatusChecker,
 
+    /// Status list referenced by the credential envelope.
+    pub status_list: &'a StatusList,
+
+    /// Authenticated verifier for the credential's status-list signature.
+    pub status_verifier: &'a dyn CredentialStatusListVerifier,
+
     /// Certificate or trust context required by the configured checker.
     pub certificate: &'a X509Certificate,
 
@@ -145,6 +151,8 @@ pub fn verify_credential_with_revocation(
         input.status_checker,
         input.certificate,
         input.now_unix,
+        input.status_list,
+        input.status_verifier,
     )
 }
 
@@ -186,18 +194,19 @@ pub fn verify_credential_status(
     .map_err(map_status_error)
 }
 
-/// Verify credential revocation state through an already-composed status checker.
+/// Verify both credential status and issuer-certificate revocation state.
 ///
-/// The checker owns source selection and evidence policy. Callers that include
-/// status-list evidence should use [`verify_credential_status_with_policy`] so
-/// the credential's status-list pointer is checked before composition.
+/// These subjects are intentionally checked independently: a clean OCSP or
+/// CRL result for the issuer certificate can never mask a revoked credential.
 pub fn verify_credential_revocation_status(
     envelope: &CredentialEnvelope,
     checker: &dyn StatusChecker,
     certificate: &X509Certificate,
     now_unix: u64,
+    status_list: &StatusList,
+    status_verifier: &dyn CredentialStatusListVerifier,
 ) -> Result<(), CredentialError> {
-    validate_credential_envelope(envelope)?;
+    verify_credential_status(envelope, status_list, now_unix, status_verifier)?;
     validate_certificate_binding(envelope, certificate)?;
     checker
         .check(certificate, now_unix)

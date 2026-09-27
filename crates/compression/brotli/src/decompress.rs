@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use brotli::reader::StandardAlloc;
-use brotli::{BrotliDecompressStream, BrotliResult, BrotliState};
+use brotli::{Allocator, BrotliDecompressStream, BrotliResult, BrotliState, HuffmanCode};
 use zeroize::Zeroizing;
 
 use crate::BrotliError;
@@ -14,6 +14,7 @@ use crate::BrotliError;
 /// still provides a hard memory bound for hostile compressed input.
 pub const DEFAULT_MAX_DECOMPRESSED_BYTES: usize = 16 * 1024 * 1024;
 const INITIAL_OUTPUT_BUFFER_BYTES: usize = 4 * 1024;
+const MINIMUM_DECODER_WINDOW_BYTES: usize = 64 * 1024;
 
 /// Decompress Brotli-compressed bytes with the default output cap.
 ///
@@ -36,6 +37,28 @@ pub fn brotli_decompress_with_limit(
     data: &[u8],
     max_output_len: usize,
 ) -> Result<Zeroizing<Vec<u8>>, BrotliError> {
+    brotli_decompress_with_allocators(
+        data,
+        max_output_len,
+        StandardAlloc::default(),
+        StandardAlloc::default(),
+        StandardAlloc::default(),
+    )
+}
+
+fn brotli_decompress_with_allocators<AllocU8, AllocU32, AllocHC>(
+    data: &[u8],
+    max_output_len: usize,
+    alloc_u8: AllocU8,
+    alloc_u32: AllocU32,
+    alloc_hc: AllocHC,
+) -> Result<Zeroizing<Vec<u8>>, BrotliError>
+where
+    AllocU8: Allocator<u8>,
+    AllocU32: Allocator<u32>,
+    AllocHC: Allocator<HuffmanCode>,
+{
+    validate_decoder_window(data, max_output_len)?;
     let output_limit = max_output_len
         .checked_add(1)
         .ok_or(BrotliError::OutputTooLarge)?;
@@ -43,11 +66,7 @@ pub fn brotli_decompress_with_limit(
     // extension. A tiny hostile stream can then request a 1 GiB ring buffer
     // before the output cap is consulted. Strict mode accepts only RFC 7932
     // windows (WBITS <= 24), keeping decoder memory within the protocol bound.
-    let mut state = BrotliState::new_strict(
-        StandardAlloc::default(),
-        StandardAlloc::default(),
-        StandardAlloc::default(),
-    );
+    let mut state = BrotliState::new_strict(alloc_u8, alloc_u32, alloc_hc);
     let mut available_in = data.len();
     let mut input_offset = 0usize;
     let mut total_out = 0usize;
@@ -94,6 +113,42 @@ pub fn brotli_decompress_with_limit(
             BrotliResult::NeedsMoreInput | BrotliResult::NeedsMoreOutput => {}
         }
     }
+}
+
+fn validate_decoder_window(data: &[u8], max_output_len: usize) -> Result<(), BrotliError> {
+    let first = data
+        .first()
+        .copied()
+        .ok_or(BrotliError::DecompressionFailed)?;
+    let window_bits = if first & 1 == 0 {
+        16_u32
+    } else {
+        let first_extension = (first >> 1) & 0b111;
+        if first_extension != 0 {
+            17_u32
+                .checked_add(u32::from(first_extension))
+                .ok_or(BrotliError::DecompressionFailed)?
+        } else {
+            let second_extension = (first >> 4) & 0b111;
+            match second_extension {
+                // This bit pattern introduces Brotli's non-standard large
+                // window extension and is invalid in strict RFC 7932 mode.
+                1 => return Err(BrotliError::DecompressionFailed),
+                0 => 17,
+                value => 8_u32
+                    .checked_add(u32::from(value))
+                    .ok_or(BrotliError::DecompressionFailed)?,
+            }
+        }
+    };
+    let decoder_window = 1_usize
+        .checked_shl(window_bits)
+        .ok_or(BrotliError::WindowTooLarge)?;
+    let allowed_window = max_output_len.max(MINIMUM_DECODER_WINDOW_BYTES);
+    if decoder_window > allowed_window {
+        return Err(BrotliError::WindowTooLarge);
+    }
+    Ok(())
 }
 
 fn allocate_zeroed(len: usize) -> Result<Zeroizing<Vec<u8>>, BrotliError> {
@@ -144,3 +199,7 @@ fn right_size_output(
     result.extend_from_slice(source);
     Ok(Zeroizing::new(result))
 }
+
+#[cfg(test)]
+#[path = "decompress_tests.rs"]
+mod tests;

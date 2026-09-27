@@ -15,4 +15,8 @@ fn sd_jwt_error_maps_to_identity_core_proto_reason() {
         IdentityCoreErrorReason::from(SdJwtEnvelopeError::UnsupportedHashAlgorithm),
         IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SD_JWT_UNSUPPORTED_HASH_ALGORITHM
     );
+    assert_eq!(
+        IdentityCoreErrorReason::from(SdJwtEnvelopeError::RequestedPathNotFound),
+        IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SD_JWT_UNMATCHED_DISCLOSURE
+    );
 }

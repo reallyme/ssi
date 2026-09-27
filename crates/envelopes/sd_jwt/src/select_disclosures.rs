@@ -122,6 +122,8 @@ impl Drop for DisclosureGraph {
 /// Mutable traversal state shared across the recursive path mapping.
 struct PathMapper<'a> {
     graph: &'a mut DisclosureGraph,
+    requested_paths: &'a [Vec<SdJwtClaimPathComponent>],
+    requested_paths_found: Vec<bool>,
     policy: SdJwtProcessingPolicy,
     nodes: usize,
     path: Vec<SdJwtClaimPathComponent>,
@@ -173,11 +175,18 @@ pub fn select_sd_jwt_disclosures(
 
     let mut mapper = PathMapper {
         graph: &mut graph,
+        requested_paths,
+        requested_paths_found: vec![false; requested_paths.len()],
         policy,
         nodes: 0,
         path: Vec::new(),
     };
     mapper.map_value(issuer_payload, 0)?;
+    let all_requested_paths_found = mapper.requested_paths_found.iter().all(|found| *found);
+    drop(mapper);
+    if !all_requested_paths_found {
+        return Err(SdJwtEnvelopeError::RequestedPathNotFound);
+    }
     if graph.entries.iter().any(|entry| entry.path.is_none()) {
         return Err(SdJwtEnvelopeError::UnmatchedDisclosure);
     }
@@ -225,6 +234,7 @@ impl PathMapper<'_> {
 
     fn map_value(&mut self, value: &Value, depth: usize) -> Result<(), SdJwtEnvelopeError> {
         self.count_node(depth)?;
+        self.record_current_path();
         let child_depth = depth
             .checked_add(1)
             .ok_or(SdJwtEnvelopeError::ProcessingDepthExceeded)?;
@@ -278,6 +288,21 @@ impl PathMapper<'_> {
             Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
         }
         Ok(())
+    }
+
+    fn record_current_path(&mut self) {
+        if self.path.is_empty() {
+            return;
+        }
+        for (requested, found) in self
+            .requested_paths
+            .iter()
+            .zip(self.requested_paths_found.iter_mut())
+        {
+            if resolved_path_matches_request(&self.path, requested) {
+                *found = true;
+            }
+        }
     }
 
     fn map_object_disclosure(
@@ -355,6 +380,20 @@ impl PathMapper<'_> {
             .get_mut(index)
             .ok_or(SdJwtEnvelopeError::UnmatchedDisclosure)
     }
+}
+
+fn resolved_path_matches_request(
+    resolved_path: &[SdJwtClaimPathComponent],
+    requested_path: &[SdJwtClaimPathComponent],
+) -> bool {
+    resolved_path.len() == requested_path.len()
+        && resolved_path
+            .iter()
+            .zip(requested_path)
+            .all(|(resolved, requested)| match (resolved, requested) {
+                (SdJwtClaimPathComponent::Index(_), SdJwtClaimPathComponent::All) => true,
+                (left, right) => left == right,
+            })
 }
 
 fn array_disclosure_digest(value: &Value) -> Result<Option<&str>, SdJwtEnvelopeError> {

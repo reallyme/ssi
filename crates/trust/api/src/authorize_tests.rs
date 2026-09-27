@@ -258,6 +258,17 @@ fn trusted_list_with_extensions(service_type: &str, extensions: &str) -> Trusted
     parse_tsl_xml(&xml).unwrap()
 }
 
+fn ca_qc_service(name: &str, status: &str, extensions: &str, starts_at: &str) -> String {
+    let certificate = certificate_base64();
+    format!(
+        r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/CA/QC</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">{name}</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/{status}</ServiceStatus><StatusStartingTime>{starts_at}</StatusStartingTime>{extensions}</ServiceInformation></TSPService>"#
+    )
+}
+
+fn trusted_list_with_services(services: &str) -> TrustedList {
+    parse_tsl_xml(&trusted_list_document(&provider(services))).unwrap()
+}
+
 fn qualification_extension(qualifier: &str) -> String {
     qualification_extension_with_qualifiers(&format!(r#"<sie:Qualifier uri="{qualifier}"/>"#))
 }
@@ -271,6 +282,12 @@ fn qualification_extension_with_qualifiers(qualifiers: &str) -> String {
 fn qualification_and_additional_info_extensions(qualifiers: &str, information_uri: &str) -> String {
     format!(
         r#"<ServiceInformationExtensions><Extension Critical="true"><sie:Qualifications xmlns:sie="http://uri.etsi.org/TrstSvc/SvcInfoExt/eSigDir-1999-93-EC-TrustedList/#"><sie:QualificationElement><sie:Qualifiers>{qualifiers}</sie:Qualifiers><sie:CriteriaList assert="all"><sie:KeyUsage><sie:KeyUsageBit name="digitalSignature">true</sie:KeyUsageBit></sie:KeyUsage></sie:CriteriaList></sie:QualificationElement></sie:Qualifications></Extension><Extension Critical="true"><AdditionalServiceInformation><URI xml:lang="en">{information_uri}</URI></AdditionalServiceInformation></Extension></ServiceInformationExtensions>"#
+    )
+}
+
+fn qualification_and_website_and_seal_extensions(qualifiers: &str) -> String {
+    format!(
+        r#"<ServiceInformationExtensions><Extension Critical="true"><sie:Qualifications xmlns:sie="http://uri.etsi.org/TrstSvc/SvcInfoExt/eSigDir-1999-93-EC-TrustedList/#"><sie:QualificationElement><sie:Qualifiers>{qualifiers}</sie:Qualifiers><sie:CriteriaList assert="all"><sie:KeyUsage><sie:KeyUsageBit name="digitalSignature">true</sie:KeyUsageBit></sie:KeyUsage></sie:CriteriaList></sie:QualificationElement></sie:Qualifications></Extension><Extension Critical="true"><AdditionalServiceInformation><URI xml:lang="en">http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication</URI></AdditionalServiceInformation></Extension><Extension Critical="true"><AdditionalServiceInformation><URI xml:lang="en">http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForeSeals</URI></AdditionalServiceInformation></Extension></ServiceInformationExtensions>"#
     )
 }
 
@@ -332,6 +349,202 @@ fn authorizes_ca_qc_leaf_through_matching_qualification_criteria() {
     let decision = ca_issued_decision(cert);
 
     authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer).unwrap();
+}
+
+#[test]
+fn electronic_signature_scope_does_not_authorize_qwac() {
+    let extension = qualification_and_additional_info_extensions(
+        r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForWSA"/>"#,
+        "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForeSignatures",
+    );
+    let tsl = trusted_list_with_extensions("http://uri.etsi.org/TrstSvc/Svctype/CA/QC", &extension);
+    let decision = ca_issued_decision(issued_leaf());
+
+    assert!(matches!(
+        authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer)
+            .unwrap_err(),
+        TrustApiError::ServiceTypeMismatch
+    ));
+}
+
+#[test]
+fn website_scope_does_not_authorize_qseal() {
+    let extension = qualification_and_additional_info_extensions(
+        r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForESeal"/>"#,
+        "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication",
+    );
+    let tsl = trusted_list_with_extensions("http://uri.etsi.org/TrstSvc/Svctype/CA/QC", &extension);
+    let decision = ca_issued_decision(issued_leaf());
+
+    assert!(matches!(
+        authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QsealSigner)
+            .unwrap_err(),
+        TrustApiError::ServiceTypeMismatch
+    ));
+}
+
+#[test]
+fn conflicting_sie_purpose_qualifier_fails_closed() {
+    for qualifier in ["QCForESig", "QCForESeal"] {
+        let qualifiers = format!(
+            r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/{qualifier}"/>"#
+        );
+        let extension = qualification_and_additional_info_extensions(
+            &qualifiers,
+            "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication",
+        );
+        let tsl =
+            trusted_list_with_extensions("http://uri.etsi.org/TrstSvc/Svctype/CA/QC", &extension);
+        let decision = ca_issued_decision(issued_leaf());
+
+        assert!(matches!(
+            authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer)
+                .unwrap_err(),
+            TrustApiError::ServiceTypeMismatch
+        ));
+    }
+}
+
+#[test]
+fn distinct_asi_entries_for_one_key_remain_separate_and_wsa_authorizes() {
+    let website = qualification_and_additional_info_extensions(
+        r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForWSA"/>"#,
+        "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication",
+    );
+    let signature = qualification_and_additional_info_extensions(
+        r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForESig"/>"#,
+        "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForeSignatures",
+    );
+    let services = format!(
+        "{}{}",
+        ca_qc_service("Website", "granted", &website, "2025-01-01T00:00:00Z"),
+        ca_qc_service(
+            "Electronic signature",
+            "granted",
+            &signature,
+            "2025-01-01T00:00:00Z"
+        )
+    );
+    let tsl = trusted_list_with_services(&services);
+    assert_eq!(tsl.services().count(), 2);
+
+    authorize_test_chain_in_list(
+        &ca_issued_decision(issued_leaf()),
+        &tsl,
+        AuthorizationPurpose::QwacTlsServer,
+    )
+    .unwrap();
+}
+
+#[test]
+fn sibling_website_entries_union_restrictive_sie_qualifiers() {
+    let website = qualification_and_additional_info_extensions(
+        r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForWSA"/>"#,
+        "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication",
+    );
+    let website_and_seal = qualification_and_website_and_seal_extensions(
+        r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForESeal"/>"#,
+    );
+    let services = format!(
+        "{}{}",
+        ca_qc_service("Website", "granted", &website, "2025-01-01T00:00:00Z"),
+        ca_qc_service(
+            "Website and seal",
+            "granted",
+            &website_and_seal,
+            "2025-01-01T00:00:00Z"
+        )
+    );
+    let tsl = trusted_list_with_services(&services);
+
+    assert!(matches!(
+        authorize_test_chain_in_list(
+            &ca_issued_decision(issued_leaf()),
+            &tsl,
+            AuthorizationPurpose::QwacTlsServer,
+        )
+        .unwrap_err(),
+        TrustApiError::ServiceTypeMismatch
+    ));
+}
+
+#[test]
+fn withdrawn_website_scope_is_not_masked_by_granted_sibling_service() {
+    let website = qualification_and_additional_info_extensions(
+        r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForWSA"/>"#,
+        "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication",
+    );
+    let website_and_seal = qualification_and_website_and_seal_extensions(
+        r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForWSA"/>"#,
+    );
+    let services = format!(
+        "{}{}",
+        ca_qc_service(
+            "Withdrawn website",
+            "withdrawn",
+            &website,
+            "2025-01-01T00:00:00Z"
+        ),
+        ca_qc_service(
+            "Granted website and seal",
+            "granted",
+            &website_and_seal,
+            "2025-01-01T00:00:00Z"
+        )
+    );
+    let tsl = trusted_list_with_services(&services);
+    let decision = ca_issued_decision(issued_leaf());
+
+    assert!(matches!(
+        authorize_test_chain_in_list(&decision, &tsl, AuthorizationPurpose::QwacTlsServer)
+            .unwrap_err(),
+        TrustApiError::ServiceNotActive
+    ));
+}
+
+#[test]
+fn qualified_type_cutover_uses_leaf_not_before_and_evaluation_time() {
+    const CUTOFF: i64 = 1_467_324_000;
+    let extension = qualification_and_additional_info_extensions(
+        r#"<sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCStatement"/><sie:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCForWSA"/>"#,
+        "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication",
+    );
+    let services = ca_qc_service(
+        "Qualified CA",
+        "granted",
+        &extension,
+        "2015-01-01T00:00:00Z",
+    );
+    let early_document = trusted_list_document(&provider(&services))
+        .replace("2026-01-01T00:00:00Z", "2016-06-01T00:00:00Z")
+        .replace("2026-02-01T00:00:00Z", "2016-07-30T00:00:00Z");
+    let early_tsl = parse_tsl_xml(&early_document).unwrap();
+
+    let mut pre_cutover_leaf = issued_leaf();
+    pre_cutover_leaf.not_before = time::OffsetDateTime::from_unix_timestamp(CUTOFF - 1).unwrap();
+    let post_cutover = trusted_chain_decision_at(vec![pre_cutover_leaf, dummy_cert()], CUTOFF + 1);
+    assert!(matches!(
+        authorize_test_chain_in_list(
+            &post_cutover,
+            &early_tsl,
+            AuthorizationPurpose::QwacTlsServer
+        )
+        .unwrap_err(),
+        TrustApiError::ServiceTypeMismatch
+    ));
+
+    let mut post_cutover_leaf = issued_leaf();
+    post_cutover_leaf.not_before = time::OffsetDateTime::from_unix_timestamp(CUTOFF).unwrap();
+    let pre_cutover = trusted_chain_decision_at(vec![post_cutover_leaf, dummy_cert()], CUTOFF - 1);
+    assert!(matches!(
+        authorize_test_chain_in_list(
+            &pre_cutover,
+            &early_tsl,
+            AuthorizationPurpose::QwacTlsServer
+        )
+        .unwrap_err(),
+        TrustApiError::ServiceTypeMismatch
+    ));
 }
 
 #[test]

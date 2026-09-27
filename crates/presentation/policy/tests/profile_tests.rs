@@ -12,8 +12,9 @@
 //! Tests for built-in VP policy profiles.
 
 use identity_presentation_vp_policy::{
-    evaluate, policy_for_claimset, profiles::eu_pid_policy, EvaluationContext, PolicyDecision,
-    StatusContext, VpPolicyError,
+    evaluate, policy_for_claimset,
+    profiles::{eu_age_policy, eu_pid_policy},
+    EvaluationContext, PolicyDecision, StatusContext, VpPolicyError,
 };
 
 use identity_core_primitives::Algorithm;
@@ -329,6 +330,20 @@ fn pid_profile_rejects_status_list_older_than_max_age() {
     assert_eq!(
         evaluate_pid_at(&policy, "eu.pid.v1", &fresh, now),
         PolicyDecision::Accept
+    );
+}
+
+#[test]
+fn optional_status_policy_still_rejects_supplied_revocation() {
+    let policy = eu_age_policy();
+    assert!(!policy.require_status);
+    let now = 1_700_100_000;
+    let mut revoked = status_list_issued_at(now - 60);
+    revoked.encoded_list = vec![0b0000_0001];
+
+    assert_eq!(
+        evaluate_pid_at(&policy, "eu.age.v1", &revoked, now),
+        PolicyDecision::Reject(vec![VpPolicyError::CredentialRevoked])
     );
 }
 

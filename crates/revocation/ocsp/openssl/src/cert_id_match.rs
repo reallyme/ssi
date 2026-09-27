@@ -37,9 +37,7 @@ struct ExpectedCertId {
     serial: Vec<u8>,
 }
 
-/// Require exactly one logical `SingleResponse` for `cert` and return its
-/// digest algorithm. Duplicate entries, including one SHA-1 and one SHA-256
-/// entry for the same certificate, are rejected as ambiguous.
+/// Require one unambiguous logical `SingleResponse` for `cert`.
 pub(crate) fn unique_matching_digest(
     response_der: &[u8],
     cert_der: &[u8],
@@ -66,10 +64,7 @@ pub(crate) fn validated_response_produced_at(response_der: &[u8]) -> Result<&[u8
     Ok(fields.produced_at)
 }
 
-/// Return the exact DER encodings of responder certificates embedded in a
-/// BasicOCSPResponse. These certificates are authenticated by the response
-/// signature but still require responder-policy screening before OpenSSL may
-/// use them for path construction.
+/// Return embedded responder certificates for later policy screening.
 pub(crate) fn embedded_responder_certificates(
     response_der: &[u8],
 ) -> Result<Vec<&[u8]>, OcspError> {
