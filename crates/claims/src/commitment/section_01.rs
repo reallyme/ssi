@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    claim_path, parse_claim_path, validate_claim_payload, validate_claim_value, ClaimDecimal,
-    ClaimType, ClaimValue, ClaimsError, ClaimsInvalidReason, ClaimsRegistry, MAX_CLAIMS_PER_REGISTRY,
+    claim_path, parse_claim_path, validate_claim_payload, validate_claim_value, ClaimType,
+    ClaimValue, ClaimsError, ClaimsInvalidReason, ClaimsRegistry, MAX_CLAIMS_PER_REGISTRY,
     MAX_CLAIM_BYTES_VALUE_BYTES,
 };
 use reallyme_codec::base64url::bytes_to_base64url;

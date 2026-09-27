@@ -237,10 +237,10 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
-        "package": "envelopes-profiles",
+        "role": "core_support_published",
+        "package": "reallyme-openid4vc-profiles",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The support crates remain source-only behind the SSI facade unless a later package strategy explicitly publishes them."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. reallyme-openid4vc-profiles is published independently; envelopes-profiles remains source-only behind the SSI facade."
       },
       "release_blocker": false,
       "next_actions": []
@@ -267,9 +267,9 @@
       "mapping_status": "section_by_section",
       "publishing": {
         "role": "core_support_published",
-        "package": "reallyme-credential-claims",
+        "package": "reallyme-credential-claims + reallyme-disclosure-policy",
         "publish_ready": true,
-        "notes": "Claims normalization, nested paths, registry-backed payload validation, cross-format vectors, claim commitment verification, and claims fuzz harnesses are implemented. Every predefined registry-backed profile is source-mapped in vectors/claims/catalog-sources.json."
+        "notes": "The claims and disclosure-policy crates are published independently. Claims normalization, nested paths, registry-backed payload validation, cross-format vectors, claim commitment verification, and claims fuzz harnesses are implemented. Every predefined registry-backed profile is source-mapped in vectors/claims/catalog-sources.json."
       },
       "release_blocker": false,
       "next_actions": []
@@ -400,9 +400,9 @@
       "mapping_status": "section_by_section",
       "publishing": {
         "role": "core_support_published",
-        "package": "reallyme-trust-x509",
+        "package": "reallyme-trust-core + reallyme-trust-x509",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The X.509 policy crate is published independently; trust API/core, JAdES, TSL, OpenSSL, wasm, and xmlsec crates remain source-only."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The trust core and X.509 policy crates are published independently; trust API, JAdES, TSL, OpenSSL, wasm, and xmlsec crates remain source-only."
       },
       "release_blocker": false,
       "next_actions": []

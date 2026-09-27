@@ -420,24 +420,15 @@ fn canonical_typed_claim_value_bytes(
             })?;
             canonical_claim_value_bytes(&ClaimValue::Unsigned(unsigned))
         }
-        // `Number` admits both integer storage variants. Normalize every
-        // non-negative mathematical integer to `Unsigned`; negative values
-        // remain `Signed`. This prevents JSON and typed callers from creating
-        // different commitments for the same number.
+        // `Number` admits both integer storage variants. Preserve the V1
+        // commitment encoding used by 0.2.x: non-negative integers commit as
+        // `Unsigned`, while negative integers remain `Signed`. Changing these
+        // tags would invalidate already-issued credential openings.
         (ClaimType::Number, ClaimValue::Signed(signed)) if *signed >= 0 => {
             let unsigned = u64::try_from(*signed).map_err(|_| {
                 ClaimsError::InvalidInput(ClaimsInvalidReason::ClaimValueTypeMismatch)
             })?;
-            let decimal = ClaimDecimal::new(unsigned.to_string())?;
-            canonical_claim_value_bytes(&ClaimValue::Decimal(decimal))
-        }
-        (ClaimType::Number, ClaimValue::Signed(signed)) => {
-            let decimal = ClaimDecimal::new(signed.to_string())?;
-            canonical_claim_value_bytes(&ClaimValue::Decimal(decimal))
-        }
-        (ClaimType::Number, ClaimValue::Unsigned(unsigned)) => {
-            let decimal = ClaimDecimal::new(unsigned.to_string())?;
-            canonical_claim_value_bytes(&ClaimValue::Decimal(decimal))
+            canonical_claim_value_bytes(&ClaimValue::Unsigned(unsigned))
         }
         _ => canonical_claim_value_bytes(value),
     }

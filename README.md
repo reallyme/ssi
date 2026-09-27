@@ -162,7 +162,21 @@ The facade exposes identity-owned capabilities through stable paths including
 | Build an application with ReallyMe | Use [ReallyMe Identity](https://github.com/reallyme/identity), the application-facing SDK. |
 | Integrate a credential protocol | Consume the `reallyme-ssi` facade from the corresponding ReallyMe source workspace. |
 | Use bounded Brotli independently | Use the published `reallyme-compression-brotli` crate. |
-| Develop SSI | Clone this repository and run the repository gate. Protobuf generation and lint also require the sibling `reallyme/me-id` checkout because SSI imports its canonical DID schema. |
+| Develop SSI | Clone this repository and run the repository gate. The complete gate also uses sibling checkouts of `reallyme/jose`, `reallyme/cose`, and `me-id/protos` as described below. |
+
+The repository scripts expect the same checkout layout used by CI:
+
+```text
+<workspace>/reallyme/ssi
+<workspace>/reallyme/jose
+<workspace>/reallyme/cose
+<workspace>/me-id/protos
+```
+
+The `me-id/protos` checkout supplies imported protobuf contracts for linting,
+generation, freshness, and wire-compatibility checks. The JOSE and COSE
+checkouts supply the pinned upstream conformance suites executed by the full
+repository gate.
 
 Published foundational crates—`reallyme-crypto`, `reallyme-codec`,
 `reallyme-jose`, and `reallyme-cose`—are version-pinned workspace dependencies.
