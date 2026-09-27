@@ -10,11 +10,15 @@
 
 use identity_core_primitives::algorithm_map::alg_to_did_alg_str;
 use identity_core_primitives::Algorithm;
-use reallyme_did_core::validate::DomainVerificationEnv;
+use reallyme_did_core::update::{
+    update_engine, UpdateMetadata, UpdateOptions, UpdateRelationships,
+};
+use reallyme_did_core::validate::{validate_did_document_transition, DomainVerificationEnv};
 use reallyme_did_core::{
     build_profile, create_engine, generate_did_me, public_key_to_multikey_for_algorithm,
     validate_did_document, CoreVerificationMethod, DidProfile, UpdatePolicy,
 };
+use std::collections::HashMap;
 
 fn authority_algorithm<'a>(
     opts: &'a reallyme_did_core::CreateOptions,
@@ -128,5 +132,72 @@ fn payment_profile_genesis_validates_with_secp256k1_authority() {
         },
     );
 
+    assert!(validation.ok, "{:?}", validation.errors);
+}
+
+#[test]
+fn payment_profile_can_be_updated_with_its_secp256k1_authority() {
+    let (public_key, private_key) =
+        reallyme_crypto::dispatch::generate_keypair(reallyme_crypto::core::Algorithm::Secp256k1)
+            .expect("generate secp256k1 key");
+    let mut options = build_profile(DidProfile::Payment, "did:me:profile-placeholder");
+    options.controller_keys[0].public_key_multibase =
+        public_key_to_multikey_for_algorithm(Algorithm::Secp256k1, public_key.as_slice())
+            .expect("encode secp256k1 multikey");
+    let nonce = [0_u8; 16];
+    let did = generate_did_me(
+        &nonce,
+        &UpdatePolicy {
+            allowed_verification_methods: options.allowed_verification_methods.clone(),
+            threshold: options.threshold,
+        },
+        &[CoreVerificationMethod {
+            id: options.controller_keys[0].id.clone(),
+            vm_type: options.controller_keys[0].vm_type.clone(),
+            algorithm: Algorithm::Secp256k1,
+            public_key_multibase: options.controller_keys[0].public_key_multibase.clone(),
+        }],
+    )
+    .expect("derive Payment-profile DID");
+    options.id = did.clone();
+    options.controller = vec![did.clone()];
+    options.controller_keys[0].controller = did;
+    options.nonce = Some(nonce.to_vec());
+    let created = create_engine(&options, |id| (id == "#k1").then(|| private_key.to_vec()))
+        .expect("create Payment-profile genesis");
+
+    let updated = update_engine(
+        UpdateOptions {
+            old: &created.document,
+            rotate: HashMap::new(),
+            allowed: vec!["#k1".to_owned()],
+            threshold: None,
+            deactivate: false,
+            services: None,
+            domain_verification: None,
+            relationships: UpdateRelationships::inherit(),
+            metadata: UpdateMetadata {
+                also_known_as: None,
+                hardware_bound: None,
+                biometric_protected: None,
+                user_verification_method: None,
+                device_model: None,
+            },
+            created: None,
+        },
+        |id| (id == "#k1").then(|| private_key.to_vec()),
+        |id| (id == "#k1").then(|| private_key.to_vec()),
+        |_| None,
+    )
+    .expect("update Payment-profile DID");
+
+    let validation = validate_did_document_transition(
+        &created.document,
+        &updated,
+        DomainVerificationEnv {
+            resolve_txt: None,
+            fetch_url: None,
+        },
+    );
     assert!(validation.ok, "{:?}", validation.errors);
 }

@@ -37,6 +37,7 @@ use time::OffsetDateTime;
 const SIGNED_TSL_XML: &str = include_str!("fixtures/signed_tsl.xml");
 
 const SIGNER_CERT_PEM: &[u8] = include_bytes!("fixtures/cert.pem");
+const TRUST_ROOT_CERT_PEM: &[u8] = include_bytes!("fixtures/root-cert.pem");
 
 struct GoodStatus;
 
@@ -101,12 +102,16 @@ fn signer_cert() -> X509Certificate {
     parse_cert_pem(SIGNER_CERT_PEM).expect("invalid signer cert PEM")
 }
 
+fn trust_root_cert() -> X509Certificate {
+    parse_cert_pem(TRUST_ROOT_CERT_PEM).expect("invalid trust-root cert PEM")
+}
+
 #[test]
 fn community_lists_entry_point_enforces_the_tlso_profile() {
-    let signer = signer_cert();
+    let trust_root = trust_root_cert();
     let verified = verify_tsl_xml_openssl_with_community_lists(
         SIGNED_TSL_XML,
-        core::slice::from_ref(&signer),
+        core::slice::from_ref(&trust_root),
         &[],
         verification_time(),
         X509Policy::default(),
@@ -132,7 +137,7 @@ fn verification_time() -> OffsetDateTime {
 fn verifies_signed_tsl_xml() {
     let verified = verify_tsl_xml_openssl(
         SIGNED_TSL_XML,
-        &[signer_cert()],
+        &[trust_root_cert()],
         verification_time(),
         X509Policy::default(),
     )
@@ -158,9 +163,10 @@ fn verifies_signed_tsl_xml() {
 #[test]
 fn external_bootstrap_binds_the_exact_xml_signature_certificate() {
     let signer = signer_cert();
+    let trust_root = trust_root_cert();
     let verified = verify_tsl_xml_openssl_with_external_signer(
         SIGNED_TSL_XML,
-        core::slice::from_ref(&signer),
+        core::slice::from_ref(&trust_root),
         &signer,
         verification_time(),
         X509Policy::default(),
@@ -176,7 +182,7 @@ fn external_bootstrap_binds_the_exact_xml_signature_certificate() {
     different.der[0] ^= 1;
     let error = verify_tsl_xml_openssl_with_external_signer(
         SIGNED_TSL_XML,
-        core::slice::from_ref(&signer),
+        core::slice::from_ref(&trust_root),
         &different,
         verification_time(),
         X509Policy::default(),
@@ -191,9 +197,10 @@ fn external_bootstrap_binds_the_exact_xml_signature_certificate() {
 #[test]
 fn revoked_external_signer_is_rejected() {
     let signer = signer_cert();
+    let trust_root = trust_root_cert();
     let error = verify_tsl_xml_openssl_with_external_signer_and_status(
         SIGNED_TSL_XML,
-        core::slice::from_ref(&signer),
+        core::slice::from_ref(&trust_root),
         &signer,
         verification_time(),
         X509Policy::default(),
@@ -207,10 +214,10 @@ fn revoked_external_signer_is_rejected() {
 #[test]
 fn rejects_authenticated_tsl_at_its_next_update_deadline() {
     let at_next_update =
-        OffsetDateTime::from_unix_timestamp(1_805_072_400).expect("fixed deadline must be valid");
+        OffsetDateTime::from_unix_timestamp(1_806_195_600).expect("fixed deadline must be valid");
     let error = verify_tsl_xml_openssl(
         SIGNED_TSL_XML,
-        &[signer_cert()],
+        &[trust_root_cert()],
         at_next_update,
         X509Policy::default(),
     )
@@ -221,16 +228,16 @@ fn rejects_authenticated_tsl_at_its_next_update_deadline() {
 
 #[test]
 fn authenticated_pointer_rejects_a_non_lotl_parent_before_child_verification() {
-    let signer = signer_cert();
+    let trust_root = trust_root_cert();
     let parent = verify_tsl_xml_openssl(
         SIGNED_TSL_XML,
-        core::slice::from_ref(&signer),
+        core::slice::from_ref(&trust_root),
         verification_time(),
         X509Policy::default(),
     )
     .expect("the parent fixture must authenticate at its issue time");
     let at_parent_next_update =
-        OffsetDateTime::from_unix_timestamp(1_805_072_400).expect("fixed deadline must be valid");
+        OffsetDateTime::from_unix_timestamp(1_806_195_600).expect("fixed deadline must be valid");
 
     let error =
         verify_tsl_xml_openssl_from_authenticated_pointer(AuthenticatedPointerVerification {
@@ -241,7 +248,7 @@ fn authenticated_pointer_rejects_a_non_lotl_parent_before_child_verification() {
             // Invalid child bytes prove the parent freshness gate runs before
             // the child parser, signature verifier, or trust backend.
             xml: "not XML",
-            trust_roots: core::slice::from_ref(&signer),
+            trust_roots: core::slice::from_ref(&trust_root),
             now: at_parent_next_update,
             policy: X509Policy::default(),
             status_checker: &GoodStatus,
@@ -253,10 +260,10 @@ fn authenticated_pointer_rejects_a_non_lotl_parent_before_child_verification() {
 
 #[test]
 fn authenticated_pointer_rejects_a_parent_without_external_lotl_bootstrap() {
-    let signer = signer_cert();
+    let trust_root = trust_root_cert();
     let parent = verify_tsl_xml_openssl(
         SIGNED_TSL_XML,
-        core::slice::from_ref(&signer),
+        core::slice::from_ref(&trust_root),
         verification_time(),
         X509Policy::default(),
     )
@@ -269,7 +276,7 @@ fn authenticated_pointer_rejects_a_parent_without_external_lotl_bootstrap() {
             fetched_url: "https://example.test/eu-lotl.xml",
             fetched_media_type: TslMediaType::EtsiTrustedListXml,
             xml: SIGNED_TSL_XML,
-            trust_roots: core::slice::from_ref(&signer),
+            trust_roots: core::slice::from_ref(&trust_root),
             now: verification_time(),
             policy: X509Policy::default(),
             status_checker: &GoodStatus,
@@ -291,7 +298,7 @@ fn rejects_modified_signed_tsl() {
 
     let err = verify_tsl_xml_openssl(
         tampered_xml.as_str(),
-        &[signer_cert()],
+        &[trust_root_cert()],
         verification_time(),
         X509Policy::default(),
     )
@@ -313,7 +320,7 @@ fn unauthenticated_critical_extension_never_reaches_semantic_projection() {
 
     let error = verify_tsl_xml_openssl(
         &mutated,
-        &[signer_cert()],
+        &[trust_root_cert()],
         verification_time(),
         X509Policy::default(),
     )
@@ -333,15 +340,15 @@ fn unauthenticated_metadata_never_reaches_semantic_projection() {
         1,
     );
     let invalid_window = SIGNED_TSL_XML.replacen(
-        "<dateTime>2027-03-15T01:00:00Z</dateTime>",
-        "<dateTime>2027-03-15T02:00:00.000000001Z</dateTime>",
+        "<dateTime>2027-03-28T01:00:00Z</dateTime>",
+        "<dateTime>2027-03-28T02:00:00.000000001Z</dateTime>",
         1,
     );
 
     for xml in [invalid_tag, invalid_window] {
         let error = verify_tsl_xml_openssl(
             &xml,
-            &[signer_cert()],
+            &[trust_root_cert()],
             verification_time(),
             X509Policy::default(),
         )
@@ -353,7 +360,7 @@ fn unauthenticated_metadata_never_reaches_semantic_projection() {
 #[test]
 fn preserves_xades_property_failures_as_typed_native_reasons() {
     let missing_signing_time = SIGNED_TSL_XML.replacen(
-        "            <xades:SigningTime>2026-09-15T01:00:00Z</xades:SigningTime>\n",
+        "            <xades:SigningTime>2026-09-28T01:00:00Z</xades:SigningTime>\n",
         "",
         1,
     );
@@ -375,7 +382,7 @@ fn preserves_xades_property_failures_as_typed_native_reasons() {
     ] {
         let error = verify_tsl_xml_openssl(
             &xml,
-            &[signer_cert()],
+            &[trust_root_cert()],
             verification_time(),
             X509Policy::default(),
         )
@@ -401,7 +408,7 @@ fn unrelated_root() -> X509Certificate {
 fn trusts_every_configured_root_not_only_the_first() {
     // The signer is the second configured root. A backend that only loads the
     // first certificate of a concatenated bundle cannot verify this list.
-    let roots = [unrelated_root(), signer_cert()];
+    let roots = [unrelated_root(), trust_root_cert()];
     let verified = verify_tsl_xml_openssl(
         SIGNED_TSL_XML,
         &roots,
@@ -417,7 +424,7 @@ fn trusts_every_configured_root_not_only_the_first() {
 
 #[test]
 fn community_lists_never_reclassify_trust_roots_as_pointer_certificates() {
-    let roots = [unrelated_root(), signer_cert()];
+    let roots = [unrelated_root(), trust_root_cert()];
     let verified = verify_tsl_xml_openssl_with_community_lists(
         SIGNED_TSL_XML,
         &roots,
@@ -447,13 +454,13 @@ fn community_lists_never_reclassify_trust_roots_as_pointer_certificates() {
 
 #[test]
 fn rejects_a_list_issued_after_the_evaluation_time() {
-    // 2026-09-15T00:50:00Z: the signer certificate is valid, but the list's
+    // 2026-09-28T00:50:00Z: the signer certificate is valid, but the list's
     // ListIssueDateTime (01:00:00Z) is beyond the admitted clock skew.
     let before_issue =
-        OffsetDateTime::from_unix_timestamp(1_789_433_400).expect("fixed time must be valid");
+        OffsetDateTime::from_unix_timestamp(1_790_556_600).expect("fixed time must be valid");
     let error = verify_tsl_xml_openssl(
         SIGNED_TSL_XML,
-        &[signer_cert()],
+        &[trust_root_cert()],
         before_issue,
         X509Policy::default(),
     )
@@ -468,7 +475,7 @@ fn rejects_a_list_issued_after_the_evaluation_time() {
 fn rejects_a_replayed_older_sequence_number() {
     let verified = verify_tsl_xml_openssl(
         SIGNED_TSL_XML,
-        &[signer_cert()],
+        &[trust_root_cert()],
         verification_time(),
         X509Policy::default(),
     )

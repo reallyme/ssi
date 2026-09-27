@@ -22,7 +22,7 @@ fn x509_trust_policy_vectors_validate_or_fail_closed() {
     let suite: Value = serde_json::from_str(X509_TRUST_POLICY_VECTORS).unwrap();
     assert_eq!(
         suite["schema"].as_str().unwrap(),
-        "reallyme.identity.conformance.x509_trust_policy.v1"
+        "reallyme.identity.conformance.x509_trust_policy.v2"
     );
 
     for case in suite["certificate_policy_cases"].as_array().unwrap() {

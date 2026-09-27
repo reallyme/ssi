@@ -17,6 +17,10 @@ fn vc_core_errors_map_to_stable_proto_reasons() {
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_INVALID_CREDENTIAL,
         ),
         (
+            VcError::ClaimValueNotCanonical,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_INVALID_CREDENTIAL,
+        ),
+        (
             VcError::UnsupportedProfile,
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_VC_UNSUPPORTED_PROFILE,
         ),

@@ -139,6 +139,44 @@ pub fn parse_tsl_xml(xml: &str) -> Result<TrustedList, TslError> {
     })
 }
 
+/// Read only the bounded trusted-list sequence number.
+///
+/// This is used as an unauthenticated rollback preflight before native XML
+/// signature verification. It deliberately avoids projecting certificates,
+/// providers, extensions, or other semantic content; the authenticated parse
+/// remains authoritative after signature verification succeeds.
+pub fn parse_tsl_sequence_number(xml: &str) -> Result<u64, TslError> {
+    enforce_xml_limits_and_namespace(xml)?;
+    #[derive(Deserialize)]
+    struct SequenceEnvelope {
+        #[serde(rename = "SchemeInformation")]
+        scheme_information: Option<SequenceSchemeInformation>,
+    }
+    #[derive(Deserialize)]
+    struct SequenceSchemeInformation {
+        #[serde(rename = "TSLSequenceNumber")]
+        sequence_number: Option<u64>,
+    }
+
+    let envelope: SequenceEnvelope = from_str(xml).map_err(|_| {
+        TslError::InvalidStructure(TslStructureFailure::Deserialization)
+    })?;
+    let sequence = required(
+        required(
+            envelope.scheme_information,
+            TslRequiredField::SchemeInformation,
+        )?
+        .sequence_number,
+        TslRequiredField::SequenceNumber,
+    )?;
+    if sequence == 0 {
+        return Err(TslError::InvalidStructure(
+            TslStructureFailure::SequenceNumber,
+        ));
+    }
+    Ok(sequence)
+}
+
 fn validate_closed_list_services(
     next_update: Option<TslTimestamp>,
     issue_date_time: TslTimestamp,

@@ -196,19 +196,19 @@ pub struct PresentationCommandIssue {
 #[serde(rename_all = "camelCase")]
 pub struct PresentationVerificationResult {
     /// Whether all mandatory checks passed.
-    pub valid: bool,
+    valid: bool,
     /// Aggregate decision.
-    pub decision: PresentationDecision,
+    decision: PresentationDecision,
     /// Presentation check rows.
-    pub presentation_checks: Vec<PresentationCheckResult>,
+    presentation_checks: Vec<PresentationCheckResult>,
     /// Credential-level summary rows.
-    pub credential_results: Vec<PresentationCredentialResult>,
+    credential_results: Vec<PresentationCredentialResult>,
     /// Disclosed claim facts.
-    pub disclosed_claims: Vec<PresentationDisclosureFact>,
+    disclosed_claims: Vec<PresentationDisclosureFact>,
     /// Stable warning codes.
-    pub warnings: Vec<PresentationCommandIssue>,
+    warnings: Vec<PresentationCommandIssue>,
     /// Stable error codes.
-    pub errors: Vec<PresentationCommandIssue>,
+    errors: Vec<PresentationCommandIssue>,
 }
 
 impl core::fmt::Debug for PresentationVerificationResult {

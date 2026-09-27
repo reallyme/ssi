@@ -35,3 +35,18 @@ fn qwac_policy_rejects_unapproved_typed_key_and_signature_algorithms() {
         X509Error::PolicyFailed(X509PolicyFailure::SignatureAlgorithmNotAllowed)
     );
 }
+
+#[test]
+fn trusted_list_signer_policy_rejects_a_weak_intermediate() {
+    let mut intermediate = mk_intermediate();
+    intermediate.profile.public_key = PublicKeyProfile::Rsa { bits: 1_024 };
+    let chain = X509Chain {
+        certs: vec![mk_leaf(), intermediate, mk_intermediate()],
+    };
+    let now = OffsetDateTime::UNIX_EPOCH + time::Duration::days(10);
+
+    assert_eq!(
+        screen_chain_policy_only_no_path_validation(&chain, now, &tsl_signer_policy()),
+        Err(X509Error::PolicyFailed(X509PolicyFailure::WeakPublicKey))
+    );
+}

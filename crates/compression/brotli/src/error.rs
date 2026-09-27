@@ -27,7 +27,7 @@ pub enum BrotliError {
     #[error("brotli decompressed output exceeds configured limit")]
     OutputTooLarge,
 
-    /// The stream requests a decoder window larger than the configured bound.
-    #[error("brotli decoder window exceeds configured limit")]
+    /// The stream requests a decoder window outside the strict RFC bound.
+    #[error("brotli decoder window exceeds the RFC limit")]
     WindowTooLarge,
 }

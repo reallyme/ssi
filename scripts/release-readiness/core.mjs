@@ -464,7 +464,7 @@ const scrubHashCommentsPreservingStrings = (source) =>
 const scrubHtmlComments = (source) => source.replace(/<!--[\s\S]*?-->/gu, (comment) =>
   comment.replace(/[^\n]/gu, " "));
 
-const scrubCommentsForAssertion = (path, source) => {
+export const scrubCommentsForAssertion = (path, source) => {
   const extension = extname(path).toLowerCase();
   if ([".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"].includes(extension)) {
     return scrubJavaScriptCommentsAndStrings(source, { preserveStrings: true });

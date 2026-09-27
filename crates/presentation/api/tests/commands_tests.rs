@@ -305,9 +305,9 @@ fn verify_presentation_allows_policy_satisfying_facts() {
         checks: Vec::new(),
     });
 
-    assert!(result.valid);
-    assert_eq!(result.decision, PresentationDecision::Allow);
-    assert!(result.presentation_checks.iter().any(|check| {
+    assert!(result.is_valid());
+    assert_eq!(result.decision(), PresentationDecision::Allow);
+    assert!(result.presentation_checks().iter().any(|check| {
         check.name == PresentationCheckName::VerifierPolicy
             && check.outcome == PresentationCheckOutcome::Pass
     }));
@@ -338,8 +338,8 @@ fn optional_unchecked_status_is_skipped_but_adverse_status_is_terminal() {
         suspended: false,
         age_seconds: None,
     }));
-    assert_eq!(unchecked.decision, PresentationDecision::Allow);
-    assert!(unchecked.presentation_checks.iter().any(|check| {
+    assert_eq!(unchecked.decision(), PresentationDecision::Allow);
+    assert!(unchecked.presentation_checks().iter().any(|check| {
         check.name == PresentationCheckName::CredentialStatus
             && check.outcome == PresentationCheckOutcome::Skipped
             && !check.mandatory
@@ -360,8 +360,8 @@ fn optional_unchecked_status_is_skipped_but_adverse_status_is_terminal() {
         },
     ] {
         let adverse = verify_presentation(request(status));
-        assert_eq!(adverse.decision, PresentationDecision::Deny);
-        assert!(adverse.presentation_checks.iter().any(|check| {
+        assert_eq!(adverse.decision(), PresentationDecision::Deny);
+        assert!(adverse.presentation_checks().iter().any(|check| {
             check.name == PresentationCheckName::CredentialStatus
                 && check.outcome == PresentationCheckOutcome::Fail
                 && check.mandatory
@@ -377,13 +377,13 @@ fn verify_presentation_requires_expected_nonce_and_audience() {
         Vec::new(),
     ));
 
-    assert!(!result.valid);
-    assert_eq!(result.decision, PresentationDecision::Deny);
+    assert!(!result.is_valid());
+    assert_eq!(result.decision(), PresentationDecision::Deny);
     for name in [
         PresentationCheckName::Nonce,
         PresentationCheckName::Audience,
     ] {
-        assert!(result.presentation_checks.iter().any(|check| {
+        assert!(result.presentation_checks().iter().any(|check| {
             check.name == name
                 && check.outcome == PresentationCheckOutcome::Fail
                 && check.code == PresentationCheckCode::EvidenceRequired
@@ -418,9 +418,9 @@ fn verify_presentation_compares_authenticated_nonce_and_audience_evidence() {
         let result =
             verify_presentation(verify_request_with(expected_binding(), unbound, Vec::new()));
 
-        assert!(!result.valid);
-        assert_eq!(result.decision, PresentationDecision::Deny);
-        assert!(result.presentation_checks.iter().any(|check| {
+        assert!(!result.is_valid());
+        assert_eq!(result.decision(), PresentationDecision::Deny);
+        assert!(result.presentation_checks().iter().any(|check| {
             check.name == failed_check
                 && check.outcome == PresentationCheckOutcome::Fail
                 && check.code == PresentationCheckCode::BindingMismatch
@@ -454,8 +454,8 @@ fn zk_verification_compares_authenticated_nonce_and_audience_evidence() {
 
         let result = verify_presentation(request);
 
-        assert_eq!(result.decision, PresentationDecision::Deny);
-        assert!(result.presentation_checks.iter().any(|check| {
+        assert_eq!(result.decision(), PresentationDecision::Deny);
+        assert!(result.presentation_checks().iter().any(|check| {
             check.name == failed_check
                 && check.outcome == PresentationCheckOutcome::Fail
                 && check.code == PresentationCheckCode::BindingMismatch
@@ -486,8 +486,8 @@ fn verification_rejects_zero_or_future_presentation_times_for_every_format() {
 
             let result = verify_presentation(request);
 
-            assert_eq!(result.decision, PresentationDecision::Deny);
-            assert!(!result.valid);
+            assert_eq!(result.decision(), PresentationDecision::Deny);
+            assert!(!result.is_valid());
         }
     }
 }
@@ -499,9 +499,9 @@ fn verify_presentation_rejects_an_expired_zk_binding() {
 
     let result = verify_presentation(request);
 
-    assert!(!result.valid);
-    assert_eq!(result.decision, PresentationDecision::Deny);
-    assert!(result.presentation_checks.iter().any(|check| {
+    assert!(!result.is_valid());
+    assert_eq!(result.decision(), PresentationDecision::Deny);
+    assert!(result.presentation_checks().iter().any(|check| {
         check.name == PresentationCheckName::HolderBinding
             && check.outcome == PresentationCheckOutcome::Fail
             && check.code == PresentationCheckCode::BindingMismatch
@@ -522,15 +522,15 @@ fn verify_presentation_is_indeterminate_for_requested_missing_evidence() {
         checks: vec![PresentationCheckName::TransactionData],
     });
 
-    assert!(!result.valid);
-    assert_eq!(result.decision, PresentationDecision::Indeterminate);
-    assert!(result.presentation_checks.iter().any(|check| {
+    assert!(!result.is_valid());
+    assert_eq!(result.decision(), PresentationDecision::Indeterminate);
+    assert!(result.presentation_checks().iter().any(|check| {
         check.name == PresentationCheckName::TransactionData
             && check.code == PresentationCheckCode::EvidenceRequired
             && check.mandatory
     }));
     assert!(result
-        .presentation_checks
+        .presentation_checks()
         .iter()
         .all(|check| check.mandatory || check.name == PresentationCheckName::TransactionData));
 }
@@ -564,14 +564,14 @@ fn verify_presentation_requested_checks_never_drop_mandatory_failures() {
         vec![PresentationCheckName::IssuerTrust],
     ));
 
-    assert!(!result.valid);
-    assert_eq!(result.decision, PresentationDecision::Deny);
-    assert!(result.presentation_checks.iter().any(|check| {
+    assert!(!result.is_valid());
+    assert_eq!(result.decision(), PresentationDecision::Deny);
+    assert!(result.presentation_checks().iter().any(|check| {
         check.name == PresentationCheckName::Signature
             && check.outcome == PresentationCheckOutcome::Fail
     }));
     assert!(result
-        .errors
+        .errors()
         .iter()
         .any(|issue| issue.code == PresentationCheckCode::InvalidProof));
 }
@@ -586,9 +586,9 @@ fn verify_presentation_requested_optional_failure_is_mandatory() {
         vec![PresentationCheckName::IssuerTrust],
     ));
 
-    assert!(!result.valid);
-    assert_eq!(result.decision, PresentationDecision::Deny);
-    assert!(result.presentation_checks.iter().any(|check| {
+    assert!(!result.is_valid());
+    assert_eq!(result.decision(), PresentationDecision::Deny);
+    assert!(result.presentation_checks().iter().any(|check| {
         check.name == PresentationCheckName::IssuerTrust
             && check.outcome == PresentationCheckOutcome::Fail
             && check.mandatory
@@ -626,15 +626,15 @@ fn verify_presentation_denies_every_supplied_optional_negative_fact() {
             vec![PresentationCheckName::Signature],
         ));
 
-        assert!(!result.valid);
-        assert_eq!(result.decision, PresentationDecision::Deny);
-        assert!(result.presentation_checks.iter().any(|check| {
+        assert!(!result.is_valid());
+        assert_eq!(result.decision(), PresentationDecision::Deny);
+        assert!(result.presentation_checks().iter().any(|check| {
             check.name == failed_name
                 && check.outcome == PresentationCheckOutcome::Fail
                 && check.mandatory
         }));
         assert!(result
-            .errors
+            .errors()
             .iter()
             .any(|issue| issue.code == expected_code));
     }
@@ -649,8 +649,8 @@ fn verify_presentation_expected_state_requires_observed_comparison() {
     };
 
     let missing = verify_presentation(verify_request_with(expected(), facts(), Vec::new()));
-    assert!(!missing.valid);
-    assert_eq!(missing.decision, PresentationDecision::Indeterminate);
+    assert!(!missing.is_valid());
+    assert_eq!(missing.decision(), PresentationDecision::Indeterminate);
 
     let mut mismatched_facts = facts();
     mismatched_facts.state_ok = Some(false);
@@ -659,16 +659,16 @@ fn verify_presentation_expected_state_requires_observed_comparison() {
         mismatched_facts,
         Vec::new(),
     ));
-    assert_eq!(mismatched.decision, PresentationDecision::Deny);
+    assert_eq!(mismatched.decision(), PresentationDecision::Deny);
     assert!(mismatched
-        .errors
+        .errors()
         .iter()
         .any(|issue| issue.code == PresentationCheckCode::BindingMismatch));
 
     let mut matched_facts = facts();
     matched_facts.state_ok = Some(true);
     let matched = verify_presentation(verify_request_with(expected(), matched_facts, Vec::new()));
-    assert_eq!(matched.decision, PresentationDecision::Allow);
+    assert_eq!(matched.decision(), PresentationDecision::Allow);
 }
 
 #[test]
@@ -681,7 +681,7 @@ fn verify_presentation_expected_response_uri_requires_observed_comparison() {
     let uri = "https://verifier.example/response";
 
     let missing = verify_presentation(verify_request_with(expected(uri), facts(), Vec::new()));
-    assert_eq!(missing.decision, PresentationDecision::Indeterminate);
+    assert_eq!(missing.decision(), PresentationDecision::Indeterminate);
 
     let mut mismatched_facts = facts();
     mismatched_facts.response_uri_ok = Some(false);
@@ -690,10 +690,10 @@ fn verify_presentation_expected_response_uri_requires_observed_comparison() {
         mismatched_facts,
         Vec::new(),
     ));
-    assert_eq!(mismatched.decision, PresentationDecision::Deny);
+    assert_eq!(mismatched.decision(), PresentationDecision::Deny);
 
     let empty = verify_presentation(verify_request_with(expected("  "), facts(), Vec::new()));
-    assert_eq!(empty.decision, PresentationDecision::Deny);
+    assert_eq!(empty.decision(), PresentationDecision::Deny);
 }
 
 #[test]
@@ -712,11 +712,11 @@ fn presentation_verification_result_owner_clears_disclosed_identity_material() {
 
     result.zeroize();
 
-    assert!(!result.valid);
-    assert_eq!(result.decision, PresentationDecision::Indeterminate);
-    assert!(result.presentation_checks.is_empty());
-    assert!(result.credential_results.is_empty());
-    assert!(result.disclosed_claims.is_empty());
+    assert!(!result.is_valid());
+    assert_eq!(result.decision(), PresentationDecision::Indeterminate);
+    assert!(result.presentation_checks().is_empty());
+    assert!(result.credential_results().is_empty());
+    assert!(result.disclosed_claims().is_empty());
 }
 
 #[test]

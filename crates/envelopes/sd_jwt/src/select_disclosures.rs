@@ -19,6 +19,12 @@ use crate::{
 const SD_CLAIM_NAME: &str = "_sd";
 const SD_ALG_CLAIM_NAME: &str = "_sd_alg";
 const ARRAY_DIGEST_CLAIM_NAME: &str = "...";
+/// Maximum number of claim paths accepted from a disclosure request.
+pub const MAX_REQUESTED_SD_JWT_PATHS: usize = 256;
+/// Maximum number of components in one requested claim path.
+pub const MAX_REQUESTED_SD_JWT_PATH_COMPONENTS: usize = 64;
+/// Maximum UTF-8 length of one requested object-property component.
+pub const MAX_REQUESTED_SD_JWT_PATH_NAME_BYTES: usize = 4_096;
 
 /// One component in a claim path requested for disclosure.
 #[derive(Clone, PartialEq, Eq, Zeroize)]
@@ -146,7 +152,18 @@ pub fn select_sd_jwt_disclosures(
         || encoded_disclosures.len() > MAX_SD_JWT_DISCLOSURES
         || policy.max_depth == 0
         || policy.max_nodes == 0
-        || requested_paths.iter().any(Vec::is_empty)
+        || requested_paths.len() > MAX_REQUESTED_SD_JWT_PATHS
+        || requested_paths.iter().any(|path| {
+            path.is_empty()
+                || path.len() > MAX_REQUESTED_SD_JWT_PATH_COMPONENTS
+                || path.iter().any(|component| {
+                    matches!(
+                        component,
+                        SdJwtClaimPathComponent::Name(name)
+                            if name.len() > MAX_REQUESTED_SD_JWT_PATH_NAME_BYTES
+                    )
+                })
+        })
     {
         return Err(SdJwtEnvelopeError::InvalidIssuanceInput);
     }

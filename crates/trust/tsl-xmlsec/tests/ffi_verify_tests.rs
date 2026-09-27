@@ -17,7 +17,7 @@ use std::mem::MaybeUninit;
 const SIGNED_TSL_XML: &str = include_str!("../../tsl-openssl/tests/fixtures/signed_tsl.xml");
 const WRONG_CERTIFICATE_DIGEST_XML: &str =
     include_str!("../../tsl-openssl/tests/fixtures/signed_wrong_signing_cert_digest.xml");
-const TRUST_ROOT_PEM: &str = include_str!("../../tsl-openssl/tests/fixtures/cert.pem");
+const TRUST_ROOT_PEM: &str = include_str!("../../tsl-openssl/tests/fixtures/root-cert.pem");
 /// A valid CA certificate that did not issue the fixture signer.
 const UNRELATED_ROOT_DER: &[u8] = include_bytes!("fixtures/unrelated_root.der");
 

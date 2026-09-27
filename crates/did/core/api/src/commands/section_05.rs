@@ -134,7 +134,10 @@ fn validate_relationship_replacement(
             RelationshipAlgorithmPolicy::Signing => {
                 matches!(
                     algorithm,
-                    Algorithm::Ed25519 | Algorithm::MlDsa87 | Algorithm::P256
+                    Algorithm::Ed25519
+                        | Algorithm::MlDsa87
+                        | Algorithm::P256
+                        | Algorithm::Secp256k1
                 )
             }
             RelationshipAlgorithmPolicy::Invocation => matches!(

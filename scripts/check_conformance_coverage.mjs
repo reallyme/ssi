@@ -199,8 +199,11 @@ const findCargoManifests = (relativeDir, manifests = []) => {
 };
 
 const rustTestNames = new Set();
+const rustTestSourceByName = new Map();
 const rustIdentifiersByFile = new Map();
-const rustTestFunctionPattern = /#\[(?:[A-Za-z_][A-Za-z0-9_]*::)?test(?:\([^\]]*\))?\][\s\S]*?\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+const attributedRustFunctionPattern = /((?:\s*#\[[^\]]+\]\s*)+)\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gu;
+const rustTestAttributePattern = /#\[(?:[A-Za-z_][A-Za-z0-9_]*::)?test(?:\([^\]]*\))?\]/u;
+const rustIgnoreAttributePattern = /#\[(?:[A-Za-z_][A-Za-z0-9_]*::)?ignore(?:\([^\]]*\))?\]/u;
 const rustIdentifierPattern = /\b(?:fn|struct|enum|trait|const|static|type)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
 for (const file of [
   ...collectRustFiles("crates"),
@@ -213,15 +216,30 @@ for (const file of [
     fileIdentifiers.add(identifierMatch[1]);
     identifierMatch = rustIdentifierPattern.exec(source);
   }
-  let match = rustTestFunctionPattern.exec(source);
+  let match = attributedRustFunctionPattern.exec(source);
   while (match !== null) {
-    rustTestNames.add(match[1]);
-    match = rustTestFunctionPattern.exec(source);
+    const attributes = match[1];
+    const functionName = match[2];
+    if (
+      attributes !== undefined &&
+      functionName !== undefined &&
+      rustTestAttributePattern.test(attributes) &&
+      !rustIgnoreAttributePattern.test(attributes)
+    ) {
+      rustTestNames.add(functionName);
+      const sourcePath = relative(root, file).replaceAll("\\", "/");
+      const sources = rustTestSourceByName.get(functionName) ?? [];
+      sources.push(sourcePath);
+      rustTestSourceByName.set(functionName, sources);
+    }
+    match = attributedRustFunctionPattern.exec(source);
   }
   rustIdentifiersByFile.set(relative(root, file).replaceAll("\\", "/"), fileIdentifiers);
 }
 
 const crateIdentifiers = new Map();
+const crateRootByName = new Map();
+const localCrateRoots = new Set();
 for (const manifest of findCargoManifests("crates")) {
   const manifestSource = readFileSync(resolve(root, manifest), "utf8");
   const packageName = /^name\s*=\s*"([^"]+)"$/mu.exec(manifestSource)?.[1];
@@ -238,7 +256,38 @@ for (const manifest of findCargoManifests("crates")) {
     }
   }
   crateIdentifiers.set(crateName, identifiers);
+  crateRootByName.set(crateName, crateRoot);
+  localCrateRoots.add(crateRoot);
 }
+
+const crateRootForSource = (sourcePath) =>
+  [...localCrateRoots]
+    .filter((crateRoot) => sourcePath === crateRoot || sourcePath.startsWith(`${crateRoot}/`))
+    .sort((left, right) => right.length - left.length)[0];
+
+// These tests deliberately exercise an implementation through a separately
+// published adapter or policy crate. Every other local test must live in a
+// crate named by the requirement's implementation evidence, preventing an
+// unrelated test elsewhere in the workspace from satisfying the gate.
+const approvedCrossCrateEvidence = new Set([
+  "CLAIMS-MUST-011:predefined_policy_profiles_validate_representative_registry_claims",
+  "DID-MUST-002:controller_array_roundtrip",
+  "DID-MUST-003:proto_roundtrip_preserves_did_document",
+  "DID-METHOD-MUST-001:did_method_valid_vectors_are_accepted",
+  "DID-METHOD-MUST-001:did_method_invalid_vectors_fail_closed",
+  "DI-MUST-001:verify_proof_succeeds_for_created_document",
+  "DI-MUST-001:verify_proof_fails_if_current_core_changes",
+  "PROFILE-MUST-005:eu_pid_rejects_wrong_profile_family",
+  "RESOURCE-MUST-011:trusted_list_anchors_reject_empty_and_accept_the_maximum_count",
+  "RESOURCE-MUST-011:trusted_list_anchors_reject_more_than_the_core_root_limit",
+  "RESOURCE-MUST-011:trusted_list_anchors_reject_oversized_der",
+  "RESOURCE-MUST-011:trusted_list_anchors_reject_aggregate_pem_budget_exhaustion",
+  "RESOURCE-MUST-011:lower_native_entry_rejects_excessive_roots_before_xml_processing",
+  "REVOCATION-MUST-002:verifies_clear_revocation_status",
+  "VP-MUST-001:sd_jwt_presentation_round_trips_through_proto_bytes",
+  "VP-MUST-001:invalid_hash_length_is_rejected",
+  "VP-MUST-002:unspecified_disclosure_mode_is_rejected",
+]);
 
 const vectorManifest = readJson("vectors/manifest.json");
 const vectorSuiteIds = new Set();
@@ -368,6 +417,30 @@ const assertKnownTest = (relativePath, record, testName) => {
   if (!rustTestNames.has(testName) && !vectorSuiteIds.has(testName) && !upstreamTestNames.has(testName)) {
     fail(`${relativePath}:${record.id} references unknown test or vector suite ${testName}`);
   }
+  const localSources = rustTestSourceByName.get(testName) ?? [];
+  if (localSources.length > 1) {
+    fail(`${relativePath}:${record.id} references ambiguous local test ${testName}`);
+  }
+};
+
+const localImplementationCrateRoots = (implementation) => {
+  const roots = new Set();
+  for (const implementationPath of implementation) {
+    if (implementationPath.startsWith("crates/")) {
+      const sourcePath = implementationPath.split("#", 1)[0].replace(/:[0-9]+$/u, "");
+      const crateRoot = crateRootForSource(sourcePath);
+      if (crateRoot !== undefined) {
+        roots.add(crateRoot);
+      }
+      continue;
+    }
+    const crateName = implementationPath.split("::", 1)[0];
+    const crateRoot = crateRootByName.get(crateName);
+    if (crateRoot !== undefined) {
+      roots.add(crateRoot);
+    }
+  }
+  return roots;
 };
 
 const ids = new Set();
@@ -409,6 +482,22 @@ for (const file of readdirSync(requirementsDir).filter((entry) => entry.endsWith
     }
     for (const testName of [...positiveTests, ...negativeTests]) {
       assertKnownTest(relativePath, record, testName);
+      const testSource = rustTestSourceByName.get(testName)?.[0];
+      if (testSource !== undefined) {
+        const testCrateRoot = crateRootForSource(testSource);
+        const implementationRoots = localImplementationCrateRoots(implementation);
+        const crossCrateKey = `${record.id}:${testName}`;
+        if (
+          testCrateRoot !== undefined &&
+          implementationRoots.size > 0 &&
+          !implementationRoots.has(testCrateRoot) &&
+          !approvedCrossCrateEvidence.has(crossCrateKey)
+        ) {
+          fail(
+            `${relativePath}:${record.id} uses unrelated test ${testName} from ${testCrateRoot}`,
+          );
+        }
+      }
     }
     for (const implementationPath of implementation) {
       if (typeof implementationPath !== "string" || implementationPath.length === 0) {

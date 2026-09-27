@@ -251,6 +251,35 @@ fn verifies_intermediate_chain() {
 }
 
 #[test]
+fn rejects_when_openssl_builds_a_shorter_path_than_the_screened_chain() {
+    let (root, root_key) = build_root("CN=Root");
+    let (intermediate, intermediate_key) = build_intermediate("CN=Intermediate", &root, &root_key);
+    let leaf = build_leaf("CN=Leaf", &intermediate, &intermediate_key, 107);
+    let (unrelated, _) = build_root("CN=Unrelated");
+
+    // The unrelated certificate is valid DER but is not part of the path.
+    // OpenSSL can ignore it and build leaf -> intermediate -> root; the policy
+    // layer screened the four-entry sequence, so accepting the shorter path
+    // would decouple cryptographic validation from the screened certificates.
+    let chain = X509Chain {
+        certs: vec![
+            parse_cert_der(&leaf.to_der().unwrap()).unwrap(),
+            parse_cert_der(&intermediate.to_der().unwrap()).unwrap(),
+            parse_cert_der(&unrelated.to_der().unwrap()).unwrap(),
+            parse_cert_der(&root.to_der().unwrap()).unwrap(),
+        ],
+    };
+
+    let error = OpenSslSignatureVerifier::new()
+        .verify_chain(&chain, OffsetDateTime::now_utc())
+        .expect_err("backend path must exactly match the policy-screened chain");
+    assert!(matches!(
+        error,
+        reallyme_trust_core::SignatureVerifyError::InvalidSignature
+    ));
+}
+
+#[test]
 fn rejects_wrong_root() {
     let (root_a, root_a_key) = build_root("CN=RootA");
     let leaf = build_leaf("CN=Leaf", &root_a, &root_a_key, 102);

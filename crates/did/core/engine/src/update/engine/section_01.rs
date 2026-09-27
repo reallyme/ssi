@@ -166,14 +166,24 @@ fn validate_relationship_references(
 
     for id in authentication {
         match algorithm_for_key(controller_keys, id).map(|key| key.algorithm) {
-            Some(Algorithm::Ed25519 | Algorithm::MlDsa87 | Algorithm::P256) => {}
+            Some(
+                Algorithm::Ed25519
+                | Algorithm::MlDsa87
+                | Algorithm::P256
+                | Algorithm::Secp256k1,
+            ) => {}
             _ => return Err(UpdateError::InvalidState),
         }
     }
 
     for id in assertion {
         match algorithm_for_key(controller_keys, id).map(|key| key.algorithm) {
-            Some(Algorithm::Ed25519 | Algorithm::MlDsa87 | Algorithm::P256) => {}
+            Some(
+                Algorithm::Ed25519
+                | Algorithm::MlDsa87
+                | Algorithm::P256
+                | Algorithm::Secp256k1,
+            ) => {}
             _ => return Err(UpdateError::InvalidState),
         }
     }

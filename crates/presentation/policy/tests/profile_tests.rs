@@ -75,6 +75,33 @@ fn dummy_presentation() -> Presentation {
     }))
 }
 
+#[test]
+fn zk_presentation_expiry_is_exclusive_at_trusted_now() {
+    let presentation = dummy_presentation();
+    let registry = empty_registry("eu.pid.v1");
+    let policy = policy_for_claimset("eu.pid.v1").expect("known profile");
+    let decision = evaluate(
+        &policy,
+        &EvaluationContext {
+            presentation: &presentation,
+            binding_ok: true,
+            issuer_algorithm: Algorithm::Ed25519,
+            holder_algorithm: Algorithm::Ed25519,
+            now_unix: 1_800_000_000,
+            claims_registry: &registry,
+            claimset_id: "eu.pid.v1",
+            status: None,
+            qeaa: None,
+            qeaa_audit_ok: None,
+        },
+    );
+
+    assert!(matches!(
+        decision,
+        PolicyDecision::Reject(errors) if errors.contains(&VpPolicyError::Expired)
+    ));
+}
+
 // -----------------------------------------------------------------------------
 // QEAA fixtures
 // -----------------------------------------------------------------------------
@@ -144,6 +171,26 @@ impl StatusListVerifier for AcceptAllStatusVerifier {
 impl reallyme_credential::CredentialStatusListVerifier for AcceptAllStatusVerifier {
     fn verified_signer(&self) -> reallyme_credential::PartyReference {
         reallyme_credential::PartyReference::Did("did:test:issuer".to_owned())
+    }
+}
+
+struct WrongSignerStatusVerifier;
+
+impl StatusListVerifier for WrongSignerStatusVerifier {
+    fn verify_status_list(
+        &self,
+        _issuer_did: &str,
+        _alg: StatusListAlgorithm,
+        _message: &[u8],
+        _sig: &[u8],
+    ) -> Result<(), CredentialStatusError> {
+        Ok(())
+    }
+}
+
+impl reallyme_credential::CredentialStatusListVerifier for WrongSignerStatusVerifier {
+    fn verified_signer(&self) -> reallyme_credential::PartyReference {
+        reallyme_credential::PartyReference::Did("did:test:other".to_owned())
     }
 }
 
@@ -224,6 +271,39 @@ fn status_evaluation_binds_to_the_presentations_authenticated_reference() {
     let mut status_list = status_list_issued_at(1_700_000_000);
     status_list.list_id = Some([8; 32]);
     let verifier = AcceptAllStatusVerifier;
+    let presentation = dummy_presentation();
+
+    let decision = evaluate(
+        &policy,
+        &EvaluationContext {
+            binding_ok: true,
+            now_unix: 1_700_000_000,
+            presentation: &presentation,
+            issuer_algorithm: Algorithm::Ed25519,
+            holder_algorithm: Algorithm::Ed25519,
+            claims_registry: &empty_registry("eu.pid.v1"),
+            claimset_id: "eu.pid.v1",
+            status: Some(StatusContext {
+                list: &status_list,
+                verifier: &verifier,
+            }),
+            qeaa: Some(&qeaa),
+            qeaa_audit_ok: Some(&qeaa),
+        },
+    );
+
+    assert_eq!(
+        decision,
+        PolicyDecision::Reject(vec![VpPolicyError::StatusCheckFailed])
+    );
+}
+
+#[test]
+fn status_evaluation_rejects_an_authenticated_signer_mismatch() {
+    let policy = eu_pid_policy();
+    let qeaa = valid_qeaa();
+    let status_list = status_list_issued_at(1_700_000_000);
+    let verifier = WrongSignerStatusVerifier;
     let presentation = dummy_presentation();
 
     let decision = evaluate(

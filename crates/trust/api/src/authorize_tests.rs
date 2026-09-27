@@ -530,7 +530,7 @@ fn qualified_type_cutover_uses_leaf_not_before_and_evaluation_time() {
             AuthorizationPurpose::QwacTlsServer
         )
         .unwrap_err(),
-        TrustApiError::ServiceTypeMismatch
+        TrustApiError::ServiceStatusUnknown
     ));
 
     let mut post_cutover_leaf = issued_leaf();
@@ -543,7 +543,7 @@ fn qualified_type_cutover_uses_leaf_not_before_and_evaluation_time() {
             AuthorizationPurpose::QwacTlsServer
         )
         .unwrap_err(),
-        TrustApiError::ServiceTypeMismatch
+        TrustApiError::ServiceStatusUnknown
     ));
 }
 
@@ -749,3 +749,5 @@ fn historical_match_ignores_a_self_asserted_subject_key_identifier() {
     let genuine = trusted_decision_at(dummy_cert(), WITHIN_LIST_VALIDITY);
     authorize_test_chain_in_list(&genuine, &tsl, AuthorizationPurpose::QeaaIssuer).unwrap();
 }
+
+include!("authorize_tests/regression_tests.rs");

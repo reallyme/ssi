@@ -328,7 +328,7 @@
       "mapping_status": "section_by_section",
       "publishing": {
         "role": "core_support_published",
-        "package": "reallyme-credential-status + reallyme-revocation + reallyme-single-use",
+        "package": "reallyme-credential-status + reallyme-revocation",
         "publish_ready": true,
         "notes": "Section-by-section coverage is complete for the supported identity surface. The status and revocation crates are published independently; CRL/OCSP provider and single-use crates remain source-only."
       },
@@ -542,7 +542,7 @@
       "mapping_status": "section_by_section",
       "publishing": {
         "role": "core_support_published",
-        "package": "reallyme-ssi-proto",
+        "package": "reallyme-ssi-proto + reallyme-ssi-proto-codec",
         "publish_ready": true,
         "notes": "The canonical SSI protobuf package and bounded proto-codec package are published for reallyme-identity. Product operation transport, dispatch, and provider execution remain in reallyme/identity."
       },

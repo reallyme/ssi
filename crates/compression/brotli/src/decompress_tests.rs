@@ -2,61 +2,34 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::cell::Cell;
-use core::mem::size_of;
-use std::rc::Rc;
-
-use brotli::Allocator;
-
-use super::{brotli_decompress_with_allocators, BrotliError, StandardAlloc};
-
-struct CountingAllocator {
-    requested_bytes: Rc<Cell<usize>>,
-    inner: StandardAlloc,
-}
-
-impl CountingAllocator {
-    fn new(requested_bytes: Rc<Cell<usize>>) -> Self {
-        Self {
-            requested_bytes,
-            inner: StandardAlloc::default(),
-        }
-    }
-}
-
-impl<T> Allocator<T> for CountingAllocator
-where
-    T: Clone + Default,
-    StandardAlloc: Allocator<T>,
-{
-    type AllocatedMemory = <StandardAlloc as Allocator<T>>::AllocatedMemory;
-
-    fn alloc_cell(&mut self, len: usize) -> Self::AllocatedMemory {
-        let requested = len.saturating_mul(size_of::<T>());
-        self.requested_bytes
-            .set(self.requested_bytes.get().saturating_add(requested));
-        self.inner.alloc_cell(len)
-    }
-
-    fn free_cell(&mut self, data: Self::AllocatedMemory) {
-        self.inner.free_cell(data);
-    }
-}
+use super::brotli_decompress_with_limit;
+use std::io::Write;
 
 #[test]
-fn oversized_rfc_window_is_rejected_before_decoder_allocation() {
-    let requested_bytes = Rc::new(Cell::new(0));
-    let hostile = [0x0f, 0x00, 0x80, 0x41, 0x00, 0x00, 0x08, 0x42, 0x03];
-    let result = brotli_decompress_with_allocators(
-        &hostile,
-        64,
-        CountingAllocator::new(Rc::clone(&requested_bytes)),
-        CountingAllocator::new(Rc::clone(&requested_bytes)),
-        CountingAllocator::new(Rc::clone(&requested_bytes)),
-    );
+fn version_0_2_lgwin_22_stream_decodes_under_a_small_output_limit() {
+    // Produced by the 0.2.x compressor, whose default lgwin was 22. This is a
+    // protocol-compatibility vector, not generated during the test.
+    const V0_2_COMPATIBILITY_BLOB: &[u8] = &[
+        0x1b, 0x2b, 0x00, 0xf8, 0x45, 0x37, 0x97, 0xea, 0x42, 0x12, 0x31, 0x44, 0x9b, 0xc1, 0x64,
+        0x88, 0x62, 0x10, 0x0e, 0x82, 0xc8, 0x93, 0x10, 0x59, 0x92, 0x2a, 0x6e, 0x32, 0xf2, 0xa6,
+        0xef, 0x85, 0x08, 0x03, 0x93, 0x40, 0x77, 0xee, 0xb5, 0x2c, 0xbf, 0xf2, 0x66, 0x01,
+    ];
+    const EXPECTED: &[u8] = b"ReallyMe SSI 0.2 Brotli compatibility vector";
 
-    assert_eq!(result, Err(BrotliError::WindowTooLarge));
-    // Total requested bytes upper-bounds peak live bytes. No decoder
-    // allocation is permitted before the stream's WBITS is accepted.
-    assert!(requested_bytes.get() <= 128);
+    // Prove the checked-in bytes come from the exact encoder configuration
+    // published by 0.2.0, rather than merely being an arbitrary WBITS=22
+    // stream produced by another implementation.
+    let mut legacy_output = Vec::new();
+    let encoded = {
+        let mut writer = brotli::CompressorWriter::new(&mut legacy_output, 4_096, 11, 22);
+        writer.write_all(EXPECTED)
+    };
+    assert!(encoded.is_ok());
+    assert_eq!(legacy_output.as_slice(), V0_2_COMPATIBILITY_BLOB);
+
+    let decoded = brotli_decompress_with_limit(V0_2_COMPATIBILITY_BLOB, 64);
+    assert!(decoded.is_ok());
+    if let Ok(decoded) = decoded {
+        assert_eq!(decoded.as_slice(), EXPECTED);
+    }
 }

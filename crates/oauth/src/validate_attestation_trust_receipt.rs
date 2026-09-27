@@ -65,7 +65,17 @@ pub(super) fn validate_trusted_status_evidence(
                 .ok_or(OauthError::new(Reason::InvalidAttestationReceipt))?;
             CertificatePosition::Intermediate(intermediate_index)
         };
-        if status.position != expected_position || status.status != CertificateStatus::Good {
+        let status_allowed = match expected_position {
+            CertificatePosition::TrustAnchor => matches!(
+                status.status,
+                CertificateStatus::Good | CertificateStatus::Exempt
+            ),
+            CertificatePosition::Leaf | CertificatePosition::Intermediate(_) => {
+                status.status == CertificateStatus::Good
+            }
+            _ => false,
+        };
+        if status.position != expected_position || !status_allowed {
             return Err(OauthError::new(Reason::InvalidAttestationReceipt));
         }
     }

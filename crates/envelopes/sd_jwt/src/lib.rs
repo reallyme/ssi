@@ -54,6 +54,8 @@ pub use reallyme_crypto::jwk::EcJwk as SdJwtReceiptEcJwk;
 pub use reallyme_crypto::jwk::Jwk as SdJwtReceiptJwk;
 pub use select_disclosures::{
     select_sd_jwt_disclosures, SdJwtClaimPathComponent, SelectedSdJwtDisclosures,
+    MAX_REQUESTED_SD_JWT_PATHS, MAX_REQUESTED_SD_JWT_PATH_COMPONENTS,
+    MAX_REQUESTED_SD_JWT_PATH_NAME_BYTES,
 };
 pub use validate_temporal_claims::{
     DEFAULT_SD_JWT_CLOCK_SKEW_SECONDS, MAX_SD_JWT_CLOCK_SKEW_SECONDS,

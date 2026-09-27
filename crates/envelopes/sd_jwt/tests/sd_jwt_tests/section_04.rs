@@ -421,6 +421,53 @@ fn processing_policy_is_clamped_to_hard_ceilings() {
 }
 
 #[test]
+fn disclosure_selection_bounds_requested_paths_and_components() {
+    let too_many_paths = vec![
+        vec![SdJwtClaimPathComponent::Name("claim".to_owned())];
+        MAX_REQUESTED_SD_JWT_PATHS + 1
+    ];
+    assert_eq!(
+        select_sd_jwt_disclosures(
+            &json!({}),
+            &[],
+            &too_many_paths,
+            SdJwtProcessingPolicy::default(),
+        )
+        .err(),
+        Some(SdJwtEnvelopeError::InvalidIssuanceInput)
+    );
+
+    let too_deep_path = vec![vec![
+        SdJwtClaimPathComponent::All;
+        MAX_REQUESTED_SD_JWT_PATH_COMPONENTS + 1
+    ]];
+    assert_eq!(
+        select_sd_jwt_disclosures(
+            &json!({}),
+            &[],
+            &too_deep_path,
+            SdJwtProcessingPolicy::default(),
+        )
+        .err(),
+        Some(SdJwtEnvelopeError::InvalidIssuanceInput)
+    );
+
+    let oversized_name = vec![vec![SdJwtClaimPathComponent::Name(
+        "x".repeat(MAX_REQUESTED_SD_JWT_PATH_NAME_BYTES + 1),
+    )]];
+    assert_eq!(
+        select_sd_jwt_disclosures(
+            &json!({}),
+            &[],
+            &oversized_name,
+            SdJwtProcessingPolicy::default(),
+        )
+        .err(),
+        Some(SdJwtEnvelopeError::InvalidIssuanceInput)
+    );
+}
+
+#[test]
 fn json_serialization_rejects_whitespace_and_duplicate_members() {
     let issuer = gen_ed25519();
     let compact = sign_dc_sd_jwt(&issuer, &json!({"iss": "https://issuer.example"}), &[]);
@@ -449,6 +496,21 @@ fn json_serialization_rejects_whitespace_and_duplicate_members() {
     );
     assert_eq!(
         parse_sd_jwt_json_serialization(&duplicate).err(),
+        Some(SdJwtEnvelopeError::InvalidJsonSerialization)
+    );
+}
+
+#[test]
+fn json_serialization_rejects_unprotected_crit() {
+    let input = json!({
+        "payload": "e30",
+        "protected": "e30",
+        "signature": "AA",
+        "header": { "crit": ["example"] }
+    });
+
+    assert_eq!(
+        parse_sd_jwt_json_serialization(&input.to_string()).err(),
         Some(SdJwtEnvelopeError::InvalidJsonSerialization)
     );
 }

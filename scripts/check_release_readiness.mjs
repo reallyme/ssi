@@ -7,7 +7,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createReleaseReadinessContext } from "./release-readiness/core.mjs";
+import {
+  createReleaseReadinessContext,
+  scrubCommentsForAssertion,
+} from "./release-readiness/core.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const shared = createReleaseReadinessContext({
@@ -637,30 +640,26 @@ const readExpandedRustSource = (path, visited = new Set()) => {
 
 const readSearchableSource = (path) => {
   const source = path.endsWith(".rs") ? readExpandedRustSource(path) : readText(path);
-  if (!/\.(?:rs|toml|mjs|js|sh|ya?ml)$/u.test(path)) {
-    return source;
-  }
-  // Invariant evidence must be executable/configuration content. A commented
-  // copy of a required setting must never satisfy a release gate.
-  return source
-    .split(/\r?\n/u)
-    .filter((line) => !/^\s*(?:#|\/\/)/u.test(line))
-    .join("\n");
+  // Repository-specific assertions share the same lexer-aware comment
+  // scrubbing as the reusable readiness controls. This matters for command
+  // flags: an inline or trailing comment must not preserve a retired control.
+  return scrubCommentsForAssertion(path, source);
 };
 
 const assertContains = (path, needle) => {
   const sourcePaths = [path, ...(focusedSourceContinuations.get(path) ?? [])];
   if (
     !sourcePaths.some((sourcePath) =>
-      (/\.(?:toml|ya?ml)$/u.test(sourcePath) && needle.includes("="))
-        ? readSearchableSource(sourcePath).includes(needle)
-        : (sourcePath.endsWith(".rs")
-            ? readExpandedRustSource(sourcePath)
-            : readText(sourcePath)
-          ).includes(needle),
+      readSearchableSource(sourcePath).includes(needle),
     )
   ) {
     fail(`${sourcePaths.join(" or ")} does not contain ${needle}`);
+  }
+};
+
+const assertDocumentationContains = (path, needle) => {
+  if (!readText(path).includes(needle)) {
+    fail(`${path} does not document ${needle}`);
   }
 };
 
@@ -1005,7 +1004,7 @@ for (const sourcePath of rustSourcePaths) {
     }
   }
 }
-assertContains(
+assertDocumentationContains(
   "crates/presentation/core/src/model.rs",
   "Presentation models deliberately do not implement Serde",
 );
@@ -1366,7 +1365,11 @@ assertContains(
 assertContains("scripts/publish_crates_in_order.mjs", "retryAfterMs");
 assertContains(
   "scripts/publish_crates_in_order.mjs",
-  "verifyPublishedPackageMatches(pkg)",
+  "const reviewedChecksum = verifyLocalPackageMatchesReviewed(pkg);",
+);
+assertContains(
+  "scripts/publish_crates_in_order.mjs",
+  "verifyPublishedPackageMatches(pkg, reviewedChecksum)",
 );
 assertContains(
   "scripts/publish_crates_in_order.mjs",
@@ -1528,7 +1531,10 @@ for (const staleLocalCrate of ["`crates/jose`", "`crates/cose`"]) {
 }
 assertContains("SECURITY.md", "security@really.me");
 assertContains("crates/proto/README.md", "`identity.did.v1.DidDocument.context`");
-assertContains("crates/proto/proto/identity/did/v1/did.proto", "Inline JSON-LD object contexts");
+assertDocumentationContains(
+  "crates/proto/proto/identity/did/v1/did.proto",
+  "Inline JSON-LD object contexts",
+);
 assertContains("crates/proto/tests/did_generated_tests.rs", "did_me_domain_verification_accepts_spec_wellknown_json_key");
 assertContains("crates/proto/tests/did_generated_tests.rs", 'assert!(!object.contains_key("wellKnown"))');
 assertContains("crates/envelopes/mdoc/tests/mdoc_tests.rs", "issues_and_verifies_issuer_signed_mdoc");
