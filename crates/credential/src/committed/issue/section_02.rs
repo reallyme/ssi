@@ -133,10 +133,13 @@ fn normalize_json_value(v: &serde_json::Value) -> serde_json::Value {
 // Salts
 // -----------------------------------------------------------------------------
 
+/// Entropy source used to generate per-claim commitment salts.
 pub trait SaltRng {
+    /// Fills `out` with cryptographically secure random bytes.
     fn fill_bytes(&mut self, out: &mut [u8]) -> Result<(), VcError>;
 }
 
+/// Operating-system random source for commitment salts.
 pub struct OsSaltRng;
 
 impl SaltRng for OsSaltRng {
@@ -145,6 +148,7 @@ impl SaltRng for OsSaltRng {
     }
 }
 
+/// Deterministic salt source reserved for reproducible conformance vectors.
 #[cfg(feature = "conformance-vectors")]
 pub struct DeterministicRng {
     state: u64,

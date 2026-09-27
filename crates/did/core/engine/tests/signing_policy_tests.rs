@@ -6,9 +6,10 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
 use identity_core_primitives::Algorithm;
-use reallyme_did_core::{sign_core, CoreVerificationMethod};
+use reallyme_did_core::{sign_core, CoreVerificationMethod, DidCoreError};
 use std::collections::HashMap;
 
 // bring in helper
@@ -139,13 +140,13 @@ fn signing_order_is_deterministic() {
             id: "#b".into(),
             vm_type: "Multikey".into(),
             algorithm: Algorithm::Ed25519,
-            public_key_multibase: "z".into(),
+            public_key_multibase: "zb".into(),
         },
         CoreVerificationMethod {
             id: "#a".into(),
             vm_type: "Multikey".into(),
             algorithm: Algorithm::Ed25519,
-            public_key_multibase: "z".into(),
+            public_key_multibase: "za".into(),
         },
     ];
 
@@ -170,4 +171,37 @@ fn signing_order_is_deterministic() {
     .unwrap();
 
     assert_eq!(a1, a2);
+    assert_eq!(a1[0].verification_method, "#a");
+    assert_eq!(a1[1].verification_method, "#b");
+}
+
+#[test]
+fn duplicate_controller_key_ids_cannot_produce_multiple_attestations() {
+    let mut core = test_core(1, None);
+    core.update_policy.allowed_verification_methods = vec!["#authority".into()];
+    core.update_policy.threshold = Some(1);
+    let keys = vec![
+        CoreVerificationMethod {
+            id: "#authority".into(),
+            vm_type: "Multikey".into(),
+            algorithm: Algorithm::Ed25519,
+            public_key_multibase: "za".into(),
+        },
+        CoreVerificationMethod {
+            id: "#authority".into(),
+            vm_type: "Multikey".into(),
+            algorithm: Algorithm::Ed25519,
+            public_key_multibase: "zb".into(),
+        },
+    ];
+
+    assert!(matches!(
+        sign_core(
+            &core,
+            &keys,
+            &core.update_policy.allowed_verification_methods,
+            |_| Some(vec![1_u8; 32]),
+        ),
+        Err(DidCoreError::PolicyViolation)
+    ));
 }

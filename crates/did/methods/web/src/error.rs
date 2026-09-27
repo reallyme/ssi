@@ -9,6 +9,7 @@ use thiserror::Error;
 
 /// Audit-safe did:web failure reasons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidWebErrorReason {
     /// The input does not use the did:web prefix.
     InvalidPrefix,
@@ -26,6 +27,10 @@ pub enum DidWebErrorReason {
     InvalidDidUrl,
     /// The JSON value is not a supported DID document.
     InvalidDocument,
+    /// A JSON-LD document was supplied without an injected JSON-LD processor.
+    JsonLdProcessorUnavailable,
+    /// The injected JSON-LD processor rejected the document.
+    InvalidJsonLd,
     /// The returned document identifies a different DID.
     DocumentIdentifierMismatch,
     /// A controller is invalid.
@@ -77,19 +82,23 @@ pub enum DidWebErrorReason {
 /// Typed did:web method error. It never contains identifiers, URLs, or bodies.
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
 #[error("did:web operation failed")]
+#[non_exhaustive]
 pub struct DidWebError {
     /// Stable, non-identifying failure reason.
     pub reason: DidWebErrorReason,
 }
 
 impl DidWebError {
-    pub(crate) const fn new(reason: DidWebErrorReason) -> Self {
+    /// Construct a redacted method error from a stable reason.
+    #[must_use]
+    pub const fn new(reason: DidWebErrorReason) -> Self {
         Self { reason }
     }
 }
 
 /// Stable failures returned by an injected DNS/HTTPS implementation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidWebTransportErrorReason {
     /// DNS lookup failure.
     Dns,
@@ -106,6 +115,7 @@ pub enum DidWebTransportErrorReason {
 /// Transport error that deliberately carries no backend text or target data.
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
 #[error("did:web transport failed")]
+#[non_exhaustive]
 pub struct DidWebTransportError {
     /// Stable, non-identifying transport reason.
     pub reason: DidWebTransportErrorReason,
@@ -113,6 +123,7 @@ pub struct DidWebTransportError {
 
 /// Stable hosting-provider failure reasons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidWebHostingErrorReason {
     /// The adapter has no valid authentication state.
     Unauthenticated,
@@ -125,6 +136,7 @@ pub enum DidWebHostingErrorReason {
 /// Hosting error that deliberately carries no backend text or target data.
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
 #[error("did:web hosting operation failed")]
+#[non_exhaustive]
 pub struct DidWebHostingError {
     /// Stable, non-identifying hosting reason.
     pub reason: DidWebHostingErrorReason,
@@ -173,48 +185,105 @@ impl From<DidWebHostingError> for DidWebError {
 impl From<DidWebErrorReason> for IdentityCoreErrorReason {
     fn from(reason: DidWebErrorReason) -> Self {
         match reason {
-            DidWebErrorReason::InvalidPrefix | DidWebErrorReason::UnsupportedMethod => {
-                Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_PREFIX
+            DidWebErrorReason::InvalidPrefix => Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_PREFIX,
+            DidWebErrorReason::UnsupportedMethod => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_UNSUPPORTED_METHOD
+            }
+            DidWebErrorReason::IdentifierTooLong => {
+                Self::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED
             }
             DidWebErrorReason::InvalidDomain => Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOMAIN,
             DidWebErrorReason::InvalidPort => Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_PORT,
             DidWebErrorReason::InvalidPath | DidWebErrorReason::InvalidPercentEncoding => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_PATH
             }
+            DidWebErrorReason::InvalidDidUrl => Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL,
+            DidWebErrorReason::InvalidDocument => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOCUMENT
+            }
+            DidWebErrorReason::JsonLdProcessorUnavailable => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_JSON_LD_PROCESSOR_UNAVAILABLE
+            }
+            DidWebErrorReason::InvalidJsonLd => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_JSON_LD
+            }
+            DidWebErrorReason::DocumentIdentifierMismatch => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_DOCUMENT_IDENTIFIER_MISMATCH
+            }
             DidWebErrorReason::InvalidVerificationMethod => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_VERIFICATION_METHOD
             }
-            DidWebErrorReason::InvalidController
-            | DidWebErrorReason::DocumentIdentifierMismatch => {
+            DidWebErrorReason::InvalidController => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_CONTROLLER_MISMATCH
+            }
+            DidWebErrorReason::UnresolvedRelationshipReference => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND
             }
             DidWebErrorReason::InvalidService => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_SERVICE
             }
-            DidWebErrorReason::IdentifierTooLong
-            | DidWebErrorReason::InvalidDidUrl
-            | DidWebErrorReason::InvalidDocument
-            | DidWebErrorReason::UnresolvedRelationshipReference
-            | DidWebErrorReason::JsonDepthExceeded
-            | DidWebErrorReason::HttpsRequired
-            | DidWebErrorReason::RedirectPolicyViolation
-            | DidWebErrorReason::DnsResolutionFailed
+            DidWebErrorReason::JsonDepthExceeded => {
+                Self::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED
+            }
+            DidWebErrorReason::HttpsRequired
             | DidWebErrorReason::DestinationDenied
             | DidWebErrorReason::DnsRebindingDetected
-            | DidWebErrorReason::NetworkFailure
-            | DidWebErrorReason::TlsFailure
-            | DidWebErrorReason::Timeout
-            | DidWebErrorReason::Cancelled
-            | DidWebErrorReason::UnsupportedMediaType
-            | DidWebErrorReason::ResponseTooLarge
-            | DidWebErrorReason::HttpStatusRejected
-            | DidWebErrorReason::ProviderUnavailable
-            | DidWebErrorReason::ProviderUnauthenticated
-            | DidWebErrorReason::ProviderPolicyViolation
-            | DidWebErrorReason::ProviderFailure => {
-                Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOCUMENT
+            | DidWebErrorReason::ProviderPolicyViolation => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_POLICY_VIOLATION
+            }
+            DidWebErrorReason::RedirectPolicyViolation => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_REDIRECT_REJECTED
+            }
+            DidWebErrorReason::DnsResolutionFailed | DidWebErrorReason::NetworkFailure => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_NETWORK_FAILURE
+            }
+            DidWebErrorReason::TlsFailure => Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TLS_FAILURE,
+            DidWebErrorReason::Timeout => Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_TIMEOUT,
+            DidWebErrorReason::Cancelled => Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_CANCELLED,
+            DidWebErrorReason::UnsupportedMediaType => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_MEDIA_TYPE_REJECTED
+            }
+            DidWebErrorReason::ResponseTooLarge => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_RESPONSE_TOO_LARGE
+            }
+            DidWebErrorReason::HttpStatusRejected => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_HTTP_STATUS_REJECTED
+            }
+            DidWebErrorReason::ProviderUnavailable => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAVAILABLE
+            }
+            DidWebErrorReason::ProviderUnauthenticated => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_UNAUTHENTICATED
+            }
+            DidWebErrorReason::ProviderFailure => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_WEB_PROVIDER_FAILURE
             }
         }
+    }
+}
+
+/// Stable JSON-LD processing failure reasons.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DidWebJsonLdErrorReason {
+    /// JSON-LD expansion, context loading, or data-model conversion failed.
+    InvalidDocument,
+}
+
+/// Typed, redacted failure returned by an injected JSON-LD processor.
+#[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
+#[error("did:web JSON-LD processing failed")]
+#[non_exhaustive]
+pub struct DidWebJsonLdError {
+    /// Stable failure reason without document or context data.
+    pub reason: DidWebJsonLdErrorReason,
+}
+
+impl DidWebJsonLdError {
+    /// Construct a redacted JSON-LD processing error.
+    #[must_use]
+    pub const fn new(reason: DidWebJsonLdErrorReason) -> Self {
+        Self { reason }
     }
 }
 

@@ -5,15 +5,18 @@
 #![allow(missing_docs, clippy::unwrap_used)]
 //! Test coverage for this crate.
 
+use std::sync::Mutex;
+
 use reallyme_credential_status::{
     CredentialStatusError, StatusList, StatusListAlgorithm, StatusListSignature,
     StatusListVerifier, StatusPurpose,
 };
 use reallyme_revocation::{
     eu_qtsp_x509, hybrid_fallback, vc_statuslist, CompositeRevocationPolicy,
-    CompositeStatusChecker, InMemoryRevocationCache, OcspPolicy, RevocationCacheError,
-    RevocationEvidenceCache, RevocationEvidenceMeta, RevocationPolicyError, RevocationSource,
-    SoftFailMode, StatusCheckError, StatusChecker, StatusListChecker, DEFAULT_MAX_OCSP_AGE_SECS,
+    CompositeStatusChecker, InMemoryRevocationCache, OcspPolicy, OcspStatusChecker,
+    RevocationCacheError, RevocationEvidenceCache, RevocationEvidenceMeta, RevocationPolicyError,
+    RevocationSource, SoftFailMode, StatusCheckError, StatusChecker, StatusListChecker,
+    DEFAULT_MAX_OCSP_AGE_SECS,
 };
 use reallyme_trust_x509::{BasicConstraints, KeyUsage, QcStatements, X509Certificate};
 use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time};
@@ -22,8 +25,35 @@ struct StaticChecker {
     result: Result<(), StatusCheckError>,
 }
 
+struct RecordingOcspChecker {
+    observed_policy: Mutex<Option<OcspPolicy>>,
+}
+
+impl OcspStatusChecker for RecordingOcspChecker {
+    fn check_with_policy(
+        &self,
+        _cert: &X509Certificate,
+        _now_unix: u64,
+        policy: OcspPolicy,
+    ) -> Result<(), StatusCheckError> {
+        *self.observed_policy.lock().unwrap() = Some(policy);
+        Ok(())
+    }
+}
+
 impl StatusChecker for StaticChecker {
     fn check(&self, _cert: &X509Certificate, _now_unix: u64) -> Result<(), StatusCheckError> {
+        self.result
+    }
+}
+
+impl OcspStatusChecker for StaticChecker {
+    fn check_with_policy(
+        &self,
+        _cert: &X509Certificate,
+        _now_unix: u64,
+        _policy: OcspPolicy,
+    ) -> Result<(), StatusCheckError> {
         self.result
     }
 }
@@ -48,6 +78,10 @@ fn instant(day: u8) -> OffsetDateTime {
         Time::MIDNIGHT,
     )
     .assume_utc()
+}
+
+fn instant_unix(day: u8) -> u64 {
+    u64::try_from(instant(day).unix_timestamp()).unwrap()
 }
 
 fn cert() -> X509Certificate {
@@ -114,10 +148,9 @@ fn fallback_policy_uses_second_available_source() {
         policy: hybrid_fallback(instant(2)).unwrap(),
         ocsp: Some(&ocsp),
         crl: Some(&crl),
-        statuslist: None,
     };
 
-    checker.check(&cert(), 1_700_000_001).unwrap();
+    checker.check(&cert(), instant_unix(2)).unwrap();
 }
 
 #[test]
@@ -133,10 +166,9 @@ fn strict_policy_stops_on_unavailable_source() {
         },
         ocsp: Some(&ocsp),
         crl: Some(&crl),
-        statuslist: None,
     };
 
-    let err = checker.check(&cert(), 1_700_000_001).unwrap_err();
+    let err = checker.check(&cert(), instant_unix(2)).unwrap_err();
 
     assert_eq!(err, StatusCheckError::Unavailable);
 }
@@ -153,11 +185,10 @@ fn eu_qtsp_preset_falls_back_to_crl_when_ocsp_is_unavailable() {
         policy: eu_qtsp_x509(instant(2)).unwrap(),
         ocsp: Some(&ocsp),
         crl: Some(&crl),
-        statuslist: None,
     };
 
     assert_eq!(
-        checker.check(&cert(), 1_700_000_001),
+        checker.check(&cert(), instant_unix(2)),
         Err(StatusCheckError::Revoked)
     );
 }
@@ -179,10 +210,9 @@ fn eu_qtsp_preset_treats_obtained_but_invalid_ocsp_evidence_as_terminal() {
             policy: eu_qtsp_x509(instant(2)).unwrap(),
             ocsp: Some(&ocsp),
             crl: Some(&crl),
-            statuslist: None,
         };
 
-        assert_eq!(checker.check(&cert(), 1_700_000_001), Err(terminal));
+        assert_eq!(checker.check(&cert(), instant_unix(2)), Err(terminal));
     }
 }
 
@@ -195,23 +225,69 @@ fn eu_qtsp_preset_reports_unavailable_when_every_source_is_unavailable() {
         policy: eu_qtsp_x509(instant(2)).unwrap(),
         ocsp: Some(&unavailable),
         crl: Some(&unavailable),
-        statuslist: None,
     };
 
     assert_eq!(
-        checker.check(&cert(), 1_700_000_001),
+        checker.check(&cert(), instant_unix(2)),
         Err(StatusCheckError::Unavailable)
     );
 }
 
 #[test]
-fn default_ocsp_policy_requires_verified_evidence_and_bounds_age() {
+fn default_ocsp_policy_bounds_age() {
     let policy = OcspPolicy::default();
 
-    assert!(policy.require_verified);
     assert_eq!(policy.max_age_secs, Some(DEFAULT_MAX_OCSP_AGE_SECS));
-    assert!(hybrid_fallback(instant(2)).unwrap().ocsp.require_verified);
-    assert!(vc_statuslist(instant(2)).unwrap().ocsp.require_verified);
+    assert_eq!(hybrid_fallback(instant(2)).unwrap().ocsp, policy);
+    assert_eq!(vc_statuslist(instant(2)).unwrap().ocsp, policy);
+}
+
+#[test]
+fn composite_checker_rejects_epoch_zero_even_when_policy_matches() {
+    let checker = CompositeStatusChecker {
+        policy: CompositeRevocationPolicy {
+            prefer_ocsp: false,
+            prefer_crl: false,
+            prefer_statuslist: false,
+            soft_fail: SoftFailMode::Strict,
+            now_unix: 0,
+            ocsp: OcspPolicy::default(),
+        },
+        ocsp: None,
+        crl: None,
+    };
+
+    assert_eq!(
+        checker.check(&cert(), 0),
+        Err(StatusCheckError::InvalidList)
+    );
+}
+
+#[test]
+fn composite_checker_passes_the_selected_ocsp_policy_to_the_ocsp_leg() {
+    let requested_policy = OcspPolicy {
+        require_next_update: true,
+        max_age_secs: Some(1_234),
+        allowed_skew_secs: 17,
+    };
+    let ocsp = RecordingOcspChecker {
+        observed_policy: Mutex::new(None),
+    };
+    let checker = CompositeStatusChecker {
+        policy: CompositeRevocationPolicy {
+            ocsp: requested_policy,
+            ..hybrid_fallback(instant(2)).unwrap()
+        },
+        ocsp: Some(&ocsp),
+        crl: None,
+    };
+
+    checker.check(&cert(), instant_unix(2)).unwrap();
+
+    assert_eq!(
+        *ocsp.observed_policy.lock().unwrap(),
+        Some(requested_policy)
+    );
 }
 
 #[test]
@@ -236,7 +312,7 @@ fn statuslist_checker_maps_revoked_status() {
     let list = status_list(vec![0b0000_0010]);
     let checker = StatusListChecker::new(&list, 1, &AcceptVerifier);
 
-    let err = checker.check(&cert(), 1_700_000_001).unwrap_err();
+    let err = checker.check_credential(1_700_000_001).unwrap_err();
 
     assert_eq!(err, StatusCheckError::Revoked);
 }
@@ -246,7 +322,7 @@ fn statuslist_checker_maps_not_yet_valid_status() {
     let list = status_list(vec![0]);
     let checker = StatusListChecker::new(&list, 1, &AcceptVerifier);
 
-    let err = checker.check(&cert(), 1_699_999_999).unwrap_err();
+    let err = checker.check_credential(1_699_999_999).unwrap_err();
 
     assert_eq!(err, StatusCheckError::NotYetValid);
 }
@@ -291,6 +367,41 @@ fn cache_ignores_expired_evidence() {
     let cached = cache.lookup(&cert, 1_700_000_011).unwrap();
 
     assert_eq!(cached, None);
+}
+
+#[test]
+fn cache_expiry_is_exclusive() {
+    let mut cache = InMemoryRevocationCache::new();
+    let cert = cert();
+    cache
+        .store(
+            &cert,
+            RevocationEvidenceMeta {
+                fetched_at_unix: 1_700_000_000,
+                expires_at_unix: Some(1_700_000_010),
+                source: RevocationSource::StatusList,
+            },
+            Ok(()),
+        )
+        .unwrap();
+
+    assert_eq!(cache.lookup(&cert, 1_700_000_010), Ok(None));
+}
+
+#[test]
+fn cache_rejects_entries_beyond_configured_capacity() {
+    let mut cache = InMemoryRevocationCache::with_max_entries(1).unwrap();
+    let first = cert();
+    let mut second = cert();
+    second.der = vec![9];
+    cache
+        .store(&first, meta(Some(1_800_000_000)), Ok(()))
+        .unwrap();
+
+    assert_eq!(
+        cache.store(&second, meta(Some(1_800_000_000)), Ok(())),
+        Err(RevocationCacheError::CapacityExceeded)
+    );
 }
 
 #[test]

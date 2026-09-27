@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::unwrap_used)]
+#![allow(missing_docs, clippy::indexing_slicing, clippy::unwrap_used)]
 
 use identity_trust_tsl_core::{
     parse_tsl_xml, validate_pointer_target, validate_pointer_traversal, PointerTraversalContext,

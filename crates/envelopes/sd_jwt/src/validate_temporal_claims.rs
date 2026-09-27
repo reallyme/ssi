@@ -19,7 +19,7 @@ const ISSUED_AT_CLAIM_NAME: &str = "iat";
 const NOT_BEFORE_CLAIM_NAME: &str = "nbf";
 const EXPIRATION_CLAIM_NAME: &str = "exp";
 
-/// Validate the credential validity window against the verifier's clock.
+/// Validates the credential validity window against the verifier's clock.
 ///
 /// `exp` and `nbf` are read from the issuer-signed payload because they are
 /// never selectively disclosable. `iat` may be selectively disclosed under
@@ -31,6 +31,7 @@ pub(crate) fn validate_credential_temporal_claims(
     resolved_payload: &Value,
     now_unix: u64,
     clock_skew_seconds: u64,
+    require_exp: bool,
 ) -> Result<(), SdJwtEnvelopeError> {
     if now_unix == 0 || clock_skew_seconds > MAX_SD_JWT_CLOCK_SKEW_SECONDS {
         return Err(SdJwtEnvelopeError::InvalidVerificationPolicy);
@@ -38,6 +39,9 @@ pub(crate) fn validate_credential_temporal_claims(
     let issued_at = numeric_date(resolved_payload.get(ISSUED_AT_CLAIM_NAME))?;
     let not_before = numeric_date(issuer_payload.get(NOT_BEFORE_CLAIM_NAME))?;
     let expires_at = numeric_date(issuer_payload.get(EXPIRATION_CLAIM_NAME))?;
+    if require_exp && expires_at.is_none() {
+        return Err(SdJwtEnvelopeError::InvalidTemporalClaim);
+    }
 
     if matches!((not_before, expires_at), (Some(start), Some(end)) if start >= end)
         || matches!((issued_at, expires_at), (Some(start), Some(end)) if start >= end)

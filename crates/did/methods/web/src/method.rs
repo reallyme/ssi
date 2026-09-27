@@ -50,20 +50,20 @@ const PATH_SEGMENT_ENCODE_SET: &AsciiSet = &CONTROLS
     .add(b'}')
     .add(b'~');
 
-/// Parsed canonical did:web identifier.
+/// Parsed did:web identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DidWebIdentifier {
-    canonical: String,
+    identifier: String,
     domain: String,
     port: Option<u16>,
     path_segments: Vec<String>,
 }
 
 impl DidWebIdentifier {
-    /// Borrow the canonical DID string.
+    /// Borrow the exact DID string supplied by the caller.
     #[must_use]
     pub fn as_str(&self) -> &str {
-        &self.canonical
+        &self.identifier
     }
 
     /// Borrow the canonical DNS authority name.
@@ -114,7 +114,7 @@ pub fn generate_did_web(input: WebDidInput<'_>) -> Result<String, DidWebError> {
     }
 
     for segment in input.path_segments {
-        if segment.is_empty() || segment == &"." || segment == &".." {
+        if segment.is_empty() {
             return Err(DidWebError::new(DidWebErrorReason::InvalidPath));
         }
         let encoded = utf8_percent_encode(segment, PATH_SEGMENT_ENCODE_SET).to_string();
@@ -129,7 +129,7 @@ pub fn generate_did_web(input: WebDidInput<'_>) -> Result<String, DidWebError> {
     Ok(did)
 }
 
-/// Parse and require the canonical did:web representation.
+/// Parse a did:web representation accepted by DID Core and the did:web method.
 pub fn parse_did_web(did: &str) -> Result<DidWebIdentifier, DidWebError> {
     if did.len() > MAX_DID_LEN {
         return Err(DidWebError::new(DidWebErrorReason::IdentifierTooLong));
@@ -142,13 +142,30 @@ pub fn parse_did_web(did: &str) -> Result<DidWebIdentifier, DidWebError> {
         .next()
         .ok_or(DidWebError::new(DidWebErrorReason::InvalidDomain))?;
     let (domain, port) = parse_authority(authority)?;
+    if domain != domain.to_ascii_lowercase() {
+        return Err(DidWebError::new(DidWebErrorReason::InvalidDomain));
+    }
+    let mut canonical_authority = domain.to_owned();
+    if let Some(port) = port {
+        canonical_authority.push_str(PORT_COLON);
+        canonical_authority.push_str(&port.to_string());
+    }
+    if authority != canonical_authority {
+        let reason = if authority.contains("%3a") {
+            DidWebErrorReason::InvalidPercentEncoding
+        } else {
+            DidWebErrorReason::InvalidPort
+        };
+        return Err(DidWebError::new(reason));
+    }
     let path_segments: Vec<String> = parts
         .map(|segment| {
-            let normalized = validate_path_segment(segment)?;
-            if normalized != segment {
-                return Err(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding));
+            let canonical = validate_path_segment(segment)?;
+            if canonical == segment {
+                Ok(canonical)
+            } else {
+                Err(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))
             }
-            Ok(normalized)
         })
         .collect::<Result<Vec<_>, _>>()?;
     if path_segments.len() > MAX_PATH_SEGMENTS {
@@ -156,7 +173,7 @@ pub fn parse_did_web(did: &str) -> Result<DidWebIdentifier, DidWebError> {
     }
 
     Ok(DidWebIdentifier {
-        canonical: did.to_owned(),
+        identifier: did.to_owned(),
         domain: domain.to_owned(),
         port,
         path_segments,
@@ -215,10 +232,16 @@ pub fn is_valid_did_web(did: &str) -> bool {
 }
 
 fn parse_authority(authority: &str) -> Result<(&str, Option<u16>), DidWebError> {
-    if authority.match_indices(PORT_COLON).count() > 1 || authority.contains("%3a") {
+    let delimiter_count = authority
+        .as_bytes()
+        .windows(PORT_COLON.len())
+        .filter(|window| window.eq_ignore_ascii_case(PORT_COLON.as_bytes()))
+        .count();
+    if delimiter_count > 1 {
         return Err(DidWebError::new(DidWebErrorReason::InvalidPort));
     }
-    let (domain, port) = match authority.find(PORT_COLON) {
+    let delimiter_index = authority.find(PORT_COLON).or_else(|| authority.find("%3a"));
+    let (domain, port) = match delimiter_index {
         Some(index) => {
             let port_start = index
                 .checked_add(PORT_COLON.len())
@@ -244,16 +267,13 @@ fn normalize_authority(authority: &str) -> Result<String, DidWebError> {
 }
 
 fn parse_port(port: &str) -> Result<u16, DidWebError> {
-    if port.is_empty()
-        || !port.bytes().all(|byte| byte.is_ascii_digit())
-        || (port.len() > 1 && port.starts_with('0'))
-    {
+    if port.is_empty() || !port.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(DidWebError::new(DidWebErrorReason::InvalidPort));
     }
     let parsed = port
         .parse::<u16>()
         .map_err(|_| DidWebError::new(DidWebErrorReason::InvalidPort))?;
-    if parsed == 0 {
+    if parsed == 0 || parsed == 443 {
         return Err(DidWebError::new(DidWebErrorReason::InvalidPort));
     }
     Ok(parsed)
@@ -262,12 +282,15 @@ fn parse_port(port: &str) -> Result<u16, DidWebError> {
 fn validate_domain(domain: &str) -> Result<(), DidWebError> {
     if domain.is_empty()
         || domain.len() > MAX_DOMAIN_LEN
-        || domain != domain.to_ascii_lowercase()
         || domain.bytes().any(|byte| !byte.is_ascii())
         || domain
             .bytes()
             .any(|byte| matches!(byte, b':' | b'/' | b'%' | b'?' | b'#' | b'@'))
         || domain.parse::<std::net::IpAddr>().is_ok()
+        || matches!(
+            url::Host::parse(domain),
+            Ok(url::Host::Ipv4(_) | url::Host::Ipv6(_))
+        )
     {
         return Err(DidWebError::new(DidWebErrorReason::InvalidDomain));
     }
@@ -282,7 +305,7 @@ fn validate_domain(domain: &str) -> Result<(), DidWebError> {
             || label.ends_with('-')
             || !label
                 .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
         {
             return Err(DidWebError::new(DidWebErrorReason::InvalidDomain));
         }
@@ -303,8 +326,8 @@ fn validate_path_segment(segment: &str) -> Result<String, DidWebError> {
         return Err(DidWebError::new(DidWebErrorReason::InvalidPath));
     }
     let decoded = percent_decode_for_validation(&normalized)?;
-    // A decoded separator would change the HTTPS path structure once a server
-    // decodes the segment, so encoded `/` and `\` are rejected.
+    // HTTP stacks can decode separators and normalize dot segments before
+    // routing. Reject those aliases here so one DID always maps to one path.
     if decoded == b"."
         || decoded == b".."
         || decoded.iter().any(|byte| matches!(byte, b'/' | b'\\'))
@@ -321,12 +344,59 @@ fn validate_path_segment(segment: &str) -> Result<String, DidWebError> {
     Ok(normalized)
 }
 
+fn percent_decode_for_validation(value: &str) -> Result<Vec<u8>, DidWebError> {
+    let bytes = value.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        let byte = *bytes
+            .get(index)
+            .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
+        if byte == b'%' {
+            let first_index = index
+                .checked_add(1)
+                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
+            let second_index = index
+                .checked_add(2)
+                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
+            let first = *bytes
+                .get(first_index)
+                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
+            let second = *bytes
+                .get(second_index)
+                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
+            let decoded = decode_hex(first, second)?;
+            // Characters admitted directly by the did:web `idchar` grammar
+            // have exactly one representation. Accepting an escaped spelling
+            // would give the same HTTP resource more than one DID identifier.
+            if decoded.is_ascii_alphanumeric() || matches!(decoded, b'.' | b'-' | b'_') {
+                return Err(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding));
+            }
+            if decoded == 0 || decoded.is_ascii_control() {
+                return Err(DidWebError::new(DidWebErrorReason::InvalidPath));
+            }
+            output.push(decoded);
+            index = index
+                .checked_add(3)
+                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
+        } else {
+            output.push(byte);
+            index = index
+                .checked_add(1)
+                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
+        }
+    }
+    Ok(output)
+}
+
 fn normalize_percent_escapes(value: &str) -> Result<String, DidWebError> {
     let bytes = value.as_bytes();
     let mut output = String::with_capacity(value.len());
     let mut index = 0usize;
     while index < bytes.len() {
-        let byte = bytes[index];
+        let byte = *bytes
+            .get(index)
+            .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
         if byte != b'%' {
             if !byte.is_ascii() || byte.is_ascii_control() || byte == b' ' {
                 return Err(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding));
@@ -349,55 +419,13 @@ fn normalize_percent_escapes(value: &str) -> Result<String, DidWebError> {
         let second = *bytes
             .get(second_index)
             .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
-        let decoded = decode_hex(first, second)?;
-        // Characters that DID syntax allows raw (`idchar`) must not be
-        // percent-encoded. `~` is not a DID `idchar`, so `%7E` is its only
-        // valid spelling and is accepted here.
-        if decoded.is_ascii_alphanumeric() || matches!(decoded, b'-' | b'.' | b'_') {
-            return Err(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding));
-        }
+        decode_hex(first, second)?;
         output.push('%');
         output.push(char::from(first.to_ascii_uppercase()));
         output.push(char::from(second.to_ascii_uppercase()));
         index = index
             .checked_add(3)
             .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
-    }
-    Ok(output)
-}
-
-fn percent_decode_for_validation(value: &str) -> Result<Vec<u8>, DidWebError> {
-    let bytes = value.as_bytes();
-    let mut output = Vec::with_capacity(bytes.len());
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
-            let first_index = index
-                .checked_add(1)
-                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
-            let second_index = index
-                .checked_add(2)
-                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
-            let first = *bytes
-                .get(first_index)
-                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
-            let second = *bytes
-                .get(second_index)
-                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
-            let decoded = decode_hex(first, second)?;
-            if decoded == 0 || decoded.is_ascii_control() {
-                return Err(DidWebError::new(DidWebErrorReason::InvalidPath));
-            }
-            output.push(decoded);
-            index = index
-                .checked_add(3)
-                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
-        } else {
-            output.push(bytes[index]);
-            index = index
-                .checked_add(1)
-                .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding))?;
-        }
     }
     Ok(output)
 }
@@ -410,9 +438,17 @@ fn decode_hex(first: u8, second: u8) -> Result<u8, DidWebError> {
 
 fn hex_nibble(value: u8) -> Result<u8, DidWebError> {
     match value {
-        b'0'..=b'9' => Ok(value - b'0'),
-        b'a'..=b'f' => Ok(value - b'a' + 10),
-        b'A'..=b'F' => Ok(value - b'A' + 10),
+        b'0'..=b'9' => value
+            .checked_sub(b'0')
+            .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding)),
+        b'a'..=b'f' => value
+            .checked_sub(b'a')
+            .and_then(|nibble| nibble.checked_add(10))
+            .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding)),
+        b'A'..=b'F' => value
+            .checked_sub(b'A')
+            .and_then(|nibble| nibble.checked_add(10))
+            .ok_or(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding)),
         _ => Err(DidWebError::new(DidWebErrorReason::InvalidPercentEncoding)),
     }
 }

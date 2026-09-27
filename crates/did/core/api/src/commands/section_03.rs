@@ -309,7 +309,9 @@ fn validate_rotation_request(
     for (index, identifier) in verification_method_ids.iter().enumerate() {
         if identifier.is_empty()
             || identifier.len() > MAX_DID_KEY_ROTATION_IDENTIFIER_BYTES
-            || verification_method_ids[..index].contains(identifier)
+            || verification_method_ids
+                .get(..index)
+                .is_none_or(|preceding| preceding.contains(identifier))
             || !document
                 .verification_method
                 .iter()
@@ -412,9 +414,15 @@ fn verification_methods_match_rotation(
                     && if selected {
                         !old.verification_method.iter().any(|method| {
                             method.public_key_multibase == new_method.public_key_multibase
-                        }) && !document.verification_method[..index].iter().any(|method| {
-                            method.public_key_multibase == new_method.public_key_multibase
-                        })
+                        }) && document
+                            .verification_method
+                            .get(..index)
+                            .is_some_and(|preceding| {
+                                !preceding.iter().any(|method| {
+                                    method.public_key_multibase
+                                        == new_method.public_key_multibase
+                                })
+                            })
                     } else {
                         old_method.public_key_multibase == new_method.public_key_multibase
                     }

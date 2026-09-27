@@ -70,22 +70,18 @@ pub struct DocumentProjection<'a> {
     pub data_integrity_proof: Option<DataIntegrityProof>,
 }
 
-/// Project into a JSON DIDDocument.
+/// Projects canonical did:me state into a JSON DID document.
 ///
-/// Important semantics:
-/// - controller list collapses to string when len==1
-/// - prev is None if empty
-/// - coreCbor is base64url(canonical_cbor)
-/// - currentCore is the provided CID string
-/// - services are projected from the canonical DAG-CBOR serviceEndpoint value
+/// A single controller uses the scalar representation, `coreCbor` contains the
+/// base64url-encoded canonical CBOR, `currentCore` contains the supplied CID,
+/// and service endpoints are projected from their canonical DAG-CBOR values.
 pub fn project_did_document(input: DocumentProjection<'_>) -> Result<DIDDocument, DidCoreError> {
     let core_cbor_bytes = input.core.canonical_cbor()?;
     let core_cbor_b64u = bytes_to_base64url(&core_cbor_bytes);
 
-    let controller = if input.core.controller.len() == 1 {
-        Controller::Single(input.core.controller[0].clone())
-    } else {
-        Controller::Multiple(input.core.controller.clone())
+    let controller = match input.core.controller.as_slice() {
+        [only] => Controller::Single(only.clone()),
+        _ => Controller::Multiple(input.core.controller.clone()),
     };
 
     let prev = input.core.prev.clone();

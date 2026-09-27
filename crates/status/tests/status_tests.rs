@@ -2,18 +2,23 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::unwrap_used)]
+#![allow(
+    missing_docs,
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing,
+    clippy::unwrap_used
+)]
 //! Test coverage for this crate.
 
 use reallyme_credential_status::{
-    status_bit, status_list_signing_payload, verify_status, CredentialStatusError,
-    CredentialStatusInvalidReason, StatusList, StatusListAlgorithm, StatusListSignature,
-    StatusListVerifier, StatusPurpose, MAX_STATUS_LIST_ENTRIES,
+    status_list_signing_payload, verify_status, verify_status_with_policy, CredentialStatusError,
+    CredentialStatusInvalidReason, StatusList, StatusListAlgorithm, StatusListFreshnessPolicy,
+    StatusListSignature, StatusListVerifier, StatusPurpose, MAX_STATUS_LIST_ENTRIES,
 };
 use serde_json::Value;
 use zeroize::Zeroize;
 
-const STATUS_LIST_VECTORS: &str = include_str!("../../../vectors/status-list.json");
+const STATUS_LIST_VECTORS: &str = include_str!("fixtures/status-list.json");
 
 struct AcceptVerifier;
 
@@ -115,19 +120,34 @@ fn status_list_vectors_verify_or_fail_closed() {
         let payload_hex = to_hex(payload.as_slice());
         let expected = &case["expected"];
 
+        if let Some(expected_status_bit) = expected["status_bit"].as_bool() {
+            let byte_index = usize::try_from(index / 8).unwrap();
+            let bit_index = u8::try_from(index % 8).unwrap();
+            let encoded_byte = *status.encoded_list.get(byte_index).unwrap();
+            assert_eq!(
+                (encoded_byte >> bit_index) & 1_u8 == 1_u8,
+                expected_status_bit
+            );
+        }
         if let Some(expected_payload_hex) = expected["status_signing_payload_hex"].as_str() {
             assert_eq!(payload_hex, expected_payload_hex);
         }
-        if let Some(expected_bit) = expected["status_bit"].as_bool() {
-            assert_eq!(status_bit(&status, index).unwrap(), expected_bit);
-        }
-
         let verifier = VectorVerifier {
             expected_issuer: status.issuer.clone(),
             expected_payload_hex: payload_hex,
             expected_signature: hex_to_bytes(case["verifier_signature_hex"].as_str().unwrap()),
         };
-        let actual = verify_status(&status, index, now_unix, &verifier);
+        // These committed vectors predate the relying-party maximum-age policy and
+        // intentionally exercise the issuer-declared validity window instead.
+        let actual = verify_status_with_policy(
+            &status,
+            index,
+            now_unix,
+            StatusListFreshnessPolicy {
+                max_age_secs: status.next_update - status.issued_at,
+            },
+            &verifier,
+        );
         match expected["result"].as_str().unwrap() {
             "ok" => actual.unwrap(),
             code => assert_eq!(actual.unwrap_err(), expected_error(code).unwrap()),
@@ -140,6 +160,33 @@ fn verifies_clear_revocation_status() {
     let status = list(StatusPurpose::Revocation, vec![0b0000_0000, 0b0000_0000]);
 
     verify_status(&status, 3, 1_700_000_001, &AcceptVerifier).unwrap();
+}
+
+#[test]
+fn rejects_status_list_at_each_exclusive_freshness_deadline() {
+    let status = list(StatusPurpose::Revocation, vec![0, 0]);
+    assert_eq!(
+        verify_status_with_policy(
+            &status,
+            3,
+            status.issued_at + 60,
+            StatusListFreshnessPolicy { max_age_secs: 60 },
+            &AcceptVerifier,
+        ),
+        Err(CredentialStatusError::Expired)
+    );
+    assert_eq!(
+        verify_status_with_policy(
+            &status,
+            3,
+            status.next_update,
+            StatusListFreshnessPolicy {
+                max_age_secs: status.next_update - status.issued_at + 1,
+            },
+            &AcceptVerifier,
+        ),
+        Err(CredentialStatusError::Expired)
+    );
 }
 
 #[test]
@@ -165,6 +212,29 @@ fn rejects_expired_status_list() {
     let status = list(StatusPurpose::Revocation, vec![0, 0]);
 
     let err = verify_status(&status, 2, 1_800_000_001, &AcceptVerifier).unwrap_err();
+
+    assert_eq!(err, CredentialStatusError::Expired);
+}
+
+#[test]
+fn local_max_age_accepts_before_boundary_and_rejects_at_boundary() {
+    let status = list(StatusPurpose::Revocation, vec![0, 0]);
+
+    verify_status(
+        &status,
+        2,
+        status.issued_at + reallyme_credential_status::DEFAULT_STATUS_LIST_MAX_AGE_SECS - 1,
+        &AcceptVerifier,
+    )
+    .unwrap();
+
+    let err = verify_status(
+        &status,
+        2,
+        status.issued_at + reallyme_credential_status::DEFAULT_STATUS_LIST_MAX_AGE_SECS,
+        &AcceptVerifier,
+    )
+    .unwrap_err();
 
     assert_eq!(err, CredentialStatusError::Expired);
 }

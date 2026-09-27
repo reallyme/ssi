@@ -59,11 +59,18 @@ pub fn fragment_message(
     let mut lo = 0usize;
     let mut hi = limits.max_frame_bytes; // upper bound; actual chunk will be smaller
     while lo < hi {
-        let mid = lo + (hi - lo).div_ceil(2);
+        let distance = hi
+            .checked_sub(lo)
+            .ok_or(ContactDeliveryError::InvalidInput)?;
+        let mid = lo
+            .checked_add(distance.div_ceil(2))
+            .ok_or(ContactDeliveryError::InvalidInput)?;
         if frame_len_for_chunk_len(mid)? <= limits.max_frame_bytes {
             lo = mid;
         } else {
-            hi = mid - 1;
+            hi = mid
+                .checked_sub(1)
+                .ok_or(ContactDeliveryError::InvalidInput)?;
         }
     }
     let max_chunk = lo;
@@ -156,7 +163,7 @@ pub fn reassemble_frames(
     }
 
     // Ensure all share the same session/message and total.
-    let first = &frames[0];
+    let first = frames.first().ok_or(ContactDeliveryError::InvalidInput)?;
     if first.session_id.len() != limits.session_id_len {
         return Err(ContactDeliveryError::InvalidInput);
     }

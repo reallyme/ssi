@@ -60,6 +60,7 @@ pub enum TokenStatusListProfile {
 /// Number of bits allocated to one status value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum TokenStatusBits {
     /// One bit per status value (eight entries per byte).
     One = 1,
@@ -133,13 +134,40 @@ pub struct TokenStatusListClaims {
 #[derive(Debug, Eq, PartialEq)]
 pub struct VerifiedTokenStatusList {
     /// Authenticated claims.
-    pub claims: TokenStatusListClaims,
+    pub(crate) claims: TokenStatusListClaims,
     /// Packed status bytes in draft-defined least-significant-bit-first order.
-    pub packed_statuses: Vec<u8>,
+    pub(crate) packed_statuses: Vec<u8>,
+}
+
+/// Typed credential status values defined by the Token Status List profile.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum TokenStatusValue {
+    /// The referenced token is valid.
+    Valid,
+    /// The referenced token is invalid or revoked.
+    Invalid,
+    /// The referenced token is temporarily suspended.
+    Suspended,
+}
+
+impl VerifiedTokenStatusList {
+    /// Returns the authenticated Token Status List claims.
+    #[must_use]
+    pub const fn claims(&self) -> &TokenStatusListClaims {
+        &self.claims
+    }
+
+    /// Returns the authenticated, decompressed packed status bytes.
+    #[must_use]
+    pub fn packed_statuses(&self) -> &[u8] {
+        &self.packed_statuses
+    }
 }
 
 /// Stable invalid-input reasons for the Token Status List profile.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum TokenStatusListInvalidReason {
     /// The caller selected a profile this implementation does not support.
     #[error("unsupported token status list profile")]
@@ -153,6 +181,10 @@ pub enum TokenStatusListInvalidReason {
     /// A status value cannot be represented by the selected bit width.
     #[error("token status value exceeds bit width")]
     StatusValueOutOfRange,
+
+    /// An authenticated value is not one of the supported profile statuses.
+    #[error("unsupported token status value")]
+    UnsupportedStatusValue,
     /// The status list is empty or exceeds the local resource limit.
     #[error("invalid token status list length")]
     InvalidLength,
@@ -173,6 +205,7 @@ pub enum TokenStatusListInvalidReason {
 
 /// Token Status List profile error.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum TokenStatusListError {
     /// Claims or status values violate the profile.
     #[error("invalid token status list input")]

@@ -15,7 +15,7 @@
 use identity_presentation_delivery_siop_core::{
     build_siop_authentication_request, validate_siop_authentication_request,
     BuildSiopAuthenticationRequestInput, SiopDeliveryError, MAX_SIOP_REQUEST_LIFETIME_SECONDS,
-    MAX_SIOP_SCOPES, MAX_SIOP_SCOPE_BYTES, MAX_SIOP_TEXT_BYTES,
+    MAX_SIOP_SCOPES, MAX_SIOP_SCOPE_BYTES, MAX_SIOP_TEXT_BYTES, MIN_SIOP_STATE_BYTES,
 };
 use zeroize::Zeroize;
 
@@ -23,7 +23,7 @@ fn valid_input() -> BuildSiopAuthenticationRequestInput {
     BuildSiopAuthenticationRequestInput {
         client_id: "did:example:rp".into(),
         nonce: vec![7u8; 32],
-        audience: "https://rp.example".into(),
+        state: "state-1234567890abcdef".into(),
         response_mode: "direct_post".into(),
         scope: vec!["openid".into()],
         now_unix: 100,
@@ -45,6 +45,37 @@ fn rejects_wrong_nonce_len() {
     let err = build_siop_authentication_request(input).unwrap_err();
 
     assert_eq!(err, SiopDeliveryError::InvalidInput);
+}
+
+#[test]
+fn rejects_short_or_oversized_state() {
+    let mut missing = valid_input();
+    missing.state.clear();
+    assert_eq!(
+        build_siop_authentication_request(missing).unwrap_err(),
+        SiopDeliveryError::InvalidInput
+    );
+
+    let mut short = valid_input();
+    short.state = "x".repeat(MIN_SIOP_STATE_BYTES - 1);
+    assert_eq!(
+        build_siop_authentication_request(short).unwrap_err(),
+        SiopDeliveryError::InvalidInput
+    );
+
+    let mut oversized = valid_input();
+    oversized.state = "x".repeat(MAX_SIOP_TEXT_BYTES + 1);
+    assert_eq!(
+        build_siop_authentication_request(oversized).unwrap_err(),
+        SiopDeliveryError::InvalidInput
+    );
+}
+
+#[test]
+fn state_validation_is_length_only_and_entropy_remains_a_caller_requirement() {
+    let mut input = valid_input();
+    input.state = "x".repeat(MIN_SIOP_STATE_BYTES);
+    assert!(build_siop_authentication_request(input).is_ok());
 }
 
 #[test]
@@ -97,6 +128,6 @@ fn request_owner_redacts_and_zeroizes_identifying_material() {
     request.zeroize();
     assert!(request.client_id.is_empty());
     assert!(request.nonce.is_empty());
-    assert!(request.audience.is_empty());
+    assert!(request.state.is_empty());
     assert!(request.scope.is_empty());
 }

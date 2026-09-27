@@ -4,19 +4,23 @@
 
 use thiserror::Error;
 
-use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
-
+/// Typed failures returned by X.509 operations.
 #[derive(Debug, Clone, Copy, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum X509Error {
+    /// Invalid DER.
     #[error("invalid DER")]
     InvalidDer,
 
+    /// Invalid PEM.
     #[error("invalid PEM")]
     InvalidPem,
 
+    /// Unsupported PEM label.
     #[error("unsupported PEM label")]
     UnsupportedPemLabel,
 
+    /// X.509 parsing failed.
     #[error("x509 parse error")]
     ParseError,
 
@@ -28,135 +32,199 @@ pub enum X509Error {
     #[error("duplicate certificate extension")]
     DuplicateExtension,
 
+    /// A required certificate or certificate field is absent.
     #[error("missing required field")]
     MissingField(X509MissingField),
 
+    /// The certificate or path violates the selected policy.
     #[error("policy failed")]
     PolicyFailed(X509PolicyFailure),
 
+    /// X.509 signature verification failed.
     #[error("x509 signature verification failed")]
     SignatureFailed(X509SignatureFailure),
 
+    /// X.509 resource limit exceeded.
     #[error("x509 resource limit exceeded")]
     ResourceLimitExceeded(X509ResourceLimit),
 }
 
+/// Typed X.509 missing field reasons reported to callers.
 #[derive(Debug, Clone, Copy, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum X509MissingField {
+    /// The certificate chain has no leaf certificate.
     #[error("leaf certificate")]
     Leaf,
 }
 
+/// Typed X.509 policy failure reasons reported to callers.
 #[derive(Debug, Clone, Copy, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum X509PolicyFailure {
+    /// Leaf certificate must use X.509 version 3.
     #[error("leaf certificate must use X.509 version 3")]
     LeafMustBeV3,
+    /// Unknown critical certificate extension.
     #[error("unknown critical certificate extension")]
     UnknownCriticalExtension,
+    /// Certificate not valid at given time.
     #[error("certificate not valid at given time")]
     CertificateNotValidAtTime,
+    /// Leaf must not be a CA.
     #[error("leaf must not be a CA")]
     LeafMustNotBeCa,
+    /// Missing leaf key usage.
     #[error("missing leaf key usage")]
     MissingLeafKeyUsage,
+    /// Leaf key usage missing digital signature.
     #[error("leaf key usage missing digital signature")]
     LeafMissingDigitalSignature,
+    /// Missing leaf extended key usage.
     #[error("missing leaf extended key usage")]
     MissingLeafExtendedKeyUsage,
+    /// Leaf extended key usage does not match policy.
     #[error("leaf extended key usage does not match policy")]
     LeafExtendedKeyUsageMismatch,
+    /// Leaf certificate policies do not match policy.
     #[error("leaf certificate policies do not match policy")]
     LeafCertificatePolicyMismatch,
+    /// Leaf `qcStatements` lacks a required `statementId`.
     #[error("leaf qcStatements missing required statementId")]
     LeafMissingRequiredQcStatement,
+    /// Leaf `qcStatements` does not contain an accepted qualified-certificate type.
     #[error("leaf qcStatements QcType does not match policy")]
     LeafQcTypeMismatch,
+    /// Leaf public key does not satisfy the policy strength floor.
     #[error("leaf public key does not satisfy the policy strength floor")]
     WeakPublicKey,
+    /// Leaf public-key algorithm is not allowed by the profile.
     #[error("leaf public-key algorithm is not allowed by the profile")]
     PublicKeyAlgorithmNotAllowed,
+    /// Leaf certificate-signature algorithm is not allowed by the profile.
     #[error("leaf certificate-signature algorithm is not allowed by the profile")]
     SignatureAlgorithmNotAllowed,
+    /// Leaf subject alternative name does not satisfy the application profile.
     #[error("leaf subject alternative name does not satisfy the application profile")]
     LeafNameRequirement,
+    /// Leaf key identifiers do not satisfy the application profile.
     #[error("leaf key identifiers do not satisfy the application profile")]
     LeafKeyIdentifierRequirement,
+    /// Leaf authority information access does not satisfy the application profile.
     #[error("leaf authority information access does not satisfy the application profile")]
     LeafAuthorityInformationAccessRequirement,
+    /// Leaf QSCD policy is missing the QcSSCD statement.
     #[error("leaf QSCD policy is missing the QcSSCD statement")]
     LeafMissingQscdStatement,
+    /// Leaf certificate does not satisfy the revocation pointer policy.
     #[error("leaf certificate does not satisfy the revocation pointer policy")]
     RevocationPointerMissing,
+    /// Trusted list service territory does not match policy.
     #[error("trusted list service territory does not match policy")]
     TslTerritoryMismatch,
+    /// Trusted list service type does not match policy.
     #[error("trusted list service type does not match policy")]
     TslServiceTypeMismatch,
+    /// Trusted list service status is not granted.
     #[error("trusted list service status is not granted")]
     TslStatusNotGranted,
+    /// Trusted list service status is not effective.
     #[error("trusted list service status is not effective")]
     TslStatusNotEffective,
+    /// Trusted list service status is too old.
     #[error("trusted list service status is too old")]
     TslStatusTooOld,
+    /// Trusted list service certificate binding is missing.
     #[error("trusted list service certificate binding is missing")]
     TslCertificateBindingMissing,
-    #[error("trusted list service certificate binding does not match leaf")]
+    /// Trusted list service certificate binding does not match the service CA.
+    #[error("trusted list service certificate binding does not match service CA")]
     TslCertificateBindingMismatch,
+    /// Intermediate missing basic constraints.
     #[error("intermediate missing basic constraints")]
     IntermediateMissingBasicConstraints,
+    /// Intermediate does not assert `CA:TRUE`.
     #[error("intermediate is not CA:true")]
     IntermediateNotCa,
+    /// Intermediate missing key usage.
     #[error("intermediate missing key usage")]
     IntermediateMissingKeyUsage,
+    /// Intermediate key usage does not include `keyCertSign`.
     #[error("intermediate missing keyCertSign")]
     IntermediateMissingKeyCertSign,
+    /// Leaf is missing a required certificate extension.
     #[error("leaf is missing a required certificate extension")]
     MissingRequiredExtension,
+    /// Leaf certificate extension criticality does not match policy.
     #[error("leaf certificate extension criticality does not match policy")]
     ExtensionCriticality,
+    /// Leaf key usage does not match the selected certificate profile.
     #[error("leaf key usage does not match the selected certificate profile")]
     LeafKeyUsageProfile,
+    /// Leaf subject distinguished name does not match the selected profile.
     #[error("leaf subject distinguished name does not match the selected profile")]
     LeafSubjectNameProfile,
+    /// Leaf issuer distinguished name does not match the selected profile.
     #[error("leaf issuer distinguished name does not match the selected profile")]
     LeafIssuerNameProfile,
+    /// Leaf certificate must not be self-issued.
     #[error("leaf certificate must not be self-issued")]
     LeafSelfIssued,
+    /// WRPAC certificate policy selection is missing or ambiguous.
     #[error("WRPAC certificate policy selection is missing or ambiguous")]
     WrpacPolicyAmbiguous,
+    /// WRPAC qualified-certificate statements do not match its policy family.
     #[error("WRPAC qualified-certificate statements do not match its policy family")]
     WrpacQcStatements,
+    /// Trust anchor is missing basic constraints.
     #[error("trust anchor is missing basic constraints")]
     TrustAnchorMissingBasicConstraints,
+    /// Trust anchor is not a certificate authority.
     #[error("trust anchor is not a certificate authority")]
     TrustAnchorNotCa,
+    /// Trust anchor is missing key usage.
     #[error("trust anchor is missing key usage")]
     TrustAnchorMissingKeyUsage,
+    /// Trust-anchor key usage does not include `keyCertSign`.
     #[error("trust anchor key usage is missing keyCertSign")]
     TrustAnchorMissingKeyCertSign,
+    /// Trust anchor is missing a certificate policy.
     #[error("trust anchor is missing a certificate policy")]
     TrustAnchorMissingCertificatePolicy,
+    /// Leaf contains `noRevAvail` although revocation evidence is required.
     #[error("leaf contains noRevAvail where revocation is required")]
     LeafForbiddenNoRevAvail,
+    /// Leaf certificate policy is missing a CPS URI.
     #[error("leaf certificate policy is missing a CPS URI")]
     LeafMissingPolicyCpsUri,
+    /// Certificate key parameters do not satisfy the ETSI algorithm policy.
     #[error("certificate key parameters do not satisfy the ETSI algorithm policy")]
     AlgorithmParametersNotAllowed,
+    /// Certificate path length constraint exceeded.
     #[error("certificate path length constraint exceeded")]
     PathLengthConstraintExceeded,
 }
 
+/// Typed X.509 signature failure reasons reported to callers.
 #[derive(Debug, Clone, Copy, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum X509SignatureFailure {
+    /// Certificate chain is too short.
     #[error("certificate chain is too short")]
     ChainTooShort,
+    /// Certificate issuer continuity mismatch.
     #[error("certificate issuer continuity mismatch")]
     ChainIssuerMismatch,
+    /// Unsupported certificate signature algorithm.
     #[error("unsupported certificate signature algorithm")]
     UnsupportedAlgorithm,
+    /// Invalid certificate signature.
     #[error("invalid certificate signature")]
     InvalidSignature,
+    /// Certificate signature backend failure.
     #[error("certificate signature backend failure")]
     BackendFailure,
+    /// XMLDSig verification is unavailable in this trust lane.
     #[error("XMLDSig verification is unavailable in this trust lane")]
     XmlDsigUnavailable,
     /// RFC 5280 Section 4.1.1.2: `tbsCertificate.signature` differs from
@@ -169,271 +237,34 @@ pub enum X509SignatureFailure {
     UnsupportedPathConstraint,
 }
 
+/// Typed X.509 resource limit reasons reported to callers.
 #[derive(Debug, Clone, Copy, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum X509ResourceLimit {
+    /// Certificate chain is too long.
     #[error("certificate chain is too long")]
     CertificateChainTooLong,
+    /// Certificate DER input is too large.
     #[error("certificate DER input is too large")]
     CertificateDerTooLarge,
+    /// Certificate PEM input is too large.
     #[error("certificate PEM input is too large")]
     CertificatePemTooLarge,
+    /// Certificate PEM bundle is too large.
     #[error("certificate PEM bundle is too large")]
     CertificatePemBundleTooLarge,
+    /// Certificate contains too many extensions.
     #[error("certificate contains too many extensions")]
     TooManyExtensions,
+    /// Certificate object identifier is too long.
     #[error("certificate object identifier is too long")]
     ObjectIdentifierTooLong,
+    /// Certificate name contains too many attributes.
     #[error("certificate name contains too many attributes")]
     TooManyNameAttributes,
 }
 
-impl From<X509MissingField> for IdentityCoreErrorReason {
-    fn from(reason: X509MissingField) -> Self {
-        match reason {
-            X509MissingField::Leaf => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_MISSING_FIELD_LEAF
-            }
-        }
-    }
-}
-
-impl From<X509PolicyFailure> for IdentityCoreErrorReason {
-    fn from(reason: X509PolicyFailure) -> Self {
-        match reason {
-            X509PolicyFailure::LeafMustBeV3 => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_MUST_BE_V3
-            }
-            X509PolicyFailure::UnknownCriticalExtension => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_UNKNOWN_CRITICAL_EXTENSION
-            }
-            X509PolicyFailure::CertificateNotValidAtTime => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_CERTIFICATE_NOT_VALID_AT_TIME
-            }
-            X509PolicyFailure::LeafMustNotBeCa => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_MUST_NOT_BE_CA
-            }
-            X509PolicyFailure::MissingLeafKeyUsage => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_MISSING_LEAF_KEY_USAGE
-            }
-            X509PolicyFailure::LeafMissingDigitalSignature => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_MISSING_DIGITAL_SIGNATURE
-            }
-            X509PolicyFailure::MissingLeafExtendedKeyUsage => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_MISSING_LEAF_EXTENDED_KEY_USAGE
-            }
-            X509PolicyFailure::LeafExtendedKeyUsageMismatch => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_EXTENDED_KEY_USAGE_MISMATCH
-            }
-            X509PolicyFailure::LeafCertificatePolicyMismatch => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_CERTIFICATE_POLICY_MISMATCH
-            }
-            X509PolicyFailure::LeafMissingRequiredQcStatement => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_MISSING_REQUIRED_QC_STATEMENT
-            }
-            X509PolicyFailure::LeafQcTypeMismatch => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_QC_TYPE_MISMATCH
-            }
-            X509PolicyFailure::WeakPublicKey => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_WEAK_PUBLIC_KEY
-            }
-            X509PolicyFailure::PublicKeyAlgorithmNotAllowed => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_PUBLIC_KEY_ALGORITHM_NOT_ALLOWED
-            }
-            X509PolicyFailure::SignatureAlgorithmNotAllowed => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_SIGNATURE_ALGORITHM_NOT_ALLOWED
-            }
-            X509PolicyFailure::LeafNameRequirement => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_NAME_REQUIREMENT
-            }
-            X509PolicyFailure::LeafKeyIdentifierRequirement => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_KEY_IDENTIFIER_REQUIREMENT
-            }
-            X509PolicyFailure::LeafAuthorityInformationAccessRequirement => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_AUTHORITY_INFORMATION_ACCESS_REQUIREMENT
-            }
-            X509PolicyFailure::LeafMissingQscdStatement => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_MISSING_QSCD_STATEMENT
-            }
-            X509PolicyFailure::RevocationPointerMissing => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_REVOCATION_POINTER_MISSING
-            }
-            X509PolicyFailure::TslTerritoryMismatch => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TSL_TERRITORY_MISMATCH
-            }
-            X509PolicyFailure::TslServiceTypeMismatch => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TSL_SERVICE_TYPE_MISMATCH
-            }
-            X509PolicyFailure::TslStatusNotGranted => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TSL_STATUS_NOT_GRANTED
-            }
-            X509PolicyFailure::TslStatusNotEffective => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TSL_STATUS_NOT_EFFECTIVE
-            }
-            X509PolicyFailure::TslStatusTooOld => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TSL_STATUS_TOO_OLD
-            }
-            X509PolicyFailure::TslCertificateBindingMissing => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TSL_CERTIFICATE_BINDING_MISSING
-            }
-            X509PolicyFailure::TslCertificateBindingMismatch => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TSL_CERTIFICATE_BINDING_MISMATCH
-            }
-            X509PolicyFailure::IntermediateMissingBasicConstraints => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_INTERMEDIATE_MISSING_BASIC_CONSTRAINTS
-            }
-            X509PolicyFailure::IntermediateNotCa => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_INTERMEDIATE_NOT_CA
-            }
-            X509PolicyFailure::IntermediateMissingKeyUsage => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_INTERMEDIATE_MISSING_KEY_USAGE
-            }
-            X509PolicyFailure::IntermediateMissingKeyCertSign => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_INTERMEDIATE_MISSING_KEY_CERT_SIGN
-            }
-            X509PolicyFailure::MissingRequiredExtension => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_MISSING_REQUIRED_EXTENSION
-            }
-            X509PolicyFailure::ExtensionCriticality => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_EXTENSION_CRITICALITY
-            }
-            X509PolicyFailure::LeafKeyUsageProfile => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_KEY_USAGE_PROFILE
-            }
-            X509PolicyFailure::LeafSubjectNameProfile => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_SUBJECT_NAME_PROFILE
-            }
-            X509PolicyFailure::LeafIssuerNameProfile => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_ISSUER_NAME_PROFILE
-            }
-            X509PolicyFailure::LeafSelfIssued => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_SELF_ISSUED
-            }
-            X509PolicyFailure::WrpacPolicyAmbiguous => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_WRPAC_POLICY_AMBIGUOUS
-            }
-            X509PolicyFailure::WrpacQcStatements => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_WRPAC_QC_STATEMENTS
-            }
-            X509PolicyFailure::TrustAnchorMissingBasicConstraints => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TRUST_ANCHOR_MISSING_BASIC_CONSTRAINTS
-            }
-            X509PolicyFailure::TrustAnchorNotCa => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TRUST_ANCHOR_NOT_CA
-            }
-            X509PolicyFailure::TrustAnchorMissingKeyUsage => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TRUST_ANCHOR_MISSING_KEY_USAGE
-            }
-            X509PolicyFailure::TrustAnchorMissingKeyCertSign => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TRUST_ANCHOR_MISSING_KEY_CERT_SIGN
-            }
-            X509PolicyFailure::TrustAnchorMissingCertificatePolicy => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TRUST_ANCHOR_MISSING_CERTIFICATE_POLICY
-            }
-            X509PolicyFailure::LeafForbiddenNoRevAvail => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_FORBIDDEN_NO_REV_AVAIL
-            }
-            X509PolicyFailure::LeafMissingPolicyCpsUri => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_LEAF_MISSING_POLICY_CPS_URI
-            }
-            X509PolicyFailure::AlgorithmParametersNotAllowed => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_ALGORITHM_PARAMETERS_NOT_ALLOWED
-            }
-            X509PolicyFailure::PathLengthConstraintExceeded => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_PATH_LENGTH_CONSTRAINT_EXCEEDED
-            }
-        }
-    }
-}
-
-impl From<X509SignatureFailure> for IdentityCoreErrorReason {
-    fn from(reason: X509SignatureFailure) -> Self {
-        match reason {
-            X509SignatureFailure::ChainTooShort => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_CHAIN_TOO_SHORT
-            }
-            X509SignatureFailure::ChainIssuerMismatch => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_CHAIN_ISSUER_MISMATCH
-            }
-            X509SignatureFailure::UnsupportedAlgorithm => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_UNSUPPORTED_ALGORITHM
-            }
-            X509SignatureFailure::InvalidSignature => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_INVALID_SIGNATURE
-            }
-            X509SignatureFailure::BackendFailure => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_BACKEND_FAILURE
-            }
-            X509SignatureFailure::XmlDsigUnavailable => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_XMLDSIG_UNAVAILABLE
-            }
-            // A mismatched inner/outer identifier means the signed structure is
-            // not the one the signature value covers under the declared
-            // algorithm; it is reported as an invalid signature.
-            X509SignatureFailure::AlgorithmIdentifierMismatch => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_INVALID_SIGNATURE
-            }
-            // The lane lacks the capability to process the constraint, which
-            // is the same fail-closed class as an unsupported algorithm.
-            X509SignatureFailure::UnsupportedPathConstraint => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_SIGNATURE_UNSUPPORTED_ALGORITHM
-            }
-        }
-    }
-}
-
-impl From<X509ResourceLimit> for IdentityCoreErrorReason {
-    fn from(reason: X509ResourceLimit) -> Self {
-        match reason {
-            X509ResourceLimit::CertificateChainTooLong => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_RESOURCE_CERTIFICATE_CHAIN_TOO_LONG
-            }
-            X509ResourceLimit::CertificateDerTooLarge => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_RESOURCE_CERTIFICATE_DER_TOO_LARGE
-            }
-            X509ResourceLimit::CertificatePemTooLarge => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_RESOURCE_CERTIFICATE_PEM_TOO_LARGE
-            }
-            X509ResourceLimit::CertificatePemBundleTooLarge => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_RESOURCE_CERTIFICATE_PEM_BUNDLE_TOO_LARGE
-            }
-            X509ResourceLimit::TooManyExtensions => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_RESOURCE_TOO_MANY_EXTENSIONS
-            }
-            X509ResourceLimit::ObjectIdentifierTooLong => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_RESOURCE_OBJECT_IDENTIFIER_TOO_LONG
-            }
-            X509ResourceLimit::TooManyNameAttributes => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_RESOURCE_TOO_MANY_NAME_ATTRIBUTES
-            }
-        }
-    }
-}
-
-impl From<X509Error> for IdentityCoreErrorReason {
-    fn from(reason: X509Error) -> Self {
-        match reason {
-            X509Error::InvalidDer => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_INVALID_DER
-            }
-            X509Error::InvalidPem => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_INVALID_PEM
-            }
-            X509Error::UnsupportedPemLabel => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_UNSUPPORTED_PEM_LABEL
-            }
-            X509Error::ParseError => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_PARSE_ERROR
-            }
-            X509Error::InvalidSerialNumber | X509Error::DuplicateExtension => {
-                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_INVALID_DER
-            }
-            X509Error::MissingField(reason) => reason.into(),
-            X509Error::PolicyFailed(reason) => reason.into(),
-            X509Error::SignatureFailed(reason) => reason.into(),
-            X509Error::ResourceLimitExceeded(reason) => reason.into(),
-        }
-    }
-}
+include!("error/map_to_proto.rs");
 
 #[cfg(test)]
 #[path = "error_proto_error_tests.rs"]

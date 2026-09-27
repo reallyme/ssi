@@ -6,13 +6,27 @@
 
 use libfuzzer_sys::fuzz_target;
 use reallyme_credential_status::{
-    status_bit, status_list_signing_payload, validate_status_list, StatusList, StatusListAlgorithm,
-    StatusListSignature, StatusPurpose,
+    status_list_signing_payload, validate_status_list, verify_status, CredentialStatusError,
+    StatusList, StatusListAlgorithm, StatusListSignature, StatusListVerifier, StatusPurpose,
 };
 
 const MAX_FUZZ_INPUT_BYTES: usize = 4096;
 const MAX_FUZZ_STATUS_BITS: u16 = 1024;
 const STATUS_HEADER_BYTES: usize = 7;
+
+struct AcceptVerifier;
+
+impl StatusListVerifier for AcceptVerifier {
+    fn verify_status_list(
+        &self,
+        _issuer: &str,
+        _alg: StatusListAlgorithm,
+        _payload: &[u8],
+        _signature: &[u8],
+    ) -> Result<(), CredentialStatusError> {
+        Ok(())
+    }
+}
 
 fuzz_target!(|data: &[u8]| {
     if data.len() > MAX_FUZZ_INPUT_BYTES || data.len() < STATUS_HEADER_BYTES {
@@ -70,7 +84,9 @@ fuzz_target!(|data: &[u8]| {
 
     let _ = validate_status_list(&list);
     let _ = status_list_signing_payload(&list);
-    let _ = status_bit(&list, index);
+    // Exercise status-bit extraction through the supported verification API so
+    // the fuzzer tracks the same validation order used by relying parties.
+    let _ = verify_status(&list, index, issued_at, &AcceptVerifier);
 });
 
 fn required_status_bytes(length: u64) -> usize {

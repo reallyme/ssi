@@ -19,7 +19,7 @@
     "feature": "cose_key_structure_and_algorithm_policy",
     "implementation": ["reallyme-cose/src/key", "reallyme-cose/src/algorithm.rs"],
     "positive_tests": ["cose_key_ed25519_roundtrip", "cose_key_p256_roundtrip", "cose_key_p384_roundtrip", "cose_key_p521_roundtrip", "cose_key_secp256k1_roundtrip"],
-    "negative_tests": ["cose_key_rejects_invalid_ec_length", "cose_key_rejects_unsupported_algorithm"],
+    "negative_tests": ["cose_key_rejects_invalid_ec_length", "cose_key_rejects_wrong_length_ed25519_public"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -30,8 +30,8 @@
     "keyword": "MUST",
     "feature": "cose_private_key_material_handling",
     "implementation": ["reallyme-cose/src/key/cose_key.rs"],
-    "positive_tests": ["cose_key_ed25519_private_roundtrip", "cose_key_p256_private_roundtrip", "cose_key_p384_private_roundtrip", "cose_key_p521_private_roundtrip", "cose_key_secp256k1_private_roundtrip", "cose_key_private_without_public_is_allowed"],
-    "negative_tests": ["cose_key_private_missing_d_is_rejected", "cose_key_private_rejects_unsupported_algorithm"],
+    "positive_tests": ["cose_key_ed25519_private_roundtrip", "cose_key_p256_private_roundtrip", "cose_key_p384_private_roundtrip", "cose_key_p521_private_roundtrip", "cose_key_secp256k1_private_roundtrip"],
+    "negative_tests": ["cose_key_private_missing_d_is_rejected", "cose_key_private_without_public_is_rejected", "parsed_x25519_private_key_is_rejected_as_an_unsupported_profile"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -43,7 +43,7 @@
     "feature": "cose_multikey_interop",
     "implementation": ["reallyme-cose/src/multikey.rs"],
     "positive_tests": ["cose_key_ed25519_to_multikey", "cose_key_x25519_to_multikey", "cose_key_p256_to_multikey", "cose_key_p384_to_multikey", "cose_key_p521_to_multikey", "cose_key_secp256k1_to_multikey", "multikey_to_cose_ed25519_roundtrip", "multikey_to_cose_p256_roundtrip", "multikey_to_cose_is_deterministic"],
-    "negative_tests": ["cose_key_to_multikey_rejects_unsupported_algorithm", "multikey_to_cose_rejects_unknown_codec", "multikey_to_cose_rejects_algorithm_unsupported_by_current_mapping"],
+    "negative_tests": ["cose_key_to_multikey_rejects_unsupported_algorithm", "multikey_to_cose_rejects_unknown_codec"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -91,7 +91,7 @@
     "feature": "algorithm_mapping_coverage",
     "implementation": ["reallyme-cose/src/algorithm.rs", "reallyme-cose/src/key/map_algorithm.rs"],
     "positive_tests": ["all_supported_signing_algorithms_roundtrip_attached_and_detached", "cose_key_p256_roundtrip", "cose_key_secp256k1_roundtrip"],
-    "negative_tests": ["cose_key_rejects_unsupported_algorithm"],
+    "negative_tests": ["cose_key_to_multikey_rejects_unsupported_algorithm", "parsed_x25519_private_key_is_rejected_as_an_unsupported_profile"],
     "applicable": true,
     "exclusion_reason": null
   },

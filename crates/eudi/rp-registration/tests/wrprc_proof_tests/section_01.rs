@@ -16,7 +16,7 @@ use reallyme_eudi_rp_registration::{
     ArtifactDigest, RegistrationCertificateBinding, RegistrationCertificateCoseAlgorithm,
     RegistrationCertificateCoseAuthenticationInput,
     RegistrationCertificateJadesAuthenticationInput, RegistrationCertificateJadesPolicy,
-    RegistrationError, RegistrationErrorReason,
+    RegistrationError, RegistrationErrorReason, WalletRelyingParty,
 };
 use zeroize::Zeroizing;
 
@@ -632,5 +632,16 @@ fn wrprc_receipt_binds_authenticated_representation_and_local_issuance_state(
     assert_eq!(authenticated.parsed().relying_party_id(), "NTRCH-123");
     assert_eq!(authenticated.binding().service_id(), "service-1");
     assert_eq!(authenticated.binding().intended_use_id(), "age-check");
+    let relying_party = WalletRelyingParty::from_json(include_bytes!(
+        "../vectors/valid-ts5-wrp.json"
+    ))?;
+    let request = &relying_party.services()[0].intended_uses()[0].credentials()[0];
+    assert!(authenticated.authorizes_credential_request(request));
+
+    let unauthorized = include_str!("../vectors/valid-ts5-wrp.json")
+        .replace("urn:example:pid", "urn:example:other");
+    let relying_party = WalletRelyingParty::from_json(unauthorized.as_bytes())?;
+    let request = &relying_party.services()[0].intended_uses()[0].credentials()[0];
+    assert!(!authenticated.authorizes_credential_request(request));
     Ok(())
 }

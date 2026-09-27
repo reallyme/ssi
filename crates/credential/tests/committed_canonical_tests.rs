@@ -100,7 +100,11 @@ fn sample_qeaa() -> reallyme_credential_audit::QeaaCompliance {
         },
         issuer_credential: IssuerCredential {
             kind: reallyme_credential_audit::IssuerCredentialKind::X509,
-            cert_fingerprint_sha256: [7u8; 32],
+            cert_fingerprint_sha256: [
+                0x3a, 0xdd, 0xe0, 0x1b, 0x2d, 0xe5, 0x4e, 0x88, 0x79, 0x40, 0x48, 0xd5, 0x51, 0xbb,
+                0x98, 0x6b, 0xc1, 0xb2, 0xb8, 0x5d, 0xd0, 0x10, 0x1e, 0x80, 0x81, 0xe7, 0x09, 0xc4,
+                0xa6, 0xab, 0x57, 0xed,
+            ],
             cert_chain_der: vec![vec![0x30, 0x82, 0x01, 0x0a]],
             trusted_list_ref: "https://example.com/tsl.xml".to_string(),
             policy_oids: vec!["0.4.0.194112.1.3".to_string()],

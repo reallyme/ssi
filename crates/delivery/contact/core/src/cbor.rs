@@ -33,6 +33,10 @@ pub fn decode_contact_message_cbor(bytes: &[u8]) -> Result<ContactMessage, Conta
     let message: ContactMessage =
         from_reader(bytes).map_err(|_| ContactDeliveryError::Serialization)?;
     validate_message_shape(&message)?;
+    let canonical = encode_contact_message_cbor(&message)?;
+    if canonical.as_slice() != bytes {
+        return Err(ContactDeliveryError::Serialization);
+    }
     Ok(message)
 }
 
@@ -56,6 +60,10 @@ pub fn decode_contact_frame_cbor(bytes: &[u8]) -> Result<ContactFrame, ContactDe
     let frame: ContactFrame =
         from_reader(bytes).map_err(|_| ContactDeliveryError::Serialization)?;
     validate_frame_shape(&frame)?;
+    let canonical = encode_contact_frame_cbor(&frame)?;
+    if canonical.as_slice() != bytes {
+        return Err(ContactDeliveryError::Serialization);
+    }
     Ok(frame)
 }
 

@@ -17,27 +17,42 @@ fn coalesce_duplicate_providers(
             let existing = output.get_mut(index).ok_or(TslError::Provider(
                 TslProviderFailure::ContradictoryRegistrationIdentifier,
             ))?;
-            merge_unique(&mut existing.names, core::mem::take(&mut provider.names));
-            merge_unique(
+            merge_unique_bounded(
+                &mut existing.names,
+                core::mem::take(&mut provider.names),
+                MAX_NAMES_PER_FIELD,
+                TslResourceLimit::XmlElements,
+            )?;
+            merge_unique_bounded(
                 &mut existing.trade_names,
                 core::mem::take(&mut provider.trade_names),
-            );
-            merge_unique(
+                MAX_NAMES_PER_FIELD,
+                TslResourceLimit::XmlElements,
+            )?;
+            merge_unique_bounded(
                 &mut existing.registration_identifiers,
                 core::mem::take(&mut provider.registration_identifiers),
-            );
-            merge_unique(
+                MAX_NAMES_PER_FIELD,
+                TslResourceLimit::XmlElements,
+            )?;
+            merge_unique_bounded(
                 &mut existing.address.postal_addresses,
                 core::mem::take(&mut provider.address.postal_addresses),
-            );
-            merge_unique(
+                MAX_NAMES_PER_FIELD,
+                TslResourceLimit::XmlElements,
+            )?;
+            merge_unique_bounded(
                 &mut existing.address.electronic_addresses,
                 core::mem::take(&mut provider.address.electronic_addresses),
-            );
-            merge_unique(
+                MAX_NAMES_PER_FIELD,
+                TslResourceLimit::XmlElements,
+            )?;
+            merge_unique_bounded(
                 &mut existing.information_uris,
                 core::mem::take(&mut provider.information_uris),
-            );
+                MAX_NAMES_PER_FIELD,
+                TslResourceLimit::XmlElements,
+            )?;
             existing
                 .services
                 .append(&mut core::mem::take(&mut provider.services));
@@ -141,76 +156,53 @@ fn coalesce_duplicate_current_services(
                 key
             }
         };
-        let key = (service.service_type.clone(), identity_key);
-        if let Some(index) = service_indices.get(&key).copied() {
-            let current = output.get_mut(index).ok_or(TslError::DigitalIdentity(
-                TslDigitalIdentityFailure::DuplicateServiceKey,
-            ))?;
-            merge_duplicate_current_service(current, service)?;
-        } else {
-            service_indices.insert(key, output.len());
-            output.push(service);
+        let purpose_scope_key = additional_service_information_key(
+            &service.additional_service_information,
+        )?;
+        let key = (service.service_type.clone(), identity_key, purpose_scope_key);
+        match service_indices.entry(key) {
+            std::collections::btree_map::Entry::Occupied(_) => {
+                // Multiple entries for the same key and purpose scope are
+                // ambiguous and historically caused repeated history sorting.
+                // Distinct ASi scopes remain distinct because they are part of the
+                // key above, as required by TS 119 615.
+                return Err(TslError::DigitalIdentity(
+                    TslDigitalIdentityFailure::DuplicateServiceKey,
+                ));
+            }
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(output.len());
+                output.push(service);
+            }
         }
     }
     Ok(output)
 }
 
-fn merge_duplicate_current_service(
-    current: &mut TrustService,
-    mut candidate: TrustService,
-) -> Result<(), TslError> {
-    let current_time = timestamp_order_key(current.status_starting_time);
-    let candidate_time = timestamp_order_key(candidate.status_starting_time);
-    if candidate_time > current_time {
-        core::mem::swap(current, &mut candidate);
-    } else if candidate_time == current_time && candidate.status != current.status {
-        return Err(TslError::DigitalIdentity(
-            TslDigitalIdentityFailure::DuplicateServiceKey,
-        ));
+fn additional_service_information_key(
+    information: &[AdditionalServiceInformation],
+) -> Result<Vec<u8>, TslError> {
+    let mut entries = information
+        .iter()
+        .map(|entry| {
+            let tag = match entry.kind {
+                AdditionalServiceInformationKind::ForElectronicSignatures => 0_u8,
+                AdditionalServiceInformationKind::ForElectronicSeals => 1,
+                AdditionalServiceInformationKind::ForWebsiteAuthentication => 2,
+                AdditionalServiceInformationKind::RootCaQualifiedCertificates => 3,
+                AdditionalServiceInformationKind::Other(_) => 4,
+            };
+            (tag, entry.information_value.as_deref().unwrap_or_default())
+        })
+        .collect::<Vec<_>>();
+    entries.sort_unstable();
+    let mut key = Vec::new();
+    for (tag, value) in entries {
+        let value_len = u32::try_from(value.len())
+            .map_err(|_| TslError::ResourceLimit(TslResourceLimit::XmlText))?;
+        key.push(tag);
+        key.extend_from_slice(&value_len.to_be_bytes());
+        key.extend_from_slice(value.as_bytes());
     }
-
-    merge_unique(&mut current.history, core::mem::take(&mut candidate.history));
-    if candidate_time == current_time {
-        // Two publications of the same effective state: every representation
-        // describes the state in force from this starting time.
-        merge_unique(
-            &mut current.service_names,
-            core::mem::take(&mut candidate.service_names),
-        );
-        merge_unique(
-            &mut current.supply_points,
-            core::mem::take(&mut candidate.supply_points),
-        );
-        merge_unique(
-            &mut current.qualifications,
-            core::mem::take(&mut candidate.qualifications),
-        );
-        merge_unique(
-            &mut current.additional_service_information,
-            core::mem::take(&mut candidate.additional_service_information),
-        );
-        merge_current_certificates(&mut current.digital_identity, &candidate.digital_identity)?;
-    } else {
-        // An older duplicate describes a superseded state. Its qualifications,
-        // additional information, supply points, names, and certificate
-        // representations must not widen the current state; they are kept
-        // only as the historical row effective from its own starting time.
-        let historical_identity = historical_identity_from_current(&candidate.digital_identity)?;
-        let entry = TrustServiceHistoryEntry {
-            service_type: candidate.service_type.clone(),
-            service_names: core::mem::take(&mut candidate.service_names),
-            status: candidate.status.clone(),
-            status_starting_time: candidate.status_starting_time,
-            digital_identity: Some(historical_identity),
-            qualifications: core::mem::take(&mut candidate.qualifications),
-            additional_service_information: core::mem::take(
-                &mut candidate.additional_service_information,
-            ),
-        };
-        if !current.history.contains(&entry) {
-            current.history.push(entry);
-        }
-    }
-    normalize_service_history(current.status_starting_time, &mut current.history);
-    Ok(())
+    Ok(key)
 }

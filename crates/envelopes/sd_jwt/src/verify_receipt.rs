@@ -58,26 +58,31 @@ pub struct VerifiedSdJwtCredential {
 }
 
 impl VerifiedSdJwtCredential {
+    /// Issuer signed JWT after validating all caller-supplied inputs.
     #[must_use]
     pub fn issuer_signed_jwt(&self) -> &str {
         self.issuer_signed_jwt.as_str()
     }
 
+    /// Issuer payload after validating all caller-supplied inputs.
     #[must_use]
     pub const fn issuer_payload(&self) -> &Value {
         &self.issuer_payload
     }
 
+    /// Returns the payload reconstructed from the validated disclosures.
     #[must_use]
     pub const fn resolved_payload(&self) -> &Value {
         &self.resolved_payload
     }
 
+    /// Returns the disclosures in their authenticated serialization order.
     #[must_use]
     pub fn disclosures(&self) -> &[String] {
         self.disclosures.as_slice()
     }
 
+    /// Returns the holder key binding authenticated during verification.
     #[must_use]
     pub const fn holder_binding(&self) -> &ValidatedSdJwtHolderBinding {
         &self.holder_binding
@@ -111,7 +116,7 @@ impl ZeroizeOnDrop for VerifiedSdJwtCredential {}
 /// Backwards-compatible name for a credential validated at issuance receipt.
 pub type VerifiedSdJwtReceipt = VerifiedSdJwtCredential;
 
-/// Verify a holder-bound SD-JWT credential at wallet import time.
+/// Verifies a holder-bound SD-JWT credential at wallet import time.
 ///
 /// This entry point intentionally rejects an appended KB-JWT. A KB-JWT proves
 /// a later presentation to a verifier; issuance receipt instead authenticates
@@ -127,7 +132,7 @@ pub fn verify_sd_jwt_receipt(
     verify_bound_sd_jwt_credential(compact, issuer_jwk, issuer_public_key, &policy)
 }
 
-/// Verify a stored holder-bound SD-JWT credential at presentation time.
+/// Verifies a stored holder-bound SD-JWT credential at presentation time.
 ///
 /// This entry point validates the issuer signature, credential temporal
 /// claims, disclosures, type, issuer, and wallet-held confirmation key. It
@@ -192,7 +197,7 @@ fn verify_bound_sd_jwt_credential(
     })
 }
 
-/// Verify an SD-JWT issuance receipt whose issuer key is authenticated by an
+/// Verifies an SD-JWT issuance receipt whose issuer key is authenticated by an
 /// `x5c` protected-header chain.
 ///
 /// The resolver must perform full X.509 path/profile/time validation against
@@ -209,7 +214,7 @@ pub fn verify_sd_jwt_receipt_with_x5c(
     verify_bound_sd_jwt_credential_with_x5c(compact, policy, certificate_path_resolver)
 }
 
-/// Verify a stored SD-JWT credential using its authenticated `x5c` chain.
+/// Verifies a stored SD-JWT credential using its authenticated `x5c` chain.
 ///
 /// The resolver must perform complete X.509 path, profile, and time validation
 /// against deployment-controlled trust anchors, including binding the
@@ -262,7 +267,7 @@ fn verify_bound_sd_jwt_credential_with_x5c(
     verify_bound_sd_jwt_credential(compact, &issuer_jwk, &canonical_issuer_public_key, &policy)
 }
 
-/// Parse the bounded leaf-first `x5c` chain from an SD-JWT issuer JWS.
+/// Parses the bounded leaf-first `x5c` chain from an SD-JWT issuer JWS.
 ///
 /// This performs only strict structural and size validation. Callers must
 /// validate the returned path against deployment-controlled trust anchors and
@@ -372,6 +377,9 @@ fn validate_credential_claims(
     let issued_at = optional_numeric_date(resolved_object.get("iat"))?;
     let not_before = optional_numeric_date(issuer_object.get("nbf"))?;
     let expires_at = optional_numeric_date(issuer_object.get("exp"))?;
+    if policy.require_exp && expires_at.is_none() {
+        return Err(SdJwtEnvelopeError::InvalidReceiptTemporalClaim);
+    }
     if matches!((issued_at, expires_at), (Some(start), Some(end)) if end <= start)
         || matches!((not_before, expires_at), (Some(start), Some(end)) if start >= end)
     {
@@ -418,6 +426,15 @@ fn optional_numeric_date(value: Option<&Value>) -> Result<Option<u64>, SdJwtEnve
         .transpose()
 }
 
+fn same_jwk_key_profile(left: &Jwk, right: &Jwk) -> bool {
+    match (left, right) {
+        (Jwk::Ec(left), Jwk::Ec(right)) => left.kty == right.kty && left.crv == right.crv,
+        (Jwk::Okp(left), Jwk::Okp(right)) => left.kty == right.kty && left.crv == right.crv,
+        (Jwk::Akp(left), Jwk::Akp(right)) => left.kty == right.kty && left.alg == right.alg,
+        _ => false,
+    }
+}
+
 fn validate_holder_binding(
     payload: &Value,
     policy: &BoundCredentialVerificationPolicy<'_>,
@@ -447,7 +464,8 @@ fn validate_holder_binding(
             .public_key_bytes()
             .map_err(|_| SdJwtEnvelopeError::InvalidReceiptPolicy)?,
     );
-    if confirmation_public_key.as_slice() != policy.expected_holder_public_key
+    if !same_jwk_key_profile(&confirmation_jwk, policy.expected_holder_jwk)
+        || confirmation_public_key.as_slice() != policy.expected_holder_public_key
         || expected_jwk_public_key.as_slice() != policy.expected_holder_public_key
     {
         return Err(SdJwtEnvelopeError::ReceiptHolderBindingMismatch);

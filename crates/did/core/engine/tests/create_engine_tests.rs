@@ -6,8 +6,12 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
-use reallyme_did_core::{create_engine, CreateOptions, DomainVerificationInput, ServiceInput};
+use reallyme_did_core::{
+    create_engine, generate_did_me, CoreVerificationMethod, CreateOptions, DomainVerificationInput,
+    ServiceInput, UpdatePolicy,
+};
 
 use reallyme_did_types::VerificationMethod;
 
@@ -16,7 +20,17 @@ use std::collections::HashMap;
 #[test]
 fn create_engine_builds_core_cid_and_document() {
     let nonce = vec![0; 16];
-    let did = "did:me:test".to_owned();
+    let update_policy = UpdatePolicy {
+        allowed_verification_methods: vec!["#ed25519".into()],
+        threshold: None,
+    };
+    let canonical_key = CoreVerificationMethod {
+        id: "#ed25519".into(),
+        vm_type: "Multikey".into(),
+        algorithm: identity_core_primitives::Algorithm::Ed25519,
+        public_key_multibase: "zDummyKey".into(),
+    };
+    let did = generate_did_me(&nonce, &update_policy, &[canonical_key]).unwrap();
 
     // Minimal VM list
     let vm = VerificationMethod {

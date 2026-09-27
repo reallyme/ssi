@@ -19,22 +19,29 @@ mod resolution;
 pub use dereference::{
     dereference_did_web_document, DidWebDereferenceKind, DidWebDereferenceResult,
 };
-pub use document::{parse_and_validate_did_web_document, DidWebDocument, DidWebDocumentLimits};
+pub use document::{
+    parse_and_validate_did_web_document,
+    parse_and_validate_did_web_document_with_json_ld_processor, DidWebDocument,
+    DidWebDocumentLimits, DidWebJsonLdProcessor,
+};
 pub use error::{
     DidWebError, DidWebErrorReason, DidWebHostingError, DidWebHostingErrorReason,
-    DidWebTransportError, DidWebTransportErrorReason,
+    DidWebJsonLdError, DidWebJsonLdErrorReason, DidWebTransportError, DidWebTransportErrorReason,
 };
 pub use method::{
     canonicalize_did_web, did_web_document_url, generate_did_web, is_valid_did_web, parse_did_web,
     DidWebIdentifier, WebDidInput,
 };
 pub use provider::{
-    create_did_web_document, deactivate_did_web_document, update_did_web_document,
-    AuthenticatedDidWebHostingProvider, DidWebHostingOperation, DidWebHostingReceipt,
-    DidWebPublicationRequest, DidWebPublicationResult,
+    create_did_web_document, create_did_web_document_with_json_ld_processor,
+    deactivate_did_web_document, update_did_web_document,
+    update_did_web_document_with_json_ld_processor, AuthenticatedDidWebHostingProvider,
+    DidWebHostingOperation, DidWebHostingReceipt, DidWebPublicationRequest,
+    DidWebPublicationResult,
 };
 pub use resolution::{
-    resolve_did_web_document, DidWebCancellation, DidWebDestinationPolicy, DidWebHttpRequest,
-    DidWebHttpResponse, DidWebMediaType, DidWebNetworkResolver, DidWebResolutionPolicy,
-    DidWebResolutionResult, PublicInternetDestinationPolicy,
+    resolve_did_web_document, resolve_did_web_document_with_json_ld_processor, DidWebCancellation,
+    DidWebDestinationPolicy, DidWebHttpRequest, DidWebHttpResponse, DidWebMediaType,
+    DidWebNetworkResolver, DidWebResolutionPolicy, DidWebResolutionResult,
+    PublicInternetDestinationPolicy,
 };

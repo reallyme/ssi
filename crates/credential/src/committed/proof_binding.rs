@@ -147,14 +147,18 @@ impl CredentialProofBinding {
 }
 
 /// Validates that proof material belongs to the exact public envelope and
-/// holder-private bundle with which it is stored.
+/// holder-private bundle with which it is stored and was authenticated by the
+/// issuer key supplied by the caller's trust resolution.
 ///
 /// All three issuer signatures are verified. A binding copied from another
 /// credential, issuer, holder, or issuance fails before witness construction.
+/// The embedded verification key is credential data and is never treated as a
+/// trust anchor.
 pub fn validate_credential_proof_binding(
     envelope: &CredentialEnvelope,
     subject_bundle: &SubjectPrivateBundle,
     binding: &CredentialProofBinding,
+    trusted_issuer_public_key: &[u8],
 ) -> Result<(), VcError> {
     crate::validate_credential_with_bundle(envelope, subject_bundle)
         .map_err(|_| VcError::InvalidCredential)?;
@@ -163,7 +167,7 @@ pub fn validate_credential_proof_binding(
         || binding.issuer_envelope_signature.as_slice()
             != envelope.issuer_signature.raw_rs.as_slice()
     {
-        return Err(VcError::InvalidCredential);
+        return Err(VcError::ProofBindingMismatch);
     }
 
     let envelope_hash =
@@ -172,6 +176,17 @@ pub fn validate_credential_proof_binding(
         .map_err(|_| VcError::InvalidCredential)?;
     let (issuer_public_key_x, issuer_public_key_y) =
         p256_coordinates(&envelope.issuer_signature.verification_key.public_key)?;
+    let (trusted_issuer_public_key_x, trusted_issuer_public_key_y) =
+        p256_raw_coordinates(trusted_issuer_public_key)?;
+    if !reallyme_crypto::operations::constant_time::equal_fixed(
+        &issuer_public_key_x,
+        &trusted_issuer_public_key_x,
+    ) || !reallyme_crypto::operations::constant_time::equal_fixed(
+        &issuer_public_key_y,
+        &trusted_issuer_public_key_y,
+    ) {
+        return Err(VcError::ProofBindingTrustedIssuerMismatch);
+    }
     let subject_key = match &envelope.subject.holder_binding {
         HolderBinding::CryptographicKey(key) if key.alg == CredentialAlgorithm::P256 => key,
         HolderBinding::CryptographicKey(_)
@@ -196,29 +211,28 @@ pub fn validate_credential_proof_binding(
         || binding.subject_public_key_y != subject_public_key_y
         || binding.issuance_binding != issuance_binding
     {
-        return Err(VcError::InvalidCredential);
+        return Err(VcError::ProofBindingMismatch);
     }
 
-    let issuer_public_key = p256_uncompressed_key(&issuer_public_key_x, &issuer_public_key_y)?;
     let envelope_signature = p256_ecdsa_jose_signature_to_der(&binding.issuer_envelope_signature)
-        .map_err(|_| VcError::InvalidCredential)?;
+        .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
     verify_signature(
         CryptoAlgorithm::P256,
-        issuer_public_key.as_slice(),
+        trusted_issuer_public_key,
         canonical_credential_bytes(envelope)?.as_slice(),
         envelope_signature.as_slice(),
     )
-    .map_err(|_| VcError::InvalidCredential)?;
+    .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
     let root_payload = CredentialProofBinding::root_binding_payload(&envelope_hash, &claims_root)?;
     let root_signature = p256_ecdsa_jose_signature_to_der(&binding.issuer_root_binding_signature)
-        .map_err(|_| VcError::InvalidCredential)?;
+        .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
     verify_signature(
         CryptoAlgorithm::P256,
-        issuer_public_key.as_slice(),
+        trusted_issuer_public_key,
         root_payload.as_slice(),
         root_signature.as_slice(),
     )
-    .map_err(|_| VcError::InvalidCredential)?;
+    .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
     let subject_payload = CredentialProofBinding::subject_binding_payload(
         &envelope_hash,
         &subject_public_key_x,
@@ -226,14 +240,14 @@ pub fn validate_credential_proof_binding(
     )?;
     let subject_signature =
         p256_ecdsa_jose_signature_to_der(&binding.issuer_subject_binding_signature)
-            .map_err(|_| VcError::InvalidCredential)?;
+            .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
     verify_signature(
         CryptoAlgorithm::P256,
-        issuer_public_key.as_slice(),
+        trusted_issuer_public_key,
         subject_payload.as_slice(),
         subject_signature.as_slice(),
     )
-    .map_err(|_| VcError::InvalidCredential)
+    .map_err(|_| VcError::ProofBindingSignatureInvalid)
 }
 
 impl core::fmt::Debug for CredentialProofBinding {
@@ -302,12 +316,51 @@ pub(crate) fn p256_coordinates(
         return Err(VcError::InvalidCredential);
     };
 
-    let uncompressed = match serialization {
-        RawPublicKeySerialization::Sec1Compressed => {
-            decompress_public_key(bytes).map_err(|_| VcError::InvalidCredential)?
+    match serialization {
+        RawPublicKeySerialization::Sec1Compressed
+            if bytes.len() == 33 && matches!(bytes.first(), Some(0x02 | 0x03)) =>
+        {
+            p256_raw_coordinates(bytes)
         }
-        RawPublicKeySerialization::Sec1Uncompressed => bytes.clone(),
-        RawPublicKeySerialization::FixedWidth => return Err(VcError::InvalidCredential),
+        RawPublicKeySerialization::Sec1Uncompressed
+            if bytes.len() == 65 && bytes.first() == Some(&0x04) =>
+        {
+            p256_raw_coordinates(bytes)
+        }
+        RawPublicKeySerialization::Sec1Compressed | RawPublicKeySerialization::Sec1Uncompressed => {
+            Err(VcError::InvalidCredential)
+        }
+        RawPublicKeySerialization::FixedWidth => Err(VcError::InvalidCredential),
+        _ => Err(VcError::InvalidCredential),
+    }
+}
+
+#[cfg(test)]
+#[path = "proof_binding_tests.rs"]
+mod tests;
+
+fn p256_raw_coordinates(public_key: &[u8]) -> Result<([u8; 32], [u8; 32]), VcError> {
+    let uncompressed = match public_key.len() {
+        33 => decompress_public_key(public_key).map_err(|_| VcError::InvalidCredential)?,
+        65 => {
+            let y_last = public_key
+                .last()
+                .copied()
+                .ok_or(VcError::InvalidCredential)?;
+            let mut compressed = [0_u8; 33];
+            compressed[0] = if y_last & 1 == 0 { 0x02 } else { 0x03 };
+            compressed
+                .get_mut(1..)
+                .ok_or(VcError::InvalidCredential)?
+                .copy_from_slice(public_key.get(1..33).ok_or(VcError::InvalidCredential)?);
+            let validated =
+                decompress_public_key(&compressed).map_err(|_| VcError::InvalidCredential)?;
+            if validated.as_slice() != public_key {
+                return Err(VcError::InvalidCredential);
+            }
+            validated
+        }
+        _ => return Err(VcError::InvalidCredential),
     };
     if uncompressed.len() != 65 || uncompressed.first().copied() != Some(0x04) {
         return Err(VcError::InvalidCredential);
@@ -323,15 +376,4 @@ pub(crate) fn p256_coordinates(
         .try_into()
         .map_err(|_| VcError::InvalidCredential)?;
     Ok((x, y))
-}
-
-fn p256_uncompressed_key(x: &[u8; 32], y: &[u8; 32]) -> Result<Vec<u8>, VcError> {
-    let mut bytes = Vec::new();
-    bytes
-        .try_reserve_exact(65)
-        .map_err(|_| VcError::InvalidCredential)?;
-    bytes.push(0x04);
-    bytes.extend_from_slice(x);
-    bytes.extend_from_slice(y);
-    Ok(bytes)
 }

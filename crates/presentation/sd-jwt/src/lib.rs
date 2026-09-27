@@ -37,7 +37,7 @@ pub use build::{build_sd_jwt_presentation_with_kb_binding, KbJwtBindingInput};
 /// SD-JWT VP verification helpers.
 pub mod verify;
 pub use verify::{verify_sd_jwt_vp, VerifiedDisclosure};
-pub use verify::{verify_sd_jwt_vp_with_binding, ExpectedKbJwtBinding};
-
-mod policy;
-pub use policy::{extract_disclosed_claims, DisclosedClaim};
+pub use verify::{
+    verify_sd_jwt_vp_with_binding, ExpectedKbJwtBinding, MAX_KB_JWT_BYTES,
+    MAX_KB_JWT_HEADER_ENCODED_BYTES,
+};

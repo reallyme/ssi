@@ -56,14 +56,10 @@ fn validate_resolution_request(request: &DidResolveRequest) -> Result<(), DidApi
     }) {
         return Err(DidApiError::InvalidDid);
     }
-    if request.version_id.is_some() && request.version_time.is_some() {
-        return Err(DidApiError::InvalidDid);
-    }
-    if request.version_time.as_deref().is_some_and(|version_time| {
-        version_time.is_empty()
-            || version_time.len() > MAX_DID_RESOLUTION_IDENTIFIER_BYTES
-            || OffsetDateTime::parse(version_time, &Rfc3339).is_err()
-    }) {
+    // did:me history authenticates sequence and core identifiers, but not
+    // provider-supplied wall-clock timestamps. Reject time selection instead
+    // of presenting unauthenticated registry metadata as a security boundary.
+    if request.version_time.is_some() {
         return Err(DidApiError::InvalidDid);
     }
     Ok(())
@@ -73,6 +69,9 @@ fn validate_absent_resolution(
     request: &DidResolveRequest,
     result: &DidResolutionResult,
 ) -> Result<(), DidApiError> {
+    if request.assurance.is_some() {
+        return Err(DidApiError::ResolutionAssuranceInsufficient);
+    }
     let metadata = &result.resolution_metadata;
     if result.document.is_some()
         || result.document_metadata.is_some()

@@ -125,6 +125,7 @@ impl From<CertificateStatus> for trust_pb::CertificateStatus {
             CertificateStatus::Malformed => Self::CERTIFICATE_STATUS_MALFORMED,
             CertificateStatus::InvalidSignature => Self::CERTIFICATE_STATUS_INVALID_SIGNATURE,
             CertificateStatus::Unsupported => Self::CERTIFICATE_STATUS_UNSUPPORTED,
+            CertificateStatus::NotChecked => Self::CERTIFICATE_STATUS_NOT_CHECKED,
             CertificateStatus::Exempt => Self::CERTIFICATE_STATUS_EXEMPT,
         }
     }
@@ -162,6 +163,9 @@ fn certificate_status_from_proto(
         }
         Some(trust_pb::CertificateStatus::CERTIFICATE_STATUS_EXEMPT) => {
             Ok(CertificateStatus::Exempt)
+        }
+        Some(trust_pb::CertificateStatus::CERTIFICATE_STATUS_NOT_CHECKED) => {
+            Ok(CertificateStatus::NotChecked)
         }
         _ => Err(TrustProtoError::UnknownCertificateStatus),
     }

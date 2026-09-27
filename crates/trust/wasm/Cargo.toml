@@ -4,14 +4,14 @@
 
 [package]
 name = "identity-trust-wasm"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
 
 [features]
 default = []
-# The workspace frequently runs `--features native`; keep an empty feature for compatibility.
+# The workspace feature contract requires every runtime crate to accept `native` and `wasm`.
 native = ["envelopes-x509/native", "reallyme-trust-core/native"]
 wasm = ["envelopes-x509/wasm", "reallyme-trust-core/wasm"]
 
@@ -21,8 +21,8 @@ thiserror = { workspace = true }
 time = { workspace = true }
 
 # Core trust traits + policy evaluation.
-reallyme-trust-core = { version = "0.2.0", path = "../core", default-features = false }
-identity-trust-tsl-core = { version = "0.2.0", path = "../tsl-core" }
+reallyme-trust-core = { version = "0.3.0", path = "../core", default-features = false }
+identity-trust-tsl-core = { version = "0.3.0", path = "../tsl-core" }
 envelopes-x509 = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]

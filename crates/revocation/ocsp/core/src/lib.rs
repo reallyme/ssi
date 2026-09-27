@@ -33,9 +33,13 @@ pub mod error;
 /// Parsed OCSP response model and policy knobs.
 pub mod model;
 
-pub use bind_response::bind_response_to_certificates;
+pub use bind_response::{
+    bind_response_to_certificates, bind_response_to_certificates_with_nonce,
+    validate_response_nonce, MAX_OCSP_NONCE_BYTES,
+};
 pub use checker::OcspChecker;
 pub use error::OcspError;
 pub use model::{
-    OcspCertStatus, OcspExtension, OcspPolicy, ParsedOcspResponse, DEFAULT_MAX_OCSP_AGE_SECS,
+    OcspCertStatus, OcspExtension, OcspPolicy, ParsedOcspResponse, UnverifiedOcspResponse,
+    DEFAULT_MAX_OCSP_AGE_SECS,
 };

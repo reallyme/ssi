@@ -10,6 +10,7 @@ pub fn parse_ocsp_response_der(
     _issuer_der: &[u8],
     _extra_certs_der: &[Vec<u8>],
     _now_unix: u64,
+    _expected_nonce: Option<&[u8]>,
 ) -> Result<ParsedOcspResponse, OcspError> {
-    Err(OcspError::Unavailable)
+    Err(OcspError::Unsupported)
 }

@@ -1,0 +1,84 @@
+{
+  "schema": "reallyme.identity.conformance.vector_manifest.v1",
+  "generated_by": "scripts/generate_conformance_vectors.mjs",
+  "suites": [
+    {
+      "id": "jwe-compact",
+      "source": "RFC7516",
+      "path": "jwe-compact.json",
+      "case_count": 7
+    },
+    {
+      "id": "jwk-thumbprint",
+      "source": "RFC7638",
+      "path": "jwk-thumbprint.json",
+      "case_count": 4
+    },
+    {
+      "id": "sd-jwt-compact",
+      "source": "RFC9901",
+      "path": "sd-jwt-compact.json",
+      "case_count": 19
+    },
+    {
+      "id": "sd-jwt-json-serialization",
+      "source": "RFC9901",
+      "path": "sd-jwt-json-serialization.json",
+      "case_count": 2
+    },
+    {
+      "id": "mdoc-issuer-signed",
+      "source": "ISO18013-5",
+      "path": "mdoc-issuer-signed.json",
+      "case_count": 1
+    },
+    {
+      "id": "status-list",
+      "source": "W3C-VC-DM-2.0 credential status and ReallyMe status-list model",
+      "path": "status-list.json",
+      "case_count": 7
+    },
+    {
+      "id": "x509-trust-policy",
+      "source": "RFC5280 projected certificate policy and EUDI trusted-list service policy",
+      "path": "x509-trust-policy.json",
+      "case_count": 0
+    },
+    {
+      "id": "resource-limits",
+      "source": "CONTRACT",
+      "path": "resource-limits.json",
+      "case_count": 1
+    },
+    {
+      "id": "did-methods",
+      "source": "DID method specifications and upstream resolver examples",
+      "path": "did-methods.json",
+      "case_count": 25
+    },
+    {
+      "id": "claims-normalization",
+      "source": "ReallyMe claim normalization model",
+      "path": "claims/normalization.json",
+      "case_count": 6
+    },
+    {
+      "id": "claims-predefined-credentials",
+      "source": "EU-2024-2977, ISO18013-5, ICAO9303, ELM-3, EU-2003-751",
+      "path": "claims/predefined-credentials.json",
+      "case_count": 78
+    },
+    {
+      "id": "claims-catalog-sources",
+      "source": "EU-2024-2977, EU-2024-1183, EU-2025-1569, ISO18013-5, ICAO9303, ELM-3, EU-2003-751, EUDI-ARF, ReallyMe claim normalization model",
+      "path": "claims/catalog-sources.json",
+      "case_count": 13
+    },
+    {
+      "id": "credential-canonical",
+      "source": "ReallyMe credential canonical envelope model",
+      "path": "credential/canonical.json",
+      "case_count": 1
+    }
+  ]
+}

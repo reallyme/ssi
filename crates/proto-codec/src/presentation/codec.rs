@@ -15,6 +15,7 @@ pub use own_presentation_proto::{zeroize_presentation_proto, SensitivePresentati
 use buffa::{DecodeOptions, Message};
 use reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::presentation;
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
+use std::io::Write;
 use thiserror::Error;
 use zeroize::Zeroizing;
 
@@ -43,9 +44,12 @@ pub const MAX_PRESENTATION_PROTO_JSON_BYTES: usize = 3_145_728;
 
 const PRESENTATION_PROTO_RECURSION_LIMIT: u32 = 64;
 const PRESENTATION_PROTO_UNKNOWN_FIELD_LIMIT: usize = 0;
+const MAX_PRESENTATION_PROTO_JSON_COLLECTION_ITEMS: usize = 4_096;
+const MAX_PRESENTATION_PROTO_JSON_NODES: usize = 65_536;
 
 /// Fixed VP proto codec errors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum VpProtoError {
     /// Protobuf bytes could not be decoded.
     #[error("invalid presentation protobuf")]
@@ -133,7 +137,7 @@ pub fn encode_presentation_proto(
     presentation: &Presentation,
 ) -> Result<Zeroizing<Vec<u8>>, VpProtoError> {
     validate_presentation_resource_limits(presentation)?;
-    let proto = presentation_to_proto(presentation);
+    let proto = presentation_to_proto(presentation)?;
     encode_proto(&proto)
 }
 
@@ -150,7 +154,7 @@ pub fn encode_presentation_proto_brotli(
     let proto = encode_presentation_proto(presentation)?;
     let compressed = reallyme_compression_brotli::brotli_compress(&proto)
         .map_err(|_| VpProtoError::Compression)?;
-    Ok(Zeroizing::new(compressed))
+    Ok(compressed)
 }
 
 /// Decode bounded Brotli protobuf bytes into the Rust VP model.
@@ -162,9 +166,9 @@ pub fn decode_presentation_proto_brotli(bytes: &[u8]) -> Result<Presentation, Vp
     .map_err(|error| match error {
         reallyme_compression_brotli::BrotliError::OutputTooLarge => VpProtoError::MessageTooLarge,
         reallyme_compression_brotli::BrotliError::CompressionFailed
-        | reallyme_compression_brotli::BrotliError::DecompressionFailed => {
-            VpProtoError::Decompression
-        }
+        | reallyme_compression_brotli::BrotliError::DecompressionFailed
+        | reallyme_compression_brotli::BrotliError::TrailingData => VpProtoError::Decompression,
+        _ => VpProtoError::Decompression,
     })?;
     let proto = Zeroizing::new(proto);
     decode_presentation_proto(&proto)
@@ -173,12 +177,53 @@ pub fn decode_presentation_proto_brotli(bytes: &[u8]) -> Result<Presentation, Vp
 /// Serialize the generated protobuf message using Buffa's protobuf JSON rules.
 pub fn proto_to_json(presentation: &PbPresentation) -> Result<Zeroizing<String>, VpProtoError> {
     validate_proto_resource_limits(presentation)?;
-    let json = serde_json::to_string(presentation).map_err(|_| VpProtoError::JsonSerialize)?;
-    if json.len() > MAX_PRESENTATION_PROTO_JSON_BYTES {
-        return Err(VpProtoError::JsonTooLarge);
+    let mut writer = BoundedJsonWriter::new(MAX_PRESENTATION_PROTO_JSON_BYTES);
+    serde_json::to_writer(&mut writer, presentation).map_err(|_| VpProtoError::JsonSerialize)?;
+    writer.into_string()
+}
+
+struct BoundedJsonWriter {
+    bytes: Zeroizing<Vec<u8>>,
+    limit: usize,
+}
+
+impl BoundedJsonWriter {
+    fn new(limit: usize) -> Self {
+        Self {
+            bytes: Zeroizing::new(Vec::with_capacity(limit)),
+            limit,
+        }
     }
 
-    Ok(Zeroizing::new(json))
+    fn into_string(mut self) -> Result<Zeroizing<String>, VpProtoError> {
+        match String::from_utf8(core::mem::take(&mut *self.bytes)) {
+            Ok(value) => Ok(Zeroizing::new(value)),
+            Err(error) => {
+                let mut bytes = error.into_bytes();
+                zeroize::Zeroize::zeroize(&mut bytes);
+                Err(VpProtoError::JsonSerialize)
+            }
+        }
+    }
+}
+
+impl Write for BoundedJsonWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let new_len = self
+            .bytes
+            .len()
+            .checked_add(bytes.len())
+            .ok_or_else(|| std::io::Error::other("JSON output limit exceeded"))?;
+        if new_len > self.limit {
+            return Err(std::io::Error::other("JSON output limit exceeded"));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Deserialize a generated protobuf message using Buffa's protobuf JSON rules.
@@ -187,11 +232,203 @@ pub fn json_to_proto(json: &str) -> Result<SensitivePresentationProto, VpProtoEr
         return Err(VpProtoError::JsonTooLarge);
     }
 
-    let presentation: PbPresentation =
+    let value: serde_json::Value =
         serde_json::from_str(json).map_err(|_| VpProtoError::JsonDeserialize)?;
+    validate_json_resource_limits(&value)?;
+    validate_proto_json_shape(&value)?;
+    let presentation: PbPresentation =
+        serde_json::from_value(value).map_err(|_| VpProtoError::JsonDeserialize)?;
     let encoded = encode_proto(&presentation)?;
     drop(encoded);
     Ok(SensitivePresentationProto::new(presentation))
+}
+
+fn validate_proto_json_shape(value: &serde_json::Value) -> Result<(), VpProtoError> {
+    let root = json_object_with_keys(value, &["zk", "sdJwtVc", "sd_jwt_vc", "mdoc"])?;
+    if root.len() != 1 {
+        return Err(VpProtoError::JsonDeserialize);
+    }
+    if let Some(value) = root.get("zk") {
+        validate_zk_json(value)?;
+    }
+    if let Some(value) = root.get("sdJwtVc").or_else(|| root.get("sd_jwt_vc")) {
+        json_object_with_keys(
+            value,
+            &[
+                "sdJwt",
+                "sd_jwt",
+                "disclosures",
+                "kbJwt",
+                "kb_jwt",
+                "vct",
+                "envelopeHash",
+                "envelope_hash",
+            ],
+        )?;
+    }
+    if let Some(value) = root.get("mdoc") {
+        json_object_with_keys(
+            value,
+            &[
+                "deviceResponse",
+                "device_response",
+                "envelopeHash",
+                "envelope_hash",
+                "docType",
+                "doc_type",
+            ],
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_zk_json(value: &serde_json::Value) -> Result<(), VpProtoError> {
+    let zk = json_object_with_keys(
+        value,
+        &["freshness", "credential", "disclosures", "zkProof", "qeaa"],
+    )?;
+    if let Some(value) = zk.get("freshness") {
+        json_object_with_keys(
+            value,
+            &[
+                "challenge",
+                "audienceHash",
+                "audience_hash",
+                "expiryUnix",
+                "expiry_unix",
+            ],
+        )?;
+    }
+    if let Some(value) = zk.get("credential") {
+        let credential = json_object_with_keys(
+            value,
+            &[
+                "envelopeHash",
+                "envelope_hash",
+                "issuerDid",
+                "issuer_did",
+                "status",
+            ],
+        )?;
+        if let Some(status) = credential.get("status") {
+            json_object_with_keys(
+                status,
+                &[
+                    "statusListUrl",
+                    "status_list_url",
+                    "statusListId",
+                    "status_list_id",
+                    "statusListIndex",
+                    "status_list_index",
+                    "purpose",
+                ],
+            )?;
+        }
+    }
+    if let Some(serde_json::Value::Array(disclosures)) = zk.get("disclosures") {
+        for disclosure in disclosures {
+            let disclosure = json_object_with_keys(
+                disclosure,
+                &[
+                    "claimPath",
+                    "claim_path",
+                    "mode",
+                    "revealedValue",
+                    "revealed_value",
+                    "threshold",
+                    "range",
+                    "set",
+                ],
+            )?;
+            if let Some(range) = disclosure.get("range") {
+                json_object_with_keys(range, &["min", "max"])?;
+            }
+            if let Some(set) = disclosure.get("set") {
+                json_object_with_keys(set, &["values"])?;
+            }
+        }
+    } else if zk.contains_key("disclosures") {
+        return Err(VpProtoError::JsonDeserialize);
+    }
+    if let Some(value) = zk.get("zkProof") {
+        let proof = json_object_with_keys(
+            value,
+            &[
+                "circuitId",
+                "circuit_id",
+                "circuitVersion",
+                "circuit_version",
+                "vkId",
+                "vk_id",
+                "proofBytes",
+                "proof_bytes",
+                "publicInputs",
+                "public_inputs",
+                "proofSuite",
+                "proof_suite",
+                "artifactManifestSha256",
+                "artifact_manifest_sha256",
+            ],
+        )?;
+        if proof
+            .get("publicInputs")
+            .or_else(|| proof.get("public_inputs"))
+            .is_some_and(|inputs| !inputs.is_object())
+        {
+            return Err(VpProtoError::JsonDeserialize);
+        }
+    }
+    if let Some(value) = zk.get("qeaa") {
+        json_object_with_keys(
+            value,
+            &[
+                "required",
+                "auditReportHash",
+                "audit_report_hash",
+                "maxStatusAgeSeconds",
+                "max_status_age_seconds",
+            ],
+        )?;
+    }
+    Ok(())
+}
+
+fn json_object_with_keys<'a>(
+    value: &'a serde_json::Value,
+    allowed: &[&str],
+) -> Result<&'a serde_json::Map<String, serde_json::Value>, VpProtoError> {
+    let object = value.as_object().ok_or(VpProtoError::JsonDeserialize)?;
+    if object.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(VpProtoError::JsonDeserialize);
+    }
+    Ok(object)
+}
+
+fn validate_json_resource_limits(value: &serde_json::Value) -> Result<(), VpProtoError> {
+    let mut pending = vec![value];
+    let mut nodes = 0_usize;
+    while let Some(current) = pending.pop() {
+        nodes = nodes.checked_add(1).ok_or(VpProtoError::JsonTooLarge)?;
+        if nodes > MAX_PRESENTATION_PROTO_JSON_NODES {
+            return Err(VpProtoError::JsonTooLarge);
+        }
+        match current {
+            serde_json::Value::Array(values) => {
+                if values.len() > MAX_PRESENTATION_PROTO_JSON_COLLECTION_ITEMS {
+                    return Err(VpProtoError::JsonTooLarge);
+                }
+                pending.extend(values);
+            }
+            serde_json::Value::Object(values) => {
+                if values.len() > MAX_PRESENTATION_PROTO_JSON_COLLECTION_ITEMS {
+                    return Err(VpProtoError::JsonTooLarge);
+                }
+                pending.extend(values.values());
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// Serialize a Rust VP model through the generated protobuf JSON mapping.
@@ -199,7 +436,7 @@ pub fn presentation_to_proto_json(
     presentation: &Presentation,
 ) -> Result<Zeroizing<String>, VpProtoError> {
     validate_presentation_resource_limits(presentation)?;
-    let proto = presentation_to_proto(presentation);
+    let proto = presentation_to_proto(presentation)?;
     proto_to_json(&proto)
 }
 

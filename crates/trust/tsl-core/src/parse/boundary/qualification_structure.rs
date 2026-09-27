@@ -30,7 +30,7 @@ enum QualificationNode {
     CertSubjectDnAttribute,
 }
 
-/// Validate one qualification-subtree child against its parent.
+/// Validates one qualification-subtree child against its parent.
 ///
 /// Returns the child's node kind so the caller can track the open path.
 fn classify_qualification_child(

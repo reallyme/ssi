@@ -16,8 +16,9 @@ pub struct SiopAuthenticationRequest {
     /// Challenge / nonce (bytes, typically 32).
     pub nonce: Vec<u8>,
 
-    /// Audience string (RP-defined).
-    pub audience: String,
+    /// Opaque request/response correlation value generated with at least 128
+    /// bits of caller-supplied entropy.
+    pub state: String,
 
     /// Requested response mode (e.g. "direct_post").
     pub response_mode: String,
@@ -40,8 +41,8 @@ pub struct SiopAuthenticationResponse {
     /// Self-issued ID token (JWT bytes).
     pub id_token: Vec<u8>,
 
-    /// Optional state binding.
-    pub state: Option<String>,
+    /// State copied exactly from the originating request.
+    pub state: String,
 }
 
 /// Minimal typed JWT claims for SIOP id_token verification.
@@ -58,6 +59,10 @@ pub struct SiopIdTokenClaims {
     /// Audience values accepted by the ID token verifier.
     #[serde(deserialize_with = "aud_deserialize", serialize_with = "aud_serialize")]
     pub aud: Vec<String>,
+
+    /// Authorized party. Required when `aud` contains multiple values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub azp: Option<String>,
 
     /// Nonce value that must match the originating request.
     pub nonce: String,
@@ -146,9 +151,8 @@ fn aud_serialize<S>(aud: &Vec<String>, s: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    if aud.len() == 1 {
-        s.serialize_str(&aud[0])
-    } else {
-        aud.serialize(s)
+    match aud.as_slice() {
+        [only] => s.serialize_str(only),
+        _ => aud.serialize(s),
     }
 }

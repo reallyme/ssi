@@ -126,3 +126,4 @@ AGENTS.md
 llms.txt
 LLMS.txt
 /.release-readiness/
+/mutants.out*/

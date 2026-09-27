@@ -12,11 +12,6 @@
         clippy::print_stderr
     )
 )]
-// This source-only support crate is consumed through the root identity facade.
-// Keep workspace missing-docs enforcement active by default while avoiding
-// filler rustdoc on transitional DTO fields that are not the public SDK surface.
-#![allow(missing_docs)]
-
 //! High-level VC issuance API.
 //!
 //! Overview: A high-level issuance and verification API for VC envelopes.
@@ -30,9 +25,11 @@
 //! Non-goals:
 //! - Network I/O and protocol-specific HTTP endpoints.
 
+/// Typed request-validation, issuance, encoding, and verification errors.
 pub mod error;
 pub use error::{ClaimValueErrorReason, VcApiError};
 
+/// Credential issuance data models.
 pub mod model;
 #[cfg(feature = "ietf-sd-jwt")]
 pub use model::IetfSdJwtIssuerConfig;
@@ -43,6 +40,7 @@ pub use model::{
     IssuerSigning, PublicFormat,
 };
 
+/// Credential issuance and public-envelope encoding.
 pub mod issue;
 pub use issue::{
     issue_and_encode_with_os_rng, issue_and_encode_with_rng,
@@ -51,8 +49,9 @@ pub use issue::{
     PublicEncoderConfigs,
 };
 
+/// Credential model, signature, and commitment verification.
 pub mod verify;
-pub use verify::{validate_credential, verify_credential_merkle_root, verify_credential_signature};
+pub use verify::{validate_credential, verify_credential_signature};
 pub use verify::{
     validate_credential_with_identity_algorithm,
     verify_credential_signature_with_identity_algorithm,

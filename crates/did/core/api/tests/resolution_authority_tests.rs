@@ -243,11 +243,11 @@ fn freshness_rejects_stale_and_future_observations() {
 }
 
 // -----------------------------------------------------------------------------
-// H3: historical selection honours the registry validity window
+// H3: unauthenticated wall-clock selection fails closed
 // -----------------------------------------------------------------------------
 
 #[test]
-fn version_time_must_fall_within_validity_window() {
+fn version_time_is_rejected_for_did_me() {
     let (doc, _) = create("did:me:resolve-version-window");
     let mut result = resolution(doc.clone(), Vec::new());
     if let Some(metadata) = result.document_metadata.as_mut() {
@@ -262,29 +262,18 @@ fn version_time_must_fall_within_validity_window() {
         selected
     };
 
-    validate_resolution_result(&at("2025-07-01T00:00:00Z"), &result)
-        .expect("selected instant inside the window must validate");
-    validate_resolution_result(&at("2025-06-01T00:00:00Z"), &result)
-        .expect("the inclusive start bound must validate");
-    for outside in [
+    for instant in [
+        "2025-07-01T00:00:00Z",
+        "2025-06-01T00:00:00Z",
         "2025-05-01T00:00:00Z",
         "2025-09-01T00:00:00Z",
         "2026-01-01T00:00:00Z",
     ] {
         assert_eq!(
-            validate_resolution_result(&at(outside), &result),
-            Err(DidApiError::ResolutionResultInvalid)
+            validate_resolution_result(&at(instant), &result),
+            Err(DidApiError::InvalidDid)
         );
     }
-
-    // A superseded version without its end bound cannot be selected.
-    if let Some(metadata) = result.document_metadata.as_mut() {
-        metadata.valid_until = None;
-    }
-    assert_eq!(
-        validate_resolution_result(&at("2025-07-01T00:00:00Z"), &result),
-        Err(DidApiError::ResolutionResultInvalid)
-    );
 
     // Without a selector only the current version is acceptable.
     if let Some(metadata) = result.document_metadata.as_mut() {
@@ -292,6 +281,48 @@ fn version_time_must_fall_within_validity_window() {
     }
     assert_eq!(
         validate_resolution_result(&request(&doc), &result),
+        Err(DidApiError::ResolutionResultInvalid)
+    );
+}
+
+#[test]
+fn exact_version_selector_cannot_return_a_different_history_member() {
+    let (doc1, keys1) = create("did:me:resolve-exact-version");
+    let (doc2, _) = no_op_update(&doc1, &keys1);
+    let mut selected = request(&doc2);
+    selected.version_id = Some(doc1.current_core.clone());
+
+    assert_eq!(
+        validate_resolution_result(&selected, &resolution(doc2.clone(), vec![doc1.clone()])),
+        Err(DidApiError::ResolutionResultInvalid)
+    );
+
+    selected.version_id = Some(doc2.current_core.clone());
+    validate_resolution_result(&selected, &resolution(doc2, vec![doc1]))
+        .expect("exact current-version selection must validate");
+}
+
+#[test]
+fn minimum_sequence_and_provider_sequence_metadata_are_enforced() {
+    let (doc1, keys1) = create("did:me:resolve-sequence-floor");
+    let (doc2, _) = no_op_update(&doc1, &keys1);
+    let mut selected = request(&doc2);
+    selected.minimum_version_sequence = Some(doc2.sequence + 1);
+    let valid_result = resolution(doc2.clone(), vec![doc1.clone()]);
+
+    assert_eq!(
+        validate_resolution_result(&selected, &valid_result),
+        Err(DidApiError::ResolutionResultInvalid)
+    );
+
+    selected.minimum_version_sequence = Some(doc2.sequence);
+    validate_resolution_result(&selected, &valid_result)
+        .expect("sequence at the caller floor must validate");
+
+    let mut mismatched_metadata = resolution(doc2, vec![doc1]);
+    mismatched_metadata.resolution_metadata.sequence = Some(99);
+    assert_eq!(
+        validate_resolution_result(&selected, &mismatched_metadata),
         Err(DidApiError::ResolutionResultInvalid)
     );
 }

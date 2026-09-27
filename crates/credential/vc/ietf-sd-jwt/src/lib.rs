@@ -2,11 +2,6 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-// This source-only support crate is consumed through the root identity facade.
-// Keep workspace missing-docs enforcement active by default while avoiding
-// filler rustdoc on RFC 9901 helper structs that are still being shaped.
-#![allow(missing_docs)]
-
 //! IETF SD-JWT VC issuance and verification helpers.
 //!
 //! This crate emits the SD-JWT wire format as defined by the IETF SD-JWT family:
@@ -22,15 +17,21 @@
 //!   that require unlinkability must keep `me_zk` issuer-bound and present only
 //!   circuit outputs that use verifier-specific freshness and context binding.
 
+/// Typed issuance, disclosure, temporal, and verification errors.
 pub mod error;
+/// IETF SD-JWT VC issuance.
 pub mod issue;
+/// ReallyMe Merkle-commitment extension for ZK-enabled credentials.
 pub mod me_profile;
+/// Disclosure payload representation and digest construction.
 pub mod payload;
 mod process_disclosures;
 mod registered_claims;
+/// RFC 9901 recursive selective-disclosure issuance and verification.
 pub mod rfc9901;
 mod sensitive;
 mod validate_temporal_claims;
+/// IETF SD-JWT VC verification.
 pub mod verify;
 
 pub use error::IetfSdJwtVcError;

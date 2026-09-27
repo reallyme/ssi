@@ -93,6 +93,8 @@ pub struct EvaluationContext<'a> {
 pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext<'_>) -> PolicyDecision {
     let mut errors = Vec::new();
 
+    validate_policy_configuration(policy, &mut errors);
+
     if !ctx.binding_ok {
         errors.push(VpPolicyError::InvalidBinding);
     }
@@ -184,16 +186,25 @@ fn validate_required_claims(
             errors.push(VpPolicyError::DisclosureModeNotAllowed);
         }
     }
-    if !policy.required_claims.is_empty() {
-        for disclosed in disclosures {
-            if !policy
-                .required_claims
-                .iter()
-                .any(|required| required.claim_path == disclosed.claim_path)
-            {
-                errors.push(VpPolicyError::UnexpectedDisclosure);
-            }
+    for disclosed in disclosures {
+        if !policy
+            .required_claims
+            .iter()
+            .any(|required| required.claim_path == disclosed.claim_path)
+        {
+            errors.push(VpPolicyError::UnexpectedDisclosure);
         }
+    }
+}
+
+fn validate_policy_configuration(policy: &VpPolicy, errors: &mut Vec<VpPolicyError>) {
+    let status_constraint_without_status =
+        policy.max_status_age_seconds.is_some() && !policy.require_status;
+    let qeaa_constraint_without_qeaa = (policy.min_qeaa_profile.is_some()
+        || policy.min_identity_proofing_level.is_some())
+        && !policy.require_qeaa;
+    if status_constraint_without_status || qeaa_constraint_without_qeaa {
+        errors.push(VpPolicyError::PolicyMisconfiguration);
     }
 }
 
@@ -202,30 +213,31 @@ fn validate_status(
     status: Option<StatusContext>,
     errors: &mut Vec<VpPolicyError>,
 ) {
-    if !policy.require_status {
-        return;
-    }
-
     let Some(status) = status else {
-        errors.push(VpPolicyError::StatusCheckFailed);
+        if policy.require_status {
+            errors.push(VpPolicyError::StatusCheckFailed);
+        }
         return;
     };
 
-    if !status.checked {
-        errors.push(VpPolicyError::StatusCheckFailed);
-    }
     if status.revoked {
         errors.push(VpPolicyError::CredentialRevoked);
     }
     if status.suspended {
         errors.push(VpPolicyError::CredentialSuspended);
     }
+    if !status.checked {
+        if policy.require_status {
+            errors.push(VpPolicyError::StatusCheckFailed);
+        }
+        return;
+    }
 
     // A configured freshness bound cannot be satisfied by status material of
     // unknown age; missing age is treated as too old.
     if let Some(max_age) = policy.max_status_age_seconds {
         match status.age_seconds {
-            Some(age) if age <= max_age => {}
+            Some(age) if age < max_age => {}
             _ => errors.push(VpPolicyError::StatusTooOld),
         }
     }
@@ -250,7 +262,10 @@ fn validate_qeaa(
     }
 
     if let Some(required_profile) = policy.min_qeaa_profile.as_deref() {
-        if qeaa.profile != Some(required_profile) {
+        let required_rank = qeaa_profile_rank(required_profile);
+        let actual_rank = qeaa.profile.and_then(qeaa_profile_rank);
+        if !matches!((required_rank, actual_rank), (Some(required), Some(actual)) if actual >= required)
+        {
             errors.push(VpPolicyError::QeaaProfileMismatch);
         }
     }
@@ -261,4 +276,14 @@ fn validate_qeaa(
             _ => errors.push(VpPolicyError::QeaaLevelInsufficient),
         }
     }
+}
+
+fn qeaa_profile_rank(profile: &str) -> Option<u64> {
+    let version = profile.strip_prefix("QEAA-ETSI-")?;
+    let (major, minor) = version.split_once('.')?;
+    let major = major.parse::<u32>().ok()?;
+    let minor = minor.parse::<u32>().ok()?;
+    u64::from(major)
+        .checked_mul(1_000_000)
+        .and_then(|base| base.checked_add(u64::from(minor)))
 }

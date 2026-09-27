@@ -12,7 +12,9 @@
 
 mod store;
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub use store::SystemSingleUseClock;
 pub use store::{
-    InMemorySingleUseStore, SingleUseError, SingleUseResult, SingleUseStore,
-    DEFAULT_MAX_SINGLE_USE_TTL_SECS,
+    InMemorySingleUseStore, SingleUseClock, SingleUseError, SingleUseNamespace, SingleUseResult,
+    SingleUseStore, SingleUseTime, DEFAULT_MAX_SINGLE_USE_TTL_SECS,
 };

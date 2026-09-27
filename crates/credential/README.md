@@ -6,7 +6,7 @@ owned by `reallyme/ssi`.
 It defines the semantic shape that issuance, wallet, presentation, and SDK
 layers build on: credential kind, profile identity, assurance level, issuer
 identity, validity window, status pointer, subject key binding, claim
-commitment, optional QEAA compliance evidence, and issuer signature. It is not
+commitment, optional QEAA compliance metadata, and issuer signature. It is not
 an OpenID4VCI issuer, an OpenID4VP response assembler, a wallet inventory, or an
 envelope parser.
 
@@ -29,7 +29,7 @@ It contains:
 - `CredentialStatus` for StatusList-based revocation or suspension checks.
 - `CredentialSubject` for pairwise subject identity and subject public key.
 - `ClaimsCommitment` for the normalized claim set.
-- optional `QeaaCompliance` evidence for QEAA credentials.
+- optional issuer-asserted `QeaaCompliance` metadata for QEAA credentials;
 - issuer `Signature` over the canonical public envelope.
 
 Holder-private claim values remain outside the public envelope in

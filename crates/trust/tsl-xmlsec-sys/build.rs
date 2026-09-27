@@ -3,15 +3,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::print_stdout)]
-//! Build script for the minimal libxmlsec C shim.
-//!
-//! The script is inert unless the `xmlsec-ffi` feature is enabled, which keeps
-//! portable workspace builds independent of system libxmlsec availability.
+//! Build script for the minimal libxmlsec C shim. It remains inert unless the
+//! `xmlsec-ffi` feature is enabled, preserving portable workspace builds.
 
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+const MAX_DIAGNOSTIC_LINES: usize = 16;
+const MAX_DIAGNOSTIC_CHARACTERS_PER_LINE: usize = 512;
+
+mod build_macos;
 
 /// Shared ABI limits and status codes, rendered into the generated C wrapper.
 mod abi {
@@ -26,6 +29,8 @@ fn main() {
 }
 
 fn run() -> Result<(), BuildError> {
+    emit_rerun_inputs();
+
     // Only build/link the native wrapper when explicitly enabled by the parent crate.
     // This keeps the workspace buildable without system `libxmlsec1` installed.
     let xmlsec_ffi_enabled = env::var_os("CARGO_FEATURE_XMLSEC_FFI").is_some();
@@ -53,17 +58,44 @@ fn run() -> Result<(), BuildError> {
     for lib in pkg.libs {
         println!("cargo:rustc-link-lib={lib}");
     }
+    for argument in pkg.link_args {
+        println!("cargo:rustc-link-arg={argument}");
+    }
+    for argument in target_flags("LDFLAGS") {
+        println!("cargo:rustc-link-arg={argument}");
+    }
 
-    // Rebuild if this file changes.
+    Ok(())
+}
+
+fn emit_rerun_inputs() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=../tsl-xmlsec/schemas/19612_xsd.xsd");
     println!("cargo:rerun-if-changed=../tsl-xmlsec/schemas/xml.xsd");
     println!("cargo:rerun-if-changed=../tsl-xmlsec/schemas/xmldsig-core-schema.xsd");
     println!("cargo:rerun-if-changed=src/wrapper.c.in");
     println!("cargo:rerun-if-changed=src/abi.rs");
-    println!("cargo:rerun-if-env-changed=CC");
-
-    Ok(())
+    for variable in [
+        "CC",
+        "AR",
+        "CFLAGS",
+        "CPPFLAGS",
+        "LDFLAGS",
+        "PKG_CONFIG",
+        "PKG_CONFIG_PATH",
+        "PKG_CONFIG_LIBDIR",
+        "PKG_CONFIG_SYSROOT_DIR",
+        "OTOOL",
+    ] {
+        println!("cargo:rerun-if-env-changed={variable}");
+    }
+    if let Ok(target) = env::var("TARGET") {
+        let underscored = target.replace('-', "_");
+        for prefix in ["CC", "AR", "CFLAGS", "CPPFLAGS", "LDFLAGS", "PKG_CONFIG"] {
+            println!("cargo:rerun-if-env-changed={prefix}_{target}");
+            println!("cargo:rerun-if-env-changed={prefix}_{underscored}");
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -80,6 +112,10 @@ enum BuildError {
     ArchiverUnavailable,
     ArchiverFailed,
     NonUtf8Path,
+    XmlsecLibraryUnavailable,
+    XmlsecLibxmlDependencyUnavailable,
+    DependencyInspectorUnavailable,
+    DependencyInspectionFailed,
 }
 
 impl BuildError {
@@ -110,6 +146,18 @@ impl BuildError {
             Self::ArchiverUnavailable => "failed to execute ar",
             Self::ArchiverFailed => "ar failed to create the XMLSec wrapper archive",
             Self::NonUtf8Path => "Cargo produced a non-UTF-8 build path",
+            Self::XmlsecLibraryUnavailable => {
+                "the xmlsec library reported by pkg-config could not be located"
+            }
+            Self::XmlsecLibxmlDependencyUnavailable => {
+                "the xmlsec library does not expose a libxml2 dependency"
+            }
+            Self::DependencyInspectorUnavailable => {
+                "the target dependency inspection tool is unavailable"
+            }
+            Self::DependencyInspectionFailed => {
+                "the target dependency inspection tool rejected the xmlsec library"
+            }
         }
     }
 }
@@ -246,6 +294,7 @@ struct PkgInfo {
     cflags: Vec<String>,
     lib_dirs: Vec<String>,
     libs: Vec<String>,
+    link_args: Vec<String>,
 }
 
 fn probe_xmlsec_pkg() -> Result<PkgInfo, BuildError> {
@@ -263,15 +312,20 @@ fn probe_xmlsec_pkg() -> Result<PkgInfo, BuildError> {
         return Err(BuildError::XmlsecVersionUnsupported);
     }
 
-    probe_pkg(XMLSEC_OPENSSL_PACKAGE)
+    let mut package = probe_pkg(XMLSEC_OPENSSL_PACKAGE)?;
+    build_macos::align_libxml2_dependency(&mut package)?;
+    Ok(package)
 }
 
 fn pkg_config_succeeds(args: &[&str]) -> Result<bool, BuildError> {
-    Command::new("pkg-config")
+    let output = Command::new(target_tool("PKG_CONFIG", "pkg-config"))
         .args(args)
-        .status()
-        .map(|status| status.success())
-        .map_err(|_| BuildError::PkgConfigUnavailable)
+        .output()
+        .map_err(|_| BuildError::PkgConfigUnavailable)?;
+    if !output.status.success() {
+        emit_command_diagnostics("pkg-config", &output);
+    }
+    Ok(output.status.success())
 }
 
 fn probe_pkg(name: &str) -> Result<PkgInfo, BuildError> {
@@ -285,6 +339,7 @@ fn probe_pkg(name: &str) -> Result<PkgInfo, BuildError> {
         cflags,
         lib_dirs: Vec::new(),
         libs: Vec::new(),
+        link_args: Vec::new(),
     };
 
     let mut libs_out = Vec::new();
@@ -294,22 +349,23 @@ fn probe_pkg(name: &str) -> Result<PkgInfo, BuildError> {
             pkg.lib_dirs.push(v.to_string());
         } else if let Some(v) = f.strip_prefix("-l") {
             libs_out.push(v.to_string());
+        } else {
+            pkg.link_args.push(f);
         }
     }
     pkg.libs = libs_out;
-
-    prefer_homebrew_libxml2_on_macos(&mut pkg);
 
     Ok(pkg)
 }
 
 fn run_pkg_config(args: &[&str]) -> Result<Vec<String>, BuildError> {
-    let out = Command::new("pkg-config")
+    let out = Command::new(target_tool("PKG_CONFIG", "pkg-config"))
         .args(args)
         .output()
         .map_err(|_| BuildError::PkgConfigUnavailable)?;
 
     if !out.status.success() {
+        emit_command_diagnostics("pkg-config", &out);
         return Err(BuildError::PkgConfigFailed);
     }
 
@@ -333,42 +389,9 @@ fn split_flags(flags: &[String]) -> (Vec<String>, Vec<String>) {
     (cflags, other)
 }
 
-fn prefer_homebrew_libxml2_on_macos(pkg: &mut PkgInfo) {
-    if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("macos") {
-        return;
-    }
-
-    let candidates = ["/opt/homebrew/opt/libxml2", "/usr/local/opt/libxml2"];
-    for prefix in candidates {
-        let lib_dir = Path::new(prefix).join("lib");
-        let include_dir = Path::new(prefix).join("include/libxml2");
-        let dylib = lib_dir.join("libxml2.dylib");
-
-        if !dylib.exists() {
-            continue;
-        }
-
-        let lib_dir = lib_dir.to_string_lossy().into_owned();
-        if !pkg.lib_dirs.iter().any(|existing| existing == &lib_dir) {
-            pkg.lib_dirs.insert(0, lib_dir);
-        }
-
-        if include_dir.exists() {
-            let cflag = format!("-I{}", include_dir.display());
-            if !pkg.cflags.iter().any(|existing| existing == &cflag) {
-                pkg.cflags.insert(0, cflag);
-            }
-        }
-
-        break;
-    }
-}
-
 fn compile_wrapper(c_path: &Path, out_dir: &Path, pkg: &PkgInfo) -> Result<(), BuildError> {
-    let cc = match env::var("CC") {
-        Ok(value) => value,
-        Err(_) => "cc".to_owned(),
-    };
+    let cc = target_tool("CC", "cc");
+    let ar = target_tool("AR", "ar");
 
     let obj = out_dir.join("meid_xmlsec_wrapper.o");
     let lib = out_dir.join("libmeid_xmlsec_wrapper.a");
@@ -380,17 +403,23 @@ fn compile_wrapper(c_path: &Path, out_dir: &Path, pkg: &PkgInfo) -> Result<(), B
         .arg("-o")
         .arg(&obj)
         .arg("-O2")
-        .arg("-fPIC");
+        .arg("-fPIC")
+        .arg("-fstack-protector-strong")
+        .arg("-fno-strict-overflow");
 
     for f in &pkg.cflags {
         cmd.arg(f);
     }
+    for flag in target_flags("CPPFLAGS")
+        .into_iter()
+        .chain(target_flags("CFLAGS"))
+    {
+        cmd.arg(flag);
+    }
 
-    // Inherit stderr so a platform header/API mismatch remains diagnosable in
-    // CI. The wrapper contains no secrets, and the compiler is invoked only on
-    // repository source plus schemas embedded into Cargo's build directory.
-    let status = cmd.status().map_err(|_| BuildError::CompilerUnavailable)?;
-    if !status.success() {
+    let output = cmd.output().map_err(|_| BuildError::CompilerUnavailable)?;
+    if !output.status.success() {
+        emit_command_diagnostics("C compiler", &output);
         return Err(BuildError::CompilerFailed);
     }
 
@@ -398,15 +427,54 @@ fn compile_wrapper(c_path: &Path, out_dir: &Path, pkg: &PkgInfo) -> Result<(), B
     let obj_path = obj.to_str().ok_or(BuildError::NonUtf8Path)?;
 
     // Archive into a static library.
-    let status = Command::new("ar")
+    let output = Command::new(ar)
         .args(["crs", lib_path, obj_path])
-        .status()
+        .output()
         .map_err(|_| BuildError::ArchiverUnavailable)?;
-    if !status.success() {
+    if !output.status.success() {
+        emit_command_diagnostics("archiver", &output);
         return Err(BuildError::ArchiverFailed);
     }
 
     Ok(())
+}
+
+fn emit_command_diagnostics(label: &str, output: &std::process::Output) {
+    for (stream_name, bytes) in [("stderr", &output.stderr), ("stdout", &output.stdout)] {
+        for line in String::from_utf8_lossy(bytes)
+            .lines()
+            .take(MAX_DIAGNOSTIC_LINES)
+        {
+            let sanitized: String = line
+                .chars()
+                .filter(|character| !character.is_control() || *character == '\t')
+                .take(MAX_DIAGNOSTIC_CHARACTERS_PER_LINE)
+                .collect();
+            if !sanitized.is_empty() {
+                println!("cargo:warning={label} {stream_name}: {sanitized}");
+            }
+        }
+    }
+}
+
+fn target_tool(prefix: &str, fallback: &str) -> String {
+    target_env(prefix)
+        .or_else(|| env::var(prefix).ok())
+        .unwrap_or_else(|| fallback.to_owned())
+}
+
+fn target_flags(prefix: &str) -> Vec<String> {
+    target_env(prefix)
+        .or_else(|| env::var(prefix).ok())
+        .map(|flags| flags.split_whitespace().map(str::to_owned).collect())
+        .unwrap_or_default()
+}
+
+fn target_env(prefix: &str) -> Option<String> {
+    let target = env::var("TARGET").ok()?;
+    env::var(format!("{prefix}_{target}"))
+        .ok()
+        .or_else(|| env::var(format!("{prefix}_{}", target.replace('-', "_"))).ok())
 }
 
 // Minimal C shim:

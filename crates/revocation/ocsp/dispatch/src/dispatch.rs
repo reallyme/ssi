@@ -61,6 +61,26 @@ pub fn parse_ocsp_response_der(
     extra_certs_der: &[Vec<u8>],
     now_unix: u64,
 ) -> Result<ParsedOcspResponse, OcspError> {
+    parse_ocsp_response_der_with_nonce(
+        ocsp_response_der,
+        cert_der,
+        issuer_der,
+        extra_certs_der,
+        now_unix,
+        None,
+    )
+}
+
+/// Parse and verify an OCSP response while requiring the signed response
+/// nonce to match the nonce sent in the corresponding request.
+pub fn parse_ocsp_response_der_with_nonce(
+    ocsp_response_der: &[u8],
+    cert_der: &[u8],
+    issuer_der: &[u8],
+    extra_certs_der: &[Vec<u8>],
+    now_unix: u64,
+    expected_nonce: Option<&[u8]>,
+) -> Result<ParsedOcspResponse, OcspError> {
     validate_ocsp_inputs(ocsp_response_der, cert_der, issuer_der, extra_certs_der)?;
     selected_backend::parse_ocsp_response_der(
         ocsp_response_der,
@@ -68,6 +88,7 @@ pub fn parse_ocsp_response_der(
         issuer_der,
         extra_certs_der,
         now_unix,
+        expected_nonce,
     )
 }
 

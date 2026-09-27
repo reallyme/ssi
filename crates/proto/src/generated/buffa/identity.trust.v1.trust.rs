@@ -1226,6 +1226,7 @@ pub enum CertificateStatus {
     CERTIFICATE_STATUS_INVALID_SIGNATURE = 9i32,
     CERTIFICATE_STATUS_UNSUPPORTED = 10i32,
     CERTIFICATE_STATUS_EXEMPT = 11i32,
+    CERTIFICATE_STATUS_NOT_CHECKED = 12i32,
 }
 impl CertificateStatus {
     ///Idiomatic alias for [`Self::CERTIFICATE_STATUS_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -1264,6 +1265,9 @@ impl CertificateStatus {
     ///Idiomatic alias for [`Self::CERTIFICATE_STATUS_EXEMPT`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Exempt: Self = Self::CERTIFICATE_STATUS_EXEMPT;
+    ///Idiomatic alias for [`Self::CERTIFICATE_STATUS_NOT_CHECKED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NotChecked: Self = Self::CERTIFICATE_STATUS_NOT_CHECKED;
 }
 impl ::core::default::Default for CertificateStatus {
     fn default() -> Self {
@@ -1375,6 +1379,7 @@ impl ::buffa::Enumeration for CertificateStatus {
             }
             10i32 => ::core::option::Option::Some(Self::CERTIFICATE_STATUS_UNSUPPORTED),
             11i32 => ::core::option::Option::Some(Self::CERTIFICATE_STATUS_EXEMPT),
+            12i32 => ::core::option::Option::Some(Self::CERTIFICATE_STATUS_NOT_CHECKED),
             _ => ::core::option::Option::None,
         }
     }
@@ -1397,6 +1402,7 @@ impl ::buffa::Enumeration for CertificateStatus {
             }
             Self::CERTIFICATE_STATUS_UNSUPPORTED => "CERTIFICATE_STATUS_UNSUPPORTED",
             Self::CERTIFICATE_STATUS_EXEMPT => "CERTIFICATE_STATUS_EXEMPT",
+            Self::CERTIFICATE_STATUS_NOT_CHECKED => "CERTIFICATE_STATUS_NOT_CHECKED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1437,6 +1443,9 @@ impl ::buffa::Enumeration for CertificateStatus {
             "CERTIFICATE_STATUS_EXEMPT" => {
                 ::core::option::Option::Some(Self::CERTIFICATE_STATUS_EXEMPT)
             }
+            "CERTIFICATE_STATUS_NOT_CHECKED" => {
+                ::core::option::Option::Some(Self::CERTIFICATE_STATUS_NOT_CHECKED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1454,6 +1463,7 @@ impl ::buffa::Enumeration for CertificateStatus {
             Self::CERTIFICATE_STATUS_INVALID_SIGNATURE,
             Self::CERTIFICATE_STATUS_UNSUPPORTED,
             Self::CERTIFICATE_STATUS_EXEMPT,
+            Self::CERTIFICATE_STATUS_NOT_CHECKED,
         ]
     }
 }

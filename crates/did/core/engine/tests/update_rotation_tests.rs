@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
 use reallyme_did_core::update::error::UpdateError;
 use reallyme_did_core::update::rotation::apply_rotations;

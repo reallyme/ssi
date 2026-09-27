@@ -1,10 +1,10 @@
 [
   {
     "id": "AUDIT-EIDAS-MUST-001",
-    "source": "EU-2024-1183",
-    "section": "Article 45d(1) and Annex V(a),(b),(g),(h) QEAA indication, issuing QTSP identity, signature/seal, and certificate location",
+    "source": "COMPLIANCE-MAP",
+    "section": "Local non-authenticating QEAA metadata screening boundary",
     "keyword": "MUST",
-    "feature": "qeaa_qtsp_role_and_issuer_credential",
+    "feature": "qeaa_declared_qtsp_role_and_issuer_reference_screening",
     "implementation": ["crates/audit/src/validate.rs", "crates/audit/src/model.rs"],
     "positive_tests": ["qeaa_validates_happy_path", "qeaa_diagnostics_are_redacted_and_owned_material_zeroizes"],
     "negative_tests": ["qeaa_rejects_non_qeaa_qtsp_role", "qeaa_rejects_invalid_oid"],
@@ -49,10 +49,10 @@
   },
   {
     "id": "AUDIT-EIDAS-MUST-005",
-    "source": "EU-2024-2977",
-    "section": "Article 5(1) and Article 5(7) validity status management and public validity status",
+    "source": "COMPLIANCE-MAP",
+    "section": "Local screening of declared QEAA status-policy bounds",
     "keyword": "MUST",
-    "feature": "qeaa_status_freshness_policy",
+    "feature": "qeaa_declared_status_freshness_policy_bounds",
     "implementation": ["crates/audit/src/validate.rs", "crates/audit/src/model.rs"],
     "positive_tests": ["qeaa_validates_happy_path"],
     "negative_tests": ["qeaa_rejects_stale_status_policy_window"],

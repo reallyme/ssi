@@ -24,7 +24,7 @@
         "role": "unpublished_internal",
         "package": "reallyme-ssi",
         "publish_ready": true,
-        "notes": "The reallyme-ssi facade remains source-only and publish = false. The smaller support-crate closure consumed by the public reallyme-identity package is released separately at version 0.2.0."
+        "notes": "The reallyme-ssi facade remains source-only and publish = false. The smaller support-crate closure consumed by the public reallyme-identity package is released separately at version 0.3.0."
       },
       "release_blocker": false,
       "next_actions": []
@@ -132,10 +132,10 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
+        "role": "core_support_published",
         "package": "reallyme-sd-jwt",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported RFC 9901 and SD-JWT VC draft-19 identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+        "notes": "Section-by-section coverage is complete for the supported RFC 9901 and SD-JWT VC draft-19 identity surface. The reusable envelope crate is published independently."
       },
       "release_blocker": false,
       "next_actions": []
@@ -158,10 +158,10 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
+        "role": "core_support_published",
         "package": "reallyme-mdoc",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The reusable mdoc crate is published independently."
       },
       "release_blocker": false,
       "next_actions": []
@@ -266,7 +266,7 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
+        "role": "core_support_published",
         "package": "reallyme-credential-claims",
         "publish_ready": true,
         "notes": "Claims normalization, nested paths, registry-backed payload validation, cross-format vectors, claim commitment verification, and claims fuzz harnesses are implemented. Every predefined registry-backed profile is source-mapped in vectors/claims/catalog-sources.json."
@@ -293,10 +293,10 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
+        "role": "core_support_published",
         "package": "reallyme-credential-audit",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The reusable audit-evidence crate is published independently."
       },
       "release_blocker": false,
       "next_actions": []
@@ -309,7 +309,6 @@
         "crates/status/Cargo.toml",
         "crates/proto/Cargo.toml",
         "crates/revocation/Cargo.toml",
-        "crates/revocation/crl/core/Cargo.toml",
         "crates/revocation/crl/openssl/Cargo.toml",
         "crates/revocation/ocsp/core/Cargo.toml",
         "crates/revocation/ocsp/dispatch/Cargo.toml",
@@ -328,10 +327,10 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
+        "role": "core_support_published",
         "package": "reallyme-credential-status + reallyme-revocation + reallyme-single-use",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. Status, revocation, CRL/OCSP support crates, and single-use remain source-only behind the SSI facade unless a later package strategy explicitly publishes them."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The status and revocation crates are published independently; CRL/OCSP provider and single-use crates remain source-only."
       },
       "release_blocker": false,
       "next_actions": []
@@ -364,10 +363,10 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
+        "role": "core_support_published",
         "package": "reallyme-credential",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The credential core and credential-format support crates remain source-only behind the SSI facade unless a later package strategy explicitly publishes them. IETF SD-JWT VC is the only SD-JWT credential issuance format; generic SD-JWT envelope and VP presentation support remain separate concepts."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The credential core is published independently while format adapters remain source-only. IETF SD-JWT VC is the only SD-JWT credential issuance format; generic SD-JWT envelope and VP presentation support remain separate concepts."
       },
       "release_blocker": false,
       "next_actions": []
@@ -400,10 +399,10 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
+        "role": "core_support_published",
         "package": "reallyme-trust-x509",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. Trust API/core, JAdES, TSL, OpenSSL, wasm, xmlsec, and X.509 support crates remain source-only behind the SSI facade; native-only XMLDSig packaging must stay explicit if it is later published."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The X.509 policy crate is published independently; trust API/core, JAdES, TSL, OpenSSL, wasm, and xmlsec crates remain source-only."
       },
       "release_blocker": false,
       "next_actions": []
@@ -427,10 +426,10 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
+        "role": "core_support_published",
         "package": "reallyme-openid-oauth",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The reusable OAuth substrate remains source-only behind the SSI facade; protocol orchestration stays in openid repositories."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The reusable OAuth substrate is published independently; protocol orchestration stays in OpenID repositories."
       },
       "release_blocker": false,
       "next_actions": []

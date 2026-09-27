@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::indexing_slicing)]
+
 use super::{
     trust_pb, AuthorizationPurpose, TrustDecision, TrustDecisionEvidence, TrustDecisionFailure,
     TrustDecisionOutcome, TrustPolicyId, TrustProtoError, TrustPurpose,

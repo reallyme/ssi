@@ -24,6 +24,7 @@ pub fn test_core(sequence: u64, prev: Option<&str>) -> DidCore {
         assertion: vec![],
         key_agreement: vec![],
         services: vec![],
+        projection_hash: [0_u8; 32],
         update_policy: UpdatePolicy {
             allowed_verification_methods: vec![],
             threshold: None,

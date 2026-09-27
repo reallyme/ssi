@@ -23,8 +23,8 @@ fn generated_dispatch_entry_validates_owned_envelopes_without_dto_conversion() {
         Vec::new(),
     );
 
-    assert!(result.valid);
-    assert_eq!(result.decision, CredentialDecision::Allow);
+    assert!(!result.valid);
+    assert_eq!(result.decision, CredentialDecision::Indeterminate);
 
     let expired = validate_credential_envelope_command(
         sample_envelope(CredentialKind::Pid),
@@ -98,7 +98,7 @@ fn generated_status_entry_derives_time_state_without_ambient_evidence() {
     };
     assert_eq!(
         active.status,
-        reallyme_credential::CredentialStatusValue::Valid
+        reallyme_credential::CredentialStatusValue::Unknown
     );
     assert!(active.checks.iter().any(|check| {
         check.name == CredentialCheckName::Status
@@ -170,11 +170,13 @@ fn credential_status_policy_verifies_statuslist_source() {
     let envelope = sample_envelope(CredentialKind::Pid);
     let status_list = sample_status_list(vec![0]);
     let cert = sample_certificate();
+    let mut policy = vc_statuslist(instant(2)).unwrap();
+    policy.now_unix = 1_750_000_000;
 
     reallyme_credential::verify_credential_status_with_policy(
         &CredentialStatusListPolicyStatusInput {
             envelope: &envelope,
-            policy: vc_statuslist(instant(2)).unwrap(),
+            policy,
             ocsp_checker: None,
             crl_checker: None,
             status_list: &status_list,
@@ -187,22 +189,26 @@ fn credential_status_policy_verifies_statuslist_source() {
 
 #[test]
 fn credential_revocation_policy_falls_back_to_available_source() {
-    let envelope = sample_envelope(CredentialKind::Pid);
+    let mut envelope = sample_envelope(CredentialKind::Pid);
     let status_list = sample_status_list(vec![0]);
     let cert = sample_certificate();
+    envelope.issuer_reference = sample_certificate_reference();
+    let status_verifier = X509StatusVerifier;
     let ocsp = StaticStatusChecker {
         result: Err(StatusCheckError::Unavailable),
     };
     let crl = StaticStatusChecker { result: Ok(()) };
+    let mut policy = hybrid_fallback(instant(2)).unwrap();
+    policy.now_unix = 1_750_000_000;
 
     reallyme_credential::verify_credential_status_with_policy(
         &CredentialStatusListPolicyStatusInput {
             envelope: &envelope,
-            policy: hybrid_fallback(instant(2)).unwrap(),
+            policy,
             ocsp_checker: Some(&ocsp),
             crl_checker: Some(&crl),
             status_list: &status_list,
-            status_verifier: &TestStatusVerifier,
+            status_verifier: &status_verifier,
             certificate: &cert,
         },
     )
@@ -210,9 +216,59 @@ fn credential_revocation_policy_falls_back_to_available_source() {
 }
 
 #[test]
-fn credential_revocation_policy_maps_unavailable_sources() {
-    let envelope = sample_envelope(CredentialKind::Pid);
+fn credential_status_revocation_is_terminal_before_certificate_fallback() {
+    let mut envelope = sample_envelope(CredentialKind::Pid);
+    let status_list = sample_status_list(vec![0b1000_0000]);
     let cert = sample_certificate();
+    envelope.issuer_reference = sample_certificate_reference();
+    let status_verifier = X509StatusVerifier;
+    let ocsp = StaticStatusChecker { result: Ok(()) };
+    let crl = StaticStatusChecker { result: Ok(()) };
+    let mut policy = hybrid_fallback(instant(2)).unwrap();
+    policy.now_unix = 1_750_000_000;
+
+    let error = reallyme_credential::verify_credential_status_with_policy(
+        &CredentialStatusListPolicyStatusInput {
+            envelope: &envelope,
+            policy,
+            ocsp_checker: Some(&ocsp),
+            crl_checker: Some(&crl),
+            status_list: &status_list,
+            status_verifier: &status_verifier,
+            certificate: &cert,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        error,
+        CredentialError::Status(CredentialStatusReason::Revoked)
+    );
+
+    let mut certificate_only_policy = eu_qtsp_x509(instant(2)).unwrap();
+    certificate_only_policy.now_unix = 1_750_000_000;
+    let error = reallyme_credential::verify_credential_status_with_policy(
+        &CredentialStatusListPolicyStatusInput {
+            envelope: &envelope,
+            policy: certificate_only_policy,
+            ocsp_checker: Some(&ocsp),
+            crl_checker: Some(&crl),
+            status_list: &status_list,
+            status_verifier: &status_verifier,
+            certificate: &cert,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        error,
+        CredentialError::Status(CredentialStatusReason::InvalidEvidence)
+    );
+}
+
+#[test]
+fn credential_revocation_policy_maps_unavailable_sources() {
+    let mut envelope = sample_envelope(CredentialKind::Pid);
+    let cert = sample_certificate();
+    envelope.issuer_reference = sample_certificate_reference();
     let checker = StaticStatusChecker {
         result: Err(StatusCheckError::Unavailable),
     };
@@ -232,10 +288,31 @@ fn credential_revocation_policy_maps_unavailable_sources() {
 }
 
 #[test]
+fn credential_revocation_rejects_certificate_not_bound_to_issuer() {
+    let envelope = sample_envelope(CredentialKind::Pid);
+    let cert = sample_certificate();
+    let checker = StaticStatusChecker { result: Ok(()) };
+
+    let err = reallyme_credential::verify_credential_revocation_status(
+        &envelope,
+        &checker,
+        &cert,
+        1_750_000_000,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        err,
+        CredentialError::Status(CredentialStatusReason::InvalidEvidence)
+    );
+}
+
+#[test]
 fn verify_credential_composes_signature_and_revocation_policy() {
     let mut envelope = sample_envelope(CredentialKind::Pid);
-    reallyme_credential::sign_credential_envelope(&mut envelope, &test_signer()).unwrap();
     let cert = sample_certificate();
+    envelope.issuer_reference = sample_certificate_reference();
+    reallyme_credential::sign_credential_envelope(&mut envelope, &test_signer()).unwrap();
     let checker = StaticStatusChecker { result: Ok(()) };
 
     reallyme_credential::verify_credential_with_revocation(
@@ -345,7 +422,11 @@ fn verify_credential_at(
     envelope: &CredentialEnvelope,
     now_unix: u64,
 ) -> Result<(), CredentialError> {
-    let status_list = sample_status_list(vec![0]);
+    // Keep revocation evidence fresh so these tests isolate credential validity
+    // window behavior rather than the independent status-list age policy.
+    let mut status_list = sample_status_list(vec![0]);
+    status_list.issued_at = now_unix.saturating_sub(60);
+    status_list.next_update = now_unix.saturating_add(60);
     reallyme_credential::verify_credential(&CredentialVerificationInput {
         envelope,
         issuer_verifier: &TestVerifier {
@@ -582,4 +663,9 @@ fn unevaluated_policy_checks_are_reported_as_skipped() {
         vec![CredentialCheckName::AssuranceLevel],
     );
     assert_eq!(requested.decision, CredentialDecision::Indeterminate);
+    assert!(requested.checks.iter().any(|check| {
+        check.name == CredentialCheckName::AssuranceLevel
+            && check.outcome == CredentialCheckOutcome::Indeterminate
+            && check.mandatory
+    }));
 }

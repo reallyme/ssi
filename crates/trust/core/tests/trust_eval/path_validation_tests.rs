@@ -12,10 +12,10 @@ use time::OffsetDateTime;
 fn assert_policy_rejection(presented: &[X509Certificate], cfg: &TrustConfig) {
     let decision = evaluate_trust_decision(presented, cfg, &AllowAllSignatures, None)
         .expect("policy rejection remains a typed trust decision");
-    assert_eq!(decision.outcome, TrustOutcome::Rejected);
-    assert!(decision.failures.contains(&TrustFailureReason::Policy));
-    assert!(decision.chain.is_none());
-    assert!(decision.evidence.trust_anchor.is_none());
+    assert_eq!(decision.outcome(), TrustOutcome::Rejected);
+    assert!(decision.failures().contains(&TrustFailureReason::Policy));
+    assert!(decision.chain().is_none());
+    assert!(decision.evidence().trust_anchor.is_none());
 }
 
 #[test]
@@ -143,8 +143,10 @@ fn rejects_wrong_anchor_and_issuer_mismatch() {
         None,
     )
     .expect("wrong anchor produces a typed rejection");
-    assert_eq!(decision.outcome, TrustOutcome::Rejected);
-    assert!(decision.failures.contains(&TrustFailureReason::NoValidPath));
+    assert_eq!(decision.outcome(), TrustOutcome::Rejected);
+    assert!(decision
+        .failures()
+        .contains(&TrustFailureReason::NoValidPath));
 
     let expected_root = mock_cert("CN=Expected Root", "CN=Expected Root", true, None, None);
     let mut mismatched_leaf = leaf;
@@ -157,8 +159,10 @@ fn rejects_wrong_anchor_and_issuer_mismatch() {
         None,
     )
     .expect("issuer mismatch produces a typed rejection");
-    assert_eq!(decision.outcome, TrustOutcome::Rejected);
-    assert!(decision.failures.contains(&TrustFailureReason::NoValidPath));
+    assert_eq!(decision.outcome(), TrustOutcome::Rejected);
+    assert!(decision
+        .failures()
+        .contains(&TrustFailureReason::NoValidPath));
 }
 
 #[test]

@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+/// Resource limits applied while resolving disclosure graphs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SdJwtProcessingPolicy {
+    /// Maximum nested claim depth processed before rejecting the payload.
     pub max_depth: usize,
+    /// Maximum number of claim nodes processed before rejecting the payload.
     pub max_nodes: usize,
 }
 

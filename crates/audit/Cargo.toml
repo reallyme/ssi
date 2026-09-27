@@ -4,8 +4,8 @@
 
 [package]
 name = "reallyme-credential-audit"
-version = "0.2.0"
-description = "Protocol-neutral QEAA compliance metadata and audit evidence validation."
+version = "0.3.0"
+description = "Protocol-neutral QEAA compliance metadata screening and audit evidence models."
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -29,6 +29,7 @@ native = []
 wasm = []
 
 [dependencies]
+reallyme-crypto = { workspace = true, features = ["sha2"] }
 reallyme-ssi-proto = { workspace = true }
 thiserror = { workspace = true }
 zeroize = { workspace = true, features = ["derive"] }

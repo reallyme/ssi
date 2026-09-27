@@ -61,9 +61,10 @@ fn published_did_key_vectors_decode_expected_multicodecs() -> Result<(), Box<dyn
 }
 
 #[test]
-fn did_key_rejects_base64url_multibase_alias() {
-    // Same X25519 key as a `u` (base64url) multibase: not allowed by the did:key ABNF.
-    let err = parse_did_key("did:key:u7AFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFB")
+fn did_key_rejects_base64url_aliases() {
+    // This is the Base64 URL encoding of the same multicodec and key bytes as
+    // the published `z6Mkf5...` Ed25519 vector above.
+    let err = parse_did_key("did:key:u7QEJX5oaWV3edV2CeGhkrQPfpaT71ogyVmNk4rZeE8yeRA")
         .err()
         .map(|error| error.reason);
     assert_eq!(err, Some(DidKeyErrorReason::UnsupportedMultibase));
@@ -105,4 +106,14 @@ fn did_key_rejects_unsupported_multibase_prefix() {
         .err()
         .map(|error| error.reason);
     assert_eq!(err, Some(DidKeyErrorReason::UnsupportedMultibase));
+}
+
+#[test]
+fn did_key_rejects_compressed_curve_bytes_that_are_not_a_curve_point() {
+    let mut invalid = [0u8; 33];
+    invalid[0] = 4;
+    let error = generate_did_key(DidKeyMulticodec::P256, &invalid, DidKeyMultibase::Base58Btc)
+        .err()
+        .map(|error| error.reason);
+    assert_eq!(error, Some(DidKeyErrorReason::InvalidPublicKey));
 }

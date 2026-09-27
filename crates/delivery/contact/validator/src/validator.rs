@@ -19,7 +19,15 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct ValidatedContactEnvelope {
     /// Decoded contact message whose envelope checks have passed.
-    pub message: ContactMessage,
+    message: ContactMessage,
+}
+
+impl ValidatedContactEnvelope {
+    /// Borrow the structurally validated contact message.
+    #[must_use]
+    pub const fn message(&self) -> &ContactMessage {
+        &self.message
+    }
 }
 
 impl core::fmt::Debug for ValidatedContactEnvelope {
@@ -123,8 +131,8 @@ pub fn validate_contact_frames_cbor(
         .ok_or(ContactValidationError::InvalidInput)?;
     let frame = decode_contact_frame_cbor(first_frame)
         .map_err(|_| ContactValidationError::Serialization)?;
-    if frame.session_id != verified.message.session_id
-        || frame.message_id != verified.message.message_id
+    if frame.session_id != verified.message().session_id
+        || frame.message_id != verified.message().message_id
     {
         return Err(ContactValidationError::InvalidInput);
     }

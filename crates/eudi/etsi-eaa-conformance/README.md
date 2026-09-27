@@ -157,13 +157,17 @@ duplicating conformance rules in individual SDKs.
 
 ## EU 2026 Enforcement APIs
 
+Functions named `evaluate_*_conformance` are pure policy calculators over
+caller-supplied facts. They do not verify signatures, certificate paths, mdoc
+proofs, or transaction bindings; those checks belong to the protocol verifier.
+
 - `validate_natural_person_pid`, `validate_pid_allocation`,
   `validate_pid_issuance_authorization`, and `validate_pid_revocation` cover the
   current 2024/2977 PID data and lifecycle boundary.
 - `PortraitDisclosureGate` enforces warning, transaction-specific explicit
   confirmation, rejection, and one-shot portrait disclosure.
-- `validate_openid4vp_presentation_for_profile` keeps the EU-incorporated Part
-  2 V1.2.1 behavior separate from V1.3.1; `validate_eu_mediating_api` covers the
+- `evaluate_openid4vp_presentation_conformance_for_profile` keeps the EU-incorporated Part
+  2 V1.2.1 behavior separate from V1.3.1; `evaluate_eu_mediating_api_conformance` covers the
   dual OpenID4VP/ISO 18013-7 API, privacy, lifecycle, format, and proximity
   requirements.
 - `authorize_eu_presentation` compares actual requested type/attribute pairs
@@ -174,7 +178,7 @@ duplicating conformance rules in individual SDKs.
 - `validate_eu_mdoc_status` validates the current CWT/list profile, `iat`/`ttl`
   freshness, and rejects repeated MSO correlation keys after URI normalization; `validate_eu_mdoc_status_capabilities` closes
   the two-mechanism WIA/KA support boundary.
-- `validate_eu_issuance` applies the Part 3 registration-certificate and Annex
+- `evaluate_eu_issuance_conformance` applies the Part 3 registration-certificate and Annex
   A adaptations. Reuse-policy validation treats an omitted policy as
   unrestricted, requires the associated thresholds, and proves that the wallet
   selected the first issuer preference it actually supports.
@@ -184,7 +188,7 @@ duplicating conformance rules in individual SDKs.
   `validate_wallet_transaction_log`, `evaluate_wallet_disclosure_policy`, and
   `validate_relying_party_pseudonym` cover the locally enforceable 2024/2979
   core-wallet, revocation, Annex II format, and pairwise-pseudonym boundaries.
-- `validate_wallet_attestation_profile` covers WIA/KA format, transport,
+- `evaluate_wallet_attestation_profile` covers WIA/KA format, transport,
   content, lifecycle, proof, status-index privacy, status maintenance, PID
   validity chaining, and algorithm requirements added by the 2026 amendment.
 

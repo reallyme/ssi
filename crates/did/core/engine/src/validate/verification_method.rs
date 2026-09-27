@@ -105,6 +105,10 @@ pub fn validate_verification_methods(doc: &DIDDocument) -> VerificationMethodVal
             Algorithm::X25519 => CryptoAlgorithm::X25519,
             Algorithm::MlKem768 => CryptoAlgorithm::MlKem768,
             Algorithm::MlKem1024 => CryptoAlgorithm::MlKem1024,
+            _ => {
+                errors.push(vm_issue(index));
+                continue;
+            }
         };
 
         // ---- type ↔ codec validation ----

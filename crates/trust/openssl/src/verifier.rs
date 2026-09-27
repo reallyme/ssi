@@ -78,19 +78,16 @@ fn verify_chain_with_backend(
     }
 
     // leaf to intermediates to root.
-    let leaf = &chain.certs[0];
-    let root = chain
+    let (leaf, remainder) = chain
         .certs
-        .last()
+        .split_first()
         .ok_or(SignatureVerifyError::BackendFailure)?;
-
-    let intermediates = &chain.certs[1..chain.certs.len() - 1];
+    let (root, intermediates) = remainder
+        .split_last()
+        .ok_or(SignatureVerifyError::BackendFailure)?;
 
     // eIDAS/QTSP validation must not accept a chain with a broken issuer path.
-    let last = chain
-        .certs
-        .get(chain.certs.len() - 2)
-        .ok_or(SignatureVerifyError::BackendFailure)?;
+    let last = intermediates.last().unwrap_or(leaf);
 
     // Exact DER Name equality; rendered display strings are lossy.
     if last.issuer_der != root.subject_der {
@@ -137,6 +134,7 @@ fn verify_chain_with_backend(
     // time. Supplying the caller's time here is essential for deterministic
     // historical evaluation and avoids OpenSSL's ambient-clock default.
     verification_parameters.set_time(now.unix_timestamp());
+    verification_parameters.set_auth_level(2);
     store_builder
         .set_param(&verification_parameters)
         .map_err(|_| SignatureVerifyError::BackendFailure)?;

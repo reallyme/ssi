@@ -8,6 +8,8 @@ use envelopes_jwt::jwt::{encode_signed_jwt_with_header_options, JwtHeaderEncodeO
 
 use identity_presentation_vp_core::model::SdJwtVcPresentation;
 use reallyme_credential::committed::model::SubjectPrivateBundle;
+use reallyme_crypto::sha2::digest as sha2_256_digest;
+use zeroize::Zeroizing;
 
 use crate::error::SdJwtVpError;
 
@@ -107,8 +109,11 @@ pub fn build_sd_jwt_presentation_with_kb_binding(
         .try_into()
         .map_err(|_| SdJwtVpError::InvalidBundle)?;
 
+    let mut pres = build_sd_jwt_presentation(bundle, issuer_sd_jwt, disclose_paths)?;
+    let disclosure_set_hash = canonical_disclosure_set_hash(&pres.disclosures)?;
     let payload = serde_json::json!({
         "sd_hash": bytes_to_base64url(envelope_hash.as_ref()),
+        "disclosure_set_hash": bytes_to_base64url(disclosure_set_hash.as_bytes()),
         "aud": binding.aud,
         "nonce": binding.nonce,
         "iat": binding.iat_unix,
@@ -122,7 +127,22 @@ pub fn build_sd_jwt_presentation_with_kb_binding(
     )
     .map_err(|_| SdJwtVpError::Crypto)?;
 
-    let mut pres = build_sd_jwt_presentation(bundle, issuer_sd_jwt, disclose_paths)?;
     pres.kb_jwt = Some(kb_jwt);
     Ok(pres)
+}
+
+pub(crate) fn canonical_disclosure_set_hash(
+    disclosures: &[String],
+) -> Result<reallyme_crypto::sha2::Sha2_256Digest, SdJwtVpError> {
+    let mut ordered = disclosures.iter().map(String::as_str).collect::<Vec<_>>();
+    ordered.sort_unstable();
+    if ordered
+        .windows(2)
+        .any(|pair| matches!(pair, [left, right] if left == right))
+    {
+        return Err(SdJwtVpError::DisclosureSetMismatch);
+    }
+    let encoded =
+        Zeroizing::new(serde_json::to_vec(&ordered).map_err(|_| SdJwtVpError::Serialization)?);
+    Ok(sha2_256_digest(&encoded))
 }

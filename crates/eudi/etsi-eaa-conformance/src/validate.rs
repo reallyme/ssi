@@ -8,13 +8,11 @@ use crate::{
     SubjectBinding, PUBLIC_BODY_EAA_CATEGORY_URN, QEAA_CATEGORY_URN,
 };
 use url::Url;
-
 const MAX_SHORT_LIVED_SECONDS: u64 = 24 * 60 * 60;
 const MAX_URI_BYTES: usize = 2_048;
 const MAX_IDENTIFIER_BYTES: usize = 256;
 const MAX_OPAQUE_IDENTIFIER_BYTES: usize = 128;
 const MAX_PROFILE_ITEMS: usize = 32;
-
 /// Validate common and format-specific ETSI TS 119 472-1 invariants.
 pub fn validate_attestation(
     common: &CommonAttestationFacts<'_>,
@@ -31,7 +29,6 @@ pub fn validate_attestation(
         FormatFacts::X509AttributeCertificate(facts) => validate_x509_attribute_certificate(facts),
     }
 }
-
 fn validate_common(common: &CommonAttestationFacts<'_>) -> Result<()> {
     validate_identifier(
         common.type_identifier,
@@ -60,7 +57,6 @@ fn validate_common(common: &CommonAttestationFacts<'_>) -> Result<()> {
     validate_disclosures(common)?;
     validate_status(common)
 }
-
 fn validate_common_profile(common: &CommonAttestationFacts<'_>) -> Result<()> {
     validate_unique_uri_list(
         common.profile.context_uris,
@@ -128,7 +124,13 @@ fn validate_common_profile(common: &CommonAttestationFacts<'_>) -> Result<()> {
             false,
             ConformanceError::InvalidAttributeEvidence,
         )?;
-        if common.profile.attribute_evidence[..index].contains(evidence) {
+        if common
+            .profile
+            .attribute_evidence
+            .iter()
+            .take(index)
+            .any(|prior| prior == evidence)
+        {
             return Err(ConformanceError::InvalidAttributeEvidence);
         }
         validate_uri(
@@ -162,7 +164,7 @@ fn validate_unique_uri_list(
     }
     for (index, value) in values.iter().enumerate() {
         validate_uri(value, https_only, error)?;
-        if values[..index].contains(value) {
+        if values.iter().take(index).any(|prior| prior == value) {
             return Err(error);
         }
     }
@@ -175,7 +177,7 @@ fn validate_unique_identifiers(values: &[&str], error: ConformanceError) -> Resu
     }
     for (index, value) in values.iter().enumerate() {
         validate_identifier(value, error)?;
-        if values[..index].contains(value) {
+        if values.iter().take(index).any(|prior| prior == value) {
             return Err(error);
         }
     }

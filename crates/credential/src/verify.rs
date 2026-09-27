@@ -11,10 +11,23 @@ use reallyme_credential_status::{
     verify_status, CredentialStatusError, CredentialStatusInvalidReason, StatusList,
     StatusListVerifier,
 };
+use reallyme_crypto::sha2::digest as sha2_256_digest;
 use reallyme_revocation::{
-    CompositeRevocationPolicy, CompositeStatusChecker, StatusCheckError, StatusChecker,
-    StatusListChecker, X509Certificate,
+    CompositeRevocationPolicy, CompositeStatusChecker, OcspStatusChecker, StatusCheckError,
+    StatusChecker, X509Certificate,
 };
+use reallyme_trust_x509::parse_cert_der;
+
+/// Status-list verifier that exposes the exact signer identity used for the
+/// successful signature check.
+///
+/// Returning the authenticated identity closes the gap for X.509 and raw-key
+/// credential issuers, whose identity cannot be safely inferred from the
+/// status list's free-form `issuer` string.
+pub trait CredentialStatusListVerifier: StatusListVerifier {
+    /// Identity authenticated by this verifier's status-list signature check.
+    fn verified_signer(&self) -> crate::PartyReference;
+}
 
 /// Inputs for complete local credential verification.
 pub struct CredentialVerificationInput<'a> {
@@ -28,7 +41,7 @@ pub struct CredentialVerificationInput<'a> {
     pub status_list: &'a StatusList,
 
     /// Status-list signature verifier with already-resolved status-list issuer key material.
-    pub status_verifier: &'a dyn StatusListVerifier,
+    pub status_verifier: &'a dyn CredentialStatusListVerifier,
 
     /// Verification time as Unix seconds.
     pub now_unix: u64,
@@ -64,7 +77,7 @@ pub struct CredentialStatusListPolicyInput<'a> {
     pub policy: CompositeRevocationPolicy,
 
     /// Optional OCSP checker participating in the composite policy.
-    pub ocsp_checker: Option<&'a dyn StatusChecker>,
+    pub ocsp_checker: Option<&'a dyn OcspStatusChecker>,
 
     /// Optional CRL checker participating in the composite policy.
     pub crl_checker: Option<&'a dyn StatusChecker>,
@@ -73,7 +86,7 @@ pub struct CredentialStatusListPolicyInput<'a> {
     pub status_list: &'a StatusList,
 
     /// Status-list signature verifier with already-resolved status-list issuer key material.
-    pub status_verifier: &'a dyn StatusListVerifier,
+    pub status_verifier: &'a dyn CredentialStatusListVerifier,
 
     /// Certificate or trust context required by the configured checker.
     pub certificate: &'a X509Certificate,
@@ -88,7 +101,7 @@ pub struct CredentialStatusListPolicyStatusInput<'a> {
     pub policy: CompositeRevocationPolicy,
 
     /// Optional OCSP checker participating in the composite policy.
-    pub ocsp_checker: Option<&'a dyn StatusChecker>,
+    pub ocsp_checker: Option<&'a dyn OcspStatusChecker>,
 
     /// Optional CRL checker participating in the composite policy.
     pub crl_checker: Option<&'a dyn StatusChecker>,
@@ -97,7 +110,7 @@ pub struct CredentialStatusListPolicyStatusInput<'a> {
     pub status_list: &'a StatusList,
 
     /// Status-list signature verifier with already-resolved status-list issuer key material.
-    pub status_verifier: &'a dyn StatusListVerifier,
+    pub status_verifier: &'a dyn CredentialStatusListVerifier,
 
     /// Certificate or trust context required by the configured checker.
     pub certificate: &'a X509Certificate,
@@ -160,10 +173,10 @@ pub fn verify_credential_status(
     envelope: &CredentialEnvelope,
     status_list: &StatusList,
     now_unix: u64,
-    verifier: &dyn StatusListVerifier,
+    verifier: &dyn CredentialStatusListVerifier,
 ) -> Result<(), CredentialError> {
     validate_credential_envelope(envelope)?;
-    validate_status_pointer(envelope, status_list)?;
+    validate_status_pointer(envelope, status_list, verifier)?;
     verify_status(
         status_list,
         envelope.status.status_list_index,
@@ -185,9 +198,43 @@ pub fn verify_credential_revocation_status(
     now_unix: u64,
 ) -> Result<(), CredentialError> {
     validate_credential_envelope(envelope)?;
+    validate_certificate_binding(envelope, certificate)?;
     checker
         .check(certificate, now_unix)
         .map_err(map_revocation_status_error)
+}
+
+/// Bind certificate revocation evidence to the issuer identity authenticated
+/// by the credential. Revocation state for an unrelated certificate is never
+/// evidence about this credential.
+fn validate_certificate_binding(
+    envelope: &CredentialEnvelope,
+    certificate: &X509Certificate,
+) -> Result<(), CredentialError> {
+    let matches = match &envelope.issuer_reference {
+        crate::PartyReference::X509Subject(crate::X509SubjectReference::CertificateSha256(
+            expected,
+        )) => sha2_256_digest(&certificate.der).as_bytes() == expected,
+        crate::PartyReference::X509Subject(crate::X509SubjectReference::IssuerAndSerial {
+            issuer_name_der,
+            serial_number,
+        }) => {
+            let parsed = parse_cert_der(&certificate.der)
+                .map_err(|_| CredentialError::Status(CredentialStatusReason::InvalidEvidence))?;
+            parsed.issuer_der == *issuer_name_der && parsed.serial == *serial_number
+        }
+        crate::PartyReference::X509Subject(
+            crate::X509SubjectReference::ValidatedCertificateDer(expected),
+        ) => certificate.der == *expected,
+        _ => false,
+    };
+    if matches {
+        Ok(())
+    } else {
+        Err(CredentialError::Status(
+            CredentialStatusReason::InvalidEvidence,
+        ))
+    }
 }
 
 /// Verify a credential status-list source through the shared revocation policy engine.
@@ -195,17 +242,29 @@ pub fn verify_credential_status_with_policy(
     input: &CredentialStatusListPolicyStatusInput<'_>,
 ) -> Result<(), CredentialError> {
     validate_credential_envelope(input.envelope)?;
-    validate_status_pointer(input.envelope, input.status_list)?;
-    let statuslist_checker = StatusListChecker::new(
+    if !input.policy.prefer_statuslist {
+        return Err(CredentialError::Status(
+            CredentialStatusReason::InvalidEvidence,
+        ));
+    }
+    // Credential status is a separate subject from certificate revocation.
+    // It is therefore always evaluated and cannot be masked by a clean OCSP
+    // or CRL result for an unrelated certificate.
+    verify_credential_status(
+        input.envelope,
         input.status_list,
-        input.envelope.status.status_list_index,
+        input.policy.now_unix,
         input.status_verifier,
-    );
+    )?;
+
+    if !input.policy.prefer_ocsp && !input.policy.prefer_crl {
+        return Ok(());
+    }
+    validate_certificate_binding(input.envelope, input.certificate)?;
     let checker = CompositeStatusChecker {
         policy: input.policy.clone(),
         ocsp: input.ocsp_checker,
         crl: input.crl_checker,
-        statuslist: Some(&statuslist_checker),
     };
     checker
         .check(input.certificate, checker.policy.now_unix)
@@ -242,21 +301,18 @@ fn verify_credential_validity_window(
 fn validate_status_pointer(
     envelope: &CredentialEnvelope,
     status_list: &StatusList,
+    verifier: &dyn CredentialStatusListVerifier,
 ) -> Result<(), CredentialError> {
-    let issuer = match &envelope.issuer_reference {
+    let textual_issuer_matches = match &envelope.issuer_reference {
         crate::PartyReference::Did(value)
         | crate::PartyReference::Uri(value)
         | crate::PartyReference::FederationEntityId(value)
-        | crate::PartyReference::OpaqueIdentifier(value) => value,
-        crate::PartyReference::X509Subject(_)
-        | crate::PartyReference::PublicKey(_)
-        | crate::PartyReference::Absent => {
-            return Err(CredentialError::Status(
-                CredentialStatusReason::InvalidEvidence,
-            ));
-        }
+        | crate::PartyReference::OpaqueIdentifier(value) => status_list.issuer == *value,
+        crate::PartyReference::X509Subject(_) | crate::PartyReference::PublicKey(_) => true,
+        crate::PartyReference::Absent => false,
     };
-    if status_list.issuer != *issuer
+    if !textual_issuer_matches
+        || verifier.verified_signer() != envelope.issuer_reference
         || status_list.purpose != envelope.status.purpose
         || status_list.list_id != Some(envelope.status.status_list_id)
     {
@@ -290,6 +346,7 @@ fn map_revocation_status_error(error: StatusCheckError) -> CredentialError {
         StatusCheckError::Unknown | StatusCheckError::Unsupported => {
             CredentialError::Status(CredentialStatusReason::Unavailable)
         }
+        _ => CredentialError::Status(CredentialStatusReason::InvalidEvidence),
     }
 }
 
@@ -322,6 +379,8 @@ fn map_status_error(error: CredentialStatusError) -> CredentialError {
             | CredentialStatusInvalidReason::PayloadEncoding => {
                 CredentialError::Status(CredentialStatusReason::InvalidEvidence)
             }
+            _ => CredentialError::Status(CredentialStatusReason::InvalidEvidence),
         },
+        _ => CredentialError::Status(CredentialStatusReason::InvalidEvidence),
     }
 }

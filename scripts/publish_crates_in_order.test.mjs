@@ -16,6 +16,7 @@ function runFixture({ mode = "publish", scenario = "success", requirement = "^0.
   const directory = mkdtempSync(join(tmpdir(), "ssi-publish-test-"));
   try {
     const callsPath = join(directory, "calls.json");
+    const ledgerPath = join(directory, "publication-ledger.json");
     const preload = join(directory, "mock.mjs");
     // Intercept every child process: these tests must never invoke Cargo,
     // access a registry, publish a crate, or perform real retry waits.
@@ -113,6 +114,10 @@ childProcess.spawnSync = (command, args) => {
   if (args[0] === "package") return ok;
   if (args[0] !== "publish") return { ...ok, status: 99 };
   attempts += 1;
+  const failAfter = /^fail-after-([0-9]+)$/.exec(scenario);
+  if (failAfter !== null && attempts > Number.parseInt(failAfter[1], 10)) {
+    return { ...ok, status: 101, stderr: "injected publication interruption" };
+  }
   if (scenario === "exhausted" || (scenario === "retry" && attempts === 1)) {
     return { ...ok, status: 101, stderr: "too many requests" };
   }
@@ -135,10 +140,16 @@ syncBuiltinESMExports();
       cwd: directory,
       encoding: "utf8",
       timeout: 10_000,
-      env: { ...process.env, RELEASE_VERSION: version },
+      env: {
+        ...process.env,
+        PUBLICATION_LEDGER_PATH: ledgerPath,
+        RELEASE_SHA: "0123456789abcdef0123456789abcdef01234567",
+        RELEASE_VERSION: version,
+      },
     });
     assert.equal(result.error, undefined);
-    return { ...result, calls: JSON.parse(readFileSync(callsPath, "utf8")) };
+    const ledger = mode === "publish" ? JSON.parse(readFileSync(ledgerPath, "utf8")) : null;
+    return { ...result, calls: JSON.parse(readFileSync(callsPath, "utf8")), ledger };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -167,6 +178,9 @@ test("successful publication respects dependency order", () => {
       "reallyme-mdoc",
       "reallyme-sd-jwt",
     ]);
+  assert.equal(result.ledger.state, "completed");
+  assert.equal(result.ledger.source_commit, "0123456789abcdef0123456789abcdef01234567");
+  assert.ok(result.ledger.crates.every((entry) => entry.state === "published"));
 });
 
 test("rate-limit exhaustion fails without publishing dependent crates", () => {
@@ -176,6 +190,9 @@ test("rate-limit exhaustion fails without publishing dependent crates", () => {
   assert.equal(publishes.length, 12);
   assert.ok(publishes.every((call) => call[3] === "reallyme-compression-brotli"));
   assert.equal(result.calls.filter((call) => call[0] === "wait").length, 11);
+  assert.equal(result.ledger.state, "in_progress");
+  assert.equal(result.ledger.crates[0].state, "attempting");
+  assert.ok(result.ledger.crates.slice(1).every((entry) => entry.state === "pending"));
 });
 
 test("transient rate limits retry before publishing dependent crates", () => {
@@ -201,6 +218,26 @@ test("non-retryable publication errors fail immediately", () => {
   assert.equal(result.status, 101);
   assert.equal(result.calls.filter((call) => call[1] === "publish").length, 1);
   assert.equal(result.calls.filter((call) => call[0] === "wait").length, 0);
+});
+
+test("publication ledger preserves exact recovery state after every upload boundary", () => {
+  const crateCount = runFixture().ledger.crates.length;
+  for (let completed = 0; completed < crateCount; completed += 1) {
+    const result = runFixture({ scenario: `fail-after-${completed}` });
+    assert.equal(result.status, 101);
+    assert.equal(result.ledger.state, "in_progress");
+    assert.ok(
+      result.ledger.crates
+        .slice(0, completed)
+        .every((entry) => entry.state === "published"),
+    );
+    assert.equal(result.ledger.crates[completed].state, "attempting");
+    assert.ok(
+      result.ledger.crates
+        .slice(completed + 1)
+        .every((entry) => entry.state === "pending"),
+    );
+  }
 });
 
 test("zero-major caret requirements match Cargo compatibility boundaries", () => {

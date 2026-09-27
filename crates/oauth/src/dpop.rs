@@ -255,7 +255,7 @@ impl DpopProof {
             decode_compact_jwt(&self.jwt)?;
         header.validate()?;
         claims.validate()?;
-        if claims.htm != context.method.to_uppercase() {
+        if !claims.htm.eq_ignore_ascii_case(&context.method) {
             return Err(OauthError::new(Reason::InvalidDpopProof));
         }
         let expected_htu = normalize_uri_without_query_or_fragment(&context.target_uri)?;
@@ -271,6 +271,14 @@ impl DpopProof {
             }
         }
         if let Some(access_token) = &context.access_token {
+            // RFC 9449 protected-resource validation requires both the `ath`
+            // value and confirmation that the proof key is the key to which
+            // the access token is bound. An opaque token therefore needs
+            // introspection (or equivalent trusted metadata) before this
+            // access-token validation path can authorize the request.
+            if context.confirmed_jkt.is_none() {
+                return Err(OauthError::new(Reason::InvalidDpopProof));
+            }
             let expected_ath = hash_ascii(access_token.as_bytes());
             if claims
                 .ath
@@ -325,9 +333,8 @@ pub struct DpopValidationContext {
     pub earliest_iat: i64,
     /// Latest accepted issued-at timestamp.
     pub latest_iat: i64,
-    /// Access token's confirmed `cnf.jkt` thumbprint. When present, the DPoP
-    /// proof key must match it (RFC 9449 sender-constraint). Adapters that treat
-    /// the access token as opaque leave this `None`.
+    /// Access token's confirmed `cnf.jkt` thumbprint. This is required whenever
+    /// `access_token` is present. Proof-only validation may leave both absent.
     pub confirmed_jkt: Option<String>,
 }
 

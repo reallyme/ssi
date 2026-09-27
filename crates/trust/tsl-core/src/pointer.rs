@@ -7,7 +7,7 @@ use crate::{
     TslPointer, TslPointerPolicyFailure,
 };
 
-/// Validate one app-owned LOTL pointer fetch before its bytes are parsed.
+/// Validates one app-owned LOTL pointer fetch before its bytes are parsed.
 ///
 /// Network I/O intentionally remains outside this crate. Requiring the caller
 /// to supply ancestry and cumulative counters makes cycle, fan-out, and byte

@@ -2,11 +2,6 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-// This crate exposes a deliberately bounded protocol surface. The remaining
-// module-level allowance is temporary technical debt, not an indication that
-// the package is internal or unsupported.
-#![allow(missing_docs)]
-
 //! SD-JWT envelope formats.
 //!
 //! This crate implements RFC 9901 SD-JWT issuance and verifier-side helpers:
@@ -42,6 +37,7 @@ pub use error::SdJwtEnvelopeError;
 pub use hash_algorithm::SdJwtHashAlgorithm;
 pub use holder_binding::{
     build_key_binding_jwt, KeyBindingJwtBuildOptions, KeyBindingVerificationOptions,
+    MAX_KB_JWT_AGE_SECONDS, MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS,
 };
 pub use json_serialization::{
     parse_sd_jwt_json_serialization, SdJwtJsonSerialization, SdJwtJsonSerializationSet,

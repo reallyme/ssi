@@ -195,7 +195,12 @@ struct VectorRandom(u64);
 impl reallyme_crypto::csprng::SecureRandom for VectorRandom {
     fn fill_secure(&mut self, output: &mut [u8], _: reallyme_crypto::core::RngOutputKind) -> Result<(), reallyme_crypto::core::CryptoError> {
         self.0 += 1;
-        output.copy_from_slice(&self.0.to_be_bytes());
+        for (destination, source) in output
+            .iter_mut()
+            .zip(self.0.to_be_bytes().iter().cycle())
+        {
+            *destination = *source;
+        }
         Ok(())
     }
 }

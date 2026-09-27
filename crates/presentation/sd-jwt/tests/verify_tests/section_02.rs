@@ -9,10 +9,10 @@ fn sd_jwt_vp_rejects_valid_sd_jwt_paired_with_swapped_envelope() {
     let issuer_jwk = ed25519_issuer_jwk(&issuer_pub);
     let holder_jwk = ed25519_issuer_jwk(&holder_pub);
 
-    let presented = issue_age_credential(holder_pub.clone(), &issuer_priv, 42);
+    let presented = issue_age_credential(holder_pub.clone(), issuer_pub.clone(), &issuer_priv, 42);
     // A second, genuinely issuer-signed envelope for the same holder. Its
     // signature verifies, but the issuer SD-JWT never committed to it.
-    let swapped = issue_age_credential(holder_pub.clone(), &issuer_priv, 17);
+    let swapped = issue_age_credential(holder_pub.clone(), issuer_pub.clone(), &issuer_priv, 17);
 
     let issuer_sd_jwt = issuer_sd_jwt_for_issued(&presented, &issuer_jwk, &issuer_priv);
     let vp = build_sd_jwt_presentation_with_kb_binding(
@@ -54,7 +54,7 @@ fn sd_jwt_vp_rejects_valid_sd_jwt_paired_with_swapped_envelope() {
     ));
 
     // Omitting the holder-supplied envelope hash must not skip the binding.
-    let mut without_holder_hash = vp.clone();
+    let mut without_holder_hash = copy_sd_jwt_presentation(&vp);
     without_holder_hash.envelope_hash = None;
     let unhinted_error = verify_sd_jwt_vp_with_binding(
         &without_holder_hash,
@@ -77,7 +77,7 @@ fn sd_jwt_vp_rejects_holder_envelope_hash_that_differs_from_sd_hash() {
     let (holder_pub, holder_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
     let issuer_jwk = ed25519_issuer_jwk(&issuer_pub);
     let holder_jwk = ed25519_issuer_jwk(&holder_pub);
-    let issued = issue_age_credential(holder_pub.clone(), &issuer_priv, 42);
+    let issued = issue_age_credential(holder_pub.clone(), issuer_pub.clone(), &issuer_priv, 42);
     let issuer_sd_jwt = issuer_sd_jwt_for_issued(&issued, &issuer_jwk, &issuer_priv);
     let mut vp = build_sd_jwt_presentation_with_kb_binding(
         &issued.subject_bundle,
@@ -109,14 +109,19 @@ fn sd_jwt_vp_rejects_holder_envelope_hash_that_differs_from_sd_hash() {
 #[test]
 fn sd_jwt_vp_rejects_envelope_signed_by_another_issuer() {
     let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
-    let (_, other_issuer_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
+    let (other_issuer_pub, other_issuer_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
     let (holder_pub, holder_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
     let issuer_jwk = ed25519_issuer_jwk(&issuer_pub);
     let holder_jwk = ed25519_issuer_jwk(&holder_pub);
 
     // The trusted issuer signs an SD-JWT over the envelope hash of an envelope
     // it did not sign itself; the envelope signature must still be verified.
-    let foreign = issue_age_credential(holder_pub.clone(), &other_issuer_priv, 42);
+    let foreign = issue_age_credential(
+        holder_pub.clone(),
+        other_issuer_pub,
+        &other_issuer_priv,
+        42,
+    );
     let issuer_sd_jwt = issuer_sd_jwt_for_issued(&foreign, &issuer_jwk, &issuer_priv);
     let vp = build_sd_jwt_presentation_with_kb_binding(
         &foreign.subject_bundle,
@@ -150,7 +155,7 @@ fn sd_jwt_vp_accepts_only_the_hashed_nonce_encoding() {
     let (holder_pub, holder_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
     let issuer_jwk = ed25519_issuer_jwk(&issuer_pub);
     let holder_jwk = ed25519_issuer_jwk(&holder_pub);
-    let issued = issue_age_credential(holder_pub.clone(), &issuer_priv, 42);
+    let issued = issue_age_credential(holder_pub.clone(), issuer_pub.clone(), &issuer_priv, 42);
     let issuer_sd_jwt = issuer_sd_jwt_for_issued(&issued, &issuer_jwk, &issuer_priv);
 
     // A nonce string that is also valid base64url for exactly 32 bytes.
@@ -199,7 +204,7 @@ fn sd_jwt_vp_rejects_zero_verifier_time() {
     let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).unwrap();
     let (holder_pub, _) = generate_keypair(Algorithm::Ed25519).unwrap();
     let issuer_jwk = ed25519_issuer_jwk(&issuer_pub);
-    let issued = issue_age_credential(holder_pub, &issuer_priv, 42);
+    let issued = issue_age_credential(holder_pub, issuer_pub.clone(), &issuer_priv, 42);
     let issuer_sd_jwt = issuer_sd_jwt_for_issued(&issued, &issuer_jwk, &issuer_priv);
     let vp = build_sd_jwt_presentation(
         &issued.subject_bundle,

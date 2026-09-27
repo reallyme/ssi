@@ -176,14 +176,14 @@
     },
     {
       "method": "did:ion",
-      "source": "Sidetree method versioning examples",
+      "source": "ION v1.0.4 installation guide and Sidetree method versioning examples",
       "valid": [
         {
-          "id": "did-ion-testnet3",
-          "did": "did:ion:testnet3:EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ",
-          "network": "Testnet3",
-          "did_suffix": "EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ",
-          "short_form": "did:ion:testnet3:EiD0x0JeWXQbVIpBpyeyF5FDdZN1U7enAfHnd13Qk_CYpQ"
+          "id": "did-ion-testnet",
+          "did": "did:ion:test:EiClWZ1MnE8PHjH6y4e4nCKgtKnI1DK1foZiP61I86b6pw",
+          "network": "Testnet",
+          "did_suffix": "EiClWZ1MnE8PHjH6y4e4nCKgtKnI1DK1foZiP61I86b6pw",
+          "short_form": "did:ion:test:EiClWZ1MnE8PHjH6y4e4nCKgtKnI1DK1foZiP61I86b6pw"
         },
         {
           "id": "did-ion-sidetree-short-form",

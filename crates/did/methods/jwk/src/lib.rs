@@ -13,5 +13,5 @@ mod method;
 
 pub use method::{
     did_jwk_url, generate_did_jwk, generate_did_jwk_from_json_bytes, is_valid_did_jwk,
-    parse_did_jwk, DidJwkError, DidJwkErrorReason, DidJwkIdentifier,
+    parse_did_jwk, validate_public_jwk, DidJwkError, DidJwkErrorReason, DidJwkIdentifier,
 };

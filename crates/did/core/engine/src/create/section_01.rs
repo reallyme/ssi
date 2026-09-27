@@ -7,9 +7,10 @@ use crate::canonical::{json_to_cbor_value, normalize_json_value};
 use crate::core::{
     CanonicalService, CoreVerificationMethod, DidCore, UpdatePolicy as CoreUpdatePolicy,
 };
-use crate::document::{project_did_document, DocumentProjection};
+use crate::document::{default_context, project_did_document, DocumentProjection};
 use crate::error::{CanonicalStateViolation, DidCoreError};
 use crate::hashing::compute_core_cid;
+use crate::projection_binding::{projection_binding_hash, ProjectionBinding};
 use crate::signing::sign_core;
 
 use core::str::FromStr;

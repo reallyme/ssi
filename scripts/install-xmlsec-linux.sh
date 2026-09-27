@@ -47,9 +47,13 @@ build_dir="${work_dir}/build"
 mkdir "$build_dir"
 cd "$build_dir"
 
+CFLAGS="-O2 -fPIC -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fno-strict-overflow" \
+CPPFLAGS="-D_FORTIFY_SOURCE=2" \
+LDFLAGS="-Wl,-z,relro,-z,now" \
 "${source_dir}/configure" \
     --prefix="$install_prefix" \
     --libdir="${install_prefix}/lib" \
+    --enable-option-checking=fatal \
     --disable-apps \
     --disable-crypto-dl \
     --disable-dependency-tracking \

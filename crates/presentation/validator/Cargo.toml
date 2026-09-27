@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-vp-validator"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -32,13 +32,13 @@ reallyme-ssi-proto = { workspace = true }
 thiserror = { workspace = true }
 
 # policy engine + profiles
-identity-presentation-vp-policy = { version = "0.2.0", path = "../policy" }
+identity-presentation-vp-policy = { version = "0.3.0", path = "../policy" }
 
 # VP models
 identity-presentation-vp-core = { workspace = true }
 
 # Format-specific verification helpers
-identity-presentation-vp-sd-jwt = { version = "0.2.0", path = "../sd-jwt", default-features = false }
+identity-presentation-vp-sd-jwt = { version = "0.3.0", path = "../sd-jwt", default-features = false }
 
 # VC verification + model
 reallyme-credential = { workspace = true }
@@ -52,7 +52,7 @@ reallyme-credential-audit = { workspace = true }
 identity-core-primitives = { workspace = true }
 
 # Crypto layer
-crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "=0.3.9", default-features = false }
-crypto-core = { package = "reallyme-crypto-core", version = "=0.3.9" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.9", default-features = false }
+crypto-core = { package = "reallyme-crypto-core", version = "0.3.9" }
 [lints]
 workspace = true

@@ -17,12 +17,13 @@ pub const fn brotli_error_to_proto_reason(error: BrotliError) -> IdentityCoreErr
         BrotliError::CompressionFailed => {
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_SERIALIZATION_FAILED
         }
-        BrotliError::DecompressionFailed => {
+        BrotliError::DecompressionFailed | BrotliError::TrailingData => {
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_INVALID_ENCODING
         }
         BrotliError::OutputTooLarge => {
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED
         }
+        _ => IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_INVALID_ENCODING,
     }
 }
 

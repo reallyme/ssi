@@ -8,6 +8,11 @@
 //! policy, dispatch, and platform adapters belong to separate layers.
 
 /// Generated protobuf boundary.
+///
+/// Buffa owns its internal bounds checks and emits arithmetic/index operations
+/// mechanically. Keep the restriction-lint exception at this single generated
+/// module boundary so hand-written protocol code remains covered.
+#[allow(clippy::arithmetic_side_effects, clippy::indexing_slicing)]
 pub mod generated;
 
 #[cfg(feature = "generated")]

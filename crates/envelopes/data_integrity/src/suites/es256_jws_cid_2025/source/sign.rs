@@ -8,6 +8,7 @@ use reallyme_crypto::dispatch::sign as dispatch_sign;
 use reallyme_crypto::p256::p256_ecdsa_der_to_jose_signature;
 use reallyme_did_types::DataIntegrityProof;
 
+use super::suite::proof_payload;
 use super::{Es256JwsCid2025Error, CRYPTOSUITE};
 
 fn jws_header_b64() -> String {
@@ -23,12 +24,9 @@ pub fn sign_es256_jws_cid_2025(
     verification_method: &str,
     created: &str,
 ) -> Result<DataIntegrityProof, Es256JwsCid2025Error> {
-    if current_core.is_empty() {
-        return Err(Es256JwsCid2025Error::InvalidInput);
-    }
-
     let header_b64 = jws_header_b64();
-    let payload_b64 = bytes_to_base64url(current_core.as_bytes());
+    let payload = proof_payload(current_core, created)?;
+    let payload_b64 = bytes_to_base64url(&payload);
     let signing_input = format!("{header_b64}.{payload_b64}");
 
     let der_sig = dispatch_sign(CryptoAlgorithm::P256, secret_key, signing_input.as_bytes())

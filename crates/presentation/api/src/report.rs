@@ -232,6 +232,7 @@ pub fn classify_failures(errors: &[VpPolicyError]) -> BTreeSet<VpFailureClass> {
             | VpPolicyError::QeaaProfileMismatch => VpFailureClass::Qeaa,
             VpPolicyError::ProofInvalid => VpFailureClass::Proof,
             VpPolicyError::ZkDerivationUnavailable => VpFailureClass::Zk,
+            _ => VpFailureClass::Proof,
         };
 
         classes.insert(class);

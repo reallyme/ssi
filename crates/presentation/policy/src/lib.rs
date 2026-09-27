@@ -42,12 +42,12 @@ pub use error::{PolicyDecision, VpPolicyError};
 pub use evaluate::{
     evaluate, EvaluationContext, StatusContext, MAX_POLICY_DISCLOSURES, MAX_POLICY_REQUIRED_CLAIMS,
 };
-pub use model::{RequiredClaim, VpPolicy};
+pub use model::{PredicateOperand, RequiredClaim, VpPolicy};
 pub use plan::{plan_satisfaction, DerivationInput, DerivationPlan, SatisfactionPlan};
 pub use selector::policy_for_claimset;
 
 pub use profiles::{
-    eu_address_policy, eu_age_policy, eu_company_policy, eu_diploma_policy,
+    eu_address_policy, eu_age_over_policy, eu_age_policy, eu_company_policy, eu_diploma_policy,
     eu_driving_license_policy, eu_eaa_policy, eu_eidas_vid_policy, eu_health_policy, eu_kyc_policy,
     eu_passport_policy, eu_pid_baseline_policy, eu_pid_policy, eu_professional_license_policy,
     eu_tax_policy,

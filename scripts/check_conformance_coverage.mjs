@@ -9,6 +9,13 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const requirementsDir = resolve(root, "conformance/requirements");
+const externalImplementationPrefixes = ["reallyme-cose/", "reallyme-jose/"];
+const externalImplementationSymbolPrefixes = [
+  "reallyme_cose::",
+  "reallyme_crypto::",
+  "reallyme_jose::",
+  "reallyme-codec::",
+];
 
 const fail = (message) => {
   console.error(`conformance coverage check failed: ${message}`);
@@ -52,11 +59,87 @@ for (const source of sources.sources) {
 }
 
 const upstream = readJson("conformance/upstream/tests.json");
+if (upstream.schema !== "reallyme.identity.conformance.upstream.v2") {
+  fail("conformance/upstream/tests.json has an unexpected schema");
+}
 if (!Array.isArray(upstream.sources) || upstream.sources.length === 0) {
   fail("conformance/upstream/tests.json must list vector sources");
 }
 const upstreamTestNames = new Set();
+const upstreamExecutionIds = new Map();
+const cargoLock = readFileSync(resolve(root, "Cargo.lock"), "utf8");
+const cargoPackage = (packageName) => {
+  const escapedName = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const pattern = new RegExp(
+    `\\[\\[package\\]\\]\\nname = "${escapedName}"\\nversion = "([^"]+)"\\nsource = "([^"]+)"\\nchecksum = "([0-9a-f]{64})"`,
+    "u",
+  );
+  return pattern.exec(cargoLock);
+};
 for (const source of upstream.sources) {
+  const isExternalCrateEvidence =
+    typeof source.path === "string" && source.path.startsWith("crates.io:");
+  if (isExternalCrateEvidence) {
+    const execution = source.execution;
+    if (typeof execution !== "object" || execution === null || Array.isArray(execution)) {
+      fail(`external source ${source.source} must define executable evidence`);
+    }
+    for (const field of [
+      "id",
+      "repository",
+      "source_commit",
+      "package",
+      "version",
+      "cargo_checksum",
+      "crate_path",
+    ]) {
+      if (typeof execution[field] !== "string" || execution[field].length === 0) {
+        fail(`external source ${source.source} execution.${field} is required`);
+      }
+    }
+    if (!/^https:\/\/github[.]com\/reallyme\/[a-z0-9-]+$/u.test(execution.repository)) {
+      fail(`external source ${source.source} repository is not an approved immutable source`);
+    }
+    if (!/^[0-9a-f]{40}$/u.test(execution.source_commit)) {
+      fail(`external source ${source.source} source_commit must be an exact Git commit`);
+    }
+    if (!/^[0-9a-f]{64}$/u.test(execution.cargo_checksum)) {
+      fail(`external source ${source.source} cargo_checksum is invalid`);
+    }
+    if (
+      !Array.isArray(execution.test_binaries) ||
+      execution.test_binaries.length === 0 ||
+      execution.test_binaries.some(
+        (name) => typeof name !== "string" || !/^[a-z0-9_-]+$/u.test(name),
+      )
+    ) {
+      fail(`external source ${source.source} must list exact test binaries`);
+    }
+    if (
+      !Array.isArray(execution.command) ||
+      execution.command.length < 4 ||
+      execution.command[0] !== "cargo" ||
+      execution.command[1] !== "test" ||
+      execution.command.some((argument) => typeof argument !== "string" || argument.length === 0)
+    ) {
+      fail(`external source ${source.source} must define an exact cargo test command`);
+    }
+    const locked = cargoPackage(execution.package);
+    if (
+      locked === null ||
+      locked[1] !== execution.version ||
+      !locked[2].startsWith("registry+") ||
+      locked[3] !== execution.cargo_checksum
+    ) {
+      fail(`external source ${source.source} does not match Cargo.lock`);
+    }
+    const existing = upstreamExecutionIds.get(execution.id);
+    const serialized = JSON.stringify(execution);
+    if (existing !== undefined && existing !== serialized) {
+      fail(`external execution id ${execution.id} has conflicting definitions`);
+    }
+    upstreamExecutionIds.set(execution.id, serialized);
+  }
   if (source.test_names === undefined) {
     continue;
   }
@@ -66,6 +149,9 @@ for (const source of upstream.sources) {
   for (const testName of source.test_names) {
     if (typeof testName !== "string" || testName.length === 0) {
       fail("conformance/upstream/tests.json contains an invalid external test name");
+    }
+    if (upstreamTestNames.has(testName)) {
+      fail(`upstream test name ${testName} is ambiguous across evidence sources`);
     }
     upstreamTestNames.add(testName);
   }
@@ -113,16 +199,23 @@ const findCargoManifests = (relativeDir, manifests = []) => {
 };
 
 const rustTestNames = new Set();
-const rustFunctionPattern = /\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+const rustIdentifiers = new Set();
+const rustTestFunctionPattern = /#\[(?:[A-Za-z_][A-Za-z0-9_]*::)?test(?:\([^\]]*\))?\][\s\S]*?\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+const rustIdentifierPattern = /\b(?:fn|struct|enum|trait|const|static|type)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
 for (const file of [
   ...collectRustFiles("crates"),
   ...collectRustFiles("tests"),
 ]) {
   const source = readFileSync(file, "utf8");
-  let match = rustFunctionPattern.exec(source);
+  let identifierMatch = rustIdentifierPattern.exec(source);
+  while (identifierMatch !== null) {
+    rustIdentifiers.add(identifierMatch[1]);
+    identifierMatch = rustIdentifierPattern.exec(source);
+  }
+  let match = rustTestFunctionPattern.exec(source);
   while (match !== null) {
     rustTestNames.add(match[1]);
-    match = rustFunctionPattern.exec(source);
+    match = rustTestFunctionPattern.exec(source);
   }
 }
 
@@ -291,13 +384,35 @@ for (const file of readdirSync(requirementsDir).filter((entry) => entry.endsWith
     for (const testName of [...positiveTests, ...negativeTests]) {
       assertKnownTest(relativePath, record, testName);
     }
+    for (const implementationPath of implementation) {
+      if (typeof implementationPath !== "string" || implementationPath.length === 0) {
+        fail(`${relativePath}:${record.id} contains an invalid implementation path`);
+      }
+      if (implementationPath.includes("/")) {
+        const sourcePath = implementationPath.split("#", 1)[0].replace(/:[0-9]+$/u, "");
+        const isPinnedExternalPath = externalImplementationPrefixes.some((prefix) =>
+          sourcePath.startsWith(prefix),
+        );
+        if (!isPinnedExternalPath && !existsSync(resolve(root, sourcePath))) {
+          fail(`${relativePath}:${record.id} references missing implementation ${implementationPath}`);
+        }
+      } else {
+        const symbol = implementationPath.split("::").at(-1);
+        const isPinnedExternalSymbol = externalImplementationSymbolPrefixes.some((prefix) =>
+          implementationPath.startsWith(prefix),
+        );
+        if (!isPinnedExternalSymbol && (symbol === undefined || !rustIdentifiers.has(symbol))) {
+          fail(`${relativePath}:${record.id} references unknown implementation symbol ${implementationPath}`);
+        }
+      }
+    }
 
     if (record.applicable) {
       if (implementation.length === 0) {
         fail(`${relativePath}:${record.id} applicable requirement has no implementation`);
       }
-      if (positiveTests.length === 0 && negativeTests.length === 0) {
-        fail(`${relativePath}:${record.id} applicable requirement has no tests`);
+      if (positiveTests.length === 0 || negativeTests.length === 0) {
+        fail(`${relativePath}:${record.id} applicable requirement requires positive and negative tests`);
       }
       if (record.exclusion_reason !== null) {
         fail(`${relativePath}:${record.id} applicable requirement must not have an exclusion reason`);

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::indexing_slicing)]
 //! DID method conformance-vector tests.
 
 use reallyme_did_method_cheqd::{
@@ -410,7 +411,7 @@ fn did_cheqd_reason(value: &str) -> Result<DidCheqdErrorReason, VectorTestError>
 fn ion_network(value: &str) -> Result<IonNetwork, VectorTestError> {
     match value {
         "Mainnet" => Ok(IonNetwork::Mainnet),
-        "Testnet3" => Ok(IonNetwork::Testnet3),
+        "Testnet" => Ok(IonNetwork::Testnet),
         _ => Err(VectorTestError::UnexpectedEnumValue),
     }
 }

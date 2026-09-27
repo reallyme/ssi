@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::arithmetic_side_effects)]
 //! End-to-end profile tests for did:web semantics and injected boundaries.
 
 use std::cell::{Cell, RefCell};
@@ -9,13 +10,15 @@ use std::collections::VecDeque;
 use std::net::{IpAddr, Ipv4Addr};
 
 use reallyme_did_method_web::{
-    canonicalize_did_web, create_did_web_document, deactivate_did_web_document,
-    dereference_did_web_document, did_web_document_url, parse_and_validate_did_web_document,
-    parse_did_web, resolve_did_web_document, update_did_web_document,
+    canonicalize_did_web, dereference_did_web_document, did_web_document_url,
+    parse_and_validate_did_web_document,
+    parse_and_validate_did_web_document_with_json_ld_processor, parse_did_web,
+    resolve_did_web_document, resolve_did_web_document_with_json_ld_processor,
     AuthenticatedDidWebHostingProvider, DidWebCancellation, DidWebDocumentLimits, DidWebError,
     DidWebErrorReason, DidWebHostingError, DidWebHostingOperation, DidWebHostingReceipt,
-    DidWebHttpRequest, DidWebHttpResponse, DidWebNetworkResolver, DidWebPublicationRequest,
-    DidWebResolutionPolicy, DidWebTransportError, PublicInternetDestinationPolicy,
+    DidWebHttpRequest, DidWebHttpResponse, DidWebJsonLdError, DidWebJsonLdErrorReason,
+    DidWebJsonLdProcessor, DidWebNetworkResolver, DidWebPublicationRequest, DidWebResolutionPolicy,
+    DidWebTransportError, PublicInternetDestinationPolicy,
 };
 
 const DID: &str = "did:web:example.com";
@@ -34,6 +37,24 @@ struct AlwaysCancelled;
 impl DidWebCancellation for AlwaysCancelled {
     fn is_cancelled(&self) -> bool {
         true
+    }
+}
+
+struct AcceptJsonLd;
+
+impl DidWebJsonLdProcessor for AcceptJsonLd {
+    fn validate_json_ld(&self, _document_json: &[u8]) -> Result<(), DidWebJsonLdError> {
+        Ok(())
+    }
+}
+
+struct RejectJsonLd;
+
+impl DidWebJsonLdProcessor for RejectJsonLd {
+    fn validate_json_ld(&self, _document_json: &[u8]) -> Result<(), DidWebJsonLdError> {
+        Err(DidWebJsonLdError::new(
+            DidWebJsonLdErrorReason::InvalidDocument,
+        ))
     }
 }
 
@@ -111,15 +132,14 @@ fn identifier_canonicalization_and_url_derivation_are_strict() {
         did_web_document_url("did:web:example.com%3A3000:user:%7Earchive"),
         Ok("https://example.com:3000/user/%7Earchive/did.json".to_owned())
     );
-    // An encoded path separator would split into two segments once decoded.
     assert_eq!(
-        canonicalize_did_web("did:web:EXAMPLE.com%3a3000:user:%2farchive")
+        canonicalize_did_web("did:web:EXAMPLE.com%3a03000:user:%2farchive")
             .map_err(|error| error.reason),
         Err(DidWebErrorReason::InvalidPath)
     );
     assert_eq!(
         parse_did_web("did:web:example.com%3a3000").map_err(|error| error.reason),
-        Err(DidWebErrorReason::InvalidPort)
+        Err(DidWebErrorReason::InvalidPercentEncoding)
     );
     assert_eq!(
         parse_did_web("did:web:example.com:user:%7earchive").map_err(|error| error.reason),
@@ -129,17 +149,45 @@ fn identifier_canonicalization_and_url_derivation_are_strict() {
         parse_did_web("did:web:example.com%3A03000").map_err(|error| error.reason),
         Err(DidWebErrorReason::InvalidPort)
     );
-    assert_eq!(
-        parse_did_web("did:web:example.com:%2E%2E").map_err(|error| error.reason),
-        Err(DidWebErrorReason::InvalidPercentEncoding)
-    );
-    for invalid in [
-        "did:web:example.com:user@admin",
-        "did:web:example.com:user?role=admin",
-        "did:web:example.com:user#key-1",
-        "did:web:example.com:user~archive",
+    for (invalid, expected) in [
+        ("did:web:example.com:.", DidWebErrorReason::InvalidPath),
+        ("did:web:example.com:..", DidWebErrorReason::InvalidPath),
+        (
+            "did:web:example.com:%2E%2E",
+            DidWebErrorReason::InvalidPercentEncoding,
+        ),
+        ("did:web:example.com:a%2Fb", DidWebErrorReason::InvalidPath),
+        ("did:web:example.com:a%5Cb", DidWebErrorReason::InvalidPath),
+        ("did:web:example.com:a%00b", DidWebErrorReason::InvalidPath),
+        (
+            "did:web:example.com:user@admin",
+            DidWebErrorReason::InvalidPath,
+        ),
+        (
+            "did:web:example.com:user?role=admin",
+            DidWebErrorReason::InvalidPath,
+        ),
+        (
+            "did:web:example.com:user#key-1",
+            DidWebErrorReason::InvalidPath,
+        ),
+        (
+            "did:web:example.com:user~archive",
+            DidWebErrorReason::InvalidPath,
+        ),
+        (
+            "did:web:example.com:%61",
+            DidWebErrorReason::InvalidPercentEncoding,
+        ),
+        (
+            "did:web:example.com:a%2Eb",
+            DidWebErrorReason::InvalidPercentEncoding,
+        ),
     ] {
-        assert!(parse_did_web(invalid).is_err());
+        assert_eq!(
+            parse_did_web(invalid).map_err(|error| error.reason),
+            Err(expected)
+        );
     }
     let oversized = format!("did:web:example.com:{}", "a".repeat(4_096));
     assert_eq!(
@@ -267,7 +315,7 @@ fn document_validation_rejects_private_jwk_material_and_excessive_depth(
 }
 
 #[test]
-fn document_validation_rejects_noncanonical_absolute_did_urls(
+fn document_validation_rejects_noncanonical_did_url_percent_encoding(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let identifier = parse_did_web(DID)?;
     let invalid_controller = br#"{
@@ -285,25 +333,142 @@ fn document_validation_rejects_noncanonical_absolute_did_urls(
         Some(DidWebErrorReason::InvalidController),
     );
 
-    let noncanonical_method = br#"{
-        "id":"did:web:example.com",
-        "verificationMethod":[{
-            "id":"did:web:example.com#k%65y-1",
-            "type":"Multikey",
-            "controller":"did:web:example.com",
-            "publicKeyMultibase":"z6MkwExample"
-        }]
-    }"#;
+    for method_id in ["k%65y-1", "key%3a1"] {
+        let document = format!(
+            r#"{{"id":"{DID}","verificationMethod":[{{"id":"{DID}#{method_id}","type":"Multikey","controller":"{DID}","publicKeyMultibase":"z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP"}}]}}"#
+        );
+        assert_eq!(
+            parse_and_validate_did_web_document(
+                &identifier,
+                document.as_bytes(),
+                DidWebDocumentLimits::default(),
+            )
+            .err()
+            .map(|error| error.reason),
+            Some(DidWebErrorReason::InvalidDidUrl),
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn document_validation_enforces_did_core_sets_uris_and_service_shapes(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let identifier = parse_did_web(DID)?;
+    let valid = format!(
+        r#"{{"@context":["https://www.w3.org/ns/did/v1",{{"Example":"https://example.com/vocab#"}}],"id":"{DID}","controller":["{DID}"],"alsoKnownAs":["https://example.com/identities/alice"],"service":[{{"id":"https://example.com/services/inbox","type":["MessagingService","Example"],"serviceEndpoint":["https://example.com/inbox",{{"uri":"https://backup.example/inbox"}}]}}]}}"#
+    );
+    parse_and_validate_did_web_document_with_json_ld_processor(
+        &identifier,
+        valid.as_bytes(),
+        DidWebDocumentLimits::default(),
+        &AcceptJsonLd,
+    )?;
+
+    let invalid_documents = [
+        format!(r#"{{"id":"{DID}","controller":["{DID}","{DID}"]}}"#),
+        format!(r#"{{"id":"{DID}","authentication":[]}}"#),
+        format!(
+            r#"{{"id":"{DID}","alsoKnownAs":["https://example.com/id","https://example.com/id"]}}"#
+        ),
+        format!(
+            r#"{{"@context":["https://example.com/context","https://www.w3.org/ns/did/v1"],"id":"{DID}"}}"#
+        ),
+        format!(
+            r#"{{"id":"{DID}","authentication":["did:web:controller.example#key-1","did:web:controller.example#key-1"]}}"#
+        ),
+        format!(
+            r#"{{"id":"{DID}","service":[{{"id":"{DID}#inbox","type":[],"serviceEndpoint":"https://example.com/inbox"}}]}}"#
+        ),
+        format!(
+            r#"{{"id":"{DID}","service":[{{"id":"{DID}#inbox","type":"MessagingService","serviceEndpoint":"relative/path"}}]}}"#
+        ),
+        format!(
+            r#"{{"id":"{DID}","service":[{{"id":"{DID}#inbox","type":"MessagingService","serviceEndpoint":[]}}]}}"#
+        ),
+    ];
+    for document in invalid_documents {
+        assert!(parse_and_validate_did_web_document_with_json_ld_processor(
+            &identifier,
+            document.as_bytes(),
+            DidWebDocumentLimits::default(),
+            &AcceptJsonLd,
+        )
+        .is_err());
+    }
+    Ok(())
+}
+
+#[test]
+fn json_ld_documents_require_successful_injected_processing(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let identifier = parse_did_web(DID)?;
+    let document = format!(r#"{{"@context":["https://www.w3.org/ns/did/v1"],"id":"{DID}"}}"#);
     assert_eq!(
         parse_and_validate_did_web_document(
             &identifier,
-            noncanonical_method,
+            document.as_bytes(),
             DidWebDocumentLimits::default(),
         )
         .err()
         .map(|error| error.reason),
-        Some(DidWebErrorReason::InvalidDidUrl),
+        Some(DidWebErrorReason::JsonLdProcessorUnavailable),
     );
+    assert_eq!(
+        parse_and_validate_did_web_document_with_json_ld_processor(
+            &identifier,
+            document.as_bytes(),
+            DidWebDocumentLimits::default(),
+            &RejectJsonLd,
+        )
+        .err()
+        .map(|error| error.reason),
+        Some(DidWebErrorReason::InvalidJsonLd),
+    );
+    parse_and_validate_did_web_document_with_json_ld_processor(
+        &identifier,
+        document.as_bytes(),
+        DidWebDocumentLimits::default(),
+        &AcceptJsonLd,
+    )?;
+
+    let network = MockNetwork::new(
+        vec![vec![PUBLIC_ADDRESS]],
+        vec![success_response(document.into_bytes(), PUBLIC_ADDRESS)],
+    );
+    resolve_did_web_document_with_json_ld_processor(
+        &network,
+        &PublicInternetDestinationPolicy,
+        &NeverCancelled,
+        DID,
+        DidWebResolutionPolicy::default(),
+        &AcceptJsonLd,
+    )?;
+    Ok(())
+}
+
+#[test]
+fn document_validation_applies_did_jwk_rules_to_embedded_keys(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let identifier = parse_did_web(DID)?;
+    for invalid_jwk in [
+        r#"{"kty":"OKP","crv":"Ed25519","x":"not+padded="}"#,
+        r#"{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo","use":"sig","key_ops":["deriveBits"]}"#,
+    ] {
+        let document = format!(
+            r#"{{"id":"{DID}","verificationMethod":[{{"id":"{DID}#key-1","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{invalid_jwk}}}]}}"#
+        );
+        assert_eq!(
+            parse_and_validate_did_web_document(
+                &identifier,
+                document.as_bytes(),
+                DidWebDocumentLimits::default(),
+            )
+            .err()
+            .map(|error| error.reason),
+            Some(DidWebErrorReason::InvalidVerificationMethod),
+        );
+    }
     Ok(())
 }
 
@@ -505,117 +670,8 @@ fn resolver_rejects_private_dns_rebinding_media_size_and_cancellation() {
     assert_resolution_reason(&cancelled, &AlwaysCancelled, DidWebErrorReason::Cancelled);
 }
 
-#[test]
-fn authenticated_provider_supports_create_update_deactivate_and_round_trip(
-) -> Result<(), Box<dyn std::error::Error>> {
-    let provider = MockHostingProvider {
-        authenticated: true,
-        calls: Cell::new(0),
-        wrong_receipt: false,
-    };
-    let document = document_json(DID);
-    let created = create_did_web_document(
-        Some(&provider),
-        DID,
-        &document,
-        DidWebDocumentLimits::default(),
-    )?;
-    assert_eq!(created.document.id(), Some(DID));
-    let updated = update_did_web_document(
-        Some(&provider),
-        DID,
-        &document,
-        DidWebDocumentLimits::default(),
-    )?;
-    assert_eq!(updated.receipt.operation, DidWebHostingOperation::Update);
-    let receipt = deactivate_did_web_document(Some(&provider), DID)?;
-    assert_eq!(receipt.operation, DidWebHostingOperation::Deactivate);
-    assert_eq!(provider.calls.get(), 3);
-
-    let network = MockNetwork::new(
-        vec![vec![PUBLIC_ADDRESS]],
-        vec![success_response(document, PUBLIC_ADDRESS)],
-    );
-    let resolved = resolve_did_web_document(
-        &network,
-        &PublicInternetDestinationPolicy,
-        &NeverCancelled,
-        DID,
-        DidWebResolutionPolicy::default(),
-    )?;
-    assert_eq!(resolved.document.id(), created.document.id());
-    Ok(())
-}
-
-#[test]
-fn hosting_fails_closed_without_authenticated_provider() {
-    let document = document_json(DID);
-    assert_eq!(
-        create_did_web_document(None, DID, &document, DidWebDocumentLimits::default())
-            .err()
-            .map(|error| error.reason),
-        Some(DidWebErrorReason::ProviderUnavailable)
-    );
-    let provider = MockHostingProvider {
-        authenticated: false,
-        calls: Cell::new(0),
-        wrong_receipt: false,
-    };
-    assert_eq!(
-        update_did_web_document(
-            Some(&provider),
-            DID,
-            &document,
-            DidWebDocumentLimits::default()
-        )
-        .err()
-        .map(|error| error.reason),
-        Some(DidWebErrorReason::ProviderUnauthenticated)
-    );
-    assert_eq!(provider.calls.get(), 0);
-}
-
-#[test]
-fn document_validation_rejects_methods_and_services_owned_by_other_dids(
-) -> Result<(), Box<dyn std::error::Error>> {
-    let requested = parse_did_web(DID)?;
-    let foreign_method = format!(
-        r#"{{"id":"{DID}","verificationMethod":[{{"id":"did:web:attacker.example#key-1","type":"Multikey","controller":"{DID}","publicKeyMultibase":"z6MknExample"}}],"authentication":["did:web:attacker.example#key-1"]}}"#
-    );
-    let foreign_service = format!(
-        r#"{{"id":"{DID}","service":[{{"id":"did:web:attacker.example#inbox","type":"MessagingService","serviceEndpoint":"https://attacker.example/inbox"}}]}}"#
-    );
-    let foreign_embedded = format!(
-        r#"{{"id":"{DID}","authentication":[{{"id":"did:web:attacker.example#key-2","type":"Multikey","controller":"{DID}","publicKeyMultibase":"z6MknExample"}}]}}"#
-    );
-    for body in [foreign_method, foreign_service, foreign_embedded] {
-        assert_eq!(
-            parse_and_validate_did_web_document(
-                &requested,
-                body.as_bytes(),
-                DidWebDocumentLimits::default()
-            )
-            .err()
-            .map(|error| error.reason),
-            Some(DidWebErrorReason::DocumentIdentifierMismatch),
-        );
-    }
-    Ok(())
-}
-
-#[test]
-fn document_validation_accepts_public_jwk_key_ops() -> Result<(), Box<dyn std::error::Error>> {
-    let requested = parse_did_web(DID)?;
-    let body = format!(
-        r#"{{"id":"{DID}","verificationMethod":[{{"id":"{DID}#key-1","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"OKP","crv":"Ed25519","x":"public","key_ops":["verify"]}}}}]}}"#
-    );
-    parse_and_validate_did_web_document(
-        &requested,
-        body.as_bytes(),
-        DidWebDocumentLimits::default(),
-    )?;
-    Ok(())
-}
+#[path = "did_web_profile_tests/provider_tests.rs"]
+mod provider_tests;
 
 #[test]
 fn resolver_rejects_ipv6_transition_prefixes_embedding_private_ipv4(
@@ -710,7 +766,7 @@ fn document_json(did: &str) -> Vec<u8> {
 
 fn document_json_with_authentication(did: &str, authentication: &str) -> Vec<u8> {
     format!(
-        r#"{{"@context":["https://www.w3.org/ns/did/v1"],"id":"{did}","controller":"{did}","verificationMethod":[{{"id":"{did}#key-1","type":"Multikey","controller":"{did}","publicKeyMultibase":"z6MknExample"}}],"authentication":["{authentication}"],"assertionMethod":["{did}#key-1"],"service":[{{"id":"{did}#inbox","type":"MessagingService","serviceEndpoint":"https://example.com/inbox"}}]}}"#
+        r#"{{"id":"{did}","controller":"{did}","verificationMethod":[{{"id":"{did}#key-1","type":"Multikey","controller":"{did}","publicKeyMultibase":"z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP"}}],"authentication":["{authentication}"],"assertionMethod":["{did}#key-1"],"service":[{{"id":"{did}#inbox","type":"MessagingService","serviceEndpoint":"https://example.com/inbox"}}]}}"#
     )
     .into_bytes()
 }

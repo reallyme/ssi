@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
-
 use ciborium::value::Value as CiboriumValue;
 use reallyme_mdoc::{
     build_mdoc_device_response_cbor, build_mso_mdoc, decode_mdoc_device_response_cbor,
@@ -11,13 +10,15 @@ use reallyme_mdoc::{
     verify_issuer_signed_mdoc, verify_issuer_signed_mdoc_receipt_with_x5chain,
     verify_mdoc_device_response,
     verify_mdoc_device_response_with_x5chain, BuildMdocDeviceResponseInput, CoseDeviceAuthSigner,
-    CoseIssuerAuthSigner, CoseX5ChainIssuerAuthSigner, Iso23220RelationshipKind,
-    IssuerAuthSigner, IssuerNamespaceSelection, MdocElement, MdocEnvelopeError,
-    MdocInvalidInputReason,
-    MdocIssueConfig, ValidityInfo, ISO_23220_NAMESPACE,
+    CoseIssuerAuthSigner, CoseX5ChainIssuerAuthSigner, DeviceKeyAuthorizations,
+    Iso23220RelationshipKind, IssuerAuthSigner, IssuerNamespaceSelection, MdocElement,
+    MdocCertificatePathValidation, MdocEnvelopeError, MdocInvalidInputReason, MdocIssueConfig,
+    ValidityInfo, DIGEST_ALG_SHA384, DIGEST_ALG_SHA512,
+    ISO_23220_NAMESPACE,
     MAX_MDOC_CBOR_ARRAY_ITEMS, MAX_MDOC_CBOR_DEPTH, MAX_MDOC_CBOR_INPUT_BYTES,
     MAX_MDOC_CBOR_MAP_ENTRIES, MAX_MDOC_DEVICE_RESPONSE_DOCUMENTS, MAX_MDOC_ELEMENTS_PER_NAMESPACE,
-    MAX_MDOC_ELEMENT_VALUE_BYTES, MAX_MDOC_ISSUER_ELEMENTS, MAX_MDOC_NAMESPACES,
+    MAX_MDOC_ELEMENT_VALUE_BYTES, MAX_MDOC_IDENTIFIER_BYTES, MAX_MDOC_ISSUER_ELEMENTS,
+    MAX_MDOC_KEY_INFO_BYTES, MAX_MDOC_NAMESPACES,
 };
 use reallyme_codec::cbor::{encode_dag_cbor, CborValue};
 use reallyme_cose::{
@@ -28,10 +29,18 @@ use reallyme_crypto::dispatch::generate_keypair;
 use serde_json::Value;
 
 const MDOC_ISSUER_SIGNED_VECTORS: &str =
-    include_str!("../../../../../vectors/mdoc-issuer-signed.json");
+    include_str!("../fixtures/mdoc-issuer-signed.json");
 
 fn cbor_text(value: &str) -> Vec<u8> {
     encode_dag_cbor(&CborValue::String(value.to_owned())).unwrap()
+}
+
+fn trusted_path(public_key: Vec<u8>) -> MdocCertificatePathValidation {
+    MdocCertificatePathValidation {
+        public_key,
+        not_before_unix: 1_600_000_000,
+        not_after_unix: 1_900_000_000,
+    }
 }
 
 fn issuer_keys() -> (Vec<u8>, Vec<u8>) {
@@ -64,6 +73,7 @@ fn valid_config_for_device_key(device_public_key: &[u8]) -> MdocIssueConfig {
             signed: 1_700_000_000,
             valid_from: 1_700_000_000,
             valid_until: 1_800_000_000,
+            expected_update: None,
         },
         device_cose_key(device_public_key),
     )
@@ -240,11 +250,91 @@ fn builds_and_verifies_device_response() {
     )
     .unwrap();
 
-    assert_eq!(verified.device_response.documents.len(), 1);
-    assert_eq!(verified.verified_documents.len(), 1);
+    assert_eq!(verified.device_response().documents.len(), 1);
+    assert_eq!(verified.verified_documents().len(), 1);
     assert_eq!(
-        verified.verified_documents[0].doc_type,
+        verified.verified_documents()[0].doc_type(),
         "org.iso.18013.5.1.mDL"
+    );
+}
+
+#[test]
+fn missing_device_key_authorizations_rejects_nonempty_device_namespaces() {
+    let (issuer_public_key, issuer_private_key) = issuer_keys();
+    let (device_public_key, device_private_key) = issuer_keys();
+    let kid = b"issuer-key-without-authorizations".to_vec();
+    let issuer_signer = CoseIssuerAuthSigner {
+        alg: Algorithm::Ed25519,
+        private_key: issuer_private_key.as_slice(),
+        kid: Some(kid.as_slice()),
+    };
+    let device_signer = CoseDeviceAuthSigner {
+        alg: Algorithm::Ed25519,
+        private_key: device_private_key.as_slice(),
+        kid: None,
+    };
+    let (document, _) = build_mso_mdoc(
+        &valid_config_for_device_key(&device_public_key),
+        &sample_elements(),
+        &issuer_signer,
+    )
+    .unwrap();
+    let session_transcript = session_transcript_cbor();
+    let name_spaces = ciborium_bytes(&CiboriumValue::Map(vec![(
+        CiboriumValue::Text("org.iso.18013.5.1".to_owned()),
+        CiboriumValue::Map(vec![(
+            CiboriumValue::Text("family_name".to_owned()),
+            CiboriumValue::Text("DOE".to_owned()),
+        )]),
+    )]));
+    let response = build_mdoc_device_response_cbor(
+        BuildMdocDeviceResponseInput {
+            issuer_signed: document,
+            session_transcript_cbor: session_transcript.clone(),
+            device_name_spaces_cbor: Some(name_spaces),
+            issuer_namespaces: None,
+        },
+        &device_signer,
+    )
+    .unwrap();
+
+    assert_eq!(
+        verify_mdoc_device_response(
+            &response,
+            resolver_for_kid(kid, issuer_public_key),
+            &session_transcript,
+            1_700_000_001,
+        )
+        .err(),
+        Some(MdocEnvelopeError::InvalidInput(
+            MdocInvalidInputReason::InvalidDeviceAuthentication
+        ))
+    );
+}
+
+#[test]
+fn issuance_rejects_ambiguous_device_key_authorizations() {
+    let (_, issuer_private_key) = issuer_keys();
+    let issuer_signer = CoseIssuerAuthSigner {
+        alg: Algorithm::Ed25519,
+        private_key: issuer_private_key.as_slice(),
+        kid: None,
+    };
+    let mut data_elements = std::collections::BTreeMap::new();
+    data_elements.insert(
+        "org.iso.18013.5.1".to_owned(),
+        vec!["family_name".to_owned()],
+    );
+    let config = valid_config().with_key_authorizations(DeviceKeyAuthorizations {
+        name_spaces: vec!["org.iso.18013.5.1".to_owned()],
+        data_elements,
+    });
+
+    assert_eq!(
+        build_mso_mdoc(&config, &sample_elements(), &issuer_signer).err(),
+        Some(MdocEnvelopeError::InvalidInput(
+            MdocInvalidInputReason::InvalidDeviceAuthentication
+        ))
     );
 }
 
@@ -451,7 +541,7 @@ fn device_response_rejects_duplicate_device_signed_members() {
     assert_eq!(
         error,
         Some(MdocEnvelopeError::InvalidInput(
-            MdocInvalidInputReason::MalformedDeviceResponse
+            MdocInvalidInputReason::DuplicateCborMapKey
         ))
     );
 }
@@ -482,6 +572,7 @@ fn p256_device_signature_round_trip_matches_haip_profile() {
                 signed: 1_700_000_000,
                 valid_from: 1_700_000_000,
                 valid_until: 1_800_000_000,
+                expected_update: None,
             },
             device_cose_key.to_vec(),
         ),
@@ -511,8 +602,11 @@ fn p256_device_signature_round_trip_matches_haip_profile() {
 }
 
 #[test]
-fn builds_and_verifies_x5chain_device_response() {
+fn verifies_x5chain_device_response_after_leaf_expiry() {
     const LEAF_CERTIFICATE_DER: &[u8] = &[0x30, 0x03, 0x02, 0x01, 0x01];
+    const MSO_SIGNING_TIME_UNIX: u64 = 1_700_000_000;
+    const CERTIFICATE_EXPIRY_UNIX: u64 = 1_700_000_001;
+    const PRESENTATION_TIME_UNIX: u64 = 1_750_000_000;
 
     let (issuer_public_key, issuer_private_key) = generate_keypair(Algorithm::P256).unwrap();
     let (device_public_key, device_private_key) = issuer_keys();
@@ -548,20 +642,27 @@ fn builds_and_verifies_x5chain_device_response() {
 
     let verified = verify_mdoc_device_response_with_x5chain(
         &response,
-        |presented_path| {
-            (presented_path == certificate_path.as_slice()).then(|| issuer_public_key.clone())
+        |presented_path, signing_time_unix| {
+            assert_eq!(signing_time_unix, MSO_SIGNING_TIME_UNIX);
+            (presented_path == certificate_path.as_slice()).then(|| {
+                MdocCertificatePathValidation {
+                    public_key: issuer_public_key.clone(),
+                    not_before_unix: MSO_SIGNING_TIME_UNIX,
+                    not_after_unix: CERTIFICATE_EXPIRY_UNIX,
+                }
+            })
         },
         &session_transcript,
-        1_700_000_001,
+        PRESENTATION_TIME_UNIX,
     )
     .unwrap();
-    assert_eq!(verified.verified_documents.len(), 1);
+    assert_eq!(verified.verified_documents().len(), 1);
 
     let error = match verify_mdoc_device_response_with_x5chain(
         &response,
-        |_presented_path| None,
+        |_presented_path, _signing_time_unix| None,
         &session_transcript,
-        1_700_000_001,
+        PRESENTATION_TIME_UNIX,
     ) {
         Ok(_) => MdocEnvelopeError::UnsupportedOperation,
         Err(error) => error,
@@ -657,139 +758,5 @@ fn device_response_rejects_missing_device_signed_holder_authentication() {
     assert_eq!(
         error,
         MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::MalformedDeviceResponse)
-    );
-}
-
-#[test]
-fn device_response_rejects_device_mac_instead_of_device_signature() {
-    let (issuer_public_key, issuer_private_key) = issuer_keys();
-    let (device_public_key, device_private_key) = issuer_keys();
-    let kid = b"issuer-kid-1".to_vec();
-    let issuer_signer = CoseIssuerAuthSigner {
-        alg: Algorithm::Ed25519,
-        private_key: issuer_private_key.as_slice(),
-        kid: Some(kid.as_slice()),
-    };
-    let device_signer = CoseDeviceAuthSigner {
-        alg: Algorithm::Ed25519,
-        private_key: device_private_key.as_slice(),
-        kid: None,
-    };
-    let (document, _) = build_mso_mdoc(
-        &valid_config_for_device_key(&device_public_key),
-        &sample_elements(),
-        &issuer_signer,
-    )
-    .unwrap();
-    let session_transcript = session_transcript_cbor();
-    let encoded = build_mdoc_device_response_cbor(
-        BuildMdocDeviceResponseInput {
-            issuer_signed: document,
-            session_transcript_cbor: session_transcript.clone(),
-            device_name_spaces_cbor: None,
-            issuer_namespaces: None,
-        },
-        &device_signer,
-    )
-    .unwrap();
-    let mut response = ciborium_value(&encoded);
-    let root = match &mut response {
-        CiboriumValue::Map(entries) => Some(entries),
-        _ => None,
-    }
-    .unwrap();
-    let documents = match text_map_value_mut(root, "documents") {
-        CiboriumValue::Array(values) => Some(values),
-        _ => None,
-    }
-    .unwrap();
-    let first_document = match documents.first_mut().unwrap() {
-        CiboriumValue::Map(entries) => Some(entries),
-        _ => None,
-    }
-    .unwrap();
-    let device_signed = match text_map_value_mut(first_document, "deviceSigned") {
-        CiboriumValue::Map(entries) => Some(entries),
-        _ => None,
-    }
-    .unwrap();
-    let device_auth = match text_map_value_mut(device_signed, "deviceAuth") {
-        CiboriumValue::Map(entries) => Some(entries),
-        _ => None,
-    }
-    .unwrap();
-    device_auth.clear();
-    device_auth.push((
-        CiboriumValue::Text("deviceMac".to_owned()),
-        CiboriumValue::Bytes(vec![0_u8; 32]),
-    ));
-
-    let error = match verify_mdoc_device_response(
-        &ciborium_bytes(&response),
-        resolver_for_kid(kid, issuer_public_key),
-        &session_transcript,
-        1_700_000_001,
-    ) {
-        Ok(_) => MdocEnvelopeError::UnsupportedOperation,
-        Err(error) => error,
-    };
-
-    assert_eq!(
-        error,
-        MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::MalformedDeviceResponse)
-    );
-}
-
-#[test]
-fn device_response_rejects_wrong_session_transcript() {
-    let (issuer_public_key, issuer_private_key) = issuer_keys();
-    let (device_public_key, device_private_key) = issuer_keys();
-    let kid = b"issuer-kid-1".to_vec();
-    let issuer_signer = CoseIssuerAuthSigner {
-        alg: Algorithm::Ed25519,
-        private_key: issuer_private_key.as_slice(),
-        kid: Some(kid.as_slice()),
-    };
-    let device_signer = CoseDeviceAuthSigner {
-        alg: Algorithm::Ed25519,
-        private_key: device_private_key.as_slice(),
-        kid: None,
-    };
-    let (document, _) = build_mso_mdoc(
-        &valid_config_for_device_key(&device_public_key),
-        &sample_elements(),
-        &issuer_signer,
-    )
-    .unwrap();
-    let session_transcript = session_transcript_cbor();
-    let response = build_mdoc_device_response_cbor(
-        BuildMdocDeviceResponseInput {
-            issuer_signed: document,
-            session_transcript_cbor: session_transcript,
-            device_name_spaces_cbor: None,
-            issuer_namespaces: None,
-        },
-        &device_signer,
-    )
-    .unwrap();
-    let wrong_session_transcript = encode_dag_cbor(&CborValue::Array(vec![
-        CborValue::String("sessionTranscript".to_owned()),
-        CborValue::Int(2),
-    ]))
-    .unwrap();
-
-    let err = match verify_mdoc_device_response(
-        &response,
-        resolver_for_kid(kid, issuer_public_key),
-        &wrong_session_transcript,
-        1_700_000_001,
-    ) {
-        Ok(_) => MdocEnvelopeError::UnsupportedOperation,
-        Err(err) => err,
-    };
-
-    assert_eq!(
-        err,
-        MdocEnvelopeError::InvalidDeviceSignature
     );
 }

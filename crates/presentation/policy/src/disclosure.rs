@@ -19,6 +19,9 @@ pub struct DisclosedClaim {
 
     /// Semantic disclosure mode satisfied for the claim.
     pub mode: DisclosureMode,
+
+    /// Authenticated public operand carried by the disclosure or proof.
+    pub operand: crate::PredicateOperand,
 }
 
 /// Extract disclosed claims from any VP presentation (SD-JWT or ZK).
@@ -43,6 +46,7 @@ pub fn extract_disclosed_claims(pres: &Presentation) -> Result<Vec<DisclosedClai
                 Ok(DisclosedClaim {
                     claim_path: item.claim_path.clone(),
                     mode: map_zk_disclosure_mode(item.mode)?,
+                    operand: operand_from_zk_disclosure(item)?,
                 })
             })
             .collect(),
@@ -50,6 +54,7 @@ pub fn extract_disclosed_claims(pres: &Presentation) -> Result<Vec<DisclosedClai
         // mdoc presentations are verified by the mdoc delivery layer and do not
         // carry VP disclosure semantics in this crate.
         Presentation::Mdoc(_) => Err(VpPolicyError::PresentationFormatNotAllowed),
+        _ => Err(VpPolicyError::PresentationFormatNotAllowed),
     }
 }
 
@@ -81,10 +86,64 @@ fn extract_sd_jwt_disclosed_claims(
         out.push(DisclosedClaim {
             claim_path: claim_path.to_owned(),
             mode: DisclosureMode::Reveal,
+            operand: crate::PredicateOperand::None,
         });
     }
 
     Ok(out)
+}
+
+fn operand_from_zk_disclosure(
+    disclosure: &identity_presentation_vp_core::model::ClaimDisclosure,
+) -> Result<crate::PredicateOperand, VpPolicyError> {
+    use crate::PredicateOperand;
+    match disclosure.mode {
+        VpDisclosureMode::Reveal => {
+            if disclosure.threshold.is_some()
+                || disclosure.range.is_some()
+                || disclosure.set.is_some()
+            {
+                return Err(VpPolicyError::ProofInvalid);
+            }
+            Ok(PredicateOperand::None)
+        }
+        VpDisclosureMode::Hidden => {
+            if disclosure.revealed_value.is_some()
+                || disclosure.threshold.is_some()
+                || disclosure.range.is_some()
+                || disclosure.set.is_some()
+            {
+                return Err(VpPolicyError::ProofInvalid);
+            }
+            Ok(PredicateOperand::None)
+        }
+        VpDisclosureMode::Eq => disclosure
+            .revealed_value
+            .clone()
+            .map(PredicateOperand::Value)
+            .ok_or(VpPolicyError::ProofInvalid),
+        VpDisclosureMode::Gte | VpDisclosureMode::Lte => disclosure
+            .threshold
+            .map(PredicateOperand::Threshold)
+            .ok_or(VpPolicyError::ProofInvalid),
+        VpDisclosureMode::Range => disclosure
+            .range
+            .as_ref()
+            .filter(|range| range.min <= range.max)
+            .map(|range| PredicateOperand::Range {
+                min: range.min,
+                max: range.max,
+            })
+            .ok_or(VpPolicyError::ProofInvalid),
+        VpDisclosureMode::MemberOfSet => disclosure
+            .set
+            .as_ref()
+            .filter(|set| !set.values.is_empty())
+            .map(|set| PredicateOperand::Set(set.values.clone()))
+            .ok_or(VpPolicyError::ProofInvalid),
+        VpDisclosureMode::Unspecified => Err(VpPolicyError::ProofInvalid),
+        _ => Err(VpPolicyError::ProofInvalid),
+    }
 }
 
 fn map_zk_disclosure_mode(mode: VpDisclosureMode) -> Result<DisclosureMode, VpPolicyError> {
@@ -97,5 +156,6 @@ fn map_zk_disclosure_mode(mode: VpDisclosureMode) -> Result<DisclosureMode, VpPo
         VpDisclosureMode::Lte => Ok(DisclosureMode::Lte),
         VpDisclosureMode::Range => Ok(DisclosureMode::Range),
         VpDisclosureMode::MemberOfSet => Ok(DisclosureMode::MemberOfSet),
+        _ => Err(VpPolicyError::ProofInvalid),
     }
 }

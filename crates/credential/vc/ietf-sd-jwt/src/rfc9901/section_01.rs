@@ -4,8 +4,9 @@
 
 use core::fmt;
 use std::collections::BTreeSet;
+use std::io::Write;
 
-use codec_base64url::bytes_to_base64url;
+use codec_base64url::{base64url_to_bytes, bytes_to_base64url};
 use crypto_sha2_256::digest as sha2_256_digest;
 use envelopes_jwk::Jwk;
 use envelopes_jwt::jwt::{
@@ -32,20 +33,28 @@ use crate::sensitive::{
     MAX_SD_JWT_ISSUER_BYTES, MAX_SD_JWT_JSON_BYTES, MAX_SD_JWT_STRING_BYTES,
 };
 
+/// Selects which claims become issuer-bound disclosures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectiveDisclosureStrategy {
+    /// Makes each top-level claim selectively disclosable.
     TopLevel,
+    /// Recursively makes object members and array elements selectively disclosable.
     AllLevels,
+    /// Makes only the configured canonical JSON paths selectively disclosable.
     JsonPaths,
 }
 
+/// Controls decoy digest insertion during issuance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DecoyPolicy {
+    /// Number of decoy digests inserted into each selectively disclosable object.
     pub object_decoys: u8,
+    /// Number of decoy digests inserted into each selectively disclosable array.
     pub array_decoys: u8,
 }
 
 impl DecoyPolicy {
+    /// Constructs a policy with decoy generation disabled.
     pub fn none() -> Self {
         Self {
             object_decoys: 0,
@@ -54,17 +63,29 @@ impl DecoyPolicy {
     }
 }
 
+/// Inputs for RFC 9901 SD-JWT issuance.
 pub struct Rfc9901IssueInput {
+    /// Issuer identifier written to the authenticated `iss` claim.
     pub issuer: String,
+    /// Credential subject covered by the issuer commitment.
     pub subject: Option<String>,
+    /// Issuance time encoded as seconds since the Unix epoch.
     pub issued_at_unix: Option<u64>,
+    /// Optional `nbf` value, in seconds since the Unix epoch.
     pub not_before_unix: Option<u64>,
+    /// Optional `exp` value, in seconds since the Unix epoch.
     pub expires_at_unix: Option<u64>,
+    /// Optional verifiable credential type identifier.
     pub vct: Option<String>,
+    /// Optional holder key written to the issuer-signed `cnf` claim.
     pub confirmation_jwk: Option<Jwk>,
+    /// Claims transformed before the issuer payload is signed.
     pub user_claims: Value,
+    /// Disclosure selection strategy.
     pub strategy: SelectiveDisclosureStrategy,
+    /// Canonical JSON paths used when `strategy` is `JsonPaths`.
     pub custom_json_paths: Vec<String>,
+    /// Decoy digests inserted to obscure the number of real disclosures.
     pub decoys: DecoyPolicy,
 }
 
@@ -99,6 +120,7 @@ impl Drop for Rfc9901IssueInput {
 impl ZeroizeOnDrop for Rfc9901IssueInput {}
 
 impl Rfc9901IssueInput {
+    /// Creates issuance input using top-level disclosure and no decoys.
     pub fn new(issuer: impl Into<String>, user_claims: Value) -> Self {
         Self {
             issuer: issuer.into(),
@@ -116,10 +138,14 @@ impl Rfc9901IssueInput {
     }
 }
 
+/// Records one disclosure, its claim path, and its issuer-bound digest.
 #[derive(Serialize, Deserialize)]
 pub struct DisclosureRecord {
+    /// Canonical claim path associated with the disclosure.
     pub path: String,
+    /// Base64url-encoded disclosure exactly as hashed by the issuer.
     pub encoded: String,
+    /// Base64url digest that binds the encoded disclosure into the issuer payload.
     pub digest: String,
 }
 
@@ -145,11 +171,16 @@ impl Drop for DisclosureRecord {
 
 impl ZeroizeOnDrop for DisclosureRecord {}
 
+/// Owned RFC 9901 artifact with its issuer JWT and disclosures.
 #[derive(Serialize, Deserialize)]
 pub struct SdJwtArtifact {
+    /// Compact issuer-signed JWT whose signature authenticates the SD-JWT payload.
     pub issuer_signed_jwt: String,
+    /// Encoded disclosures carried by this SD-JWT value.
     pub disclosures: Vec<String>,
+    /// Optional holder key-binding JWT appended by presentation.
     pub kb_jwt: Option<String>,
+    /// Issuance-time metadata used to select disclosures by claim path.
     pub records: Vec<DisclosureRecord>,
 }
 
@@ -183,6 +214,7 @@ impl Drop for SdJwtArtifact {
 impl ZeroizeOnDrop for SdJwtArtifact {}
 
 impl SdJwtArtifact {
+    /// Serializes this artifact in RFC 9901 compact form.
     pub fn to_compact(&self) -> Result<Zeroizing<String>, IetfSdJwtVcError> {
         let capacity = compact_capacity(
             &self.issuer_signed_jwt,
@@ -203,16 +235,16 @@ impl SdJwtArtifact {
         Ok(out)
     }
 
+    /// Serializes this artifact as bounded JSON.
     pub fn to_json_string(&self) -> Result<Zeroizing<String>, IetfSdJwtVcError> {
         validate_artifact(self, IetfSdJwtVcError::Serialization)?;
-        let serialized =
-            serde_json::to_string(self).map_err(|_| IetfSdJwtVcError::Serialization)?;
-        if serialized.len() > MAX_SD_JWT_JSON_BYTES {
-            return Err(IetfSdJwtVcError::Serialization);
-        }
-        Ok(Zeroizing::new(serialized))
+        let mut writer = BoundedJsonWriter::new(MAX_SD_JWT_JSON_BYTES);
+        serde_json::to_writer(&mut writer, self)
+            .map_err(|_| IetfSdJwtVcError::Serialization)?;
+        writer.into_string()
     }
 
+    /// Parses bounded JSON while rejecting malformed or ambiguous input.
     pub fn from_json_string(json: &str) -> Result<Self, IetfSdJwtVcError> {
         if json.len() > MAX_SD_JWT_JSON_BYTES {
             return Err(IetfSdJwtVcError::Serialization);
@@ -223,6 +255,7 @@ impl SdJwtArtifact {
         Ok(artifact)
     }
 
+    /// Parses bounded RFC 9901 compact serialization.
     pub fn from_compact(compact: &str) -> Result<Self, IetfSdJwtVcError> {
         if compact.len() > MAX_COMPACT_SD_JWT_BYTES
             || compact
@@ -234,20 +267,23 @@ impl SdJwtArtifact {
             return Err(IetfSdJwtVcError::InvalidCompactFormat);
         }
         let parts: Vec<&str> = compact.split('~').collect();
-        if parts.len() < 2 {
-            return Err(IetfSdJwtVcError::InvalidCompactFormat);
-        }
-        let issuer_signed_jwt = parts[0].to_string();
+        let (issuer, remainder) = parts
+            .split_first()
+            .ok_or(IetfSdJwtVcError::InvalidCompactFormat)?;
+        let (last, middle) = remainder
+            .split_last()
+            .ok_or(IetfSdJwtVcError::InvalidCompactFormat)?;
+        let issuer_signed_jwt = (*issuer).to_string();
         if issuer_signed_jwt.split('.').count() != 3 {
             return Err(IetfSdJwtVcError::InvalidCompactFormat);
         }
 
-        let trailing_empty = parts.last().map(|s| s.is_empty()).unwrap_or(false);
+        let trailing_empty = last.is_empty();
         let mut disclosures = Vec::new();
         let mut kb_jwt = None;
 
         if trailing_empty {
-            for p in &parts[1..parts.len() - 1] {
+            for p in middle {
                 if p.is_empty() {
                     return Err(IetfSdJwtVcError::InvalidCompactFormat);
                 }
@@ -257,13 +293,13 @@ impl SdJwtArtifact {
             if parts.len() < 3 {
                 return Err(IetfSdJwtVcError::InvalidCompactFormat);
             }
-            for p in &parts[1..parts.len() - 1] {
+            for p in middle {
                 if p.is_empty() {
                     return Err(IetfSdJwtVcError::InvalidCompactFormat);
                 }
                 disclosures.push((*p).to_string());
             }
-            kb_jwt = Some(parts[parts.len() - 1].to_string());
+            kb_jwt = Some((*last).to_string());
         }
 
         if disclosures.len() > MAX_SD_JWT_DISCLOSURES
@@ -285,6 +321,7 @@ impl SdJwtArtifact {
         })
     }
 
+    /// Selects disclosures for the requested paths and optionally signs a KB-JWT.
     pub fn holder_presentation_by_paths(
         &self,
         paths: &[String],
@@ -321,8 +358,8 @@ impl SdJwtArtifact {
                 return Err(IetfSdJwtVcError::InvalidInput);
             }
             let compact_without_kb = out.to_compact()?;
-            let sd_hash_b64u =
-                bytes_to_base64url(sha2_256_digest(compact_without_kb.as_bytes()).as_bytes());
+            let hash_algorithm = issuer_declared_hash_algorithm(&out.issuer_signed_jwt)?;
+            let sd_hash_b64u = hash_algorithm.digest_b64url(&compact_without_kb);
             let payload = serde_json::json!({
                 "sd_hash": sd_hash_b64u,
                 "aud": params.audience,
@@ -341,6 +378,76 @@ impl SdJwtArtifact {
 
         Ok(out)
     }
+}
+
+struct BoundedJsonWriter {
+    bytes: Zeroizing<Vec<u8>>,
+    limit: usize,
+}
+
+impl BoundedJsonWriter {
+    fn new(limit: usize) -> Self {
+        Self {
+            bytes: Zeroizing::new(Vec::with_capacity(limit)),
+            limit,
+        }
+    }
+
+    fn into_string(mut self) -> Result<Zeroizing<String>, IetfSdJwtVcError> {
+        match String::from_utf8(core::mem::take(&mut *self.bytes)) {
+            Ok(value) => Ok(Zeroizing::new(value)),
+            Err(error) => {
+                let mut bytes = error.into_bytes();
+                bytes.zeroize();
+                Err(IetfSdJwtVcError::Serialization)
+            }
+        }
+    }
+}
+
+impl Write for BoundedJsonWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let new_len = self
+            .bytes
+            .len()
+            .checked_add(bytes.len())
+            .ok_or_else(|| std::io::Error::other("JSON output limit exceeded"))?;
+        if new_len > self.limit {
+            return Err(std::io::Error::other("JSON output limit exceeded"));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn issuer_declared_hash_algorithm(
+    issuer_signed_jwt: &str,
+) -> Result<crate::IetfSdJwtHashAlgorithm, IetfSdJwtVcError> {
+    let mut parts = issuer_signed_jwt.split('.');
+    let _protected = parts.next().ok_or(IetfSdJwtVcError::InvalidCompactFormat)?;
+    let encoded_payload = parts.next().ok_or(IetfSdJwtVcError::InvalidCompactFormat)?;
+    let _signature = parts.next().ok_or(IetfSdJwtVcError::InvalidCompactFormat)?;
+    if parts.next().is_some() || encoded_payload.len() > MAX_COMPACT_SD_JWT_BYTES {
+        return Err(IetfSdJwtVcError::InvalidCompactFormat);
+    }
+    let payload_bytes = Zeroizing::new(
+        base64url_to_bytes(encoded_payload).map_err(|_| IetfSdJwtVcError::InvalidCompactFormat)?,
+    );
+    if payload_bytes.len() > MAX_SD_JWT_JSON_BYTES {
+        return Err(IetfSdJwtVcError::InvalidCompactFormat);
+    }
+    let mut payload: Value =
+        serde_json::from_slice(&payload_bytes).map_err(|_| IetfSdJwtVcError::InvalidInput)?;
+    let result = payload
+        .as_object()
+        .ok_or(IetfSdJwtVcError::InvalidInput)
+        .and_then(crate::issue::parse_sd_alg);
+    zeroize_json_value(&mut payload);
+    result
 }
 
 fn validate_artifact(
@@ -369,71 +476,3 @@ fn validate_artifact(
         Err(error)
     }
 }
-
-pub struct KbJwtBuildParams<'a> {
-    pub holder_jwk: &'a Jwk,
-    pub holder_private_key: &'a [u8],
-    pub audience: &'a str,
-    pub nonce: &'a str,
-    pub iat_unix: u64,
-}
-
-impl fmt::Debug for KbJwtBuildParams<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("KbJwtBuildParams([REDACTED])")
-    }
-}
-
-pub struct KbJwtVerifyParams<'a> {
-    pub holder_jwk: &'a Jwk,
-    pub holder_public_key: &'a [u8],
-    pub expected_audience: &'a str,
-    pub expected_nonce: &'a str,
-    pub now_unix: u64,
-    /// Maximum age accepted for the mandatory KB-JWT `iat` claim.
-    pub max_iat_age_seconds: u64,
-    /// Maximum accepted future skew for the KB-JWT `iat` claim.
-    pub max_future_iat_skew_seconds: u64,
-}
-
-impl fmt::Debug for KbJwtVerifyParams<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("KbJwtVerifyParams([REDACTED])")
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct VerifiedRfc9901 {
-    /// Issuer-signed payload exactly as authenticated.
-    pub payload: Value,
-    /// Payload with every provided disclosure applied and SD-JWT structural
-    /// members removed.
-    pub resolved_payload: Value,
-    /// Accepted disclosure arrays in original serialization order.
-    pub provided_disclosures: Vec<Value>,
-}
-
-impl fmt::Debug for VerifiedRfc9901 {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("VerifiedRfc9901([REDACTED])")
-    }
-}
-
-impl Zeroize for VerifiedRfc9901 {
-    fn zeroize(&mut self) {
-        zeroize_json_value(&mut self.payload);
-        zeroize_json_value(&mut self.resolved_payload);
-        for disclosure in &mut self.provided_disclosures {
-            zeroize_json_value(disclosure);
-        }
-        self.provided_disclosures.clear();
-    }
-}
-
-impl Drop for VerifiedRfc9901 {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
-impl ZeroizeOnDrop for VerifiedRfc9901 {}

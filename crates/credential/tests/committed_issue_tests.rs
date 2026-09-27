@@ -14,6 +14,7 @@
 use std::collections::BTreeMap;
 
 use reallyme_credential::committed::canonical::canonical_credential_bytes;
+use reallyme_credential::committed::error::VcError;
 use reallyme_credential::committed::issue::{issue_credential, IssueInput, OsSaltRng};
 use reallyme_credential::committed::model::{
     AssuranceLevel, CommitmentLimits, CredentialAlgorithm, CredentialKind, CredentialStatus,
@@ -70,12 +71,16 @@ fn base_input() -> IssueInput {
 }
 
 fn ed25519_key(did_url: &str, marker: u8) -> PublicKeyRef {
+    ed25519_key_bytes(did_url, vec![marker; 32])
+}
+
+fn ed25519_key_bytes(did_url: &str, bytes: Vec<u8>) -> PublicKeyRef {
     PublicKeyRef {
         alg: CredentialAlgorithm::Ed25519,
         reference: KeyReference::DidVerificationMethod(did_url.into()),
         public_key: PublicKeyRepresentation::Raw {
             serialization: RawPublicKeySerialization::FixedWidth,
-            bytes: vec![marker; 32],
+            bytes,
         },
         assurance: KeyAssurance::None,
     }
@@ -153,7 +158,7 @@ fn p256_issuance_emits_and_validates_atomic_proof_binding() {
     claims.insert("age".into(), serde_json::json!(42));
 
     let result = issue_credential(
-        p256_input(issuer_public, holder_public),
+        p256_input(issuer_public.clone(), holder_public),
         &claims,
         CryptoAlgorithm::P256,
         &issuer_private,
@@ -162,7 +167,13 @@ fn p256_issuance_emits_and_validates_atomic_proof_binding() {
     .unwrap();
     let binding = result.proof_binding.as_ref().unwrap();
 
-    validate_credential_proof_binding(&result.envelope, &result.subject_bundle, binding).unwrap();
+    validate_credential_proof_binding(
+        &result.envelope,
+        &result.subject_bundle,
+        binding,
+        &issuer_public,
+    )
+    .unwrap();
     assert_eq!(binding.version, 1);
     assert_ne!(binding.issuance_binding, [0_u8; 32]);
     assert_ne!(
@@ -197,7 +208,7 @@ fn proof_binding_rejects_cross_credential_transplantation() {
     )
     .unwrap();
     let second = issue_credential(
-        p256_input(issuer_public, holder_b_public),
+        p256_input(issuer_public.clone(), holder_b_public),
         &claims_b,
         CryptoAlgorithm::P256,
         &issuer_private,
@@ -205,12 +216,45 @@ fn proof_binding_rejects_cross_credential_transplantation() {
     )
     .unwrap();
 
-    assert!(validate_credential_proof_binding(
-        &second.envelope,
-        &second.subject_bundle,
-        first.proof_binding.as_ref().unwrap(),
+    assert_eq!(
+        validate_credential_proof_binding(
+            &second.envelope,
+            &second.subject_bundle,
+            first.proof_binding.as_ref().unwrap(),
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingMismatch)
+    );
+}
+
+#[test]
+fn proof_binding_rejects_an_attacker_controlled_embedded_issuer_key() {
+    let (trusted_issuer_public, _trusted_issuer_private) =
+        generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let (attacker_public, attacker_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let (holder_public, _holder_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let mut claims = BTreeMap::new();
+    claims.insert("age".into(), serde_json::json!(42));
+    let mut rng = OsSaltRng;
+
+    let forged = issue_credential(
+        p256_input(attacker_public, holder_public),
+        &claims,
+        CryptoAlgorithm::P256,
+        &attacker_private,
+        &mut rng,
     )
-    .is_err());
+    .unwrap();
+
+    assert!(matches!(
+        validate_credential_proof_binding(
+            &forged.envelope,
+            &forged.subject_bundle,
+            forged.proof_binding.as_ref().unwrap(),
+            &trusted_issuer_public,
+        ),
+        Err(VcError::ProofBindingTrustedIssuerMismatch)
+    ));
 }
 
 #[test]
@@ -221,7 +265,7 @@ fn proof_binding_rejects_tampered_root_subject_and_signatures() {
     let mut claims = BTreeMap::new();
     claims.insert("age".into(), serde_json::json!(42));
     let result = issue_credential(
-        p256_input(issuer_public, holder_public),
+        p256_input(issuer_public.clone(), holder_public),
         &claims,
         CryptoAlgorithm::P256,
         &issuer_private,
@@ -231,30 +275,39 @@ fn proof_binding_rejects_tampered_root_subject_and_signatures() {
 
     let mut wrong_root = result.proof_binding.as_ref().unwrap().clone();
     wrong_root.claims_root[0] ^= 1;
-    assert!(validate_credential_proof_binding(
-        &result.envelope,
-        &result.subject_bundle,
-        &wrong_root,
-    )
-    .is_err());
+    assert_eq!(
+        validate_credential_proof_binding(
+            &result.envelope,
+            &result.subject_bundle,
+            &wrong_root,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingMismatch)
+    );
 
     let mut wrong_subject = result.proof_binding.as_ref().unwrap().clone();
     wrong_subject.subject_public_key_x[0] ^= 1;
-    assert!(validate_credential_proof_binding(
-        &result.envelope,
-        &result.subject_bundle,
-        &wrong_subject,
-    )
-    .is_err());
+    assert_eq!(
+        validate_credential_proof_binding(
+            &result.envelope,
+            &result.subject_bundle,
+            &wrong_subject,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingMismatch)
+    );
 
     let mut wrong_signature = result.proof_binding.as_ref().unwrap().clone();
     wrong_signature.issuer_root_binding_signature[0] ^= 1;
-    assert!(validate_credential_proof_binding(
-        &result.envelope,
-        &result.subject_bundle,
-        &wrong_signature,
-    )
-    .is_err());
+    assert_eq!(
+        validate_credential_proof_binding(
+            &result.envelope,
+            &result.subject_bundle,
+            &wrong_signature,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingSignatureInvalid)
+    );
 }
 
 #[test]
@@ -361,14 +414,17 @@ fn issuance_rejects_empty_validity_window() {
 #[test]
 fn issuance_builds_verifiable_trees_for_non_power_of_two_claim_counts() {
     for claim_count in [1_usize, 3, 5, 6, 7] {
-        let (_issuer_public, issuer_private) = generate_keypair(CryptoAlgorithm::Ed25519).unwrap();
+        let (issuer_public, issuer_private) = generate_keypair(CryptoAlgorithm::Ed25519).unwrap();
         let mut claims = BTreeMap::new();
         for index in 0..claim_count {
             claims.insert(format!("claim{index}"), serde_json::json!(index));
         }
 
+        let mut input = base_input();
+        input.issuer_verification_key =
+            ed25519_key_bytes("did:test:issuer#key-1", issuer_public.clone());
         let issued = issue_credential(
-            base_input(),
+            input,
             &claims,
             CryptoAlgorithm::Ed25519,
             &issuer_private,
@@ -377,9 +433,11 @@ fn issuance_builds_verifiable_trees_for_non_power_of_two_claim_counts() {
         .unwrap();
 
         assert_eq!(issued.subject_bundle.claims.len(), claim_count);
-        reallyme_credential::committed::verify::verify_merkle_only(
+        reallyme_credential::committed::verify::verify_credential(
             &issued.envelope,
-            &issued.subject_bundle,
+            CryptoAlgorithm::Ed25519,
+            &issuer_public,
+            Some(&issued.subject_bundle),
         )
         .unwrap();
     }

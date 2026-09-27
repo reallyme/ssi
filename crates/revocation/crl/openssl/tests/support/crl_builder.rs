@@ -39,6 +39,18 @@ pub struct TestCa {
 }
 
 pub fn test_ca(common_name: &str) -> TestCa {
+    test_issuer_profile(common_name, true, true)
+}
+
+pub fn test_ca_with_crl_sign(common_name: &str, crl_sign: bool) -> TestCa {
+    test_issuer_profile(common_name, true, crl_sign)
+}
+
+pub fn test_non_ca_with_crl_sign(common_name: &str) -> TestCa {
+    test_issuer_profile(common_name, false, true)
+}
+
+fn test_issuer_profile(common_name: &str, is_ca: bool, crl_sign: bool) -> TestCa {
     let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
     let key = PKey::from_ec_key(EcKey::generate(&group).unwrap()).unwrap();
 
@@ -60,18 +72,21 @@ pub fn test_ca(common_name: &str) -> TestCa {
         .set_not_after(&Asn1Time::from_unix(2_100_000_000).unwrap())
         .unwrap();
     builder.set_pubkey(&key).unwrap();
+    let mut basic_constraints = BasicConstraints::new();
+    basic_constraints.critical();
+    if is_ca {
+        basic_constraints.ca();
+    }
     builder
-        .append_extension(BasicConstraints::new().critical().ca().build().unwrap())
+        .append_extension(basic_constraints.build().unwrap())
         .unwrap();
+    let mut key_usage = KeyUsage::new();
+    key_usage.critical().key_cert_sign();
+    if crl_sign {
+        key_usage.crl_sign();
+    }
     builder
-        .append_extension(
-            KeyUsage::new()
-                .critical()
-                .key_cert_sign()
-                .crl_sign()
-                .build()
-                .unwrap(),
-        )
+        .append_extension(key_usage.build().unwrap())
         .unwrap();
     let ski = SubjectKeyIdentifier::new()
         .build(&builder.x509v3_context(None, None))
@@ -144,7 +159,7 @@ fn tlv(tag: u8, content: &[u8]) -> Vec<u8> {
     } else {
         let bytes = u32::try_from(len).unwrap().to_be_bytes();
         let first = bytes.iter().position(|b| *b != 0).unwrap();
-        let significant = &bytes[first..];
+        let significant = bytes.get(first..).expect("first significant byte exists");
         out.push(0x80 | u8::try_from(significant.len()).unwrap());
         out.extend_from_slice(significant);
     }

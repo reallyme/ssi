@@ -24,10 +24,17 @@ inputs to a conformance run.
 Generated reports are release evidence rather than source metadata. The package
 preflight workflow generates them from a clean release commit, uploads the
 hashed bundle as a workflow artifact, and the release workflow attaches the
-same bundle to the GitHub release. Reviewed bundles are retained by
-`reallyme/identity-conformance`; they are deliberately not committed here
+same bundle to the GitHub release. They are deliberately not committed here
 because a commit cannot truthfully contain evidence stamped with its own commit
 identifier.
+
+The package-preflight artifact is retained for 90 days. The copy attached to a
+GitHub release follows the release's retention lifecycle. This repository does
+not import evidence into another repository. A separate conformance system may
+consume the release attachment and pin its source commit, but that transfer is
+outside these workflows. Pull-request and branch CI also generates the bundle
+to exercise the generator, but does not retain that non-release output after
+the workflow run.
 
 Protocol, wallet, SDK, and concrete ZK conformance suites belong in their owning
 repositories and should be referenced here only as explicit upstream or external
@@ -48,7 +55,12 @@ coverage fails fast.
 
 `conformance/upstream/sources.lock` pins normative source documents, while
 `conformance/upstream/tests.json` records upstream reference tests and portable
-external vector sources.
+external vector sources. Dependency-owned test names are accepted only with an
+exact Git commit, crates.io checksum, test-binary mapping, and executable Cargo
+command. Rust CI checks out those immutable sources, verifies every mapped test
+symbol and polarity, executes the named binaries, and records a result bound to
+the exact SSI commit. Release evidence generation rejects a missing, stale, or
+failed upstream result.
 
 ## Concept Inventory
 

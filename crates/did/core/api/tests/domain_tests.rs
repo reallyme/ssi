@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
 use reallyme_did_api::{
     validate_did_domain, validate_domain_bindings, validate_single_domain_binding,

@@ -20,6 +20,7 @@ use crate::IdentityCoreError;
 /// All external representations MUST be handled by
 /// `algorithm_map.rs`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Algorithm {
     /// Ed25519 signing keys.
     Ed25519,

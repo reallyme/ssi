@@ -68,8 +68,9 @@ pub(crate) fn validate_extensions(
         if reserved_names.contains(&extension.name()) {
             return Err(invalid(MdocInvalidInputReason::DuplicateMsoStatusMember));
         }
-        if extensions[..index]
+        if extensions
             .iter()
+            .take(index)
             .any(|existing| existing.name() == extension.name())
         {
             return Err(invalid(MdocInvalidInputReason::DuplicateMsoStatusMember));

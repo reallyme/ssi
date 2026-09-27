@@ -104,9 +104,15 @@
       "url": "https://www.rfc-editor.org/rfc/rfc5280.html"
     },
     {
+      "id": "RFC6960",
+      "title": "X.509 Internet Public Key Infrastructure Online Certificate Status Protocol - OCSP",
+      "version": "June 2013",
+      "url": "https://www.rfc-editor.org/rfc/rfc6960.html"
+    },
+    {
       "id": "RFC9901",
       "title": "Selective Disclosure for JWTs (SD-JWT)",
-      "version": "2025",
+      "version": "November 2025",
       "url": "https://www.rfc-editor.org/rfc/rfc9901.html"
     },
     {

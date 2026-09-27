@@ -20,8 +20,17 @@ use ciborium::value::Value;
 use std::io::Cursor;
 
 const MAX_SIGNED_ENVELOPE_BYTES: usize = 1024 * 1024;
+const MAX_CANONICAL_CREDENTIAL_BYTES: usize = 960 * 1024;
 const MAX_VERIFICATION_KEY_BYTES: usize = 64 * 1024;
 const MAX_SIGNATURE_BYTES: usize = 8192;
+
+fn validate_nonempty_bounded_length(value: &[u8], maximum: usize) -> Result<(), VcError> {
+    if value.is_empty() || value.len() > maximum {
+        Err(VcError::InvalidCredential)
+    } else {
+        Ok(())
+    }
+}
 
 /// A self-contained “signed envelope” wrapper.
 ///
@@ -36,9 +45,7 @@ const MAX_SIGNATURE_BYTES: usize = 8192;
 /// Verification is: verify(sig, vc_canon).
 pub fn encode_signed_envelope_cbor(envelope: &CredentialEnvelope) -> Result<Vec<u8>, VcError> {
     let vc_canon = canonical_credential_bytes(envelope).map_err(|_| VcError::Canonicalization)?;
-    if vc_canon.is_empty() || vc_canon.len() > MAX_SIGNED_ENVELOPE_BYTES {
-        return Err(VcError::InvalidCredential);
-    }
+    validate_nonempty_bounded_length(&vc_canon, MAX_CANONICAL_CREDENTIAL_BYTES)?;
 
     let sig = &envelope.issuer_signature;
     if sig.raw_rs.is_empty()
@@ -57,9 +64,7 @@ pub fn encode_signed_envelope_cbor(envelope: &CredentialEnvelope) -> Result<Vec<
         return Err(VcError::InvalidCredential);
     }
     let verification_key = public_key_ref_to_proto(&sig.verification_key).encode_to_vec();
-    if verification_key.is_empty() || verification_key.len() > MAX_VERIFICATION_KEY_BYTES {
-        return Err(VcError::InvalidCredential);
-    }
+    validate_nonempty_bounded_length(&verification_key, MAX_VERIFICATION_KEY_BYTES)?;
 
     let value = CborValue::Map(vec![
         ("vc_canon".into(), CborValue::Bytes(vc_canon)),
@@ -73,7 +78,7 @@ pub fn encode_signed_envelope_cbor(envelope: &CredentialEnvelope) -> Result<Vec<
     encode_dag_cbor(&value).map_err(|_| VcError::Canonicalization)
 }
 
-/// Extract (canonical bytes, signature) from the signed envelope wrapper.
+/// Extracts (canonical bytes, signature) from the signed envelope wrapper.
 ///
 /// This is **interop CBOR decoding**:
 /// - accepts valid CBOR
@@ -82,9 +87,7 @@ pub fn encode_signed_envelope_cbor(envelope: &CredentialEnvelope) -> Result<Vec<
 ///
 /// Canonicality is guaranteed by the encoder side.
 pub fn decode_signed_envelope_cbor(bytes: &[u8]) -> Result<(Vec<u8>, Signature), VcError> {
-    if bytes.is_empty() || bytes.len() > MAX_SIGNED_ENVELOPE_BYTES {
-        return Err(VcError::InvalidCredential);
-    }
+    validate_nonempty_bounded_length(bytes, MAX_SIGNED_ENVELOPE_BYTES)?;
     let mut reader = Cursor::new(bytes);
     let v: Value = from_reader(&mut reader).map_err(|_| VcError::InvalidCredential)?;
     let consumed = usize::try_from(reader.position()).map_err(|_| VcError::InvalidCredential)?;
@@ -108,20 +111,23 @@ pub fn decode_signed_envelope_cbor(bytes: &[u8]) -> Result<(Vec<u8>, Signature),
         };
 
         match (key.as_str(), val) {
-            ("vc_canon", Value::Bytes(value)) if vc_canon.is_none() => {
-                if value.is_empty() || value.len() > MAX_SIGNED_ENVELOPE_BYTES {
+            ("vc_canon", Value::Bytes(value)) => {
+                validate_nonempty_bounded_length(&value, MAX_CANONICAL_CREDENTIAL_BYTES)?;
+                if vc_canon.is_some() {
                     return Err(VcError::InvalidCredential);
                 }
                 vc_canon = Some(value);
             }
-            ("verification_key", Value::Bytes(value)) if verification_key.is_none() => {
-                if value.is_empty() || value.len() > MAX_VERIFICATION_KEY_BYTES {
+            ("verification_key", Value::Bytes(value)) => {
+                validate_nonempty_bounded_length(&value, MAX_VERIFICATION_KEY_BYTES)?;
+                if verification_key.is_some() {
                     return Err(VcError::InvalidCredential);
                 }
                 verification_key = Some(value);
             }
-            ("sig", Value::Bytes(value)) if sig_bytes.is_none() => {
-                if value.is_empty() || value.len() > MAX_SIGNATURE_BYTES {
+            ("sig", Value::Bytes(value)) => {
+                validate_nonempty_bounded_length(&value, MAX_SIGNATURE_BYTES)?;
+                if sig_bytes.is_some() {
                     return Err(VcError::InvalidCredential);
                 }
                 sig_bytes = Some(value);

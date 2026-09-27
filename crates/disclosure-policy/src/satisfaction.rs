@@ -25,6 +25,7 @@ pub struct DerivationPlan {
 
 /// How a verifier request can be satisfied before format-specific proof work.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SatisfactionPlan {
     /// Satisfy the request by disclosing credential claims.
     Disclose(Vec<RequiredClaim>),

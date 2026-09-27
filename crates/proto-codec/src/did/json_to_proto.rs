@@ -28,7 +28,7 @@ pub fn json_to_proto(doc: &DIDDocument) -> Result<PbDIDDocument, DidProtoCodecEr
 
     let mut out = PbDIDDocument {
         id: doc.id.clone(),
-        controller: MessageField::some(controller_to_value(&doc.controller)),
+        controller: MessageField::some(controller_to_value(&doc.controller)?),
         context: doc.context.clone(),
         also_known_as: doc.also_known_as.clone(),
         biometric_protected: doc.biometric_protected,
@@ -83,13 +83,13 @@ pub fn json_to_proto(doc: &DIDDocument) -> Result<PbDIDDocument, DidProtoCodecEr
     Ok(out)
 }
 
-fn controller_to_value(controller: &Controller) -> Value {
+fn controller_to_value(controller: &Controller) -> Result<Value, DidProtoCodecError> {
     match controller {
-        Controller::Single(value) => Value {
+        Controller::Single(value) => Ok(Value {
             kind: Some(Kind::StringValue(value.clone())),
             ..Value::default()
-        },
-        Controller::Multiple(values) => Value {
+        }),
+        Controller::Multiple(values) => Ok(Value {
             kind: Some(Kind::ListValue(Box::new(ListValue {
                 values: values
                     .iter()
@@ -101,6 +101,7 @@ fn controller_to_value(controller: &Controller) -> Value {
                 ..ListValue::default()
             }))),
             ..Value::default()
-        },
+        }),
+        _ => Err(DidProtoCodecError::InvalidController),
     }
 }

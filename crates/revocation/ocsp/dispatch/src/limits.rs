@@ -8,9 +8,6 @@ pub(crate) const MAX_OCSP_RESPONSE_DER_BYTES: usize = 1_048_576;
 pub(crate) const MAX_OCSP_CERTIFICATE_DER_BYTES: usize = 65_536;
 pub(crate) const MAX_OCSP_EXTRA_CERTIFICATES: usize = 10;
 pub(crate) const MAX_OCSP_EXTRA_CERTIFICATE_DER_BYTES: usize = 655_360;
-#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
-pub(crate) const MAX_OCSP_HOST_RESPONSE_JSON_BYTES: usize = 1_048_576;
-
 pub(crate) fn validate_ocsp_inputs(
     ocsp_response_der: &[u8],
     cert_der: &[u8],

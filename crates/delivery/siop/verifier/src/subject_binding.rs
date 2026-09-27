@@ -49,13 +49,14 @@ pub(crate) fn verify_subject_binding(
     claims: &SiopIdTokenClaims,
     kid: Option<&str>,
     verifying_jwk: &Jwk,
+    did_authentication_authorized: bool,
 ) -> Result<(), SiopVerifierError> {
     if claims.iss != claims.sub {
         return Err(SiopVerifierError::SubjectMismatch);
     }
 
     if claims.sub.starts_with(DID_SUBJECT_PREFIX) {
-        verify_did_subject(claims, kid)
+        verify_did_subject(claims, kid, did_authentication_authorized)
     } else {
         verify_jwk_thumbprint_subject(claims, verifying_jwk)
     }
@@ -64,6 +65,7 @@ pub(crate) fn verify_subject_binding(
 fn verify_did_subject(
     claims: &SiopIdTokenClaims,
     kid: Option<&str>,
+    authentication_authorized: bool,
 ) -> Result<(), SiopVerifierError> {
     if claims.sub_jwk.is_some() {
         return Err(SiopVerifierError::SubjectMismatch);
@@ -72,7 +74,7 @@ fn verify_did_subject(
     let (did, fragment) = kid
         .split_once(DID_URL_FRAGMENT_SEPARATOR)
         .ok_or(SiopVerifierError::SubjectMismatch)?;
-    if fragment.is_empty() || did != claims.sub {
+    if fragment.is_empty() || did != claims.sub || !authentication_authorized {
         return Err(SiopVerifierError::SubjectMismatch);
     }
     Ok(())

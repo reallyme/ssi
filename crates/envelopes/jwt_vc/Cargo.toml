@@ -4,7 +4,7 @@
 
 [package]
 name = "envelopes-jwt-vc"
-version = "0.2.0"
+version = "0.3.0"
 description = "JWT-VC identity envelope helpers for ReallyMe identity."
 edition.workspace = true
 rust-version.workspace = true
@@ -25,11 +25,12 @@ jwt-vc-crypto = [
 
 [dependencies]
 reallyme-ssi-proto = { workspace = true }
-reallyme-codec = { workspace = true, features = ["base64url"] }
+reallyme-codec = { workspace = true, features = ["base64url", "cbor"] }
 reallyme-crypto = { workspace = true }
 reallyme-jose = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
+zeroize = { workspace = true, features = ["derive"] }
 
 [lints]
 workspace = true

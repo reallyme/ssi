@@ -139,11 +139,15 @@ fn portable_mdoc_issuer_signed_vector_matches_value_digests() {
             signed: case["validity_info"]["signed"].as_u64().unwrap(),
             valid_from: case["validity_info"]["valid_from"].as_u64().unwrap(),
             valid_until: case["validity_info"]["valid_until"].as_u64().unwrap(),
+            expected_update: None,
         },
         device_cose_key(&device_public_key),
     );
 
-    let (document, mobile_security_object) = reallyme_mdoc::issue::build_mso_mdoc_with_random(&cfg, &elements, &signer, &mut VectorRandom(0)).unwrap();
+    let mut random = IssuerSignedVectorRandom { call: 0 };
+    let (document, mobile_security_object) =
+        reallyme_mdoc::issue::build_mso_mdoc_with_random(&cfg, &elements, &signer, &mut random)
+            .unwrap();
     verify_issuer_signed_mdoc(
         &document,
         resolver_for_kid(kid, issuer_public_key),
@@ -186,6 +190,44 @@ fn portable_mdoc_issuer_signed_vector_matches_value_digests() {
     }
 }
 
+/// Supplies the exact digest identifiers and fresh randomizers recorded in
+/// the portable vector. Production issuance never consumes the legacy
+/// caller-provided `MdocElement::random` field.
+struct IssuerSignedVectorRandom {
+    call: usize,
+}
+
+impl reallyme_crypto::csprng::SecureRandom for IssuerSignedVectorRandom {
+    // A request outside the fixed vector is a broken test fixture, not a recoverable runtime case.
+    #[allow(clippy::panic)]
+    fn fill_secure(
+        &mut self,
+        output: &mut [u8],
+        _: reallyme_crypto::core::RngOutputKind,
+    ) -> Result<(), reallyme_crypto::core::CryptoError> {
+        match self.call {
+            0 | 2 => {
+                assert_eq!(output.len(), 8);
+                output.fill(0);
+                if let Some(last) = output.last_mut() {
+                    *last = if self.call == 0 { 1 } else { 2 };
+                }
+            }
+            1 => {
+                assert_eq!(output.len(), 16);
+                output.fill(1);
+            }
+            3 => {
+                assert_eq!(output.len(), 16);
+                output.fill(2);
+            }
+            _ => panic!("unexpected random request in portable mdoc vector"),
+        }
+        self.call = self.call.saturating_add(1);
+        Ok(())
+    }
+}
+
 #[test]
 fn verification_rejects_authenticated_unsupported_mso_version_and_digest_algorithm() {
     let (issuer_public_key, issuer_private_key) = issuer_keys();
@@ -198,7 +240,7 @@ fn verification_rejects_authenticated_unsupported_mso_version_and_digest_algorit
         ),
         (
             "digestAlgorithm",
-            "SHA-512",
+            "SHA-1",
             MdocInvalidInputReason::UnsupportedDigestAlgorithm,
         ),
     ];
@@ -221,6 +263,35 @@ fn verification_rejects_authenticated_unsupported_mso_version_and_digest_algorit
             error,
             Some(MdocEnvelopeError::InvalidInput(expected_reason))
         );
+    }
+}
+
+#[test]
+fn issuance_and_verification_support_iso_sha384_and_sha512_value_digests() {
+    let (issuer_public_key, issuer_private_key) = issuer_keys();
+    let kid = b"issuer-kid-1";
+
+    for (algorithm, expected_length) in [(DIGEST_ALG_SHA384, 48), (DIGEST_ALG_SHA512, 64)] {
+        let signer = CoseIssuerAuthSigner {
+            alg: Algorithm::Ed25519,
+            private_key: issuer_private_key.as_slice(),
+            kid: Some(kid),
+        };
+        let mut config = valid_config();
+        config.digest_algorithm = algorithm.to_owned();
+        let (document, mso) = build_mso_mdoc(&config, &sample_elements(), &signer).unwrap();
+
+        assert!(mso
+            .value_digests
+            .values()
+            .flat_map(|namespace| namespace.values())
+            .all(|digest| digest.len() == expected_length));
+        verify_issuer_signed_mdoc(
+            &document,
+            resolver_for_kid(kid.to_vec(), issuer_public_key.clone()),
+            1_700_000_001,
+        )
+        .unwrap();
     }
 }
 
@@ -290,6 +361,7 @@ fn issuer_signed_transport_embeds_es256_x5chain_cose() {
             signed: 1_700_000_000,
             valid_from: 1_700_000_000,
             valid_until: 1_800_000_000,
+            expected_update: None,
         },
         device_key.to_vec(),
     );
@@ -330,29 +402,49 @@ fn issuer_signed_transport_embeds_es256_x5chain_cose() {
     );
     let verified = validate_x5chain_issuer_auth(
         &document.issuer_signed.issuer_auth,
-        |presented_certificates| {
+        |presented_certificates, signing_time_unix| {
+            assert_eq!(signing_time_unix, 1_700_000_000);
             (presented_certificates == certificates.as_slice())
-                .then(|| issuer_public_key.clone())
+                .then(|| trusted_path(issuer_public_key.clone()))
         },
     )
     .unwrap();
     assert_eq!(verified.x5chain_der, certificates);
+    let invalid_certificate_time = validate_x5chain_issuer_auth(
+        &document.issuer_signed.issuer_auth,
+        |presented_certificates, signing_time_unix| {
+            assert_eq!(signing_time_unix, 1_700_000_000);
+            (presented_certificates == certificates.as_slice()).then(|| {
+                MdocCertificatePathValidation {
+                    public_key: issuer_public_key.clone(),
+                    not_before_unix: 1_600_000_000,
+                    not_after_unix: 1_699_999_999,
+                }
+            })
+        },
+    );
+    assert!(matches!(
+        invalid_certificate_time,
+        Err(MdocEnvelopeError::InvalidSignature)
+    ));
     let verified_receipt = verify_issuer_signed_mdoc_receipt_with_x5chain(
         &document,
-        |presented_certificates| {
+        |presented_certificates, signing_time_unix| {
+            assert_eq!(signing_time_unix, 1_700_000_000);
             (presented_certificates == certificates.as_slice())
-                .then(|| issuer_public_key.clone())
+                .then(|| trusted_path(issuer_public_key.clone()))
         },
         1_750_000_000,
     )
     .unwrap();
-    assert_eq!(verified_receipt.doc_type, "eu.europa.ec.eudi.pid.1");
+    assert_eq!(verified_receipt.doc_type(), "eu.europa.ec.eudi.pid.1");
     assert_eq!(
         verify_issuer_signed_mdoc_receipt_with_x5chain(
             &document,
-            |presented_certificates| {
+            |presented_certificates, signing_time_unix| {
+                assert_eq!(signing_time_unix, 1_700_000_000);
                 (presented_certificates == certificates.as_slice())
-                    .then(|| issuer_public_key.clone())
+                    .then(|| trusted_path(issuer_public_key.clone()))
             },
             1_800_000_000,
         )
@@ -398,12 +490,12 @@ fn issues_and_verifies_issuer_signed_mdoc() {
         .unwrap();
 
     assert_eq!(document.doc_type, "org.iso.18013.5.1.mDL");
-    assert_eq!(verified.doc_type, document.doc_type);
+    assert_eq!(verified.doc_type(), document.doc_type);
     assert_eq!(
-        verified.mobile_security_object.doc_type,
+        verified.mobile_security_object().doc_type,
         mobile_security_object.doc_type
     );
-    assert!(verified.namespaces.is_some());
+    assert!(verified.namespaces().is_some());
     assert_eq!(
         mobile_security_object
             .value_digests
@@ -511,6 +603,7 @@ fn issuance_rejects_invalid_validity_window() {
             signed: 10,
             valid_from: 20,
             valid_until: 19,
+            expected_update: None,
         },
         device_cose_key(&device_public_key),
     );
@@ -683,88 +776,5 @@ fn issuance_rejects_oversized_single_and_aggregate_element_values() {
     assert_eq!(
         aggregate_error,
         MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::TotalElementValuesTooLarge)
-    );
-}
-
-#[test]
-fn iso23220_relationship_accepts_clause_cddl_shape() {
-    let encoded = ciborium_bytes(&CiboriumValue::Array(vec![CiboriumValue::Map(vec![
-        (
-            CiboriumValue::Text("family_name".to_owned()),
-            CiboriumValue::Text("Example".to_owned()),
-        ),
-        (
-            CiboriumValue::Text("birth_date".to_owned()),
-            CiboriumValue::Map(vec![(
-                CiboriumValue::Text("birth_date".to_owned()),
-                CiboriumValue::Text("2000-01-01".to_owned()),
-            )]),
-        ),
-    ])]));
-
-    let value = parse_iso23220_relationship_value(&encoded).unwrap();
-    assert_eq!(value.relationship_count(), 1);
-    let element = iso23220_relationship_element(
-        Iso23220RelationshipKind::LegalRepresentative,
-        value,
-        vec![7_u8; 16],
-    )
-    .unwrap();
-
-    assert_eq!(element.namespace, ISO_23220_NAMESPACE);
-    assert_eq!(element.element_identifier, "legal_representative");
-    assert_eq!(element.element_value_cbor, encoded);
-}
-
-#[test]
-fn iso23220_relationship_accepts_empty_personal_data_map() {
-    let encoded = ciborium_bytes(&CiboriumValue::Array(vec![CiboriumValue::Map(vec![])]));
-
-    let value = parse_iso23220_relationship_value(&encoded).unwrap();
-
-    assert_eq!(value.relationship_count(), 1);
-    assert_eq!(value.as_cbor(), encoded);
-}
-
-#[test]
-fn iso23220_relationship_rejects_table_text_array_shape() {
-    let encoded = ciborium_bytes(&CiboriumValue::Array(vec![CiboriumValue::Text(
-        "family_name".to_owned(),
-    )]));
-
-    let error = match parse_iso23220_relationship_value(&encoded) {
-        Ok(_) => MdocEnvelopeError::UnsupportedOperation,
-        Err(error) => error,
-    };
-
-    assert_eq!(
-        error,
-        MdocEnvelopeError::InvalidInput(MdocInvalidInputReason::MalformedIso23220Relationship)
-    );
-}
-
-#[test]
-fn iso23220_relationship_rejects_duplicate_personal_data_identifier() {
-    let encoded = ciborium_bytes(&CiboriumValue::Array(vec![CiboriumValue::Map(vec![
-        (
-            CiboriumValue::Text("family_name".to_owned()),
-            CiboriumValue::Text("First".to_owned()),
-        ),
-        (
-            CiboriumValue::Text("family_name".to_owned()),
-            CiboriumValue::Text("Second".to_owned()),
-        ),
-    ])]));
-
-    let error = match parse_iso23220_relationship_value(&encoded) {
-        Ok(_) => MdocEnvelopeError::UnsupportedOperation,
-        Err(error) => error,
-    };
-
-    assert_eq!(
-        error,
-        MdocEnvelopeError::InvalidInput(
-            MdocInvalidInputReason::DuplicateIso23220PersonalDataIdentifier
-        )
     );
 }

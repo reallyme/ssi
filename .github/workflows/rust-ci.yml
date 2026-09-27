@@ -9,19 +9,9 @@ on:
   pull_request:
     paths-ignore:
       - "**/*.md"
-      - "docs/**"
-      - "LICENSE-MIT"
-      - "LICENSE-APACHE"
-      - ".github/renovate.json"
   push:
     branches:
       - main
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE-MIT"
-      - "LICENSE-APACHE"
-      - ".github/renovate.json"
 
 permissions:
   contents: read
@@ -30,8 +20,138 @@ env:
   CARGO_AUDIT_VERSION: 0.22.2
   CARGO_DENY_VERSION: 0.20.2
   CARGO_NEXTEST_VERSION: 0.9.140
+  CARGO_SEMVER_CHECKS_VERSION: 0.50.0
+  CARGO_MUTANTS_VERSION: 27.1.0
 
 jobs:
+  msrv:
+    name: Minimum supported Rust version
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout SSI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: reallyme/ssi
+          persist-credentials: false
+
+      - name: Install minimum supported Rust toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.96.0
+
+      - name: Check the native workspace at the declared MSRV
+        working-directory: reallyme/ssi
+        run: cargo check --locked --workspace --no-default-features --features native
+
+  fuzz-build:
+    name: Build fuzz targets
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout SSI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: reallyme/ssi
+          persist-credentials: false
+
+      - name: Install pinned nightly toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: nightly-2026-09-01
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
+
+      - name: Build every fuzz target
+        working-directory: reallyme/ssi
+        run: cargo +nightly-2026-09-01 fuzz build
+
+  security-mutations:
+    name: Security mutation gate (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: oauth-dpop
+            package: reallyme-openid-oauth
+            file: crates/oauth/src/dpop.rs
+            examine: 'Dpop(?:Header|Claims|Proof)::validate|validate_dpop_public_jwk'
+          - name: sd-jwt-holder-binding
+            package: reallyme-sd-jwt
+            file: crates/envelopes/sd_jwt/src/holder_binding.rs
+            examine: 'verify_key_binding_jwt|KeyBindingVerificationOptions.*validate|validate_key_binding_confirmation'
+          - name: status-freshness
+            package: reallyme-credential-status
+            file: crates/status/src/token_status_list/check_freshness.rs
+            examine: check_freshness
+          - name: credential-envelope
+            package: reallyme-credential
+            file: crates/credential/src/committed/signed_envelope.rs
+            examine: 'decode_signed_envelope_cbor|validate_nonempty_bounded_length'
+          - name: revocation-composite
+            package: reallyme-revocation
+            file: crates/revocation/src/composite.rs
+            examine: 'CompositeStatusChecker.*check|handle_non_terminal'
+          - name: presentation-decision
+            package: reallyme-vp-api
+            file: crates/presentation/api/src/commands/decision.rs
+            examine: decision_from_checks
+    steps:
+      - name: Checkout SSI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: reallyme/ssi
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.98.1
+
+      - name: Install cargo-mutants
+        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        with:
+          tool: cargo-mutants@${{ env.CARGO_MUTANTS_VERSION }}
+
+      - name: Require security tests to kill mutations
+        working-directory: reallyme/ssi
+        run: >-
+          cargo mutants --package "${{ matrix.package }}"
+          --file "${{ matrix.file }}" --examine-re '${{ matrix.examine }}'
+          --timeout 300 --jobs 2
+
+  semver:
+    name: Public API semver
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout SSI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: reallyme/ssi
+          persist-credentials: false
+
+      # cargo-semver-checks consumes rustdoc JSON, whose schema follows the
+      # compiler. Pin both so an upstream toolchain release cannot change the
+      # release gate without a reviewed repository change.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.98.1
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: reallyme/ssi
+
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        with:
+          tool: cargo-semver-checks@${{ env.CARGO_SEMVER_CHECKS_VERSION }}
+
+      - name: Check planned public crate versions against crates.io
+        working-directory: reallyme/ssi
+        run: cargo semver-checks check-release --workspace --release-type minor
+
   rust:
     name: fmt, lint, test, dependency policy
     runs-on: ubuntu-24.04
@@ -40,6 +160,22 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: reallyme/ssi
+          persist-credentials: false
+
+      - name: Checkout pinned JOSE conformance source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: reallyme/jose
+          ref: 0d5f809d175fb9a10765bbfa50df8fc7c24b43ec
+          path: reallyme/jose
+          persist-credentials: false
+
+      - name: Checkout pinned COSE conformance source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: reallyme/cose
+          ref: 92932a57ad4dd99d9d00b1a8ac521fdec998abe6
+          path: reallyme/cose
           persist-credentials: false
 
       - name: Checkout shared protobuf contracts
@@ -126,9 +262,44 @@ jobs:
         working-directory: reallyme/ssi
         run: sh scripts/check-protos-fresh.sh
 
+      - name: Check protobuf wire compatibility
+        working-directory: reallyme/ssi
+        run: scripts/check-protos-breaking.sh "$(git describe --tags --match 'reallyme-ssi-v*' --abbrev=0 HEAD^)"
+
       - name: Check conformance requirement coverage
         working-directory: reallyme/ssi
         run: node scripts/check_conformance_coverage.mjs
+
+      - name: Execute pinned upstream conformance evidence
+        working-directory: reallyme/ssi
+        run: >-
+          node scripts/run_upstream_conformance_tests.mjs
+          --source reallyme-jose=../jose
+          --source reallyme-cose=../cose
+          --output "${RUNNER_TEMP}/upstream-conformance.json"
+
+      - name: Check copied fixtures match canonical vectors
+        working-directory: reallyme/ssi
+        run: node scripts/check_fixture_copies.mjs
+
+      - name: Check public API evolution policy
+        working-directory: reallyme/ssi
+        run: node scripts/check_public_api_evolution.mjs
+
+      - name: Generate conformance evidence from the clean CI commit
+        working-directory: reallyme/ssi
+        run: >-
+          node scripts/generate_conformance_reports.mjs
+          --output-dir "${RUNNER_TEMP}/ssi-conformance"
+          --upstream-results "${RUNNER_TEMP}/upstream-conformance.json"
+
+      - name: Upload exact-source upstream conformance result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reallyme-ssi-upstream-conformance-${{ github.sha }}
+          path: ${{ runner.temp }}/upstream-conformance.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Check all features with warnings denied
         working-directory: reallyme/ssi
@@ -148,9 +319,31 @@ jobs:
         working-directory: reallyme/ssi
         run: node scripts/run_bounded_nextest.mjs all-features
 
+      - name: Test workspace default features
+        working-directory: reallyme/ssi
+        run: node scripts/run_bounded_nextest.mjs default
+
+      - name: Test OpenSSL crates without workspace feature unification
+        working-directory: reallyme/ssi
+        run: |
+          set -euo pipefail
+          for package in \
+            identity-revocation-crl-openssl \
+            identity-revocation-ocsp-openssl \
+            identity-trust-openssl \
+            identity-trust-tsl-openssl; do
+            cargo nextest run --locked -p "${package}" --all-features
+          done
+
       - name: Doc build
         working-directory: reallyme/ssi
         run: cargo doc --locked --workspace --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+      - name: Documentation examples
+        working-directory: reallyme/ssi
+        run: cargo test --locked --doc --workspace --all-features
         env:
           RUSTDOCFLAGS: -D warnings
 
@@ -160,17 +353,35 @@ jobs:
 
       - name: Check wasm lane
         working-directory: reallyme/ssi
-        run: cargo check --locked --workspace --no-default-features --features wasm --target wasm32-unknown-unknown
+        run: |
+          set -euo pipefail
+          cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select((.publish == null) or (.publish | length > 0)) | select(.features.wasm != null) | .name' \
+            | while IFS= read -r package; do
+                cargo check --locked -p "${package}" --no-default-features --features wasm --target wasm32-unknown-unknown
+              done
 
       - name: Check wasm lane excludes native providers
         working-directory: reallyme/ssi
         run: |
-          if cargo tree --locked -e normal,build -e features --target wasm32-unknown-unknown \
-              -p reallyme-ssi --no-default-features --features wasm \
-              | grep -E 'reallyme-crypto(-[a-z0-9-]+)? feature "native"'; then
+          set -euo pipefail
+          tree_output="$(cargo tree --locked -e normal,build -e features --target wasm32-unknown-unknown \
+              -p reallyme-ssi --no-default-features --features wasm)"
+          if grep -E 'reallyme-(crypto|cose|jose)(-[a-z0-9-]+)? feature "native"|(^|[[:space:]])(openssl|xmlsec)(-sys)? v' <<<"${tree_output}"; then
             echo "native crypto providers are enabled in the wasm artifact" >&2
             exit 1
           fi
+
+      - name: Install Wasm test runner
+        run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
+
+      - name: Test fail-closed Wasm provider boundaries
+        working-directory: reallyme/ssi
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+        run: >-
+          cargo test --locked -p identity-revocation-ocsp-dispatch
+          --no-default-features --features wasm --target wasm32-unknown-unknown
 
       - name: Check shared dependency boundaries
         working-directory: reallyme/ssi
@@ -179,6 +390,10 @@ jobs:
       - name: Release readiness
         working-directory: reallyme/ssi
         run: node .release-readiness/scripts/run-consumer-check.mjs
+
+      - name: Inspect and test normalized crate archives
+        working-directory: reallyme/ssi
+        run: node scripts/publish_crates_in_order.mjs inspect
 
       - name: Test repository scripts
         working-directory: reallyme/ssi
@@ -232,4 +447,6 @@ jobs:
         working-directory: reallyme/ssi
         env:
           TARGET_ARGUMENT: ${{ matrix.target }}
-        run: cargo check --locked -p identity-revocation-ocsp-dispatch --no-default-features --target "$TARGET_ARGUMENT"
+        run: >-
+          cargo check --locked -p reallyme-ssi -p identity-credential-trust-api
+          --no-default-features --features native --target "$TARGET_ARGUMENT"

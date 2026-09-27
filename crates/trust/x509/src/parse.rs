@@ -54,6 +54,7 @@ const OID_CERTIFICATE_POLICY_CPS: &str = "1.3.6.1.5.5.7.2.1";
 const OID_NO_REV_AVAIL: &str = "2.5.29.56";
 const MAX_NAME_ATTRIBUTES: usize = 128;
 
+/// Parses one DER certificate while rejecting malformed, ambiguous, or oversized input.
 pub fn parse_cert_der(der: &[u8]) -> Result<X509Certificate, X509Error> {
     if der.len() > MAX_X509_CERTIFICATE_DER_BYTES {
         return Err(X509Error::ResourceLimitExceeded(
@@ -73,6 +74,7 @@ pub fn parse_cert_der(der: &[u8]) -> Result<X509Certificate, X509Error> {
     project_cert(der.to_vec(), &cert)
 }
 
+/// Parses one PEM certificate while rejecting malformed, ambiguous, or oversized input.
 pub fn parse_cert_pem(pem_bytes: &[u8]) -> Result<X509Certificate, X509Error> {
     if pem_bytes.len() > MAX_X509_CERTIFICATE_PEM_BYTES {
         return Err(X509Error::ResourceLimitExceeded(
@@ -86,6 +88,7 @@ pub fn parse_cert_pem(pem_bytes: &[u8]) -> Result<X509Certificate, X509Error> {
     parse_cert_der(p.contents())
 }
 
+/// Parses a PEM certificate chain while rejecting malformed, ambiguous, or oversized input.
 pub fn parse_chain_pem(bundle: &[u8]) -> Result<Vec<X509Certificate>, X509Error> {
     if bundle.len() > MAX_X509_CHAIN_PEM_BYTES {
         return Err(X509Error::ResourceLimitExceeded(
@@ -129,7 +132,10 @@ fn project_cert(der: Vec<u8>, cert: &ParsedCert<'_>) -> Result<X509Certificate, 
     // model so RFC 5280's 20-octet limit is applied to the serial value rather
     // than its encoding overhead. A high bit without that prefix is negative.
     let serial = if first == 0 && encoded_serial.len() > 1 {
-        encoded_serial[1..].to_vec()
+        encoded_serial
+            .get(1..)
+            .ok_or(X509Error::InvalidSerialNumber)?
+            .to_vec()
     } else {
         if first & 0x80 != 0 {
             return Err(X509Error::InvalidSerialNumber);

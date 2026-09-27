@@ -20,4 +20,10 @@ fi
 git -C "${SSI_ROOT}" diff --exit-code -- \
   crates/proto/src/generated/buffa
 
+if git -C "${SSI_ROOT}" status --porcelain --untracked-files=all -- \
+  crates/proto/src/generated/buffa | grep -q '^??'; then
+  echo "protobuf regeneration produced untracked generated files" >&2
+  exit 1
+fi
+
 echo "generated protobuf bindings are fresh"

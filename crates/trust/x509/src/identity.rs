@@ -20,18 +20,33 @@ const DERIVED_SUBJECT_KEY_IDENTIFIER_BYTES: usize = 20;
 /// Certificate facts needed to prove equivalent ETSI TSL key representations.
 #[derive(PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct CertificateIdentityFacts {
+    /// Canonical DER encoding of the certificate subject distinguished name.
+    pub subject_name_der: Vec<u8>,
+    /// DER-encoded SubjectPublicKeyInfo used to identify the certificate key.
     pub subject_public_key_info_der: Vec<u8>,
+    /// Subject Key Identifier extension bytes when the certificate carries one.
     pub subject_key_identifier: Option<Vec<u8>>,
+    /// RFC 5280 method-1 key identifier derived from the subject public key.
     pub derived_subject_key_identifier: [u8; DERIVED_SUBJECT_KEY_IDENTIFIER_BYTES],
+    /// Validated organization identifiers extracted from the subject name.
     pub organization_identifiers: Vec<String>,
+    /// Whether the certificate Basic Constraints extension asserts `CA:TRUE`.
     pub certificate_authority: bool,
+    /// Optional RSA modulus.
     pub rsa_modulus: Option<Vec<u8>>,
+    /// Optional RSA exponent.
     pub rsa_exponent: Option<Vec<u8>>,
+    /// Optional DSA p.
     pub dsa_p: Option<Vec<u8>>,
+    /// Optional DSA q.
     pub dsa_q: Option<Vec<u8>>,
+    /// Optional DSA g.
     pub dsa_g: Option<Vec<u8>>,
+    /// Optional DSA y.
     pub dsa_y: Option<Vec<u8>>,
+    /// Optional EC curve OID.
     pub ec_curve_oid: Option<String>,
+    /// Optional EC public key.
     pub ec_public_key: Option<Vec<u8>>,
 }
 
@@ -51,7 +66,7 @@ struct DsaPublicKeyParameters {
     g: Vec<u8>,
 }
 
-/// Parse one complete DER certificate into the identity facts used by TSL.
+/// Parses one complete DER certificate into the identity facts used by TSL.
 pub fn certificate_identity_facts(
     certificate_der: &[u8],
 ) -> Result<CertificateIdentityFacts, X509Error> {
@@ -146,6 +161,7 @@ pub fn certificate_identity_facts(
         };
 
     Ok(CertificateIdentityFacts {
+        subject_name_der: certificate.subject().as_raw().to_vec(),
         subject_public_key_info_der: certificate.public_key().raw.to_vec(),
         subject_key_identifier,
         derived_subject_key_identifier,

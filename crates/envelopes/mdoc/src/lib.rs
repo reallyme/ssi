@@ -2,13 +2,10 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! ISO mdoc identity envelope surface.
-//!
-//! Protocol-neutral issuer-signed mdoc and DeviceResponse behavior. Issuer
-//! authentication is COSE_Sign1 via `reallyme-cose`; signed MSO and issuer item
-//! bytes use bounded ISO 18013-5 CBOR structures. OpenID4VP handover, Digital
-//! Credentials API transport, wallet policy, and platform SDK bindings remain
-//! in their owning repositories.
+//! Protocol-neutral ISO mdoc and DeviceResponse support. Issuer authentication
+//! uses COSE_Sign1 via `reallyme-cose`; signed MSO and issuer item bytes use
+//! bounded ISO 18013-5 CBOR structures. Transport and SDK bindings remain in
+//! their owning repositories.
 
 mod cbor;
 mod data_element;
@@ -31,7 +28,8 @@ pub mod model;
 mod mso_status;
 /// mdoc presentation entry points.
 pub mod present;
-mod status;
+#[cfg(feature = "mdoc-crypto")]
+mod validate_device_key_authorizations;
 #[cfg(feature = "mdoc-crypto")]
 mod validate_item_random;
 mod validate_mso_status;
@@ -51,7 +49,7 @@ pub use device_auth::{
     DeviceAuthenticationValidationInput, DEVICE_AUTHENTICATION_CONTEXT,
 };
 pub use encode_issuer_signed::encode_mdoc_issuer_signed_cbor;
-pub use error::{MdocEnvelopeError, MdocEnvelopeStatus, MdocInvalidInputReason};
+pub use error::{MdocEnvelopeError, MdocInvalidInputReason};
 #[cfg(feature = "mdoc-crypto")]
 pub use iso23220::iso23220_relationship_element;
 pub use iso23220::{
@@ -63,18 +61,19 @@ pub use issue::{build_mso_mdoc, issue_mdoc, IssuedMdoc, MdocElement, MdocIssueCo
 #[cfg(feature = "mdoc-crypto")]
 pub use issuer_auth::{
     validate_issuer_auth, validate_x5chain_issuer_auth, CoseIssuerAuthSigner,
-    CoseX5ChainIssuerAuthSigner, IssuerAuthSigner, ValidatedX5ChainIssuerAuth,
+    CoseX5ChainIssuerAuthSigner, IssuerAuthSigner, MdocCertificatePathValidation,
+    ValidatedX5ChainIssuerAuth,
 };
 pub use model::{
-    DeviceKeyInfo, IssuerNameSpaces, IssuerSigned, IssuerSignedItem, IssuerSignedItemBytes,
-    MdocDeviceDocument, MdocDeviceResponse, MdocDeviceSigned, MdocIssuerSignedDocument,
-    MobileSecurityObject, ValidityInfo, ValueDigests, DIGEST_ALG_SHA256,
-    ENCODED_CBOR_DATA_ITEM_TAG, MAX_MDOC_CBOR_ARRAY_ITEMS, MAX_MDOC_CBOR_DEPTH,
-    MAX_MDOC_CBOR_INPUT_BYTES, MAX_MDOC_CBOR_ITEMS, MAX_MDOC_CBOR_MAP_ENTRIES,
+    DeviceKeyAuthorizations, DeviceKeyInfo, IssuerNameSpaces, IssuerSigned, IssuerSignedItem,
+    IssuerSignedItemBytes, MdocDeviceDocument, MdocDeviceResponse, MdocDeviceSigned,
+    MdocIssuerSignedDocument, MobileSecurityObject, ValidityInfo, ValueDigests, DIGEST_ALG_SHA256,
+    DIGEST_ALG_SHA384, DIGEST_ALG_SHA512, ENCODED_CBOR_DATA_ITEM_TAG, MAX_MDOC_CBOR_ARRAY_ITEMS,
+    MAX_MDOC_CBOR_DEPTH, MAX_MDOC_CBOR_INPUT_BYTES, MAX_MDOC_CBOR_ITEMS, MAX_MDOC_CBOR_MAP_ENTRIES,
     MAX_MDOC_DEVICE_RESPONSE_DOCUMENTS, MAX_MDOC_ELEMENTS_PER_NAMESPACE,
-    MAX_MDOC_ELEMENT_VALUE_BYTES, MAX_MDOC_ISSUER_ELEMENTS, MAX_MDOC_ITEM_RANDOM_BYTES,
-    MAX_MDOC_NAMESPACES, MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES, MIN_MDOC_ITEM_RANDOM_BYTES,
-    MSO_VERSION, SHA256_DIGEST_LEN,
+    MAX_MDOC_ELEMENT_VALUE_BYTES, MAX_MDOC_IDENTIFIER_BYTES, MAX_MDOC_ISSUER_ELEMENTS,
+    MAX_MDOC_ITEM_RANDOM_BYTES, MAX_MDOC_KEY_INFO_BYTES, MAX_MDOC_NAMESPACES,
+    MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES, MIN_MDOC_ITEM_RANDOM_BYTES, MSO_VERSION, SHA256_DIGEST_LEN,
 };
 pub use mso_status::{
     MdocIdentifierList, MdocStatus, MdocStatusExtension, MdocStatusList,
@@ -91,7 +90,6 @@ pub use present::{
     decode_mdoc_device_response_cbor, empty_device_name_spaces_cbor,
     encode_mdoc_device_response_cbor, DEVICE_RESPONSE_STATUS_OK, DEVICE_RESPONSE_VERSION,
 };
-pub use status::mdoc_envelope_status;
 #[cfg(feature = "mdoc-crypto")]
 pub use verify::{
     verify_issuer_signed_mdoc, verify_issuer_signed_mdoc_receipt_with_x5chain,

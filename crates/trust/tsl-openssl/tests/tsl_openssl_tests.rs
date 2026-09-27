@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -14,12 +15,14 @@
 #![cfg(all(feature = "native", feature = "xmlsec-ffi"))]
 
 use identity_revocation_core::{StatusCheckError, StatusChecker};
+use identity_trust_tsl_core::TslMediaType;
 use identity_trust_tsl_openssl::{
     verify_tsl_xml_openssl as verify_tsl_xml_openssl_with_status,
+    verify_tsl_xml_openssl_from_authenticated_pointer,
     verify_tsl_xml_openssl_with_community_lists as verify_tsl_xml_openssl_with_community_lists_and_status,
     verify_tsl_xml_openssl_with_external_signer as verify_tsl_xml_openssl_with_external_signer_and_status,
-    TslOpenSslError, TslSignatureAlgorithm, TslSignatureProfileFailureReason,
-    TslSignerAuthorizationEvidence, VerifiedTrustedList,
+    AuthenticatedPointerVerification, TslOpenSslError, TslSignatureAlgorithm,
+    TslSignatureProfileFailureReason, TslSignerAuthorizationEvidence, VerifiedTrustedList,
 };
 
 use envelopes_x509::policy::X509Policy;
@@ -99,7 +102,7 @@ fn signer_cert() -> X509Certificate {
 }
 
 #[test]
-fn authenticated_pointer_binds_the_exact_leaf_signer() {
+fn community_lists_entry_point_enforces_the_tlso_profile() {
     let signer = signer_cert();
     let verified = verify_tsl_xml_openssl_with_community_lists(
         SIGNED_TSL_XML,
@@ -108,13 +111,13 @@ fn authenticated_pointer_binds_the_exact_leaf_signer() {
         verification_time(),
         X509Policy::default(),
     )
-    .expect("the authenticated pointer leaf must verify");
+    .expect("the authenticated TLSO signer must verify");
 
-    assert_eq!(
+    assert!(matches!(
         verified.signer_authorization(),
-        TslSignerAuthorizationEvidence::ExactAuthenticatedPointerCertificate
-    );
-    assert_eq!(verified.signer_profile(), None);
+        TslSignerAuthorizationEvidence::TrustedListOperatorProfile(_)
+    ));
+    assert!(verified.signer_profile().is_some());
 }
 
 fn verification_time() -> OffsetDateTime {
@@ -140,10 +143,10 @@ fn verifies_signed_tsl_xml() {
         "TSL must expose a typed issue date"
     );
     assert_eq!(
-        verified.signer_trust().evidence.purpose,
+        verified.signer_trust().evidence().purpose,
         reallyme_trust_core::TrustPurpose::TrustedListSigner
     );
-    assert!(verified.signer_trust().evidence.source.is_some());
+    assert!(verified.signer_trust().evidence().source.is_some());
     assert_eq!(verified.signer_certificate_sha256().len(), 32);
     assert!(!verified.key_info_certificate_sha256().is_empty());
     assert_eq!(
@@ -217,6 +220,66 @@ fn rejects_authenticated_tsl_at_its_next_update_deadline() {
 }
 
 #[test]
+fn authenticated_pointer_rejects_a_non_lotl_parent_before_child_verification() {
+    let signer = signer_cert();
+    let parent = verify_tsl_xml_openssl(
+        SIGNED_TSL_XML,
+        core::slice::from_ref(&signer),
+        verification_time(),
+        X509Policy::default(),
+    )
+    .expect("the parent fixture must authenticate at its issue time");
+    let at_parent_next_update =
+        OffsetDateTime::from_unix_timestamp(1_805_072_400).expect("fixed deadline must be valid");
+
+    let error =
+        verify_tsl_xml_openssl_from_authenticated_pointer(AuthenticatedPointerVerification {
+            parent: &parent,
+            pointer_index: 0,
+            fetched_url: "https://example.test/eu-lotl.xml",
+            fetched_media_type: TslMediaType::EtsiTrustedListXml,
+            // Invalid child bytes prove the parent freshness gate runs before
+            // the child parser, signature verifier, or trust backend.
+            xml: "not XML",
+            trust_roots: core::slice::from_ref(&signer),
+            now: at_parent_next_update,
+            policy: X509Policy::default(),
+            status_checker: &GoodStatus,
+        })
+        .expect_err("an expired parent LOTL must not authorize its pointers");
+
+    assert!(matches!(error, TslOpenSslError::InvalidPointerParent));
+}
+
+#[test]
+fn authenticated_pointer_rejects_a_parent_without_external_lotl_bootstrap() {
+    let signer = signer_cert();
+    let parent = verify_tsl_xml_openssl(
+        SIGNED_TSL_XML,
+        core::slice::from_ref(&signer),
+        verification_time(),
+        X509Policy::default(),
+    )
+    .expect("the parent fixture must authenticate");
+
+    let error =
+        verify_tsl_xml_openssl_from_authenticated_pointer(AuthenticatedPointerVerification {
+            parent: &parent,
+            pointer_index: 0,
+            fetched_url: "https://example.test/eu-lotl.xml",
+            fetched_media_type: TslMediaType::EtsiTrustedListXml,
+            xml: SIGNED_TSL_XML,
+            trust_roots: core::slice::from_ref(&signer),
+            now: verification_time(),
+            policy: X509Policy::default(),
+            status_checker: &GoodStatus,
+        })
+        .expect_err("a community-authenticated national list is not the EU LOTL");
+
+    assert!(matches!(error, TslOpenSslError::InvalidPointerParent));
+}
+
+#[test]
 fn rejects_modified_signed_tsl() {
     let marker = "<ds:SignatureValue>";
     let start = SIGNED_TSL_XML
@@ -241,7 +304,7 @@ fn rejects_modified_signed_tsl() {
 }
 
 #[test]
-fn preserves_unrecognized_critical_extension_as_a_typed_failure() {
+fn unauthenticated_critical_extension_never_reaches_semantic_projection() {
     let mutated = SIGNED_TSL_XML.replacen(
         "</SchemeInformation>",
         "<SchemeInformationExtensions><Extension Critical=\"true\"><FutureSemantics/></Extension></SchemeInformationExtensions></SchemeInformation>",
@@ -254,16 +317,16 @@ fn preserves_unrecognized_critical_extension_as_a_typed_failure() {
         verification_time(),
         X509Policy::default(),
     )
-    .expect_err("unknown critical semantics must fail before signature verification");
+    .expect_err("mutated XML must fail before semantic projection");
 
-    assert!(matches!(
-        error,
-        TslOpenSslError::UnsupportedCriticalExtension
-    ));
+    assert!(
+        matches!(error, TslOpenSslError::InvalidXml),
+        "unexpected failure: {error:?}"
+    );
 }
 
 #[test]
-fn preserves_tag_and_update_window_as_typed_failures() {
+fn unauthenticated_metadata_never_reaches_semantic_projection() {
     let invalid_tag = SIGNED_TSL_XML.replacen(
         "TSLTag=\"http://uri.etsi.org/19612/TSLTag\"",
         "TSLTag=\"https://example.test/not-a-tsl-tag\"",
@@ -275,21 +338,15 @@ fn preserves_tag_and_update_window_as_typed_failures() {
         1,
     );
 
-    for (xml, expected) in [
-        (invalid_tag, TslOpenSslError::InvalidTag),
-        (invalid_window, TslOpenSslError::InvalidUpdateWindow),
-    ] {
+    for xml in [invalid_tag, invalid_window] {
         let error = verify_tsl_xml_openssl(
             &xml,
             &[signer_cert()],
             verification_time(),
             X509Policy::default(),
         )
-        .expect_err("invalid TSL metadata must retain its typed failure");
-        assert_eq!(
-            core::mem::discriminant(&error),
-            core::mem::discriminant(&expected)
-        );
+        .expect_err("mutated XML must fail signature verification first");
+        assert!(matches!(error, TslOpenSslError::InvalidSignature));
     }
 }
 
@@ -359,7 +416,7 @@ fn trusts_every_configured_root_not_only_the_first() {
 }
 
 #[test]
-fn authenticated_pointer_selects_a_later_rollover_certificate_in_one_pass() {
+fn community_lists_never_reclassify_trust_roots_as_pointer_certificates() {
     let roots = [unrelated_root(), signer_cert()];
     let verified = verify_tsl_xml_openssl_with_community_lists(
         SIGNED_TSL_XML,
@@ -368,11 +425,11 @@ fn authenticated_pointer_selects_a_later_rollover_certificate_in_one_pass() {
         verification_time(),
         X509Policy::default(),
     )
-    .expect("the second authenticated pointer certificate must verify");
-    assert_eq!(
+    .expect("the TLSO signer must verify under its full profile");
+    assert!(matches!(
         verified.signer_authorization(),
-        TslSignerAuthorizationEvidence::ExactAuthenticatedPointerCertificate
-    );
+        TslSignerAuthorizationEvidence::TrustedListOperatorProfile(_)
+    ));
 
     let error = verify_tsl_xml_openssl_with_community_lists(
         SIGNED_TSL_XML,
@@ -381,11 +438,11 @@ fn authenticated_pointer_selects_a_later_rollover_certificate_in_one_pass() {
         verification_time(),
         X509Policy::default(),
     )
-    .expect_err("a pointer that does not authenticate the signer must fail");
-    assert!(matches!(
-        error,
-        TslOpenSslError::ExternalSignerCertificateMismatch
-    ));
+    .expect_err("an unrelated PKIX root must not authorize the signer");
+    assert!(
+        matches!(error, TslOpenSslError::InvalidSignature),
+        "unexpected failure: {error:?}"
+    );
 }
 
 #[test]

@@ -2,12 +2,10 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::StatusCheckError;
 use reallyme_credential_status::{
     verify_status, CredentialStatusError, StatusList, StatusListVerifier,
 };
-use reallyme_trust_x509::X509Certificate;
-
-use crate::{StatusCheckError, StatusChecker};
 
 /// StatusList-backed revocation checker.
 pub struct StatusListChecker<'a> {
@@ -34,10 +32,13 @@ impl<'a> StatusListChecker<'a> {
             verifier,
         }
     }
-}
 
-impl StatusChecker for StatusListChecker<'_> {
-    fn check(&self, _cert: &X509Certificate, now_unix: u64) -> Result<(), StatusCheckError> {
+    /// Check the credential status at the configured index.
+    ///
+    /// This method deliberately does not implement the X.509 `StatusChecker`
+    /// trait because a credential status index cannot answer the status of an
+    /// arbitrary certificate.
+    pub fn check_credential(&self, now_unix: u64) -> Result<(), StatusCheckError> {
         verify_status(self.list, self.index, now_unix, self.verifier).map_err(map_status_error)
     }
 }
@@ -65,6 +66,8 @@ fn map_status_error(error: CredentialStatusError) -> StatusCheckError {
             reallyme_credential_status::CredentialStatusInvalidReason::InvalidSignatureMetadata => {
                 StatusCheckError::InvalidSignature
             }
+            _ => StatusCheckError::InvalidList,
         },
+        _ => StatusCheckError::InvalidList,
     }
 }

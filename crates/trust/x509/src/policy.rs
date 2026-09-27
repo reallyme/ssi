@@ -12,7 +12,8 @@ use crate::{
 use asn1_rs::{Any, Class, FromDer, PrintableString, Tag};
 use time::OffsetDateTime;
 
-#[derive(Debug, Clone)]
+/// Certificate-path and profile requirements enforced by the portable validator.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X509Policy {
     /// Require the end-entity certificate to use the X.509 v3 syntax.
     pub require_v3: bool,
@@ -20,16 +21,16 @@ pub struct X509Policy {
     /// Reject unknown critical extensions rather than silently ignoring them.
     pub reject_unknown_critical_extensions: bool,
 
-    /// If true: leaf must NOT be a CA
+    /// Whether to reject a leaf certificate that asserts `CA:TRUE`.
     pub require_leaf_not_ca: bool,
 
-    /// If true: intermediates must be CA:true
+    /// Whether every intermediate must assert `CA:TRUE`.
     pub require_intermediate_ca: bool,
 
-    /// If set: require EKU on leaf to include at least one of these OIDs
+    /// Extended-key-usage purposes of which the leaf must contain at least one.
     pub required_leaf_eku_any_of: Vec<ExtendedKeyUsagePurpose>,
 
-    /// If true: require KU digitalSignature on leaf
+    /// Whether the leaf key usage must include `digitalSignature`.
     pub require_leaf_digital_signature: bool,
 
     /// Required leaf extensions and their normative criticality.
@@ -47,16 +48,13 @@ pub struct X509Policy {
     /// Reject a self-issued leaf where the profile requires CA issuance.
     pub require_leaf_not_self_issued: bool,
 
-    // ------------------------------------------------------------
-    // EU / ETSI extensions
-    // ------------------------------------------------------------
-    /// CertificatePolicies: require at least one matching policy OID
+    /// Certificate-policy identifiers of which the leaf must contain at least one.
     pub required_policy_any_of: Vec<CertificatePolicyId>,
 
-    /// qcStatements: required statementId OIDs (all must be present)
+    /// Qualified-certificate statement identifiers that must all be present.
     pub required_qc_statement_ids: Vec<QcStatementId>,
 
-    /// qcStatements QcType: require at least one matching QcType OID
+    /// Qualified-certificate types of which at least one must be present.
     pub required_qc_type_any_of: Vec<QcType>,
 
     /// Minimum accepted RSA modulus size, when the leaf uses RSA.
@@ -104,38 +102,58 @@ pub struct X509Policy {
 
 /// Closed set of extension identities that profile policy may require.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum KnownCertificateExtension {
+    /// Basic Constraints extension.
     BasicConstraints,
+    /// Key Usage extension.
     KeyUsage,
+    /// Extended Key Usage extension.
     ExtendedKeyUsage,
+    /// Subject Key Identifier extension.
     SubjectKeyIdentifier,
+    /// Authority Key Identifier extension.
     AuthorityKeyIdentifier,
+    /// Subject Alternative Name extension.
     SubjectAlternativeName,
+    /// Certificate Policies extension.
     CertificatePolicies,
+    /// Authority Information Access extension.
     AuthorityInformationAccess,
+    /// CRL Distribution Points extension.
     CrlDistributionPoints,
+    /// ETSI QCStatements extension.
     QcStatements,
+    /// RFC 9608 `noRevAvail` extension.
     NoRevAvail,
 }
 
 /// Criticality required for a known certificate extension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ExtensionCriticality {
+    /// Either critical or non-critical encoding is accepted.
     Either,
+    /// The extension must be critical.
     Critical,
+    /// The extension must be non-critical.
     NonCritical,
 }
 
 /// Required extension identity and criticality.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RequiredCertificateExtension {
+    /// Required extension identity.
     pub kind: KnownCertificateExtension,
+    /// Required extension criticality.
     pub criticality: ExtensionCriticality,
 }
 
 /// Exact leaf key-usage profile from ETSI EN 319 412-2 Table 1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LeafKeyUsageRequirement {
+    /// Accepts any leaf key-usage shape permitted by the remaining policy.
     None,
     /// TS 119 412-6 permits exactly Type A, B, C, or F.
     PidOrWalletTypeAbcf,
@@ -145,10 +163,15 @@ pub enum LeafKeyUsageRequirement {
 
 /// Distinguished-name structural requirement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DistinguishedNameRequirement {
+    /// Accepts any distinguished name permitted by the remaining policy.
     None,
+    /// Requires the natural-person distinguished-name profile.
     NaturalPerson,
+    /// Requires the legal-person distinguished-name profile.
     LegalPerson,
+    /// Accepts either the natural-person or legal-person profile.
     NaturalOrLegalPerson,
     /// EN 319 412-2 issuer profile: legal-person CA or natural-person CA.
     IssuingAuthority,
@@ -158,14 +181,19 @@ pub enum DistinguishedNameRequirement {
 
 /// TS 119 411-8 WRPAC certificate-policy family enforcement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum WrpacProfileRequirement {
+    /// Applies no WRPAC-specific certificate constraints.
     None,
+    /// Applies the version 1 WRPAC certificate profile.
     Version1,
 }
 
 /// Terminal trust-anchor certificate predicates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrustAnchorRequirement {
+    /// Applies no profile-specific predicates to the configured trust anchor.
     None,
     /// Certificate-valued RFC 5280 anchor with CA:true and keyCertSign.
     Rfc5280Ca,
@@ -175,7 +203,9 @@ pub enum TrustAnchorRequirement {
 
 /// Versioned ETSI TS 119 312 algorithm policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EtsiAlgorithmPolicy {
+    /// Applies no ETSI algorithm-lifetime restrictions.
     None,
     /// ETSI TS 119 312 V2.1.1 recommended/legacy key parameter policy.
     Ts119312V211,
@@ -183,10 +213,15 @@ pub enum EtsiAlgorithmPolicy {
 
 /// Application-specific leaf name requirement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LeafNameRequirement {
+    /// Accepts any subject alternative name permitted by the remaining policy.
     None,
+    /// Requires a DNS name or IP address.
     DnsOrIp,
+    /// Requires a URI.
     Uri,
+    /// Requires an email address.
     Email,
     /// TS 119 411-8 contact URI, rfc822Name, or id-at-telephoneNumber otherName.
     UriEmailOrTelephone,
@@ -194,35 +229,53 @@ pub enum LeafNameRequirement {
 
 /// Leaf SKI/AKI requirements selected by a versioned certificate profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LeafKeyIdentifierRequirement {
+    /// Does not require a Subject Key Identifier or Authority Key Identifier.
     None,
+    /// Requires a Subject Key Identifier.
     Subject,
+    /// Requires an Authority Key Identifier.
     Authority,
+    /// Requires both Subject Key Identifier and Authority Key Identifier.
     SubjectAndAuthority,
 }
 
 /// Required Authority Information Access method set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AuthorityInformationAccessRequirement {
+    /// Does not require an Authority Information Access method.
     None,
+    /// Requires an OCSP access method.
     Ocsp,
+    /// Requires a CA Issuers access method.
     CaIssuers,
+    /// Requires both OCSP and CA Issuers access methods.
     OcspAndCaIssuers,
+    /// Requires CA Issuers unless the certificate is self-issued.
     CaIssuersUnlessSelfIssued,
 }
 
 /// Whether a QSCD certificate-policy OID requires the ETSI QcSSCD statement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum QscdStatementRequirement {
+    /// Does not require QcSSCD for QSCD policy identifiers.
     None,
+    /// Requires QcSSCD whenever a QSCD policy identifier is present.
     WhenQscdPolicy,
 }
 
 /// Leaf revocation-discovery requirement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RevocationPointerRequirement {
+    /// Does not require a revocation discovery mechanism.
     None,
+    /// Requires an OCSP responder or CRL distribution point.
     OcspOrCrl,
+    /// Requires the RFC 9608 `noRevAvail` extension.
     ExplicitNoRevAvail,
 }
 
@@ -263,4 +316,5 @@ impl Default for X509Policy {
 }
 
 include!("policy/evaluate.rs");
+include!("policy/intermediate_algorithms.rs");
 include!("policy/helpers.rs");

@@ -23,16 +23,11 @@ fn proof_issue() -> DidValidationIssue {
     )
 }
 
-/// Strict shape validation for did:me DataIntegrityProof (ES256 JWS CID 2025).
+/// Performs schema validation for a did:me Data Integrity proof.
 ///
-/// - type MUST equal "DataIntegrityProof"
-/// - cryptosuite MUST equal "es256-jws-cid-2025"
-/// - proofPurpose MUST equal "assertionMethod"
-/// - verificationMethod MUST be "#fragment"
-/// - created MUST be present, but its value is informational for DID validity
-/// - jws MUST be compact JWS header.payload.signature using base64url charset
-///
-/// NOTE: this performs NO cryptographic verification.
+/// The proof type, cryptosuite, purpose, verification-method reference, creation
+/// time, and compact-JWS shape are checked. This function does not perform the
+/// cryptographic JWS verification required for proof authentication.
 pub fn validate_data_integrity_proof_schema(
     doc: &DIDDocument,
 ) -> DataIntegrityProofValidationResult {

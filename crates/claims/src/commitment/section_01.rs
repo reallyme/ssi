@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    claim_path, parse_claim_path, validate_claim_payload, validate_claim_value, ClaimType,
-    ClaimValue, ClaimsError, ClaimsInvalidReason, ClaimsRegistry, MAX_CLAIMS_PER_REGISTRY,
+    claim_path, parse_claim_path, validate_claim_payload, validate_claim_value, ClaimDecimal,
+    ClaimType, ClaimValue, ClaimsError, ClaimsInvalidReason, ClaimsRegistry, MAX_CLAIMS_PER_REGISTRY,
     MAX_CLAIM_BYTES_VALUE_BYTES,
 };
 use reallyme_codec::base64url::bytes_to_base64url;
@@ -18,7 +18,7 @@ use reallyme_trust_x509::{
     validate_certificate_der, SubjectPublicKeyAlgorithm,
 };
 use std::collections::{BTreeMap, BTreeSet};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// Hash byte length for ReallyMe claim commitments using SHA-256.
 pub const CLAIM_COMMITMENT_HASH_BYTES: usize = 32;
@@ -34,6 +34,12 @@ pub const DEFAULT_COMMITMENT_MAX_VALUE_LEN: u32 = 4096;
 
 /// Default per-claim salt length for new commitments.
 pub const DEFAULT_COMMITMENT_SALT_LEN: u32 = 16;
+
+/// Minimum salt length accepted for claim commitments.
+pub const MIN_COMMITMENT_SALT_LEN: u32 = 16;
+
+/// Maximum salt length accepted for claim commitments.
+pub const MAX_COMMITMENT_SALT_LEN: u32 = 64;
 
 /// Maximum claim openings accepted in one holder-private bundle.
 pub const MAX_CLAIM_OPENINGS_PER_BUNDLE: usize = MAX_CLAIMS_PER_REGISTRY;
@@ -149,6 +155,7 @@ pub struct ClaimOpening {
 
 /// Credential key algorithm carried by the copied meproto credential shape.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialAlgorithm {
     /// Algorithm is absent.
     Unspecified,
@@ -176,6 +183,7 @@ pub enum CredentialAlgorithm {
 
 /// Serialization applied to algorithm-specific raw public-key octets.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum RawPublicKeySerialization {
     /// Fixed-width algorithm-specific bytes, such as an Ed25519 public key.
     FixedWidth,
@@ -187,6 +195,7 @@ pub enum RawPublicKeySerialization {
 
 /// One explicitly tagged public-key representation.
 #[derive(Clone, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum PublicKeyRepresentation {
     /// RFC 7517 public JWK JSON bytes.
     JwkJson(Vec<u8>),
@@ -207,6 +216,7 @@ pub enum PublicKeyRepresentation {
 
 /// Identifier or discovery mechanism for a verification key.
 #[derive(Clone, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum KeyReference {
     /// DID URL selecting a verification method.
     DidVerificationMethod(String),
@@ -218,6 +228,7 @@ pub enum KeyReference {
 
 /// Evidence supporting a key, kept separate from identity and representation.
 #[derive(Clone, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum KeyAssurance {
     /// No positive assurance evidence is asserted.
     None,

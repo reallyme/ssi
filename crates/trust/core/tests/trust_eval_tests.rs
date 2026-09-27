@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -22,7 +24,10 @@ use reallyme_trust_core::{
 };
 
 use envelopes_x509::{
-    model::{BasicConstraints, KeyUsage, X509Certificate, X509Chain},
+    model::{
+        BasicConstraints, CertificateProfile, KeyUsage, PublicKeyProfile, SignatureAlgorithm,
+        X509Certificate, X509Chain,
+    },
     policy::{TrustAnchorRequirement, X509Policy},
 };
 
@@ -46,6 +51,12 @@ fn mock_cert(
     ski: Option<Vec<u8>>,
     aki: Option<Vec<u8>>,
 ) -> X509Certificate {
+    let mut profile = CertificateProfile::default();
+    profile.public_key = PublicKeyProfile::Ec {
+        bits: 256,
+        curve: None,
+    };
+    profile.signature_algorithm = SignatureAlgorithm::EcdsaSha256;
     X509Certificate {
         der: subject.as_bytes().to_vec(),
         subject: subject.to_string(),
@@ -86,7 +97,7 @@ fn mock_cert(
 
         certificate_policies: vec![],
         qc_statements: Default::default(),
-        profile: Default::default(),
+        profile,
     }
 }
 
@@ -280,8 +291,8 @@ fn accepts_valid_chain() {
     let decision = evaluate_trust(&presented, &cfg, &AllowAllSignatures, Some(&AllowAllStatus))
         .expect("trust evaluation should succeed");
 
-    assert!(decision.accepted);
-    assert!(decision.chain.is_some());
+    assert!(decision.is_accepted());
+    assert!(decision.chain().is_some());
 }
 
 #[test]
@@ -335,13 +346,13 @@ fn rejects_forged_leaf_reusing_trusted_anchor_subject_dn() {
     let decision = evaluate_trust_decision(&[forged_leaf], &cfg, &RejectAllSignatures, None)
         .expect("trust evaluation returns a typed rejection");
 
-    assert_eq!(decision.outcome, TrustOutcome::Rejected);
-    assert!(!decision.accepted);
-    assert!(decision.chain.is_none());
+    assert_eq!(decision.outcome(), TrustOutcome::Rejected);
+    assert!(!decision.is_accepted());
+    assert!(decision.chain().is_none());
     assert!(decision
-        .failures
+        .failures()
         .contains(&reallyme_trust_core::TrustFailureReason::Signature));
-    assert!(decision.evidence.trust_anchor.is_none());
+    assert!(decision.evidence().trust_anchor.is_none());
 }
 
 #[test]
@@ -404,14 +415,14 @@ fn signature_failure_is_reported_before_status_is_consulted() {
     )
     .expect("bad signature produces a typed rejection");
 
-    assert_eq!(decision.outcome, TrustOutcome::Rejected);
+    assert_eq!(decision.outcome(), TrustOutcome::Rejected);
     assert!(decision
-        .failures
+        .failures()
         .contains(&reallyme_trust_core::TrustFailureReason::Signature));
     assert!(!decision
-        .failures
+        .failures()
         .contains(&reallyme_trust_core::TrustFailureReason::StatusRevoked));
-    assert!(decision.evidence.certificate_status.is_empty());
+    assert!(decision.evidence().certificate_status.is_empty());
     assert_eq!(status.calls.get(), 0);
 
     let err = evaluate_trust(&[leaf], &cfg, &RejectAllSignatures, Some(&status)).unwrap_err();
@@ -468,8 +479,11 @@ fn a_bad_first_root_does_not_abort_a_later_valid_root() {
 
     let decision = evaluate_trust_decision(&[leaf], &cfg, &verifier, None).unwrap();
 
-    assert_eq!(decision.outcome, TrustOutcome::Trusted);
-    assert_eq!(decision.evidence.trust_anchor.unwrap().configured_index, 1);
+    assert_eq!(decision.outcome(), TrustOutcome::Trusted);
+    assert_eq!(
+        decision.evidence().trust_anchor.unwrap().configured_index,
+        1
+    );
 }
 
 #[test]
@@ -498,7 +512,7 @@ fn builds_a_deterministic_path_from_unordered_intermediates() {
     let decision =
         evaluate_trust_decision(&[leaf, upper, lower], &cfg, &AllowAllSignatures, None).unwrap();
 
-    let chain = decision.chain.unwrap();
+    let chain = decision.chain().unwrap();
     let subjects = chain
         .certs
         .iter()
@@ -534,9 +548,9 @@ fn path_search_work_exhaustion_is_indeterminate() {
 
     let decision = evaluate_trust_decision(&presented, &cfg, &AllowAllSignatures, None).unwrap();
 
-    assert_eq!(decision.outcome, TrustOutcome::Indeterminate);
+    assert_eq!(decision.outcome(), TrustOutcome::Indeterminate);
     assert!(decision
-        .failures
+        .failures()
         .contains(&reallyme_trust_core::TrustFailureReason::PathSearchLimit));
 }
 
@@ -549,8 +563,8 @@ fn normalizes_a_presented_duplicate_of_the_configured_root() {
 
     let decision = evaluate_trust_decision(&[leaf, root], &cfg, &AllowAllSignatures, None).unwrap();
 
-    assert_eq!(decision.outcome, TrustOutcome::Trusted);
-    assert_eq!(decision.chain.unwrap().certs.len(), 2);
+    assert_eq!(decision.outcome(), TrustOutcome::Trusted);
+    assert_eq!(decision.chain().unwrap().certs.len(), 2);
 }
 
 #[test]
@@ -573,18 +587,18 @@ fn preserves_unknown_status_as_indeterminate_evidence() {
     )
     .unwrap();
 
-    assert_eq!(decision.outcome, TrustOutcome::Indeterminate);
-    assert_eq!(decision.evidence.certificate_status.len(), 2);
+    assert_eq!(decision.outcome(), TrustOutcome::Indeterminate);
+    assert_eq!(decision.evidence().certificate_status.len(), 2);
     assert_eq!(
-        decision.evidence.certificate_status[0].position,
+        decision.evidence().certificate_status[0].position,
         CertificatePosition::Leaf
     );
     assert_eq!(
-        decision.evidence.certificate_status[0].status,
+        decision.evidence().certificate_status[0].status,
         CertificateStatus::Unknown
     );
     assert_eq!(
-        decision.evidence.certificate_status[1].status,
+        decision.evidence().certificate_status[1].status,
         CertificateStatus::Exempt
     );
 }
@@ -619,12 +633,12 @@ fn preserves_not_yet_valid_and_invalid_signature_as_distinct_status_failures() {
         )
         .expect("status evaluation must return a typed decision");
 
-        assert_eq!(decision.outcome, TrustOutcome::Indeterminate);
+        assert_eq!(decision.outcome(), TrustOutcome::Indeterminate);
         assert_eq!(
-            decision.evidence.certificate_status[0].status,
+            decision.evidence().certificate_status[0].status,
             expected_status
         );
-        assert!(decision.failures.contains(&expected_failure));
+        assert!(decision.failures().contains(&expected_failure));
     }
 }
 
@@ -650,11 +664,11 @@ fn conclusive_revocation_dominates_indeterminate_status_on_the_same_path() {
     )
     .expect("status evaluation must return a decision");
 
-    assert_eq!(decision.outcome, TrustOutcome::Rejected);
+    assert_eq!(decision.outcome(), TrustOutcome::Rejected);
     assert!(decision
-        .failures
+        .failures()
         .contains(&reallyme_trust_core::TrustFailureReason::StatusRevoked));
     assert!(decision
-        .failures
+        .failures()
         .contains(&reallyme_trust_core::TrustFailureReason::StatusUnknown));
 }

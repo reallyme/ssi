@@ -95,7 +95,7 @@ impl ValidatedJwks {
 }
 /// In-process JOSE verifier for bounded registrar JWKS responses.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct JoseRegistryJwsVerifier;
+pub(super) struct JoseRegistryJwsVerifier;
 
 impl RegistryJwsVerifier for JoseRegistryJwsVerifier {
     fn verify(

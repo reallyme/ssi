@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
 use reallyme_did_api::{
     create::create_did,
@@ -87,7 +88,8 @@ fn discover_messaging_pre_keys_returns_transcript_bound_snapshot() {
 
     let chain = [doc1, doc2];
     let doc2 = &chain[1];
-    let mut snapshots = discover_messaging_pre_keys_from_chain(&chain).expect("discovery failed");
+    let mut snapshots =
+        discover_messaging_pre_keys_from_chain(&chain, 2).expect("discovery failed");
 
     assert_eq!(snapshots.len(), 1);
     assert_eq!(snapshots[0].did, doc2.id);
@@ -122,7 +124,7 @@ fn designate_messaging_pre_keys_publishes_valid_snapshot() {
     .expect("designation failed");
 
     let snapshots =
-        discover_messaging_pre_keys_from_chain(&[doc1, doc2]).expect("discovery failed");
+        discover_messaging_pre_keys_from_chain(&[doc1, doc2], 2).expect("discovery failed");
 
     assert_eq!(snapshots.len(), 1);
     assert_eq!(snapshots[0].pre_keys, vec!["#x25519", "#mlkem768"]);

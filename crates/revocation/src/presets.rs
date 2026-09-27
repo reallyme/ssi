@@ -27,7 +27,6 @@ pub fn eu_qtsp_x509(
             require_next_update: true,
             max_age_secs: Some(EU_QTSP_OCSP_MAX_AGE_SECONDS),
             allowed_skew_secs: DEFAULT_OCSP_ALLOWED_SKEW_SECS,
-            require_verified: true,
         },
     })
 }

@@ -180,13 +180,40 @@ impl Drop for PresentationExpected {
 impl ZeroizeOnDrop for PresentationExpected {}
 
 /// Verification time context.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PresentationVerificationContext {
     /// Evaluation time as Unix seconds.
     pub evaluation_time_unix: u64,
     /// Presentation receipt time as Unix seconds.
     pub presentation_time_unix: u64,
+}
+
+impl PresentationVerificationContext {
+    /// Construct a non-zero, ordered verification-time context.
+    pub fn try_new(
+        evaluation_time_unix: u64,
+        presentation_time_unix: u64,
+    ) -> Result<Self, VpApiError> {
+        if evaluation_time_unix == 0
+            || presentation_time_unix == 0
+            || presentation_time_unix > evaluation_time_unix
+        {
+            return Err(VpApiError::InvalidCommand(
+                PresentationCommandReason::InvalidBinding,
+            ));
+        }
+        Ok(Self {
+            evaluation_time_unix,
+            presentation_time_unix,
+        })
+    }
+
+    pub(crate) fn is_valid(self) -> bool {
+        self.evaluation_time_unix != 0
+            && self.presentation_time_unix != 0
+            && self.presentation_time_unix <= self.evaluation_time_unix
+    }
 }
 
 /// Disclosure fact supplied by an envelope-specific verifier.
@@ -280,12 +307,30 @@ impl Drop for PresentationQeaaFact {
 
 impl ZeroizeOnDrop for PresentationQeaaFact {}
 
-/// Already-verified facts used by the aggregate presentation verifier.
+/// Caller-supplied facts used only by the presentation policy evaluator.
+///
+/// These fields are not cryptographic capabilities. Protocol adapters must
+/// derive them from their own authenticated receipts and must retain the exact
+/// artifact, request, audience, nonce, and verifier-time binding themselves.
 #[derive(Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PresentationVerificationFacts {
     /// Whether holder binding was verified by the protocol/envelope layer.
     pub binding_ok: bool,
+    /// Nonce authenticated by the envelope-specific verifier.
+    ///
+    /// SD-JWT and mdoc callers must provide the exact 32-byte value recovered
+    /// from the verified holder-binding proof. A general `binding_ok` bit is
+    /// insufficient because it does not identify which verifier challenge was
+    /// authenticated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verified_nonce: Option<[u8; 32]>,
+    /// Audience digest authenticated by the envelope-specific verifier.
+    ///
+    /// This is compared to the request expectation independently from the
+    /// nonce so one successful binding check cannot stand in for both values.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verified_audience_hash: Option<[u8; 32]>,
     /// Whether envelope proof or signature verification succeeded.
     pub proof_verified: bool,
     /// Whether key binding was verified when applicable.
@@ -339,6 +384,8 @@ impl core::fmt::Debug for PresentationVerificationFacts {
 impl Zeroize for PresentationVerificationFacts {
     fn zeroize(&mut self) {
         self.binding_ok = false;
+        self.verified_nonce.zeroize();
+        self.verified_audience_hash.zeroize();
         self.proof_verified = false;
         self.key_binding_ok.zeroize();
         self.issuer_trust_ok.zeroize();

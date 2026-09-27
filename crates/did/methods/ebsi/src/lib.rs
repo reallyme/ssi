@@ -10,6 +10,7 @@
 //! supplied through explicit provider adapters.
 
 mod dereference;
+mod did_url;
 mod document;
 mod jwk;
 mod method;

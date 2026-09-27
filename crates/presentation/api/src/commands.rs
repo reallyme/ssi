@@ -6,4 +6,6 @@
 
 include!("commands/section_01.rs");
 include!("commands/section_02.rs");
+mod decision;
+use decision::decision_from_checks;
 include!("commands/section_03.rs");

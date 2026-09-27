@@ -130,6 +130,7 @@ fn exact_method_change(
         return false;
     };
     set_change_matches(&before, &after, target, added)
+        && non_target_methods_equal(current, proposed, target)
 }
 
 fn set_change_matches(
@@ -185,6 +186,7 @@ fn rotated_exact_method(
     };
     if method_ids(&current.value) != method_ids(&proposed.value)
         || !authority_properties_equal(current, proposed, "verificationMethod")
+        || !non_target_methods_equal(current, proposed, target)
     {
         return false;
     }
@@ -195,6 +197,34 @@ fn rotated_exact_method(
         return false;
     };
     method_identity_equal(before, after) && before.get("publicKeyJwk") != after.get("publicKeyJwk")
+}
+
+fn non_target_methods_equal(
+    current: &DidEbsiDocument,
+    proposed: &DidEbsiDocument,
+    target: &str,
+) -> bool {
+    let before = current
+        .value
+        .get("verificationMethod")
+        .and_then(Value::as_array)
+        .map_or(&[][..], Vec::as_slice);
+    let after = proposed
+        .value
+        .get("verificationMethod")
+        .and_then(Value::as_array)
+        .map_or(&[][..], Vec::as_slice);
+
+    before.iter().all(|method| {
+        let Some(identifier) = method.get("id").and_then(Value::as_str) else {
+            return false;
+        };
+        identifier == target
+            || after.iter().any(|candidate| {
+                candidate.get("id").and_then(Value::as_str) == Some(identifier)
+                    && candidate == method
+            })
+    })
 }
 
 fn method_identity_equal(before: &Map<String, Value>, after: &Map<String, Value>) -> bool {
@@ -222,7 +252,10 @@ fn exact_relationship_change(
         .filter(|name| !property_equal(current, proposed, name))
         .copied()
         .collect::<Vec<_>>();
-    changed.len() == 1 && exact_set_change(current, proposed, changed[0], Some(target), added)
+    matches!(
+        changed.as_slice(),
+        [property] if exact_set_change(current, proposed, property, Some(target), added)
+    )
 }
 
 fn relationships_remove_target(

@@ -9,6 +9,9 @@ use reallyme_trust_x509::X509Certificate;
 
 use crate::{RevocationCacheError, RevocationEvidenceMeta, StatusCheckError};
 
+/// Default maximum number of certificate outcomes retained in memory.
+pub const DEFAULT_MAX_REVOCATION_CACHE_ENTRIES: usize = 4_096;
+
 /// Cache for validated revocation evidence outcomes.
 pub trait RevocationEvidenceCache {
     /// Retrieve a fresh cached outcome for a certificate, when available.
@@ -68,15 +71,35 @@ struct CachedOutcome {
 }
 
 /// Deterministic in-memory revocation evidence cache for tests and short-lived processes.
-#[derive(Default)]
 pub struct InMemoryRevocationCache {
     entries: BTreeMap<CacheKey, CachedOutcome>,
+    max_entries: usize,
+}
+
+impl Default for InMemoryRevocationCache {
+    fn default() -> Self {
+        Self {
+            entries: BTreeMap::new(),
+            max_entries: DEFAULT_MAX_REVOCATION_CACHE_ENTRIES,
+        }
+    }
 }
 
 impl InMemoryRevocationCache {
     /// Create an empty cache.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Create a cache with an explicit non-zero entry ceiling.
+    pub fn with_max_entries(max_entries: usize) -> Result<Self, RevocationCacheError> {
+        if max_entries == 0 {
+            return Err(RevocationCacheError::InvalidCapacity);
+        }
+        Ok(Self {
+            entries: BTreeMap::new(),
+            max_entries,
+        })
     }
 }
 
@@ -89,7 +112,7 @@ impl RevocationEvidenceCache for InMemoryRevocationCache {
         let Some(outcome) = self.entries.get(&CacheKey::for_certificate(cert)) else {
             return Ok(None);
         };
-        if now_unix > outcome.expires_at_unix {
+        if now_unix >= outcome.expires_at_unix {
             return Ok(None);
         }
 
@@ -113,8 +136,12 @@ impl RevocationEvidenceCache for InMemoryRevocationCache {
         if expires_at_unix <= meta.fetched_at_unix {
             return Err(RevocationCacheError::InvalidExpiry);
         }
+        let key = CacheKey::for_certificate(cert);
+        if self.entries.len() >= self.max_entries && !self.entries.contains_key(&key) {
+            return Err(RevocationCacheError::CapacityExceeded);
+        }
         self.entries.insert(
-            CacheKey::for_certificate(cert),
+            key,
             CachedOutcome {
                 expires_at_unix,
                 result,

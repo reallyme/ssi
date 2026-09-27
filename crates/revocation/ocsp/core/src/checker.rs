@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{OcspCertStatus, OcspPolicy, ParsedOcspResponse};
-use envelopes_x509::model::X509Certificate;
-use identity_revocation_core::{CompositeRevocationPolicy, StatusCheckError, StatusChecker};
+use envelopes_x509::{model::X509Certificate, parse_cert_der};
+use identity_revocation_core::{
+    CompositeRevocationPolicy, OcspStatusChecker, StatusCheckError, StatusChecker,
+};
 
 /// OCSP-based status checker (core logic, no networking).
 pub struct OcspChecker {
@@ -42,16 +44,9 @@ impl OcspChecker {
         &self,
         resp: &ParsedOcspResponse,
         now_unix: u64,
+        policy: OcspPolicy,
     ) -> Result<OcspCertStatus, StatusCheckError> {
-        if self.policy.require_verified
-            && (resp.signature_valid != Some(true)
-                || resp.responder_authorized != Some(true)
-                || resp.responder_eku_ocsp_signing != Some(true))
-        {
-            return Err(StatusCheckError::InvalidSignature);
-        }
-
-        let skew = self.policy.allowed_skew_secs;
+        let skew = policy.allowed_skew_secs;
 
         // RFC 6960 §4.2.2.1 defines thisUpdate/nextUpdate semantics. Skew is
         // applied in the accepting direction and every addition is checked so
@@ -66,7 +61,7 @@ impl OcspChecker {
             return Err(StatusCheckError::InvalidList);
         }
 
-        if let Some(max_age) = self.policy.max_age_secs {
+        if let Some(max_age) = policy.max_age_secs {
             let expires_at = resp
                 .this_update
                 .checked_add(max_age)
@@ -87,7 +82,7 @@ impl OcspChecker {
             if now_unix > expires_at {
                 return Err(StatusCheckError::Expired);
             }
-        } else if self.policy.require_next_update {
+        } else if policy.require_next_update {
             return Err(StatusCheckError::InvalidList);
         }
 
@@ -119,12 +114,32 @@ const fn rejection_rank(error: StatusCheckError) -> u8 {
 
 impl StatusChecker for OcspChecker {
     fn check(&self, cert: &X509Certificate, now_unix: u64) -> Result<(), StatusCheckError> {
-        let issuer_key = cert
-            .authority_key_identifier
-            .as_ref()
-            .ok_or(StatusCheckError::Unavailable)?;
+        self.check_with_policy_value(cert, now_unix, self.policy)
+    }
+}
 
-        let serial = normalize_serial(&cert.serial);
+impl OcspStatusChecker for OcspChecker {
+    fn check_with_policy(
+        &self,
+        cert: &X509Certificate,
+        now_unix: u64,
+        policy: OcspPolicy,
+    ) -> Result<(), StatusCheckError> {
+        self.check_with_policy_value(cert, now_unix, policy)
+    }
+}
+
+impl OcspChecker {
+    fn check_with_policy_value(
+        &self,
+        cert: &X509Certificate,
+        now_unix: u64,
+        policy: OcspPolicy,
+    ) -> Result<(), StatusCheckError> {
+        let parsed_cert =
+            parse_cert_der(cert.der.as_slice()).map_err(|_| StatusCheckError::InvalidList)?;
+        let serial = normalize_serial(&parsed_cert.serial);
+        let certificate_sha256 = reallyme_crypto::sha2::digest(cert.der.as_slice());
 
         // Every matching response is evaluated so the outcome does not depend
         // on input order: any usable Revoked wins, then any usable Good, then
@@ -134,9 +149,10 @@ impl StatusChecker for OcspChecker {
         let mut saw_unknown = false;
         let mut rejection: Option<StatusCheckError> = None;
         for resp in self.responses.iter().filter(|response| {
-            response.issuer_key == *issuer_key && normalize_serial(&response.serial) == serial
+            response.certificate_sha256 == *certificate_sha256.as_bytes()
+                && normalize_serial(&response.serial) == serial
         }) {
-            match self.evaluate(resp, now_unix) {
+            match self.evaluate(resp, now_unix, policy) {
                 Ok(OcspCertStatus::Revoked) => return Err(StatusCheckError::Revoked),
                 Ok(OcspCertStatus::Good) => saw_good = true,
                 Ok(OcspCertStatus::Unknown) => saw_unknown = true,

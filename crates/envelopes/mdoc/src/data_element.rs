@@ -13,6 +13,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use crate::{MdocEnvelopeError, MdocInvalidInputReason};
 
 /// A JSON-compatible mdoc data element whose identity data is wiped on drop.
+#[non_exhaustive]
 pub struct MdocDataElementJson(JsonValue);
 
 impl MdocDataElementJson {

@@ -5,7 +5,12 @@
 use crate::VpPolicy;
 use identity_core_primitives::Algorithm;
 
-/// EU age or pseudonymous age policy.
+/// Baseline EU age or pseudonymous-age trust policy.
+///
+/// This function configures credential trust and format acceptance only. The
+/// relying party must add its concrete claim and predicate with
+/// [`VpPolicy::require_claim`]; the baseline must not silently choose an age
+/// threshold on the verifier's behalf.
 pub fn eu_age_policy() -> VpPolicy {
     VpPolicy {
         require_status: false,

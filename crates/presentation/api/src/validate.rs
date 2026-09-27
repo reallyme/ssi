@@ -16,6 +16,9 @@ pub fn validate_vp(policy: &VpPolicy, ctx: &EvaluationContext<'_>) -> VpVerifica
     match evaluate(policy, ctx) {
         PolicyDecision::Accept => VpVerificationReport::accepted(),
         PolicyDecision::Reject(errors) => VpVerificationReport::rejected(errors),
+        _ => VpVerificationReport::rejected(vec![
+            reallyme_disclosure_policy::VpPolicyError::ProofInvalid,
+        ]),
     }
 }
 

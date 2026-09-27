@@ -31,6 +31,10 @@ pub enum OcspError {
     /// OCSP backend was unavailable.
     #[error("OCSP backend unavailable")]
     Unavailable,
+
+    /// The selected runtime has no trustworthy OCSP verifier implementation.
+    #[error("OCSP backend unsupported")]
+    Unsupported,
 }
 
 impl From<OcspError> for IdentityCoreErrorReason {
@@ -46,6 +50,7 @@ impl From<OcspError> for IdentityCoreErrorReason {
             OcspError::Unavailable => {
                 Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_STATUS_UNAVAILABLE
             }
+            OcspError::Unsupported => Self::IDENTITY_CORE_ERROR_REASON_UNSUPPORTED_ALGORITHM,
         }
     }
 }

@@ -7,6 +7,7 @@ fn verify_sd_jwt_rejects_unaccepted_issuer_typ() {
     let issuer = gen_ed25519();
     let issuer_payload = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "iat": 1683000000u64,
         "_sd_alg": "sha-256",
     });
@@ -45,6 +46,7 @@ fn verify_sd_jwt_validates_key_binding_jwt() {
         digest_disclosure(disclosure.encoded(), SdJwtHashAlgorithm::Sha256).expect("digest");
     let issuer_payload = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "iat": 1683000000u64,
         "_sd": [digest],
         "_sd_alg": "sha-256",
@@ -182,11 +184,12 @@ fn verify_sd_jwt_validates_key_binding_jwt() {
     )
     .expect("verified SD-JWT+KB");
 
-    assert_eq!(verified.key_binding_jwt.as_deref(), Some(kb_jwt.as_str()));
-    assert_eq!(verified.key_binding_payload, Some(kb_payload));
+    assert_eq!(verified.key_binding_jwt(), Some(kb_jwt.as_str()));
+    assert_eq!(verified.key_binding_payload(), Some(&kb_payload));
 
     let bearer_payload = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "iat": 1683000000u64,
         "_sd_alg": "sha-256",
     });
@@ -230,6 +233,7 @@ fn verify_sd_jwt_enforces_issuer_confirmation_key_binding() {
     let attacker = gen_ed25519();
     let issuer_payload = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "iat": 1_683_000_000u64,
         "_sd_alg": "sha-256",
         "cnf": { "jwk": holder.jwk },
@@ -289,8 +293,32 @@ fn verify_sd_jwt_enforces_issuer_confirmation_key_binding() {
     )
     .expect("matching issuer confirmation key must verify");
 
+    assert!(matches!(
+        verify_sd_jwt(
+            &holder_bound,
+            &issuer.jwk,
+            &issuer.public,
+            &SdJwtVerificationOptions {
+                require_key_binding: true,
+                key_binding: Some(KeyBindingVerificationOptions {
+                    holder_jwk: &holder.jwk,
+                    holder_public_key: &attacker.public,
+                    expected_audience: "https://verifier.example",
+                    expected_nonce: "nonce-123",
+                    now_unix: 1_683_000_002,
+                    max_future_iat_skew_seconds: 60,
+                    max_iat_age_seconds: 300,
+                }),
+                ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
+            },
+        ),
+        Err(SdJwtEnvelopeError::InvalidKeyBindingJwt)
+    ));
+
     let mut wrong_curve_payload = issuer_payload.clone();
     wrong_curve_payload["cnf"]["jwk"]["crv"] = Value::String("X25519".to_owned());
+    wrong_curve_payload["cnf"]["jwk"]["alg"] = Value::String("ECDH-ES".to_owned());
+    wrong_curve_payload["cnf"]["jwk"]["use"] = Value::String("enc".to_owned());
     let wrong_curve_issuer_jwt = encode_signed_jwt_with_header_options(
         &wrong_curve_payload,
         &issuer.jwk,
@@ -388,6 +416,7 @@ fn build_key_binding_jwt_builds_verifiable_kb_jwt() {
         digest_disclosure(disclosure.encoded(), SdJwtHashAlgorithm::Sha256).expect("digest");
     let issuer_payload = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "iat": 1683000000u64,
         "_sd": [digest],
         "_sd_alg": "sha-256",
@@ -437,10 +466,9 @@ fn build_key_binding_jwt_builds_verifiable_kb_jwt() {
     )
     .expect("verified SD-JWT+KB");
 
-    assert_eq!(verified.key_binding_jwt, Some(kb_jwt));
+    assert_eq!(verified.key_binding_jwt(), Some(kb_jwt.as_str()));
     let payload = verified
-        .key_binding_payload
-        .as_ref()
+        .key_binding_payload()
         .and_then(Value::as_object)
         .expect("verified KB-JWT payload is an object");
     assert_eq!(
@@ -449,12 +477,44 @@ fn build_key_binding_jwt_builds_verifiable_kb_jwt() {
     );
     assert_eq!(
         verified
-            .key_binding_payload
-            .as_ref()
+            .key_binding_payload()
             .and_then(|payload| payload.get("nonce"))
             .and_then(Value::as_str),
         Some("nonce-123")
     );
+
+    for key_binding in [
+        KeyBindingVerificationOptions {
+            holder_jwk: &holder.jwk,
+            holder_public_key: &holder.public,
+            expected_audience: "https://verifier.example",
+            expected_nonce: "nonce-123",
+            now_unix: 1_683_000_001 + 300,
+            max_future_iat_skew_seconds: 60,
+            max_iat_age_seconds: 300,
+        },
+        KeyBindingVerificationOptions {
+            holder_jwk: &holder.jwk,
+            holder_public_key: &holder.public,
+            expected_audience: "https://verifier.example",
+            expected_nonce: "nonce-123",
+            now_unix: 1_683_000_002,
+            max_future_iat_skew_seconds: MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS,
+            max_iat_age_seconds: MAX_KB_JWT_AGE_SECONDS,
+        },
+    ] {
+        verify_sd_jwt(
+            &compact,
+            &issuer.jwk,
+            &issuer.public,
+            &SdJwtVerificationOptions {
+                require_key_binding: true,
+                key_binding: Some(key_binding),
+                ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
+            },
+        )
+        .expect("inclusive key-binding policy boundary must verify");
+    }
 
     let excessive_future_skew = verify_sd_jwt(
         &compact,
@@ -482,13 +542,15 @@ fn build_key_binding_jwt_builds_verifiable_kb_jwt() {
 }
 
 #[test]
-fn verify_sd_jwt_rejects_wrong_key_binding_nonce() {
+fn verify_sd_jwt_rejects_wrong_key_binding_policy_claims() {
     let issuer = gen_ed25519();
     let holder = gen_ed25519();
     let issuer_payload = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "iat": 1683000000u64,
         "_sd_alg": "sha-256",
+        "cnf": {"jwk": holder.jwk},
     });
     let issuer_signed_jwt = encode_signed_jwt_with_header_options(
         &issuer_payload,
@@ -517,27 +579,57 @@ fn verify_sd_jwt_rejects_wrong_key_binding_nonce() {
     .expect("KB JWT");
     let compact = format!("{compact_without_kb}{kb_jwt}");
 
-    let err = verify_sd_jwt(
-        &compact,
-        &issuer.jwk,
-        &issuer.public,
-        &SdJwtVerificationOptions {
-            require_key_binding: true,
-            key_binding: Some(KeyBindingVerificationOptions {
-                holder_jwk: &holder.jwk,
-                holder_public_key: &holder.public,
-                expected_audience: "https://verifier.example",
-                expected_nonce: "different-nonce",
-                now_unix: 1683000002u64,
-                max_future_iat_skew_seconds: 60,
-                max_iat_age_seconds: 300,
-            }),
-            ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
-        },
-    )
-    .expect_err("wrong nonce must fail");
+    for (case, expected_audience, expected_nonce, now_unix) in [
+        (
+            "wrong audience",
+            "https://different.example",
+            "nonce-123",
+            1_683_000_002,
+        ),
+        (
+            "wrong nonce",
+            "https://verifier.example",
+            "different-nonce",
+            1_683_000_002,
+        ),
+        (
+            "stale issued-at",
+            "https://verifier.example",
+            "nonce-123",
+            1_683_000_302,
+        ),
+        (
+            "future issued-at",
+            "https://verifier.example",
+            "nonce-123",
+            1_682_999_940,
+        ),
+    ] {
+        let err = verify_sd_jwt(
+            &compact,
+            &issuer.jwk,
+            &issuer.public,
+            &SdJwtVerificationOptions {
+                require_key_binding: true,
+                key_binding: Some(KeyBindingVerificationOptions {
+                    holder_jwk: &holder.jwk,
+                    holder_public_key: &holder.public,
+                    expected_audience,
+                    expected_nonce,
+                    now_unix,
+                    max_future_iat_skew_seconds: 60,
+                    max_iat_age_seconds: 300,
+                }),
+                ..SdJwtVerificationOptions::new(VERIFY_NOW_UNIX)
+            },
+        )
+        .expect_err(case);
 
-    assert!(matches!(err, SdJwtEnvelopeError::InvalidKeyBindingJwt));
+        assert!(
+            matches!(err, SdJwtEnvelopeError::InvalidKeyBindingJwt),
+            "unexpected error for {case}"
+        );
+    }
 }
 
 #[test]
@@ -546,8 +638,10 @@ fn verify_sd_jwt_rejects_wrong_key_binding_sd_hash() {
     let holder = gen_ed25519();
     let issuer_payload = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "iat": 1683000000u64,
         "_sd_alg": "sha-256",
+        "cnf": {"jwk": holder.jwk},
     });
     let issuer_signed_jwt = encode_signed_jwt_with_header_options(
         &issuer_payload,
@@ -601,6 +695,7 @@ fn verify_sd_jwt_rejects_missing_required_key_binding() {
     let issuer = gen_ed25519();
     let issuer_payload = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "iat": 1683000000u64,
         "_sd_alg": "sha-256",
     });

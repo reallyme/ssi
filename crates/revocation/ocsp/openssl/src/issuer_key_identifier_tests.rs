@@ -9,10 +9,23 @@ use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::PKey;
 use openssl::sha::sha1;
-use openssl::x509::{X509Builder, X509NameBuilder};
+use openssl::x509::{X509Builder, X509NameBuilder, X509};
 
-use super::{issuer_key_identifier, subject_public_key_bits};
+use super::subject_public_key_bits;
 use identity_revocation_ocsp_core::OcspError;
+
+fn issuer_key_identifier(issuer: &X509) -> Result<Vec<u8>, OcspError> {
+    if let Some(ski) = issuer.subject_key_id() {
+        return Ok(ski.as_slice().to_vec());
+    }
+
+    let spki_der = issuer
+        .public_key()
+        .and_then(|key| key.public_key_to_der())
+        .map_err(|_| OcspError::InvalidResponse)?;
+    let subject_public_key = subject_public_key_bits(&spki_der)?;
+    Ok(sha1(subject_public_key).to_vec())
+}
 
 #[test]
 fn fallback_key_identifier_hashes_subject_public_key_bits_only() {

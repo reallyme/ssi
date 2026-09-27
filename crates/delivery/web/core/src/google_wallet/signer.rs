@@ -14,7 +14,8 @@ pub struct GoogleWalletJwtSignerImpl<'a> {
     /// Issuer identifier (service account email or issuer identifier)
     pub issuer: &'a str,
 
-    /// JWK describing the signing key (must be ES256-capable)
+    /// JWK describing the signing key. Google Wallet save JWT deployments
+    /// conventionally use an RS256-capable service-account key.
     pub jwk: &'a Jwk,
 
     /// Raw private key bytes

@@ -6,6 +6,7 @@ use reallyme_did_core::validate::limits::MAX_KEY_HISTORY_ENTRIES;
 use reallyme_did_core::validate::validate_did_document as core_validate_did_document;
 use reallyme_did_core::validate::validate_did_document_consistency as core_validate_did_document_consistency;
 use reallyme_did_core::validate::validate_did_document_transition as core_validate_did_document_transition;
+use reallyme_did_core::validate::validate_observed_did_document_successors as core_validate_observed_successors;
 use reallyme_did_method_me::{parse_did_me, verify_genesis_core_identifier};
 use reallyme_did_types::DIDDocument;
 
@@ -22,6 +23,15 @@ pub use reallyme_did_core::validate::{
 
 /// Maximum number of documents accepted by [`validate_did_chain`].
 pub const MAX_DID_CHAIN_DOCUMENTS: usize = MAX_KEY_HISTORY_ENTRIES + 1;
+
+/// Caller-pinned did:me head used as a rollback-resistant chain anchor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DidTrustedHead<'a> {
+    /// Canonical core CID previously accepted by the caller.
+    pub current_core: &'a str,
+    /// Sequence number associated with `current_core`.
+    pub sequence: u64,
+}
 
 /// High-level DID validator (API facade).
 ///
@@ -50,6 +60,57 @@ pub fn validate_did_transition(
     let mut result = core_validate_did_document_transition(previous, next, env);
     apply_identifier_binding(next, &mut result);
     result
+}
+
+/// Validate all observed direct successors and reject a valid fork.
+pub fn validate_observed_did_successors(
+    previous: &DIDDocument,
+    successors: &[DIDDocument],
+    env: DomainVerificationEnv,
+) -> FullValidationResult {
+    let mut result = core_validate_observed_successors(previous, successors, env);
+    if let Some(successor) = successors.first() {
+        apply_identifier_binding(successor, &mut result);
+    }
+    result
+}
+
+/// Validate a chain extending a caller-pinned trusted head.
+pub fn validate_did_chain_from_trusted_head(
+    chain: &[DIDDocument],
+    trusted_head: DidTrustedHead<'_>,
+    env: DomainVerificationEnv,
+) -> FullValidationResult {
+    let Some((first, successors)) = chain.split_first() else {
+        return failed_result(
+            DidValidationCode::TransitionInvalid,
+            DidValidationLocation::Core,
+        );
+    };
+    if first.current_core != trusted_head.current_core || first.sequence != trusted_head.sequence {
+        return failed_result(
+            DidValidationCode::TransitionInvalid,
+            DidValidationLocation::Core,
+        );
+    }
+    if successors.is_empty() {
+        return core_validate_did_document_consistency(first, env);
+    }
+    let Some((head, middle)) = successors.split_last() else {
+        return failed_result(
+            DidValidationCode::TransitionInvalid,
+            DidValidationLocation::Core,
+        );
+    };
+    let mut previous = first;
+    for document in middle {
+        let result = validate_did_transition(previous, document, no_domain_env());
+        if !result.ok {
+            return result;
+        }
+        previous = document;
+    }
+    validate_did_transition(previous, head, env)
 }
 
 /// Validate a complete did:me history from genesis to head.

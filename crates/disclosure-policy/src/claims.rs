@@ -62,6 +62,7 @@ fn disclosure_mode_for_claims(mode: DisclosureMode) -> ClaimDisclosureMode {
         DisclosureMode::Lte => ClaimDisclosureMode::Lte,
         DisclosureMode::Range => ClaimDisclosureMode::Range,
         DisclosureMode::MemberOfSet => ClaimDisclosureMode::MemberOfSet,
+        _ => ClaimDisclosureMode::Unspecified,
     }
 }
 
@@ -77,5 +78,6 @@ fn map_required_claim_error(error: ClaimsError) -> VpPolicyError {
         ClaimsError::UnknownClaim | ClaimsError::InvalidInput(_) => {
             VpPolicyError::RequiredClaimInvalid
         }
+        _ => VpPolicyError::RequiredClaimInvalid,
     }
 }

@@ -5,8 +5,14 @@
 const REGRESSION_SALT: &str = "MDEyMzQ1Njc4OWFiY2RlZg";
 
 fn sign_dc_sd_jwt(issuer: &TestKey, payload: &Value, disclosures: &[String]) -> String {
+    let mut payload = payload.clone();
+    if let Some(object) = payload.as_object_mut() {
+        object
+            .entry("vct")
+            .or_insert_with(|| Value::String("urn:example:test".to_owned()));
+    }
     let issuer_signed_jwt = encode_signed_jwt_with_header_options(
-        payload,
+        &payload,
         &issuer.jwk,
         &issuer.private,
         &JwtHeaderEncodeOptions::new(Some("dc+sd-jwt".to_owned())),
@@ -93,6 +99,26 @@ fn verify_sd_jwt_enforces_credential_validity_window() {
 }
 
 #[test]
+fn verify_sd_jwt_rejects_missing_exp_when_the_policy_requires_expiration() {
+    let issuer = gen_ed25519();
+    let now = 1_700_000_000_u64;
+    let compact = sign_dc_sd_jwt(
+        &issuer,
+        &json!({"iss": "https://issuer.example", "iat": now}),
+        &[],
+    );
+    let options = SdJwtVerificationOptions {
+        require_exp: true,
+        ..SdJwtVerificationOptions::new(now)
+    };
+
+    assert_eq!(
+        verify_sd_jwt(&compact, &issuer.jwk, &issuer.public, &options),
+        Err(SdJwtEnvelopeError::InvalidTemporalClaim)
+    );
+}
+
+#[test]
 fn verify_sd_jwt_reads_selectively_disclosed_iat() {
     let issuer = gen_ed25519();
     let now = 1_700_000_000_u64;
@@ -150,6 +176,53 @@ fn verify_sd_jwt_rejects_empty_key_binding_expectations_before_signature_work() 
         assert_eq!(
             verify_sd_jwt(compact, &issuer.jwk, &issuer.public, &options).err(),
             Some(SdJwtEnvelopeError::InvalidKeyBindingJwt)
+        );
+    }
+}
+
+#[test]
+fn key_binding_verification_options_enforce_every_policy_boundary() {
+    let holder = gen_ed25519();
+    let valid = KeyBindingVerificationOptions {
+        holder_jwk: &holder.jwk,
+        holder_public_key: &holder.public,
+        expected_audience: "https://verifier.example",
+        expected_nonce: "nonce-123",
+        now_unix: VERIFY_NOW_UNIX,
+        max_future_iat_skew_seconds: MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS,
+        max_iat_age_seconds: MAX_KB_JWT_AGE_SECONDS,
+    };
+    assert_eq!(valid.validate(), Ok(()));
+
+    for invalid in [
+        KeyBindingVerificationOptions {
+            expected_audience: "",
+            ..valid
+        },
+        KeyBindingVerificationOptions {
+            expected_nonce: "",
+            ..valid
+        },
+        KeyBindingVerificationOptions {
+            now_unix: 0,
+            ..valid
+        },
+        KeyBindingVerificationOptions {
+            max_future_iat_skew_seconds: MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS + 1,
+            ..valid
+        },
+        KeyBindingVerificationOptions {
+            max_iat_age_seconds: 0,
+            ..valid
+        },
+        KeyBindingVerificationOptions {
+            max_iat_age_seconds: MAX_KB_JWT_AGE_SECONDS + 1,
+            ..valid
+        },
+    ] {
+        assert_eq!(
+            invalid.validate(),
+            Err(SdJwtEnvelopeError::InvalidKeyBindingJwt)
         );
     }
 }
@@ -403,4 +476,36 @@ fn array_decoys_are_not_pinned_to_the_end_of_the_array() {
     assert_eq!(roles[0], json!({"...": bytes_to_base64url(&[0_u8; 32])}));
     assert_eq!(roles[1], json!("driver"));
     assert_eq!(roles[2], json!("resident"));
+}
+
+#[test]
+fn receipt_and_stored_credential_policies_reject_missing_required_expiration() {
+    let issuer = gen_ed25519();
+    let holder = gen_ed25519();
+    let issued = issue_receipt_credential(
+        &issuer,
+        serde_json::to_value(&holder.jwk).expect("holder JWK JSON"),
+        json!(RECEIPT_NOW),
+        None,
+        None,
+    );
+    let mut receipt = receipt_policy(&holder, RECEIPT_NOW);
+    receipt.require_exp = true;
+    let mut credential = credential_policy(&holder, RECEIPT_NOW);
+    credential.require_exp = true;
+
+    assert_eq!(
+        verify_sd_jwt_receipt(&issued.compact, &issuer.jwk, &issuer.public, &receipt).err(),
+        Some(SdJwtEnvelopeError::InvalidReceiptTemporalClaim)
+    );
+    assert_eq!(
+        verify_sd_jwt_credential(
+            &issued.compact,
+            &issuer.jwk,
+            &issuer.public,
+            &credential,
+        )
+        .err(),
+        Some(SdJwtEnvelopeError::InvalidReceiptTemporalClaim)
+    );
 }

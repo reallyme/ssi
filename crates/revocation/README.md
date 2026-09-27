@@ -23,11 +23,18 @@ common trust profiles.
 Network access is never ambient. Callers supply resolved evidence through
 explicit interfaces.
 
+The portable policy and checker traits compile for native and Wasm targets.
+The OpenSSL CRL parser and checker are native-only because OpenSSL is not part
+of the Wasm runtime. A Wasm host that selects CRL policy must inject a
+`StatusChecker` backed by its platform; without one, the composite decision
+fails closed as unavailable unless another explicitly configured source
+produces a terminal result.
+
 ## Install
 
 ```toml
 [dependencies]
-reallyme-revocation = "0.2.0"
+reallyme-revocation = "0.3.0"
 ```
 
 ## License

@@ -31,7 +31,7 @@
     "feature": "key_binding_jwt",
     "implementation": ["crates/envelopes/sd_jwt/src/holder_binding.rs"],
     "positive_tests": ["build_key_binding_jwt_builds_verifiable_kb_jwt", "verify_sd_jwt_validates_key_binding_jwt"],
-    "negative_tests": ["verify_sd_jwt_rejects_wrong_key_binding_nonce"],
+    "negative_tests": ["verify_sd_jwt_rejects_wrong_key_binding_policy_claims"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -50,12 +50,12 @@
   {
     "id": "SDJWT-MUST-005",
     "source": "RFC9901",
-    "section": "7 JSON Serialization",
+    "section": "8 JWS JSON Serialization",
     "keyword": "MUST",
     "feature": "jws_json_serialization",
     "implementation": ["crates/envelopes/sd_jwt/src/json_serialization.rs"],
     "positive_tests": ["jws_json_serialization_vectors_parse_and_process"],
-    "negative_tests": ["compact_sd_jwt_rejects_too_many_disclosures"],
+    "negative_tests": ["json_serialization_rejects_whitespace_and_duplicate_members", "json_serialization_rejects_excessive_signature_fanout"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -67,7 +67,7 @@
     "feature": "key_binding_nonce_and_audience",
     "implementation": ["crates/envelopes/sd_jwt/src/holder_binding.rs"],
     "positive_tests": ["verify_sd_jwt_validates_key_binding_jwt"],
-    "negative_tests": ["verify_sd_jwt_rejects_wrong_key_binding_nonce"],
+    "negative_tests": ["verify_sd_jwt_rejects_wrong_key_binding_policy_claims", "key_binding_verification_options_enforce_every_policy_boundary"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -103,7 +103,7 @@
     "feature": "key_binding_sd_hash_and_required_presence",
     "implementation": ["crates/envelopes/sd_jwt/src/holder_binding.rs", "crates/envelopes/sd_jwt/src/verify.rs"],
     "positive_tests": ["build_key_binding_jwt_builds_verifiable_kb_jwt", "verify_sd_jwt_validates_key_binding_jwt"],
-    "negative_tests": ["verify_sd_jwt_rejects_wrong_key_binding_nonce", "verify_sd_jwt_rejects_wrong_key_binding_sd_hash", "verify_sd_jwt_rejects_missing_required_key_binding"],
+    "negative_tests": ["verify_sd_jwt_rejects_wrong_key_binding_policy_claims", "verify_sd_jwt_rejects_wrong_key_binding_sd_hash", "verify_sd_jwt_rejects_missing_required_key_binding"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -146,7 +146,8 @@
     ],
     "negative_tests": [
       "verify_sd_jwt_rejects_unaccepted_issuer_typ",
-      "x5c_credential_allows_missing_issuer_only_by_explicit_policy"
+      "generic_verifier_requires_explicit_x5c_policy_and_keeps_caller_key_authoritative",
+      "receipt_verifier_rejects_malformed_or_untrusted_x5c_headers"
     ],
     "applicable": true,
     "exclusion_reason": null

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::arithmetic_side_effects, clippy::indexing_slicing)]
 //! Adversarial and happy-path coverage for the EU catalogue JSON boundary.
 
 use reallyme_etsi_eaa_conformance::{

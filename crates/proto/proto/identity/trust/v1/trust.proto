@@ -157,6 +157,7 @@ enum CertificateStatus {
   CERTIFICATE_STATUS_INVALID_SIGNATURE = 9;
   CERTIFICATE_STATUS_UNSUPPORTED = 10;
   CERTIFICATE_STATUS_EXEMPT = 11;
+  CERTIFICATE_STATUS_NOT_CHECKED = 12;
 }
 
 // TrustDecisionFailure identifies stable trust-evaluation rejection classes.

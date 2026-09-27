@@ -70,6 +70,7 @@ fn sample_core() -> DidCore {
                 CborValue::String("https://example.com".into()),
             )]),
         }],
+        projection_hash: [0_u8; 32],
         update_policy: UpdatePolicy {
             allowed_verification_methods: vec!["#ed25519".into()],
             threshold: None,

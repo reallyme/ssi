@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// QEAA compliance fields referenced by validation errors.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum QeaaField {
     /// `qtsp.tsp_name`.
     #[error("qtsp.tsp_name")]
@@ -103,6 +104,7 @@ pub enum QeaaField {
 
 /// Stable reason codes for invalid QEAA compliance evidence.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum QeaaInvalidReason {
     /// A required field is absent or empty after trimming.
     #[error("missing required QEAA field")]
@@ -147,6 +149,7 @@ pub enum QeaaInvalidReason {
 
 /// QEAA compliance validation errors.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum QeaaComplianceError {
     /// The compliance structure failed deterministic local validation.
     #[error("invalid QEAA compliance evidence")]

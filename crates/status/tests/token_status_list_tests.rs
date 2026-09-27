@@ -11,9 +11,9 @@ use reallyme_cose::{
 };
 use reallyme_credential_status::{
     build_token_status_list_payload, issue_token_status_list_jwt, pack_token_status_values,
-    token_status_value, verify_token_status_list_jwt, TokenStatusBits, TokenStatusListClaims,
-    TokenStatusListError, TokenStatusListFreshnessPolicy, TokenStatusListInvalidReason,
-    TokenStatusListProfile,
+    verify_token_status_list_jwt, TokenStatusBits, TokenStatusListClaims, TokenStatusListError,
+    TokenStatusListFreshnessPolicy, TokenStatusListInvalidReason, TokenStatusListProfile,
+    TokenStatusValue,
 };
 use reallyme_crypto::{
     core::Algorithm,
@@ -69,30 +69,6 @@ fn rejects_value_that_exceeds_bit_width() {
 }
 
 #[test]
-fn extracts_each_supported_packed_value_width() {
-    for (bits, values) in [
-        (TokenStatusBits::One, vec![0, 1, 1, 0]),
-        (TokenStatusBits::Two, vec![0, 1, 2, 3]),
-        (TokenStatusBits::Four, vec![0, 7, 15]),
-        (TokenStatusBits::Eight, vec![0, 127, 255]),
-    ] {
-        let packed = pack_token_status_values(&values, bits).expect("values must pack");
-        for (index, expected) in values.iter().copied().enumerate() {
-            assert_eq!(
-                token_status_value(&packed, bits, index).expect("index must resolve"),
-                expected
-            );
-        }
-    }
-    let error = token_status_value(&[0], TokenStatusBits::Eight, 1)
-        .expect_err("out-of-range index must fail");
-    assert_eq!(
-        error,
-        TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidIndex)
-    );
-}
-
-#[test]
 fn jwt_round_trip_authenticates_type_claims_and_compressed_bytes() {
     let (public_key, private_key) =
         generate_keypair(Algorithm::Ed25519).expect("fixture key generation");
@@ -109,8 +85,8 @@ fn jwt_round_trip_authenticates_type_claims_and_compressed_bytes() {
         TokenStatusListFreshnessPolicy::default(),
     )
     .expect("profile JWT must verify");
-    assert_eq!(verified.packed_statuses, vec![0x39, 0x06]);
-    assert_eq!(verified.claims.sub, "https://issuer.example/status/1");
+    assert_eq!(verified.packed_statuses(), [0x39, 0x06]);
+    assert_eq!(verified.claims().sub, "https://issuer.example/status/1");
 }
 
 #[test]
@@ -273,8 +249,8 @@ fn cwt_round_trip_uses_tagged_sign1_and_authenticated_type() {
     )
     .expect("profile CWT must verify");
 
-    assert_eq!(verified.packed_statuses, vec![0x39, 0x06]);
-    assert_eq!(verified.claims, claims());
+    assert_eq!(verified.packed_statuses(), [0x39, 0x06]);
+    assert_eq!(verified.claims(), &claims());
 }
 
 #[test]
@@ -548,10 +524,15 @@ fn verified_list_reads_status_with_signed_bit_width() {
     )
     .expect("fixture must verify");
 
-    let statuses: Vec<u8> = (0..6)
-        .map(|index| verified.status(index).expect("index in range"))
-        .collect();
-    assert_eq!(statuses, vec![1, 2, 3, 0, 2, 1]);
+    assert_eq!(verified.status(0), Ok(TokenStatusValue::Invalid));
+    assert_eq!(verified.status(1), Ok(TokenStatusValue::Suspended));
+    assert_eq!(
+        verified.status(2),
+        Err(TokenStatusListError::InvalidInput(
+            TokenStatusListInvalidReason::UnsupportedStatusValue
+        ))
+    );
+    assert_eq!(verified.status(3), Ok(TokenStatusValue::Valid));
     assert_eq!(
         verified.status(8).unwrap_err(),
         TokenStatusListError::InvalidInput(TokenStatusListInvalidReason::InvalidIndex)

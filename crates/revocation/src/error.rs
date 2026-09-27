@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Stable revocation-source failure codes.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum StatusCheckError {
     /// Certificate or credential is explicitly revoked.
     #[error("revoked")]
@@ -51,6 +52,7 @@ pub enum StatusCheckError {
 
 /// Stable revocation policy errors.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum RevocationPolicyError {
     /// The evaluation instant cannot be represented as Unix seconds.
     #[error("invalid revocation evaluation time")]
@@ -67,6 +69,7 @@ pub enum RevocationPolicyError {
 
 /// Stable revocation evidence cache errors.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum RevocationCacheError {
     /// Evidence without an expiry bound cannot be cached.
     #[error("revocation evidence has no expiry")]
@@ -75,6 +78,14 @@ pub enum RevocationCacheError {
     /// Evidence expiry does not follow its fetch time.
     #[error("revocation evidence expiry precedes fetch time")]
     InvalidExpiry,
+
+    /// The configured cache entry ceiling was reached.
+    #[error("revocation cache capacity exceeded")]
+    CapacityExceeded,
+
+    /// A zero cache capacity was requested.
+    #[error("revocation cache capacity is invalid")]
+    InvalidCapacity,
 }
 
 impl From<RevocationCacheError> for IdentityCoreErrorReason {
@@ -82,6 +93,9 @@ impl From<RevocationCacheError> for IdentityCoreErrorReason {
         match error {
             RevocationCacheError::MissingExpiry | RevocationCacheError::InvalidExpiry => {
                 Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_STATUS_INVALID_TIME_WINDOW
+            }
+            RevocationCacheError::CapacityExceeded | RevocationCacheError::InvalidCapacity => {
+                Self::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED
             }
         }
     }

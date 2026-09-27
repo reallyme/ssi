@@ -16,6 +16,7 @@ use crate::{SdJwtEnvelopeError, SdJwtProcessingPolicy};
 /// outside the envelope parser so callers can inject a bounded resolver and
 /// cache appropriate to their deployment.
 pub trait SdJwtCredentialStatusVerifier: Sync {
+    /// Verifies the authenticated status claim at `now_unix` and fails closed on an unknown status.
     fn verify_status(&self, status: &Value, now_unix: u64) -> Result<(), SdJwtEnvelopeError>;
 }
 
@@ -28,13 +29,21 @@ const DEFAULT_ISSUER_TYP_VALUES: &[&str] = &["dc+sd-jwt", "vc+sd-jwt"];
 /// Caller-owned policy for validating a just-issued SD-JWT credential.
 #[derive(Clone, Copy)]
 pub struct SdJwtReceiptVerificationPolicy<'a> {
+    /// Exact issuer that authenticated input must match.
     pub expected_issuer: &'a str,
+    /// Exact `vct` that authenticated input must match.
     pub expected_vct: &'a str,
+    /// Exact holder JWK that authenticated input must match.
     pub expected_holder_jwk: &'a Jwk,
+    /// Exact holder public key that authenticated input must match.
     pub expected_holder_public_key: &'a [u8],
+    /// Verification time as seconds since the Unix epoch.
     pub now_unix: u64,
+    /// Maximum accepted age of the receipt in seconds.
     pub maximum_age_seconds: u64,
+    /// Maximum clock skew accepted around temporal claim boundaries, in seconds.
     pub clock_skew_seconds: u64,
+    /// Whether an otherwise valid issuer JWT may omit its protected `typ` value.
     pub issuer_allow_missing_typ: bool,
     /// Permit a certificate chain in the issuer JWS protected header.
     ///
@@ -42,10 +51,16 @@ pub struct SdJwtReceiptVerificationPolicy<'a> {
     /// exact authenticated `x5c` chain. Prefer
     /// [`crate::verify_sd_jwt_receipt_with_x5c`].
     pub issuer_allow_embedded_key_header: bool,
+    /// Accepted protected `typ` values for the issuer-signed JWT.
     pub issuer_accepted_typ_values: &'a [&'a str],
+    /// Resource limits applied while resolving recursive disclosures.
     pub processing_policy: SdJwtProcessingPolicy,
+    /// Application-provided verifier for an authenticated credential-status claim.
     pub status_verifier: Option<&'a dyn SdJwtCredentialStatusVerifier>,
+    /// Whether a credential-status claim and successful status verification are mandatory.
     pub require_status: bool,
+    /// Require an issuer-signed `exp` claim.
+    pub require_exp: bool,
 }
 
 impl<'a> SdJwtReceiptVerificationPolicy<'a> {
@@ -73,6 +88,7 @@ impl<'a> SdJwtReceiptVerificationPolicy<'a> {
             processing_policy: SdJwtProcessingPolicy::default(),
             status_verifier: None,
             require_status: false,
+            require_exp: false,
         }
     }
 }
@@ -85,12 +101,19 @@ impl<'a> SdJwtReceiptVerificationPolicy<'a> {
 /// protected-header, and disclosure verification.
 #[derive(Clone, Copy)]
 pub struct SdJwtCredentialVerificationPolicy<'a> {
+    /// Exact issuer that authenticated input must match.
     pub expected_issuer: &'a str,
+    /// Exact `vct` that authenticated input must match.
     pub expected_vct: &'a str,
+    /// Exact holder JWK that authenticated input must match.
     pub expected_holder_jwk: &'a Jwk,
+    /// Exact holder public key that authenticated input must match.
     pub expected_holder_public_key: &'a [u8],
+    /// Verification time as seconds since the Unix epoch.
     pub now_unix: u64,
+    /// Maximum clock skew accepted around temporal claim boundaries, in seconds.
     pub clock_skew_seconds: u64,
+    /// Whether an otherwise valid issuer JWT may omit its protected `typ` value.
     pub issuer_allow_missing_typ: bool,
     /// Permit an absent issuer claim when the authenticated `x5c` leaf
     /// certificate conveys the issuer identity.
@@ -105,10 +128,16 @@ pub struct SdJwtCredentialVerificationPolicy<'a> {
     /// Callers must not set this without validating the exact authenticated
     /// `x5c` chain. Prefer [`crate::verify_sd_jwt_credential_with_x5c`].
     pub issuer_allow_embedded_key_header: bool,
+    /// Accepted protected `typ` values for the issuer-signed JWT.
     pub issuer_accepted_typ_values: &'a [&'a str],
+    /// Resource limits applied while resolving recursive disclosures.
     pub processing_policy: SdJwtProcessingPolicy,
+    /// Application-provided verifier for an authenticated credential-status claim.
     pub status_verifier: Option<&'a dyn SdJwtCredentialStatusVerifier>,
+    /// Whether a credential-status claim and successful status verification are mandatory.
     pub require_status: bool,
+    /// Require an issuer-signed `exp` claim.
+    pub require_exp: bool,
 }
 
 impl<'a> SdJwtCredentialVerificationPolicy<'a> {
@@ -135,6 +164,7 @@ impl<'a> SdJwtCredentialVerificationPolicy<'a> {
             processing_policy: SdJwtProcessingPolicy::default(),
             status_verifier: None,
             require_status: false,
+            require_exp: false,
         }
     }
 }
@@ -155,6 +185,7 @@ pub(super) struct BoundCredentialVerificationPolicy<'a> {
     pub(super) processing_policy: SdJwtProcessingPolicy,
     pub(super) status_verifier: Option<&'a dyn SdJwtCredentialStatusVerifier>,
     pub(super) require_status: bool,
+    pub(super) require_exp: bool,
 }
 
 impl<'a> From<&SdJwtReceiptVerificationPolicy<'a>> for BoundCredentialVerificationPolicy<'a> {
@@ -174,6 +205,7 @@ impl<'a> From<&SdJwtReceiptVerificationPolicy<'a>> for BoundCredentialVerificati
             processing_policy: policy.processing_policy,
             status_verifier: policy.status_verifier,
             require_status: policy.require_status,
+            require_exp: policy.require_exp,
         }
     }
 }
@@ -195,6 +227,7 @@ impl<'a> From<&SdJwtCredentialVerificationPolicy<'a>> for BoundCredentialVerific
             processing_policy: policy.processing_policy,
             status_verifier: policy.status_verifier,
             require_status: policy.require_status,
+            require_exp: policy.require_exp,
         }
     }
 }

@@ -75,6 +75,7 @@ pub struct VerificationProvenance {
 
 /// Stable field identifiers for provenance validation failures.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum VerificationProvenanceField {
     /// Completion time.
     #[error("evaluation time")]
@@ -143,6 +144,7 @@ pub enum VerificationProvenanceField {
 
 /// Typed, allocation-free reason for rejecting provenance at a boundary.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum VerificationProvenanceError {
     /// A required field is empty or a required timestamp is zero.
     #[error("verification provenance field is missing")]

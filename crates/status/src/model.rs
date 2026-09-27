@@ -6,6 +6,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Credential status purpose.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum StatusPurpose {
     /// Credential revocation.
     Revocation,
@@ -16,6 +17,7 @@ pub enum StatusPurpose {
 
 /// Supported status-list signature algorithms.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum StatusListAlgorithm {
     /// Ed25519 / EdDSA signature.
     Ed25519,

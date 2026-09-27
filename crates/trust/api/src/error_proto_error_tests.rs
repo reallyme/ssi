@@ -67,6 +67,10 @@ fn trusted_list_policy_reasons_map_to_stable_proto_reasons() {
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_SIGNER_EXTERNAL_CERTIFICATE_MISMATCH,
         ),
         (
+            TrustedListPolicyErrorReason::InvalidPointerParent,
+            IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT,
+        ),
+        (
             TrustedListPolicyErrorReason::CountryMismatch,
             IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_SIGNER_PROFILE_COUNTRY_MISMATCH,
         ),

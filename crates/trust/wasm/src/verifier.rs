@@ -60,5 +60,6 @@ const fn map_x509_error(error: X509Error) -> SignatureVerifyError {
         | X509Error::PolicyFailed(_)
         | X509Error::SignatureFailed(_)
         | X509Error::ResourceLimitExceeded(_) => SignatureVerifyError::BackendFailure,
+        _ => SignatureVerifyError::BackendFailure,
     }
 }

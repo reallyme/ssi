@@ -4,16 +4,20 @@
 
 //! Conformance vectors for the purpose-scoped national TS5 registrar signer identity.
 
-#![allow(clippy::expect_used)]
+#![allow(clippy::arithmetic_side_effects, clippy::expect_used)]
 
 use envelopes_x509::{
-    model::{BasicConstraints, KeyUsage, X509Certificate, X509Chain},
+    model::{
+        BasicConstraints, CertificateProfile, KeyUsage, PublicKeyProfile, SignatureAlgorithm,
+        X509Certificate, X509Chain,
+    },
     policy::X509Policy,
 };
+use identity_revocation_core::{StatusCheckError, StatusChecker};
 use reallyme_trust_core::{
-    evaluate_trust_decision, DirectTrustEntry, SignatureVerifier, SignatureVerifyError,
-    TrustAnchorKind, TrustConfig, TrustError, TrustEvaluationContext, TrustOutcome, TrustPolicyId,
-    TrustPurpose, TrustSourceEvidence,
+    evaluate_trust_decision, CertificateStatusPolicy, DirectTrustEntry, SignatureVerifier,
+    SignatureVerifyError, StatusRequirement, TrustAnchorKind, TrustConfig, TrustError,
+    TrustEvaluationContext, TrustOutcome, TrustPolicyId, TrustPurpose, TrustSourceEvidence,
 };
 use time::OffsetDateTime;
 
@@ -24,6 +28,12 @@ fn mock_cert(
     ski: Option<Vec<u8>>,
     aki: Option<Vec<u8>>,
 ) -> X509Certificate {
+    let mut profile = CertificateProfile::default();
+    profile.public_key = PublicKeyProfile::Ec {
+        bits: 256,
+        curve: None,
+    };
+    profile.signature_algorithm = SignatureAlgorithm::EcdsaSha256;
     X509Certificate {
         der: subject.as_bytes().to_vec(),
         subject: subject.to_owned(),
@@ -57,7 +67,7 @@ fn mock_cert(
         san_ip: Vec::new(),
         certificate_policies: Vec::new(),
         qc_statements: Default::default(),
-        profile: Default::default(),
+        profile,
     }
 }
 
@@ -82,6 +92,22 @@ impl SignatureVerifier for RejectAllSignatures {
         _now: OffsetDateTime,
     ) -> Result<(), SignatureVerifyError> {
         Err(SignatureVerifyError::InvalidSignature)
+    }
+}
+
+struct AllowAllStatus;
+
+impl StatusChecker for AllowAllStatus {
+    fn check(&self, _cert: &X509Certificate, _now_unix: u64) -> Result<(), StatusCheckError> {
+        Ok(())
+    }
+}
+
+fn required_status_policy() -> CertificateStatusPolicy {
+    CertificateStatusPolicy {
+        leaf: StatusRequirement::Required,
+        intermediates: StatusRequirement::Required,
+        trust_anchor: StatusRequirement::Exempt,
     }
 }
 
@@ -112,8 +138,8 @@ fn ts5_registry_signing_direct_trust_vector_is_purpose_scoped() {
         evaluation: TrustEvaluationContext {
             purpose: TrustPurpose::WalletRelyingPartyRegistrySigning,
             policy_id: TrustPolicyId::EudiTs5RegistryResponseSigningV1,
+            status_policy: required_status_policy(),
             source: Some(source),
-            ..Default::default()
         },
         direct_trust: vec![direct_entry],
     };
@@ -122,20 +148,20 @@ fn ts5_registry_signing_direct_trust_vector_is_purpose_scoped() {
         std::slice::from_ref(&leaf),
         &config,
         &RejectAllSignatures,
-        None,
+        Some(&AllowAllStatus),
     )
     .expect("the exact purpose-scoped direct entry should be evaluated");
-    assert_eq!(decision.outcome, TrustOutcome::Trusted);
+    assert_eq!(decision.outcome(), TrustOutcome::Trusted);
     assert_eq!(
-        decision.evidence.purpose,
+        decision.evidence().purpose,
         TrustPurpose::WalletRelyingPartyRegistrySigning
     );
     assert_eq!(
-        decision.evidence.policy_id,
+        decision.evidence().policy_id,
         TrustPolicyId::EudiTs5RegistryResponseSigningV1
     );
     assert_eq!(
-        decision.evidence.trust_anchor.map(|anchor| anchor.kind),
+        decision.evidence().trust_anchor.map(|anchor| anchor.kind),
         Some(TrustAnchorKind::DirectEndEntity)
     );
 
@@ -160,8 +186,8 @@ fn ts5_registry_signing_direct_trust_vector_is_purpose_scoped() {
             None,
         )
         .expect("each unrelated identity is internally consistent");
-        assert_eq!(decision.outcome, TrustOutcome::Rejected);
-        assert!(decision.evidence.trust_anchor.is_none());
+        assert_eq!(decision.outcome(), TrustOutcome::Rejected);
+        assert!(decision.evidence().trust_anchor.is_none());
     }
 }
 
@@ -190,25 +216,27 @@ fn ts5_registry_signing_pkix_vector_retains_exact_identity() {
         evaluation: TrustEvaluationContext {
             purpose: TrustPurpose::WalletRelyingPartyRegistrySigning,
             policy_id: TrustPolicyId::EudiTs5RegistryResponseSigningV1,
-            ..Default::default()
+            status_policy: required_status_policy(),
+            source: None,
         },
         direct_trust: Vec::new(),
     };
 
-    let decision = evaluate_trust_decision(&[leaf], &config, &AllowAllSignatures, None)
-        .expect("the registrar chain should produce a typed decision");
+    let decision =
+        evaluate_trust_decision(&[leaf], &config, &AllowAllSignatures, Some(&AllowAllStatus))
+            .expect("the registrar chain should produce a typed decision");
 
-    assert_eq!(decision.outcome, TrustOutcome::Trusted);
+    assert_eq!(decision.outcome(), TrustOutcome::Trusted);
     assert_eq!(
-        decision.evidence.purpose,
+        decision.evidence().purpose,
         TrustPurpose::WalletRelyingPartyRegistrySigning
     );
     assert_eq!(
-        decision.evidence.policy_id,
+        decision.evidence().policy_id,
         TrustPolicyId::EudiTs5RegistryResponseSigningV1
     );
     assert_eq!(
-        decision.evidence.trust_anchor.map(|anchor| anchor.kind),
+        decision.evidence().trust_anchor.map(|anchor| anchor.kind),
         Some(TrustAnchorKind::RootCertificate)
     );
 }

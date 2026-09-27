@@ -10,6 +10,8 @@ struct ParsedDigitalRepresentations {
     non_pki_identifiers: Vec<TslNonPkiIdentifier>,
     structured_other_present: bool,
 }
+
+const TSL_SUBJECT_KEY_IDENTIFIER_BYTES: usize = 20;
 fn parse_current_digital_identity(
     identity: RawServiceDigitalIdentity,
 ) -> Result<ServiceDigitalIdentity, TslError> {
@@ -25,7 +27,12 @@ fn parse_current_digital_identity(
             );
         }
         let certificates = core::mem::take(&mut parsed.certificates_der);
-        merge_unique(&mut parsed.certificates_der, certificates);
+        merge_unique_bounded(
+            &mut parsed.certificates_der,
+            certificates,
+            MAX_CERTIFICATES_PER_IDENTITY,
+            TslResourceLimit::Certificates,
+        )?;
         return Ok(ServiceDigitalIdentity::Pki(Box::new(
             PkiServiceDigitalIdentity {
                 certificates_der: parsed.certificates_der,
@@ -177,6 +184,11 @@ fn parse_digital_representations(
                 MAX_KEY_COMPONENT_BASE64_BYTES,
                 TslError::DigitalIdentity(TslDigitalIdentityFailure::MalformedRepresentation),
             )?;
+            if value.len() != TSL_SUBJECT_KEY_IDENTIFIER_BYTES {
+                return Err(TslError::DigitalIdentity(
+                    TslDigitalIdentityFailure::MalformedRepresentation,
+                ));
+            }
             merge_identity_representation(&mut parsed.subject_key_identifier, value)?;
         }
         if let Some(other) = digital_id.other {
@@ -335,6 +347,16 @@ fn validate_current_pki_representations(
             if first.subject_public_key_info_der != facts.subject_public_key_info_der {
                 return Err(TslError::DigitalIdentity(
                     TslDigitalIdentityFailure::PublicKeyMismatch,
+                ));
+            }
+            if first.subject_name_der != facts.subject_name_der {
+                return Err(TslError::DigitalIdentity(
+                    TslDigitalIdentityFailure::SubjectNameMismatch,
+                ));
+            }
+            if first.certificate_authority != facts.certificate_authority {
+                return Err(TslError::DigitalIdentity(
+                    TslDigitalIdentityFailure::CertificateAuthorityMismatch,
                 ));
             }
         } else {

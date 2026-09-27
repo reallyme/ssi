@@ -18,7 +18,7 @@ fn qwac_policy_rejects_unapproved_typed_key_and_signature_algorithms() {
             &policy,
         )
         .unwrap_err(),
-        X509Error::PolicyFailed(X509PolicyFailure::PublicKeyAlgorithmNotAllowed)
+        X509Error::PolicyFailed(X509PolicyFailure::WeakPublicKey)
     );
 
     let mut unapproved_signature = mk_leaf();

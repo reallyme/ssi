@@ -121,13 +121,13 @@ impl Drop for PresentationVerifyRequest {
 impl ZeroizeOnDrop for PresentationVerifyRequest {}
 
 /// Minimal credential result nested under a presentation result.
-#[derive(Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PresentationCredentialResult {
     /// Credential claimset identifier.
     pub claimset_id: String,
     /// Whether credential-level facts satisfied presentation policy.
-    pub valid: bool,
+    pub policy_satisfied: bool,
 }
 
 impl core::fmt::Debug for PresentationCredentialResult {
@@ -139,7 +139,7 @@ impl core::fmt::Debug for PresentationCredentialResult {
 impl Zeroize for PresentationCredentialResult {
     fn zeroize(&mut self) {
         self.claimset_id.zeroize();
-        self.valid = false;
+        self.policy_satisfied = false;
     }
 }
 
@@ -160,7 +160,7 @@ pub struct PresentationCommandIssue {
 }
 
 /// Result for `presentations.verify`.
-#[derive(Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PresentationVerificationResult {
     /// Whether all mandatory checks passed.
@@ -283,12 +283,27 @@ pub fn present(mut request: PresentationPresentRequest) -> Result<PresentationRe
     })
 }
 
-/// Verify a presentation from already-resolved envelope/protocol facts.
-pub fn verify_presentation(
+/// Evaluate caller-supplied presentation facts against policy.
+///
+/// This function performs no cryptographic verification. Its result is a
+/// policy report and must not be used as proof that an artifact was verified.
+pub fn evaluate_presentation_policy(
     mut request: PresentationVerifyRequest,
 ) -> PresentationVerificationResult {
     let mut checks = Vec::new();
     let mut errors = Vec::new();
+    let verification_time_valid = request.verification_context.is_valid();
+    let binding_is_fresh = match &request.presentation {
+        Presentation::Zk(zk) => {
+            verification_time_valid
+                && !is_zero_32(&zk.freshness.challenge)
+                && !is_zero_32(&zk.freshness.audience_hash)
+                && zk.freshness.expiry_unix > request.verification_context.evaluation_time_unix
+        }
+        Presentation::SdJwtVc(_) | Presentation::Mdoc(_) => verification_time_valid,
+        _ => false,
+    };
+    let binding_ok = request.facts.binding_ok && binding_is_fresh;
 
     add_expected_checks(&request, &mut checks);
     checks.push(bool_check(
@@ -299,7 +314,7 @@ pub fn verify_presentation(
     ));
     checks.push(bool_check(
         PresentationCheckName::HolderBinding,
-        request.facts.binding_ok,
+        binding_ok,
         PresentationCheckCode::BindingMismatch,
         true,
     ));
@@ -352,7 +367,7 @@ pub fn verify_presentation(
         identity_proofing_rank: qeaa.identity_proofing_rank,
     });
     let ctx = EvaluationContext {
-        binding_ok: request.facts.binding_ok,
+        binding_ok,
         now_unix: request.verification_context.evaluation_time_unix,
         presentation: &request.presentation,
         issuer_algorithm: request.facts.issuer_algorithm,
@@ -378,7 +393,7 @@ pub fn verify_presentation(
 
     apply_requested_checks(&mut checks, request.checks.as_slice());
     for check in &checks {
-        if check.mandatory && check.outcome == PresentationCheckOutcome::Fail {
+        if check.outcome == PresentationCheckOutcome::Fail {
             errors.push(PresentationCommandIssue { code: check.code });
         }
     }
@@ -392,7 +407,7 @@ pub fn verify_presentation(
         presentation_checks: checks,
         credential_results: vec![PresentationCredentialResult {
             claimset_id,
-            valid: policy_report.outcome == VpVerificationOutcome::Accepted,
+            policy_satisfied: policy_report.outcome == VpVerificationOutcome::Accepted,
         }],
         disclosed_claims,
         warnings: Vec::new(),

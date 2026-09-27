@@ -6,11 +6,12 @@ use super::{dereference_did_ebsi_document, DidEbsiDereferenceKind};
 use crate::{parse_and_validate_did_ebsi_document, DidEbsiDocumentLimits, DidEbsiErrorReason};
 
 const DID: &str = "did:ebsi:zub5ZZUfHLLptCduwEy8xRj";
-const COORDINATE: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const P256_X: &str = "axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpY";
+const P256_Y: &str = "T-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU";
 
 fn document() -> Result<crate::DidEbsiDocument, crate::DidEbsiError> {
     let bytes = format!(
-        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{DID}","controller":["{DID}"],"verificationMethod":[{{"id":"{DID}#key-1","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","x":"{COORDINATE}","y":"{COORDINATE}"}}}}],"capabilityInvocation":["{DID}#key-1"],"service":[{{"id":"{DID}#registry","type":"LinkedDomains","serviceEndpoint":"https://legal-entity.example.test"}}]}}"#
+        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{DID}","controller":["{DID}"],"verificationMethod":[{{"id":"{DID}#key-1","type":"JsonWebKey2020","controller":"{DID}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","x":"{P256_X}","y":"{P256_Y}"}}}}],"capabilityInvocation":["{DID}#key-1"],"service":[{{"id":"{DID}#registry","type":"LinkedDomains","serviceEndpoint":"https://legal-entity.example.test"}}]}}"#
     );
     parse_and_validate_did_ebsi_document(DID, bytes.as_bytes(), DidEbsiDocumentLimits::default())
 }

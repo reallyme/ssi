@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Protocol-neutral verifiable presentation API.
+//! Protocol-neutral presentation policy-evaluation API.
 //!
-//! This crate is the reusable VP API boundary. It accepts already-verified
-//! envelope facts, evaluates them against disclosure policy, and returns a
-//! stable truth-first report that delivery protocols can map into OpenID4VP,
-//! SIOP, web, mdoc, or SDK-specific responses.
+//! This crate does not verify signatures, proofs, or transaction bindings. It
+//! evaluates facts produced by a protocol-specific verifier against disclosure
+//! policy and returns a truth-first report. Applications must not treat this
+//! policy report as cryptographic verification evidence.
 
 /// SDK-facing presentation commands.
 pub mod commands;
@@ -22,7 +22,7 @@ pub mod report;
 pub mod validate;
 
 pub use commands::{
-    create_presentation_request, present, verify_presentation, PresentationCheckCode,
+    create_presentation_request, evaluate_presentation_policy, present, PresentationCheckCode,
     PresentationCheckName, PresentationCheckOutcome, PresentationCheckResult,
     PresentationCheckSeverity, PresentationCommandIssue, PresentationCredentialResult,
     PresentationDecision, PresentationDisclosureFact, PresentationExpected,

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::arithmetic_side_effects,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -11,7 +12,7 @@
 )]
 //! Tests for trust API evaluation.
 
-use envelopes_x509::{BasicConstraints, KeyUsage, X509Certificate};
+use envelopes_x509::{BasicConstraints, KeyUsage, PublicKeyProfile, X509Certificate};
 use identity_credential_trust_api::{evaluate_trust_api, TrustApiError, TrustDecisionOutcome};
 use reallyme_trust_core::SignatureVerifier;
 use time::OffsetDateTime;
@@ -29,6 +30,8 @@ impl SignatureVerifier for AcceptAllVerifier {
 }
 
 fn certificate(subject: &str, issuer: &str, is_ca: bool) -> X509Certificate {
+    let mut profile = envelopes_x509::CertificateProfile::default();
+    profile.public_key = PublicKeyProfile::Rsa { bits: 2_048 };
     X509Certificate {
         der: subject.as_bytes().to_vec(),
         subject: subject.to_owned(),
@@ -62,7 +65,7 @@ fn certificate(subject: &str, issuer: &str, is_ca: bool) -> X509Certificate {
         san_ip: Vec::new(),
         certificate_policies: Vec::new(),
         qc_statements: Default::default(),
-        profile: Default::default(),
+        profile,
     }
 }
 

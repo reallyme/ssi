@@ -147,7 +147,7 @@ pub(crate) fn validate_tlso_signer_profile(
             _ => None,
         })
         .collect();
-    if countries.len() != 1 || countries[0] != territory {
+    if !matches!(countries.as_slice(), [country] if *country == territory) {
         return Err(TslOpenSslError::SignerProfile(
             TslSignerProfileFailureReason::CountryMismatch,
         ));
@@ -217,8 +217,7 @@ pub(crate) fn validate_tlso_signer_profile(
             .ok_or(TslOpenSslError::SignerProfile(
                 TslSignerProfileFailureReason::InvalidExtendedKeyUsage,
             ))?;
-    if extended_key_usage.len() != 1 || extended_key_usage[0] != TSL_SIGNING_EXTENDED_KEY_USAGE_OID
-    {
+    if !matches!(extended_key_usage, [usage] if *usage == TSL_SIGNING_EXTENDED_KEY_USAGE_OID) {
         return Err(TslOpenSslError::SignerProfile(
             TslSignerProfileFailureReason::InvalidExtendedKeyUsage,
         ));
@@ -243,6 +242,7 @@ pub(crate) fn validate_tlso_signer_profile(
         PublicKeyProfile::Dsa { .. }
         | PublicKeyProfile::Other { .. }
         | PublicKeyProfile::Rsa { .. } => false,
+        _ => false,
     };
     let certificate_signature_allowed = matches!(
         signer.profile.signature_algorithm,

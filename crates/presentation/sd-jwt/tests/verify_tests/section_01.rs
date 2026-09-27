@@ -36,14 +36,14 @@ const TEST_NOW_UNIX: u64 = 1_750_000_000;
 // Helpers
 // ------------------------------------------------------------
 
-fn base_input(subject_pub: Vec<u8>) -> IssueInput {
+fn base_input(subject_pub: Vec<u8>, issuer_pub: Vec<u8>) -> IssueInput {
     IssueInput {
         kind: CredentialKind::Pid,
         profile_id: "claims-v1".into(),
         assurance: AssuranceLevel::Substantial,
 
         issuer_reference: PartyReference::Did("did:test:issuer".into()),
-        issuer_verification_key: key("did:test:issuer#key-1", vec![2; 32]),
+        issuer_verification_key: key("did:test:issuer#key-1", issuer_pub),
         issuer_country: "EU".into(),
 
         valid_from: 1_700_000_000,
@@ -183,7 +183,7 @@ fn sd_jwt_vp_verifies_successfully() {
     let mut rng = OsSaltRng;
 
     let issued = issue_credential(
-        base_input(holder_pub.clone()),
+        base_input(holder_pub.clone(), issuer_pub.clone()),
         &claims,
         Algorithm::Ed25519,
         &issuer_priv,
@@ -227,8 +227,8 @@ fn sd_jwt_vp_verifies_successfully() {
     .unwrap();
 
     assert_eq!(disclosures.len(), 1);
-    assert_eq!(disclosures[0].claim_path, "/claims/age");
-    assert_eq!(disclosures[0].value_jcs, b"42");
+    assert_eq!(disclosures[0].claim_path(), "/claims/age");
+    assert_eq!(disclosures[0].value_jcs(), b"42");
 
     let unbound_verifier_error = verify_sd_jwt_vp(
         &vp,
@@ -398,7 +398,7 @@ fn sd_jwt_vp_fails_if_claim_value_tampered() {
     let mut rng = OsSaltRng;
 
     let issued = issue_credential(
-        base_input(holder_pub.clone()),
+        base_input(holder_pub.clone(), issuer_pub.clone()),
         &claims,
         Algorithm::Ed25519,
         &issuer_priv,
@@ -454,7 +454,7 @@ fn sd_jwt_vp_rejects_unbounded_or_inconsistent_merkle_disclosures() {
     claims.insert("country".into(), serde_json::json!("US"));
     let mut rng = OsSaltRng;
     let mut issued = issue_credential(
-        base_input(holder_pub),
+        base_input(holder_pub, issuer_pub.clone()),
         &claims,
         Algorithm::Ed25519,
         &issuer_priv,
@@ -482,32 +482,32 @@ fn sd_jwt_vp_rejects_unbounded_or_inconsistent_merkle_disclosures() {
         assert!(matches!(error, SdJwtVpError::InvalidDisclosure));
     };
 
-    let mut short_salt = valid.clone();
+    let mut short_salt = copy_sd_jwt_presentation(&valid);
     mutate_first_disclosure(&mut short_salt, |parts| {
         parts[0] = serde_json::json!(bytes_to_base64url(&[7_u8]));
     });
     assert_invalid_disclosure(short_salt);
 
-    let mut oversized_path = valid.clone();
+    let mut oversized_path = copy_sd_jwt_presentation(&valid);
     mutate_first_disclosure(&mut oversized_path, |parts| {
         parts[4] = serde_json::json!(vec![bytes_to_base64url(&[0_u8; 32]); 13]);
     });
     assert_invalid_disclosure(oversized_path);
 
-    let mut out_of_range_index = valid.clone();
+    let mut out_of_range_index = copy_sd_jwt_presentation(&valid);
     mutate_first_disclosure(&mut out_of_range_index, |parts| {
         let depth = parts[4].as_array().unwrap().len();
         parts[3] = serde_json::json!(1_u64.checked_shl(u32::try_from(depth).unwrap()).unwrap());
     });
     assert_invalid_disclosure(out_of_range_index);
 
-    let mut duplicate_index = valid.clone();
+    let mut duplicate_index = copy_sd_jwt_presentation(&valid);
     duplicate_index
         .disclosures
         .push(valid.disclosures[0].clone());
     assert_invalid_disclosure(duplicate_index);
 
-    let mut excessive_disclosures = valid.clone();
+    let mut excessive_disclosures = copy_sd_jwt_presentation(&valid);
     excessive_disclosures.disclosures =
         vec![valid.disclosures[0].clone(); MAX_COMMITMENT_CLAIMS + 1];
     let excessive_error = verify_sd_jwt_vp(
@@ -555,7 +555,7 @@ fn sd_jwt_vp_fails_if_sd_jwt_is_expired() {
 
     let mut rng = OsSaltRng;
     let issued = issue_credential(
-        base_input(holder_pub.clone()),
+        base_input(holder_pub.clone(), issuer_pub.clone()),
         &claims,
         Algorithm::Ed25519,
         &issuer_priv,
@@ -615,7 +615,7 @@ fn sd_jwt_vp_with_binding_rejects_stale_kb_jwt() {
 
     let mut rng = OsSaltRng;
     let issued = issue_credential(
-        base_input(holder_pub.clone()),
+        base_input(holder_pub.clone(), issuer_pub.clone()),
         &claims,
         Algorithm::Ed25519,
         &issuer_priv,
@@ -649,8 +649,13 @@ fn sd_jwt_vp_with_binding_rejects_stale_kb_jwt() {
     };
 
     // Replace KB-JWT with a token outside the verifier's bounded iat window.
+    let mut disclosure_strings = vp.disclosures.iter().map(String::as_str).collect::<Vec<_>>();
+    disclosure_strings.sort_unstable();
+    let disclosure_set = serde_json::to_vec(&disclosure_strings).unwrap();
+    let disclosure_set_hash = sha2_256_digest(&disclosure_set);
     let payload = serde_json::json!({
         "sd_hash": bytes_to_base64url(issued.subject_bundle.envelope_hash.as_slice()),
+        "disclosure_set_hash": bytes_to_base64url(disclosure_set_hash.as_bytes()),
         "aud": expected_binding.expected_audience,
         "nonce": nonce,
         "iat": 1_719_999_000,
@@ -690,6 +695,7 @@ fn ed25519_issuer_jwk(public_key: &[u8]) -> Jwk {
 
 fn issue_age_credential(
     holder_pub: Vec<u8>,
+    issuer_pub: Vec<u8>,
     issuer_priv: &[u8],
     age: u64,
 ) -> reallyme_credential::committed::issue::IssueResult {
@@ -697,7 +703,7 @@ fn issue_age_credential(
     claims.insert("age".into(), serde_json::json!(age));
     let mut rng = OsSaltRng;
     issue_credential(
-        base_input(holder_pub),
+        base_input(holder_pub, issuer_pub),
         &claims,
         Algorithm::Ed25519,
         issuer_priv,

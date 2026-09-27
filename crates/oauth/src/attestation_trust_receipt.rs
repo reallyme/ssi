@@ -10,8 +10,7 @@ use buffa::{EnumValue, MessageField};
 use reallyme_crypto::sha2::digest as digest_sha2_256;
 use reallyme_ssi_proto::generated::proto::identity::trust::v1 as trust_pb;
 use reallyme_trust_core::{
-    CertificatePosition, CertificateStatus, TrustAnchorKind, TrustDecision, TrustEvidence,
-    TrustOutcome, TrustPolicyId, TrustPurpose,
+    CertificatePosition, TrustAnchorKind, TrustDecision, TrustEvidence, TrustOutcome,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -21,6 +20,15 @@ use crate::error::{OauthError, OauthResult, Reason};
 use crate::jwt::CompactJwt;
 
 mod freshness;
+mod proto;
+#[path = "validate_attestation_trust_receipt.rs"]
+mod validate_attestation_trust_receipt;
+
+use proto::certificate_status_to_proto;
+use validate_attestation_trust_receipt::{
+    evidence_cardinality_is_valid, trust_scope_matches, valid_path_shape,
+    validate_trusted_status_evidence,
+};
 
 const MAX_ATTESTATION_PATH_CERTIFICATES: usize = 10;
 
@@ -28,7 +36,7 @@ const MAX_ATTESTATION_PATH_CERTIFICATES: usize = 10;
 #[derive(PartialEq, Eq)]
 pub struct VerifiedAttestationClientAuthentication {
     /// Validated Client Attestation PoP claims.
-    pub pop_claims: AttestationPopClaims,
+    pop_claims: AttestationPopClaims,
     verified_attestation: VerifiedClientAttestation,
     pop_jti_sha256: [u8; SHA_256_BYTES],
 }
@@ -66,6 +74,12 @@ impl VerifiedAttestationClientAuthentication {
             verified_attestation,
             pop_jti_sha256,
         }
+    }
+
+    /// Borrow the authenticated proof-of-possession claims.
+    #[must_use]
+    pub const fn pop_claims(&self) -> &AttestationPopClaims {
+        &self.pop_claims
     }
 
     /// OAuth client identifier authenticated by the Client Attestation `sub`
@@ -124,6 +138,7 @@ impl VerifiedAttestationClientAuthentication {
 /// unrelated ambient values.
 #[derive(PartialEq, Eq)]
 pub struct WalletAttestationTrustEvidence {
+    client_attestation_sha256: [u8; SHA_256_BYTES],
     evidence: TrustEvidence,
     signer_spki_sha256: [u8; SHA_256_BYTES],
     anchor_certificate_sha256: [u8; SHA_256_BYTES],
@@ -138,9 +153,14 @@ impl fmt::Debug for WalletAttestationTrustEvidence {
 }
 
 impl WalletAttestationTrustEvidence {
-    /// Creates evidence from a successful wallet-attestation issuer decision.
-    pub fn from_trust_decision(decision: &TrustDecision) -> OauthResult<Self> {
-        match decision.outcome {
+    /// Creates evidence from a successful wallet-attestation issuer decision
+    /// and the exact compact JWT whose signature produced that decision.
+    pub fn from_trust_decision(
+        decision: &TrustDecision,
+        client_attestation: &CompactJwt,
+        verified_signer_spki_der: &[u8],
+    ) -> OauthResult<Self> {
+        match decision.outcome() {
             TrustOutcome::Rejected => {
                 return Err(OauthError::new(Reason::AttestationTrustRejected));
             }
@@ -148,21 +168,21 @@ impl WalletAttestationTrustEvidence {
                 return Err(OauthError::new(Reason::AttestationTrustIndeterminate));
             }
             TrustOutcome::Trusted => {}
+            _ => return Err(OauthError::new(Reason::AttestationTrustIndeterminate)),
         }
-        if !decision.accepted
-            || decision.evidence.purpose != TrustPurpose::WalletAttestationIssuer
-            || decision.evidence.policy_id != TrustPolicyId::WalletAttestationIssuerV1
-            || decision.evidence.source.is_none()
-            || decision.evidence.trust_anchor.is_none()
-            || decision.evidence.certificate_status.is_empty()
-            || decision.evidence.certificate_status.len() > MAX_ATTESTATION_PATH_CERTIFICATES
-            || !decision.failures.is_empty()
+        if !decision.is_accepted()
+            || !trust_scope_matches(decision.evidence().purpose, decision.evidence().policy_id)
+            || decision.evidence().source.is_none()
+            || decision.evidence().trust_anchor.is_none()
+            || !evidence_cardinality_is_valid(
+                decision.evidence().certificate_status.len(),
+                decision.failures().len(),
+            )
         {
             return Err(OauthError::new(Reason::InvalidAttestationReceipt));
         }
         let chain = decision
-            .chain
-            .as_ref()
+            .chain()
             .ok_or(OauthError::new(Reason::InvalidAttestationReceipt))?;
         let signer = chain
             .certs
@@ -173,30 +193,39 @@ impl WalletAttestationTrustEvidence {
             .last()
             .ok_or(OauthError::new(Reason::InvalidAttestationReceipt))?;
         let trust_anchor = decision
-            .evidence
+            .evidence()
             .trust_anchor
             .ok_or(OauthError::new(Reason::InvalidAttestationReceipt))?;
-        let path_shape_is_valid = match trust_anchor.kind {
-            TrustAnchorKind::RootCertificate => chain.certs.len() >= 2,
-            TrustAnchorKind::DirectEndEntity => chain.certs.len() == 1,
-        };
+        let path_shape_is_valid = valid_path_shape(trust_anchor.kind, chain.certs.len());
         if chain.certs.len() > MAX_ATTESTATION_PATH_CERTIFICATES
             || chain.certs.iter().any(|certificate| {
                 certificate.der.is_empty()
-                    || certificate.not_before > decision.evidence.evaluated_at
-                    || certificate.not_after < decision.evidence.evaluated_at
+                    || certificate.not_before > decision.evidence().evaluated_at
+                    || certificate.not_after < decision.evidence().evaluated_at
             })
             || signer.spki_der.is_empty()
+            || verified_signer_spki_der.is_empty()
         {
+            return Err(OauthError::new(Reason::InvalidAttestationReceipt));
+        }
+        let selected_signer_spki_sha256 = sha256(&signer.spki_der);
+        let verified_signer_spki_sha256 = sha256(verified_signer_spki_der);
+        if !reallyme_crypto::operations::constant_time::equal_fixed(
+            &selected_signer_spki_sha256,
+            &verified_signer_spki_sha256,
+        ) {
             return Err(OauthError::new(Reason::InvalidAttestationReceipt));
         }
         if !path_shape_is_valid
             || anchor.der.is_empty()
-            || decision.evidence.certificate_status.len() != chain.certs.len()
+            || decision.evidence().certificate_status.len() != chain.certs.len()
         {
             return Err(OauthError::new(Reason::InvalidAttestationReceipt));
         }
-        validate_trusted_status_evidence(&decision.evidence.certificate_status, chain.certs.len())?;
+        validate_trusted_status_evidence(
+            &decision.evidence().certificate_status,
+            chain.certs.len(),
+        )?;
         let selected_path_certificate_sha256 = chain
             .certs
             .iter()
@@ -214,15 +243,23 @@ impl WalletAttestationTrustEvidence {
             valid_until = valid_until.min(certificate.not_after);
         }
         Ok(Self {
-            evidence: decision.evidence.clone(),
+            client_attestation_sha256: sha256(client_attestation.as_str().as_bytes()),
+            evidence: decision.evidence().clone(),
             // RFC 5280 §6 requires the validated path to start at the target
             // certificate. Hashing that leaf's SPKI binds this receipt to the
             // key that the attestation signature verifier must use.
-            signer_spki_sha256: sha256(&signer.spki_der),
+            signer_spki_sha256: selected_signer_spki_sha256,
             anchor_certificate_sha256: sha256(&anchor.der),
             selected_path_certificate_sha256,
             valid_until_unix: valid_until.unix_timestamp(),
         })
+    }
+
+    /// SHA-256 identity of the exact Client Attestation authenticated by the
+    /// adapter that produced this evidence.
+    #[must_use]
+    pub const fn client_attestation_sha256(&self) -> &[u8; SHA_256_BYTES] {
+        &self.client_attestation_sha256
     }
 
     /// Purpose-scoped source, anchor, status, policy, and evaluation evidence.
@@ -242,13 +279,11 @@ impl WalletAttestationTrustEvidence {
     pub fn anchor_certificate_sha256(&self) -> &[u8; SHA_256_BYTES] {
         &self.anchor_certificate_sha256
     }
-
     /// SHA-256 identities of the selected leaf-to-anchor certificate path.
     #[must_use]
     pub fn selected_path_certificate_sha256(&self) -> &[[u8; SHA_256_BYTES]] {
         &self.selected_path_certificate_sha256
     }
-
     /// Last Unix second at which the signer certificate can support the receipt.
     #[must_use]
     pub const fn valid_until_unix(&self) -> i64 {
@@ -271,6 +306,7 @@ impl WalletAttestationTrustEvidence {
             TrustAnchorKind::DirectEndEntity => {
                 trust_pb::TrustAnchorKind::TRUST_ANCHOR_KIND_DIRECT_END_ENTITY
             }
+            _ => return Err(OauthError::new(Reason::InvalidAttestationReceipt)),
         };
         let certificate_status = self
             .evidence
@@ -289,15 +325,16 @@ impl WalletAttestationTrustEvidence {
                         trust_pb::CertificatePosition::CERTIFICATE_POSITION_TRUST_ANCHOR,
                         0,
                     ),
+                    _ => return Err(OauthError::new(Reason::InvalidAttestationReceipt)),
                 };
-                trust_pb::CertificateStatusEvidence {
+                Ok(trust_pb::CertificateStatusEvidence {
                     position: EnumValue::from(position),
                     intermediate_index,
-                    status: EnumValue::from(certificate_status_to_proto(item.status)),
+                    status: EnumValue::from(certificate_status_to_proto(item.status)?),
                     ..Default::default()
-                }
+                })
             })
-            .collect();
+            .collect::<OauthResult<Vec<_>>>()?;
         Ok(trust_pb::WalletAttestationTrustEvidence {
             purpose: EnumValue::from(
                 trust_pb::TrustPurpose::TRUST_PURPOSE_WALLET_ATTESTATION_ISSUER,
@@ -336,63 +373,9 @@ fn selected_path_has_duplicates(path: &[[u8; SHA_256_BYTES]]) -> bool {
     })
 }
 
-fn validate_trusted_status_evidence(
-    statuses: &[reallyme_trust_core::CertificateStatusEvidence],
-    path_len: usize,
-) -> OauthResult<()> {
-    let trust_anchor_index = path_len
-        .checked_sub(1)
-        .ok_or(OauthError::new(Reason::InvalidAttestationReceipt))?;
-    for (index, status) in statuses.iter().enumerate() {
-        let expected_position = if index == 0 {
-            CertificatePosition::Leaf
-        } else if index == trust_anchor_index {
-            CertificatePosition::TrustAnchor
-        } else {
-            let intermediate_index = index
-                .checked_sub(1)
-                .and_then(|value| u8::try_from(value).ok())
-                .ok_or(OauthError::new(Reason::InvalidAttestationReceipt))?;
-            CertificatePosition::Intermediate(intermediate_index)
-        };
-        if status.position != expected_position
-            || !matches!(
-                status.status,
-                CertificateStatus::Good | CertificateStatus::Exempt
-            )
-        {
-            return Err(OauthError::new(Reason::InvalidAttestationReceipt));
-        }
-    }
-    Ok(())
-}
-
-fn certificate_status_to_proto(status: CertificateStatus) -> trust_pb::CertificateStatus {
-    match status {
-        CertificateStatus::Good => trust_pb::CertificateStatus::CERTIFICATE_STATUS_GOOD,
-        CertificateStatus::Revoked => trust_pb::CertificateStatus::CERTIFICATE_STATUS_REVOKED,
-        CertificateStatus::Suspended => trust_pb::CertificateStatus::CERTIFICATE_STATUS_SUSPENDED,
-        CertificateStatus::Unknown => trust_pb::CertificateStatus::CERTIFICATE_STATUS_UNKNOWN,
-        CertificateStatus::Unavailable => {
-            trust_pb::CertificateStatus::CERTIFICATE_STATUS_UNAVAILABLE
-        }
-        CertificateStatus::Stale => trust_pb::CertificateStatus::CERTIFICATE_STATUS_STALE,
-        CertificateStatus::NotYetValid => {
-            trust_pb::CertificateStatus::CERTIFICATE_STATUS_NOT_YET_VALID
-        }
-        CertificateStatus::Malformed => trust_pb::CertificateStatus::CERTIFICATE_STATUS_MALFORMED,
-        CertificateStatus::InvalidSignature => {
-            trust_pb::CertificateStatus::CERTIFICATE_STATUS_INVALID_SIGNATURE
-        }
-        CertificateStatus::Unsupported => {
-            trust_pb::CertificateStatus::CERTIFICATE_STATUS_UNSUPPORTED
-        }
-        CertificateStatus::Exempt => trust_pb::CertificateStatus::CERTIFICATE_STATUS_EXEMPT,
-    }
-}
-
 impl Zeroize for WalletAttestationTrustEvidence {
     fn zeroize(&mut self) {
+        self.client_attestation_sha256.zeroize();
         self.signer_spki_sha256.zeroize();
         self.anchor_certificate_sha256.zeroize();
         self.selected_path_certificate_sha256.zeroize();
@@ -435,9 +418,13 @@ impl VerifiedClientAttestation {
         client_attestation: &CompactJwt,
         trust_evidence: WalletAttestationTrustEvidence,
     ) -> OauthResult<Self> {
+        let client_attestation_sha256 = sha256(client_attestation.as_str().as_bytes());
+        if trust_evidence.client_attestation_sha256() != &client_attestation_sha256 {
+            return Err(OauthError::new(Reason::InvalidAttestationReceipt));
+        }
         let attested_client_key = AttestedClientKey::from_client_attestation(client_attestation)?;
         Ok(Self {
-            client_attestation_sha256: sha256(client_attestation.as_str().as_bytes()),
+            client_attestation_sha256,
             attested_client_key,
             trust_evidence,
         })
@@ -447,11 +434,6 @@ impl VerifiedClientAttestation {
     #[must_use]
     pub fn attested_client_key(&self) -> &AttestedClientKey {
         &self.attested_client_key
-    }
-
-    /// SHA-256 identity used to reject a receipt minted for another JWT.
-    pub(crate) fn client_attestation_sha256(&self) -> &[u8; SHA_256_BYTES] {
-        &self.client_attestation_sha256
     }
 
     /// Wallet-provider trust receipt for the attestation signer.

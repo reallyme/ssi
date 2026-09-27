@@ -42,18 +42,18 @@ workspace-default-features = "allow"
 external-default-features = "allow"
 deny = []
 skip = [
-    { crate = "base64@0.22.1", reason = "Reviewed transitive compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "block-buffer@0.10.4", reason = "Reviewed transitive digest compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "cpufeatures@0.2.17", reason = "Reviewed transitive crypto compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "crypto-common@0.1.7", reason = "Reviewed transitive crypto compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "digest@0.10.7", reason = "Reviewed transitive digest compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "generic-array@0.14.7", reason = "Reviewed transitive crypto compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "getrandom@0.2.17", reason = "Reviewed transitive random-source compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "hashbrown@0.15.5", reason = "Reviewed transitive collection compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "keccak@0.1.6", reason = "Reviewed transitive SHA-3 compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "sha3@0.10.9", reason = "Reviewed transitive SHA-3 compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "sha3@0.11.0", reason = "Reviewed transitive SHA-3 compatibility split; deny-by-default prevents additional unreviewed versions." },
-    { crate = "syn@2.0.119", reason = "Reviewed procedural-macro compatibility split; deny-by-default prevents additional unreviewed versions." },
+    { crate = "base64@0.22.1", reason = "Transitive dependencies require incompatible base64 API lines; every other duplicate remains denied." },
+    { crate = "block-buffer@0.10.4", reason = "Digest dependencies require incompatible block-buffer API lines; every other duplicate remains denied." },
+    { crate = "cpufeatures@0.2.17", reason = "Cryptographic dependencies require incompatible cpufeatures API lines; every other duplicate remains denied." },
+    { crate = "crypto-common@0.1.7", reason = "Cryptographic dependencies require incompatible crypto-common API lines; every other duplicate remains denied." },
+    { crate = "digest@0.10.7", reason = "Digest dependencies require incompatible digest API lines; every other duplicate remains denied." },
+    { crate = "generic-array@0.14.7", reason = "Cryptographic dependencies require incompatible generic-array API lines; every other duplicate remains denied." },
+    { crate = "getrandom@0.2.17", reason = "Native and WebAssembly dependencies require incompatible getrandom API lines; every other duplicate remains denied." },
+    { crate = "hashbrown@0.15.5", reason = "Collection dependencies require incompatible hashbrown API lines; every other duplicate remains denied." },
+    { crate = "keccak@0.1.6", reason = "SHA-3 dependencies require incompatible keccak API lines; every other duplicate remains denied." },
+    { crate = "sha3@0.10.9", reason = "Cryptographic dependencies require incompatible sha3 API lines; every other duplicate remains denied." },
+    { crate = "sha3@0.11.0", reason = "Cryptographic dependencies require incompatible sha3 API lines; every other duplicate remains denied." },
+    { crate = "syn@2.0.119", reason = "Procedural-macro dependencies require incompatible syn API lines; every other duplicate remains denied." },
 ]
 skip-tree = []
 

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -128,6 +129,6 @@ fn builds_sd_jwt_vp_with_key_binding_jwt() {
     let claims = payload.as_object().expect("payload is an object");
     assert_eq!(
         claims.keys().map(String::as_str).collect::<BTreeSet<_>>(),
-        BTreeSet::from(["aud", "iat", "nonce", "sd_hash"])
+        BTreeSet::from(["aud", "disclosure_set_hash", "iat", "nonce", "sd_hash"])
     );
 }

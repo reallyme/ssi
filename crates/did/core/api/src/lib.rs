@@ -32,6 +32,7 @@ pub mod update;
 pub mod validate;
 
 pub use error::DidApiError;
+pub use reallyme_did_method_web::DidWebErrorReason;
 pub use reallyme_keys::KeySet;
 
 pub use commands::{
@@ -82,18 +83,18 @@ pub use rotate::{
     RekeyRelationship,
 };
 
-pub use messaging::{
-    designate_messaging_pre_keys, discover_messaging_pre_keys,
-    discover_messaging_pre_keys_from_chain, rotate_messaging_pre_keys, MessagingPreKeySnapshot,
-};
-
-pub use validate::{
-    validate_did, validate_did_chain, validate_did_consistency, validate_did_transition,
-    validate_did_with_domain_evidence, validate_did_with_history, MAX_DID_CHAIN_DOCUMENTS,
-};
-
 pub use domain::{
     validate_did_domain, validate_did_with_domain_verification, validate_domain_bindings,
     validate_single_domain_binding, SingleDomainValidationError,
 };
+pub use messaging::{
+    designate_messaging_pre_keys, discover_messaging_pre_keys,
+    discover_messaging_pre_keys_from_chain, rotate_messaging_pre_keys, MessagingPreKeySnapshot,
+};
 pub use proto::{did_to_proto_brotli, proto_brotli_to_did};
+pub use validate::{
+    validate_did, validate_did_chain, validate_did_chain_from_trusted_head,
+    validate_did_consistency, validate_did_transition, validate_did_with_domain_evidence,
+    validate_did_with_history, validate_observed_did_successors, DidTrustedHead,
+    MAX_DID_CHAIN_DOCUMENTS,
+};

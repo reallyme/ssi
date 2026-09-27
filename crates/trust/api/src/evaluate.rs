@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use envelopes_x509::model::X509Certificate;
+use envelopes_x509::{eu_policy, EuPreset};
 use time::OffsetDateTime;
 
 use reallyme_trust_core::{
@@ -30,6 +31,19 @@ fn baseline_rfc5280_policy() -> envelopes_x509::policy::X509Policy {
         require_leaf_digital_signature: true,
         trust_anchor_requirement: envelopes_x509::policy::TrustAnchorRequirement::Rfc5280Ca,
         ..Default::default()
+    }
+}
+
+fn policy_for_authorization(
+    purpose: Option<AuthorizationPurpose>,
+) -> envelopes_x509::policy::X509Policy {
+    match purpose {
+        Some(AuthorizationPurpose::QwacTlsServer) => eu_policy(EuPreset::Qwac),
+        Some(AuthorizationPurpose::QsealSigner) => eu_policy(EuPreset::Qsealc),
+        // QEAA issuer authorization is established by the authenticated trusted-list
+        // service entry. There is no interchangeable QWAC/QSeal certificate profile
+        // to apply to that purpose, so retain the explicit RFC 5280 baseline here.
+        Some(AuthorizationPurpose::QeaaIssuer) | None => baseline_rfc5280_policy(),
     }
 }
 
@@ -69,7 +83,7 @@ pub fn evaluate_trust_configured_api(
 ) -> TrustApiResult<TrustDecision> {
     let decision = core_evaluate_trust(&presented, &config, sig_verifier, status_checker)
         .map_err(map_trust_error)?;
-    Ok(map_core_decision(decision))
+    map_core_decision(decision)
 }
 
 fn core_context_for_authorization(purpose: AuthorizationPurpose) -> TrustEvaluationContext {
@@ -126,7 +140,7 @@ pub fn verify_credential_trust_api(
     let cfg = TrustConfig {
         trust_roots,
         now,
-        policy: baseline_rfc5280_policy(),
+        policy: policy_for_authorization(purpose),
         link_policy: ChainLinkPolicy::default(),
         evaluation: purpose
             .map(core_context_for_authorization)
@@ -141,7 +155,7 @@ pub fn verify_credential_trust_api(
         authorize_issuer(&decision, tsl, purpose)?;
     }
 
-    Ok(map_core_decision(decision))
+    map_core_decision(decision)
 }
 
 /// ---------------------------------------------------------------------------
@@ -176,6 +190,7 @@ fn map_chain_link_reason(reason: ChainLinkPolicyViolation) -> TrustPolicyErrorRe
         ChainLinkPolicyViolation::MissingKeyIdentifiers => {
             TrustPolicyErrorReason::MissingKeyIdentifiers
         }
+        _ => TrustPolicyErrorReason::UnknownTrustPolicy,
     }
 }
 
@@ -198,13 +213,13 @@ fn map_trust_failure_reason(reason: TrustFailureReason) -> TrustDecisionFailure 
         TrustFailureReason::SignatureIndeterminate => TrustDecisionFailure::SignatureIndeterminate,
         TrustFailureReason::InvalidEvaluationTime => TrustDecisionFailure::InvalidEvaluationTime,
         TrustFailureReason::PathSearchLimit => TrustDecisionFailure::PathSearchLimit,
+        _ => TrustDecisionFailure::Policy,
     }
 }
 
-fn map_core_decision(decision: CoreTrustDecision) -> TrustDecision {
+fn map_core_decision(decision: CoreTrustDecision) -> TrustApiResult<TrustDecision> {
     let selected_path_certificate_sha256 = decision
-        .chain
-        .as_ref()
+        .chain()
         .map(|chain| {
             chain
                 .certs
@@ -214,59 +229,73 @@ fn map_core_decision(decision: CoreTrustDecision) -> TrustDecision {
         })
         .unwrap_or_default();
     let evidence = TrustDecisionEvidence {
-        purpose: map_core_purpose(decision.evidence.purpose),
-        policy_id: map_core_policy(decision.evidence.policy_id),
-        evaluated_at_unix: decision.evidence.evaluated_at.unix_timestamp(),
-        source: decision.evidence.source.map(|source| TrustSourceEvidence {
-            source_id: source.source_id,
-            snapshot_id: source.snapshot_id,
-        }),
+        purpose: map_core_purpose(decision.evidence().purpose)?,
+        policy_id: map_core_policy(decision.evidence().policy_id)?,
+        evaluated_at_unix: decision.evidence().evaluated_at.unix_timestamp(),
+        source: decision
+            .evidence()
+            .source
+            .map(|source| TrustSourceEvidence {
+                source_id: source.source_id,
+                snapshot_id: source.snapshot_id,
+            }),
         trust_anchor: decision
-            .evidence
+            .evidence()
             .trust_anchor
-            .map(|anchor| TrustAnchorEvidence {
-                kind: match anchor.kind {
+            .map(|anchor| {
+                let kind = match anchor.kind {
                     CoreTrustAnchorKind::RootCertificate => TrustAnchorKind::RootCertificate,
                     CoreTrustAnchorKind::DirectEndEntity => TrustAnchorKind::DirectEndEntity,
-                },
-                configured_index: anchor.configured_index,
-            }),
+                    _ => return Err(TrustApiError::BackendFailure),
+                };
+                Ok(TrustAnchorEvidence {
+                    kind,
+                    configured_index: anchor.configured_index,
+                })
+            })
+            .transpose()?,
         certificate_status: decision
-            .evidence
+            .evidence()
             .certificate_status
-            .into_iter()
-            .map(|item| CertificateStatusEvidence {
-                position: match item.position {
+            .iter()
+            .map(|item| {
+                let position = match item.position {
                     CoreCertificatePosition::Leaf => CertificatePosition::Leaf,
                     CoreCertificatePosition::Intermediate(index) => {
                         CertificatePosition::Intermediate(index)
                     }
                     CoreCertificatePosition::TrustAnchor => CertificatePosition::TrustAnchor,
-                },
-                status: map_core_status(item.status),
+                    _ => return Err(TrustApiError::BackendFailure),
+                };
+                Ok(CertificateStatusEvidence {
+                    position,
+                    status: map_core_status(item.status)?,
+                })
             })
-            .collect(),
+            .collect::<TrustApiResult<Vec<_>>>()?,
         selected_path_certificate_sha256,
     };
 
-    TrustDecision {
-        accepted: decision.accepted,
-        outcome: match decision.outcome {
+    Ok(TrustDecision {
+        accepted: decision.is_accepted(),
+        outcome: match decision.outcome() {
             CoreTrustOutcome::Trusted => TrustDecisionOutcome::Trusted,
             CoreTrustOutcome::Rejected => TrustDecisionOutcome::Rejected,
             CoreTrustOutcome::Indeterminate => TrustDecisionOutcome::Indeterminate,
+            _ => return Err(TrustApiError::BackendFailure),
         },
         failures: decision
-            .failures
-            .into_iter()
+            .failures()
+            .iter()
+            .copied()
             .map(map_trust_failure_reason)
             .collect(),
         evidence,
-    }
+    })
 }
 
-fn map_core_purpose(purpose: CoreTrustPurpose) -> TrustPurpose {
-    match purpose {
+fn map_core_purpose(purpose: CoreTrustPurpose) -> TrustApiResult<TrustPurpose> {
+    Ok(match purpose {
         CoreTrustPurpose::Generic => TrustPurpose::Generic,
         CoreTrustPurpose::QeaaIssuer => TrustPurpose::QeaaIssuer,
         CoreTrustPurpose::QwacTlsServer => TrustPurpose::QwacTlsServer,
@@ -294,11 +323,12 @@ fn map_core_purpose(purpose: CoreTrustPurpose) -> TrustPurpose {
         CoreTrustPurpose::WalletRelyingPartyRegistrySigning => {
             TrustPurpose::WalletRelyingPartyRegistrySigning
         }
-    }
+        _ => return Err(TrustApiError::BackendFailure),
+    })
 }
 
-fn map_core_policy(policy: CoreTrustPolicyId) -> TrustPolicyId {
-    match policy {
+fn map_core_policy(policy: CoreTrustPolicyId) -> TrustApiResult<TrustPolicyId> {
+    Ok(match policy {
         CoreTrustPolicyId::GenericX509V1 => TrustPolicyId::GenericX509V1,
         CoreTrustPolicyId::EuQeaaV1 => TrustPolicyId::EuQeaaV1,
         CoreTrustPolicyId::EuQwacV1 => TrustPolicyId::EuQwacV1,
@@ -320,11 +350,12 @@ fn map_core_policy(policy: CoreTrustPolicyId) -> TrustPolicyId {
         CoreTrustPolicyId::EudiTs5RegistryResponseSigningV1 => {
             TrustPolicyId::EudiTs5RegistryResponseSigningV1
         }
-    }
+        _ => return Err(TrustApiError::BackendFailure),
+    })
 }
 
-fn map_core_status(status: CoreCertificateStatus) -> CertificateStatus {
-    match status {
+fn map_core_status(status: CoreCertificateStatus) -> TrustApiResult<CertificateStatus> {
+    Ok(match status {
         CoreCertificateStatus::Good => CertificateStatus::Good,
         CoreCertificateStatus::Revoked => CertificateStatus::Revoked,
         CoreCertificateStatus::Suspended => CertificateStatus::Suspended,
@@ -335,8 +366,10 @@ fn map_core_status(status: CoreCertificateStatus) -> CertificateStatus {
         CoreCertificateStatus::Malformed => CertificateStatus::Malformed,
         CoreCertificateStatus::InvalidSignature => CertificateStatus::InvalidSignature,
         CoreCertificateStatus::Unsupported => CertificateStatus::Unsupported,
+        CoreCertificateStatus::NotChecked => CertificateStatus::NotChecked,
         CoreCertificateStatus::Exempt => CertificateStatus::Exempt,
-    }
+        _ => return Err(TrustApiError::BackendFailure),
+    })
 }
 
 #[cfg(test)]

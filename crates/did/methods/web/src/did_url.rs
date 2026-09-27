@@ -35,12 +35,14 @@ pub(crate) fn validate_base_did(value: &str, reason: DidWebErrorReason) -> Resul
     if method == "web" {
         parse_did_web(value).map_err(|_| DidWebError::new(reason))?;
     } else {
-        for component in identifier.split(':') {
-            if component.is_empty() {
-                return Err(DidWebError::new(reason));
-            }
-            validate_uri_component(component, is_did_identifier_character, reason)?;
+        if identifier.ends_with(':') {
+            return Err(DidWebError::new(reason));
         }
+        validate_uri_component(
+            identifier,
+            |byte| byte == b':' || is_did_identifier_character(byte),
+            reason,
+        )?;
     }
     Ok(())
 }
@@ -73,18 +75,15 @@ fn validate_url_suffix(value: &str) -> Result<(), DidWebError> {
         }
     }
     if let Some(query) = query {
-        validate_nonempty_url_component(query)?;
+        validate_url_component(query)?;
     }
     if let Some(fragment) = fragment {
-        validate_nonempty_url_component(fragment)?;
+        validate_url_component(fragment)?;
     }
     Ok(())
 }
 
-fn validate_nonempty_url_component(value: &str) -> Result<(), DidWebError> {
-    if value.is_empty() {
-        return Err(DidWebError::new(DidWebErrorReason::InvalidDidUrl));
-    }
+fn validate_url_component(value: &str) -> Result<(), DidWebError> {
     validate_uri_component(
         value,
         is_query_or_fragment_character,
@@ -94,33 +93,34 @@ fn validate_nonempty_url_component(value: &str) -> Result<(), DidWebError> {
 
 fn validate_uri_component(
     value: &str,
-    allows_raw: fn(u8) -> bool,
+    allows_raw: impl Fn(u8) -> bool,
     reason: DidWebErrorReason,
 ) -> Result<(), DidWebError> {
     let bytes = value.as_bytes();
     let mut index = 0usize;
     while index < bytes.len() {
-        if bytes[index] == b'%' {
+        let byte = *bytes.get(index).ok_or(DidWebError::new(reason))?;
+        if byte == b'%' {
             let first = *bytes
                 .get(index.checked_add(1).ok_or(DidWebError::new(reason))?)
                 .ok_or(DidWebError::new(reason))?;
             let second = *bytes
                 .get(index.checked_add(2).ok_or(DidWebError::new(reason))?)
                 .ok_or(DidWebError::new(reason))?;
-            if !first.is_ascii_hexdigit()
-                || !second.is_ascii_hexdigit()
-                || first.is_ascii_lowercase()
-                || second.is_ascii_lowercase()
-            {
+            if !first.is_ascii_hexdigit() || !second.is_ascii_hexdigit() {
                 return Err(DidWebError::new(reason));
             }
             let decoded = decode_hex_pair(first, second).ok_or(DidWebError::new(reason))?;
-            if is_unreserved(decoded) {
+            // RFC 3986 treats an escaped unreserved byte as equivalent to its
+            // literal form. Reject that alternate spelling, and require the
+            // canonical uppercase spelling for hexadecimal letters, so one
+            // verification-method identifier has exactly one representation.
+            if is_unreserved(decoded) || first.is_ascii_lowercase() || second.is_ascii_lowercase() {
                 return Err(DidWebError::new(reason));
             }
             index = index.checked_add(3).ok_or(DidWebError::new(reason))?;
         } else {
-            if !allows_raw(bytes[index]) {
+            if !allows_raw(byte) {
                 return Err(DidWebError::new(reason));
             }
             index = index.checked_add(1).ok_or(DidWebError::new(reason))?;
@@ -168,8 +168,9 @@ fn decode_hex_pair(first: u8, second: u8) -> Option<u8> {
 
 fn hex_nibble(value: u8) -> Option<u8> {
     match value {
-        b'0'..=b'9' => Some(value - b'0'),
-        b'A'..=b'F' => Some(value - b'A' + 10),
+        b'0'..=b'9' => value.checked_sub(b'0'),
+        b'a'..=b'f' => value.checked_sub(b'a')?.checked_add(10),
+        b'A'..=b'F' => value.checked_sub(b'A')?.checked_add(10),
         _ => None,
     }
 }

@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use identity_revocation_ocsp_core::{OcspCertStatus, OcspError, ParsedOcspResponse};
+use envelopes_x509::parse_cert_der;
+use identity_revocation_ocsp_core::{
+    bind_response_to_certificates_with_nonce, OcspCertStatus, OcspError, ParsedOcspResponse,
+    UnverifiedOcspResponse,
+};
 
 use openssl::hash::MessageDigest;
 use openssl::ocsp::{
@@ -14,21 +18,57 @@ use openssl::x509::store::X509StoreBuilder;
 use openssl::x509::verify::{X509VerifyFlags, X509VerifyParam};
 use openssl::x509::X509;
 
-use crate::issuer_key_identifier::issuer_key_identifier;
+use crate::cert_id_match::{
+    response_nonce_for_request, unique_matching_digest, validated_response_produced_at,
+    MatchingDigest,
+};
+
+const MAX_OCSP_RESPONSE_DER_BYTES: usize = 1_048_576;
+const MAX_OCSP_EXTRA_CERTIFICATES: usize = 16;
+const MAX_OCSP_PRODUCED_AT_FUTURE_SKEW_SECONDS: u64 = 300;
+const OID_EKU_OCSP_SIGNING: &str = "1.3.6.1.5.5.7.3.9";
 
 /// Parse an OCSP response (DER) using OpenSSL.
 ///
 /// - Validates response status
 /// - Verifies the response signature and responder chain at `now_unix`
-/// - Builds RFC 6960 CertID (SHA-1)
+/// - Selects exactly one SHA-256 or legacy SHA-1 RFC 6960 CertID
 /// - Extracts per-certificate OCSP status
 pub fn parse_ocsp_response_der(
     der: &[u8],
-    cert: &X509,
-    issuer: &X509,
-    extra_certs: &[X509],
+    cert_der: &[u8],
+    issuer_der: &[u8],
+    extra_certs_der: &[Vec<u8>],
     now_unix: u64,
 ) -> Result<ParsedOcspResponse, OcspError> {
+    if der.is_empty()
+        || der.len() > MAX_OCSP_RESPONSE_DER_BYTES
+        || extra_certs_der.len() > MAX_OCSP_EXTRA_CERTIFICATES
+    {
+        return Err(OcspError::InvalidResponse);
+    }
+    parse_ocsp_response_der_with_nonce(der, cert_der, issuer_der, extra_certs_der, now_unix, None)
+}
+
+/// Parse and verify an OCSP response and bind its signed nonce to the request.
+pub fn parse_ocsp_response_der_with_nonce(
+    der: &[u8],
+    cert_der: &[u8],
+    issuer_der: &[u8],
+    extra_certs_der: &[Vec<u8>],
+    now_unix: u64,
+    expected_nonce: Option<&[u8]>,
+) -> Result<ParsedOcspResponse, OcspError> {
+    let cert = X509::from_der(cert_der).map_err(|_| OcspError::InvalidResponse)?;
+    let issuer = X509::from_der(issuer_der).map_err(|_| OcspError::InvalidResponse)?;
+    let mut extra_certs = Vec::new();
+    extra_certs
+        .try_reserve_exact(extra_certs_der.len())
+        .map_err(|_| OcspError::InvalidResponse)?;
+    for extra_der in extra_certs_der {
+        validate_delegated_responder_key_usage(extra_der)?;
+        extra_certs.push(X509::from_der(extra_der).map_err(|_| OcspError::InvalidResponse)?);
+    }
     // Decode response
     let resp = OcspResponse::from_der(der).map_err(|_| OcspError::InvalidResponse)?;
 
@@ -40,15 +80,38 @@ pub fn parse_ocsp_response_der(
     // Extract basic response
     let basic = resp.basic().map_err(|_| OcspError::InvalidResponse)?;
 
-    // Verify signature + responder authorization against issuing CA.
-    //
-    // We treat the issuer as the trust anchor for responder authorization, which matches
-    // the common "OCSP must chain to issuing CA" requirement.
-    verify_basic_response(&basic, issuer, extra_certs, now_unix)?;
+    // Select the matching entry before accepting any result. OpenSSL's
+    // `find_status` returns the first match, so an explicit DER pass rejects
+    // duplicate or conflicting SingleResponse values for the same certificate.
+    let matching_digest = unique_matching_digest(der, cert_der, issuer_der)?;
+    let produced_at = parse_der_generalized_time(validated_response_produced_at(der)?)
+        .ok_or(OcspError::InvalidResponse)?;
+    let latest_produced_at = now_unix
+        .checked_add(MAX_OCSP_PRODUCED_AT_FUTURE_SKEW_SECONDS)
+        .ok_or(OcspError::InvalidResponse)?;
+    if produced_at > latest_produced_at {
+        return Err(OcspError::InvalidResponse);
+    }
+    // A nonce is an optional, non-critical response extension. If the request
+    // did not carry one, malformed nonce contents cannot weaken binding and
+    // are ignored. Signature verification below still authenticates the
+    // complete response.
+    let response_nonce = response_nonce_for_request(der, expected_nonce.is_some())?;
+    identity_revocation_ocsp_core::validate_response_nonce(
+        response_nonce.as_deref(),
+        expected_nonce,
+    )?;
 
-    // Build CertID (RFC 6960 requires SHA-1)
-    let cert_id = OcspCertId::from_cert(MessageDigest::sha1(), cert, issuer)
-        .map_err(|_| OcspError::InvalidResponse)?;
+    // Responder authorization terminates at the issuing CA, so the issuer is
+    // the trust anchor for this OCSP-specific path validation.
+    verify_basic_response(&basic, &issuer, &extra_certs, now_unix)?;
+
+    let digest = match matching_digest {
+        MatchingDigest::Sha256 => MessageDigest::sha256(),
+        MatchingDigest::Sha1 => MessageDigest::sha1(),
+    };
+    let cert_id =
+        OcspCertId::from_cert(digest, &cert, &issuer).map_err(|_| OcspError::InvalidResponse)?;
 
     // Find status entry
     let status = basic.find_status(&cert_id).ok_or(OcspError::Unavailable)?;
@@ -63,16 +126,20 @@ pub fn parse_ocsp_response_der(
 
     // Issuer key identifier for matching with leaf's AuthorityKeyIdentifier.
     //
-    // Prefer SubjectKeyIdentifier extension when present, otherwise fall back to
-    // RFC 5280 method (1): SHA-1 over the subjectPublicKey BIT STRING value.
-    let issuer_key = issuer_key_identifier(issuer)?;
-
+    // Prefer SubjectKeyIdentifier when present. Otherwise bind to either RFC
+    // 5280 key-identifier derivation used by the certificate's AKI.
+    let issuer_projection = parse_cert_der(issuer_der).map_err(|_| OcspError::InvalidResponse)?;
+    let cert_projection = parse_cert_der(cert_der).map_err(|_| OcspError::InvalidResponse)?;
+    let computed_issuer_key = issuer_projection
+        .rfc5280_method_one_key_identifier()
+        .ok_or(OcspError::InvalidResponse)?;
+    // Pool matching must use the key-derived RFC 5280 method-1 identifier,
+    // never a self-asserted SKI extension. The exact leaf fingerprint below
+    // additionally prevents a response parsed for one issuer/leaf pair from
+    // being replayed against a different certificate with colliding metadata.
+    let issuer_key = computed_issuer_key.to_vec();
     // Extract serial
-    let serial = cert
-        .serial_number()
-        .to_bn()
-        .map_err(|_| OcspError::InvalidResponse)?
-        .to_vec();
+    let serial = cert_projection.serial.clone();
 
     // Parse timestamps (GeneralizedTime → unix)
     let this_update =
@@ -90,17 +157,16 @@ pub fn parse_ocsp_response_der(
         }
     }
 
-    Ok(ParsedOcspResponse {
+    let projected = UnverifiedOcspResponse::new(
         issuer_key,
         serial,
-        status: mapped_status,
+        mapped_status,
         this_update,
         next_update,
-        signature_valid: Some(true),
-        responder_authorized: Some(true),
-        responder_eku_ocsp_signing: Some(true),
-        extensions: None,
-    })
+        response_nonce,
+        None,
+    );
+    bind_response_to_certificates_with_nonce(projected, cert_der, issuer_der, expected_nonce)
 }
 
 /// Convert ASN.1 GeneralizedTime → unix seconds.
@@ -131,6 +197,52 @@ fn parse_generalized_time(t: &openssl::asn1::Asn1GeneralizedTimeRef) -> Option<u
     let date = time::Date::from_calendar_date(year, month, day).ok()?;
     let time = time::Time::from_hms(hour, minute, second).ok()?;
     u64::try_from(date.with_time(time).assume_utc().unix_timestamp()).ok()
+}
+
+fn parse_der_generalized_time(value: &[u8]) -> Option<u64> {
+    let text = core::str::from_utf8(value).ok()?;
+    let body = text.strip_suffix('Z')?;
+    let (whole, fraction) = body
+        .split_once('.')
+        .map_or((body, None), |(whole, fraction)| (whole, Some(fraction)));
+    if whole.len() != 14
+        || !whole.bytes().all(|byte| byte.is_ascii_digit())
+        || fraction.is_some_and(|digits| {
+            digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit())
+        })
+    {
+        return None;
+    }
+    let year = whole.get(0..4)?.parse::<i32>().ok()?;
+    let month = time::Month::try_from(whole.get(4..6)?.parse::<u8>().ok()?).ok()?;
+    let day = whole.get(6..8)?.parse::<u8>().ok()?;
+    let hour = whole.get(8..10)?.parse::<u8>().ok()?;
+    let minute = whole.get(10..12)?.parse::<u8>().ok()?;
+    let second = whole.get(12..14)?.parse::<u8>().ok()?;
+    let date = time::Date::from_calendar_date(year, month, day).ok()?;
+    let time = time::Time::from_hms(hour, minute, second).ok()?;
+    u64::try_from(date.with_time(time).assume_utc().unix_timestamp()).ok()
+}
+
+fn validate_delegated_responder_key_usage(cert_der: &[u8]) -> Result<(), OcspError> {
+    let certificate = parse_cert_der(cert_der).map_err(|_| OcspError::InvalidResponse)?;
+    let is_ocsp_responder = certificate
+        .extended_key_usage
+        .as_ref()
+        .is_some_and(|purposes| {
+            purposes
+                .iter()
+                .any(|purpose| purpose == OID_EKU_OCSP_SIGNING)
+        });
+    if is_ocsp_responder
+        && certificate
+            .key_usage
+            .as_ref()
+            .is_some_and(|usage| !usage.digital_signature)
+    {
+        return Err(OcspError::UntrustedResponder);
+    }
+    Ok(())
 }
 
 fn parse_decimal_u8(value: &str) -> Option<u8> {

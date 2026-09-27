@@ -10,6 +10,7 @@ use crate::CredentialStatus;
 
 /// Stable failures returned by an issuer-controlled signing provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum CredentialIssueProviderError {
     /// The provider does not offer credential signing.
     #[error("credential signing capability unsupported")]
@@ -30,6 +31,7 @@ pub enum CredentialIssueProviderError {
 
 /// Credential state transition selected by the public operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CredentialLifecycleAction {
     /// Temporarily prevent use of a credential.
     Suspend,
@@ -41,6 +43,7 @@ pub enum CredentialLifecycleAction {
 
 /// Privacy-safe reason category recorded with a lifecycle change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CredentialLifecycleReason {
     /// The facts represented by the credential changed.
     InformationChanged,
@@ -83,6 +86,7 @@ pub struct CredentialLifecycleReceipt {
 
 /// Credential state returned by a lifecycle provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CredentialLifecycleStatus {
     /// The credential may be used.
     Active,

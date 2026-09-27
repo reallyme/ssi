@@ -1,0 +1,200 @@
+{
+  "schema": "reallyme.identity.claims.normalization.v1",
+  "registry": {
+    "claimset_id": "claims.normalization.v1",
+    "claims": {
+      "family_name": { "type": "String" },
+      "given_name": { "type": "String" },
+      "age": { "type": "UnsignedInteger" },
+      "verified": { "type": "Boolean" },
+      "birth_date": { "type": "Date" },
+      "updated_at": { "type": "DateTime" },
+      "trust_score": { "type": "Decimal" },
+      "portrait": { "type": "Bytes" },
+      "middle_name": { "type": "Null" },
+      "address/street~1name": { "type": "String" },
+      "children/0/name": { "type": "String" },
+      "children/0/age": { "type": "UnsignedInteger" },
+      "tags/0": { "type": "String" },
+      "tags/1": { "type": "String" }
+    }
+  },
+  "canonical_claims": [
+    { "path": "/claims/family_name", "value": { "string": "Doe" } },
+    { "path": "/claims/given_name", "value": { "string": "Alex" } },
+    { "path": "/claims/age", "value": { "unsigned": 42 } },
+    { "path": "/claims/verified", "value": { "boolean": true } },
+    { "path": "/claims/birth_date", "value": { "date": "1984-02-29" } },
+    { "path": "/claims/updated_at", "value": { "date_time": "2026-07-13T10:15:30Z" } },
+    { "path": "/claims/trust_score", "value": { "decimal": "98.75" } },
+    { "path": "/claims/portrait", "value": { "bytes_b64": "AQIDBA" } },
+    { "path": "/claims/middle_name", "value": { "null": true } },
+    { "path": "/claims/address/street~1name", "value": { "string": "High Street" } },
+    { "path": "/claims/children/0/name", "value": { "string": "Sam" } },
+    { "path": "/claims/children/0/age", "value": { "unsigned": 9 } },
+    { "path": "/claims/tags/0", "value": { "string": "pid" } },
+    { "path": "/claims/tags/1", "value": { "string": "verified" } }
+  ],
+  "cases": [
+    {
+      "id": "claims-normalize-ietf-sd-jwt-vc-001",
+      "format": "ietf-sd-jwt-vc",
+      "payload": {
+        "verified_claims": {
+          "claims": {
+            "family_name": "Doe",
+            "given_name": "Alex",
+            "age": 42,
+            "verified": true,
+            "birth_date": "1984-02-29",
+            "updated_at": "2026-07-13T10:15:30Z",
+            "trust_score": "98.75",
+            "portrait": "AQIDBA",
+            "middle_name": null,
+            "address": {
+              "street/name": "High Street"
+            },
+            "children": [
+              {
+                "name": "Sam",
+                "age": 9
+              }
+            ],
+            "tags": ["pid", "verified"]
+          }
+        }
+      }
+    },
+    {
+      "id": "claims-normalize-mdoc-001",
+      "format": "mdoc",
+      "payload": {
+        "namespaces": {
+          "org.iso.18013.5.1": {
+            "family_name": "Doe",
+            "given_name": "Alex",
+            "age": 42,
+            "verified": true,
+            "birth_date": "1984-02-29",
+            "updated_at": "2026-07-13T10:15:30Z",
+            "trust_score": "98.75",
+            "portrait": "AQIDBA",
+            "middle_name": null,
+            "address": {
+              "street/name": "High Street"
+            },
+            "children": [
+              {
+                "name": "Sam",
+                "age": 9
+              }
+            ],
+            "tags": ["pid", "verified"]
+          }
+        }
+      }
+    },
+    {
+      "id": "claims-normalize-jwt-vc-001",
+      "format": "jwt-vc",
+      "payload": {
+        "vc": {
+          "credentialSubject": {
+            "family_name": "Doe",
+            "given_name": "Alex",
+            "age": 42,
+            "verified": true,
+            "birth_date": "1984-02-29",
+            "updated_at": "2026-07-13T10:15:30Z",
+            "trust_score": "98.75",
+            "portrait": "AQIDBA",
+            "middle_name": null,
+            "address": {
+              "street/name": "High Street"
+            },
+            "children": [
+              {
+                "name": "Sam",
+                "age": 9
+              }
+            ],
+            "tags": ["pid", "verified"]
+          }
+        }
+      }
+    },
+    {
+      "id": "claims-normalize-w3c-vc-001",
+      "format": "w3c-vc",
+      "payload": {
+        "credentialSubject": {
+          "family_name": "Doe",
+          "given_name": "Alex",
+          "age": 42,
+          "verified": true,
+          "birth_date": "1984-02-29",
+          "updated_at": "2026-07-13T10:15:30Z",
+          "trust_score": "98.75",
+          "portrait": "AQIDBA",
+          "middle_name": null,
+          "address": {
+            "street/name": "High Street"
+          },
+          "children": [
+            {
+              "name": "Sam",
+              "age": 9
+            }
+          ],
+          "tags": ["pid", "verified"]
+        }
+      }
+    },
+    {
+      "id": "claims-normalize-presentation-proto-001",
+      "format": "presentation-proto",
+      "payload": {
+        "type_url": "type.reallyme.dev/identity.presentation.v1.ClaimDisclosure",
+        "claims": [
+          { "path": "/claims/family_name", "value": { "string": "Doe" } },
+          { "path": "/claims/given_name", "value": { "string": "Alex" } },
+          { "path": "/claims/age", "value": { "unsigned": 42 } },
+          { "path": "/claims/verified", "value": { "boolean": true } },
+          { "path": "/claims/birth_date", "value": { "date": "1984-02-29" } },
+          { "path": "/claims/updated_at", "value": { "date_time": "2026-07-13T10:15:30Z" } },
+          { "path": "/claims/trust_score", "value": { "decimal": "98.75" } },
+          { "path": "/claims/portrait", "value": { "bytes_b64": "AQIDBA" } },
+          { "path": "/claims/middle_name", "value": { "null": true } },
+          { "path": "/claims/address/street~1name", "value": { "string": "High Street" } },
+          { "path": "/claims/children/0/name", "value": { "string": "Sam" } },
+          { "path": "/claims/children/0/age", "value": { "unsigned": 9 } },
+          { "path": "/claims/tags/0", "value": { "string": "pid" } },
+          { "path": "/claims/tags/1", "value": { "string": "verified" } }
+        ]
+      }
+    },
+    {
+      "id": "claims-normalize-credential-proto-001",
+      "format": "credential-proto",
+      "payload": {
+        "type_url": "type.reallyme.dev/identity.credential.v1.SubjectPrivateBundle",
+        "claims": [
+          { "path": "/claims/family_name", "value": { "string": "Doe" } },
+          { "path": "/claims/given_name", "value": { "string": "Alex" } },
+          { "path": "/claims/age", "value": { "unsigned": 42 } },
+          { "path": "/claims/verified", "value": { "boolean": true } },
+          { "path": "/claims/birth_date", "value": { "date": "1984-02-29" } },
+          { "path": "/claims/updated_at", "value": { "date_time": "2026-07-13T10:15:30Z" } },
+          { "path": "/claims/trust_score", "value": { "decimal": "98.75" } },
+          { "path": "/claims/portrait", "value": { "bytes_b64": "AQIDBA" } },
+          { "path": "/claims/middle_name", "value": { "null": true } },
+          { "path": "/claims/address/street~1name", "value": { "string": "High Street" } },
+          { "path": "/claims/children/0/name", "value": { "string": "Sam" } },
+          { "path": "/claims/children/0/age", "value": { "unsigned": 9 } },
+          { "path": "/claims/tags/0", "value": { "string": "pid" } },
+          { "path": "/claims/tags/1", "value": { "string": "verified" } }
+        ]
+      }
+    }
+  ]
+}

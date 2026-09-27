@@ -6,6 +6,7 @@
 
 use url::Url;
 
+use crate::validation::validate_issuer_identifier;
 use crate::{OauthError, OauthResult, Reason};
 
 const AUTHORIZATION_SERVER_WELL_KNOWN_PATH: &str = "/.well-known/oauth-authorization-server";
@@ -16,6 +17,7 @@ pub fn authorization_server_metadata_url(issuer: &str) -> OauthResult<String> {
     if issuer.is_empty() || issuer.len() > MAX_ISSUER_IDENTIFIER_BYTES {
         return Err(invalid_metadata());
     }
+    validate_issuer_identifier(issuer).map_err(|_| invalid_metadata())?;
     let mut url = Url::parse(issuer).map_err(|_| invalid_metadata())?;
     if url.scheme() != "https"
         || url.host_str().is_none()

@@ -448,8 +448,7 @@ fn valid_type_set(values: &[&str], allow_empty: bool) -> bool {
     if (!allow_empty && values.is_empty()) || values.len() > MAX_TRANSACTION_TYPES {
         return false;
     }
-    values
-        .iter()
-        .enumerate()
-        .all(|(index, value)| valid_text(value) && !values[..index].contains(value))
+    values.iter().enumerate().all(|(index, value)| {
+        valid_text(value) && !values.iter().take(index).any(|prior| prior == value)
+    })
 }

@@ -4,6 +4,7 @@
 
 use crate::{X509Error, X509SignatureFailure};
 
+/// Rejects XMLDSig verification because the portable WASM lane has no XMLDSig backend.
 pub fn verify_tsl_xml_dsig_wasm_unavailable() -> Result<(), X509Error> {
     Err(X509Error::SignatureFailed(
         X509SignatureFailure::XmlDsigUnavailable,

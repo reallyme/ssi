@@ -4,10 +4,10 @@
 
 //! did:me method-specific identifier helpers.
 //!
-//! This crate owns the did:me method boundary, including the v1 genesis
-//! commitment from the did:me specification Section 2.5. The generic DID core
-//! crate supplies typed core structures, but it deliberately does not derive or
-//! validate method-specific identifiers.
+//! This crate exposes the did:me method boundary, including the v1 genesis
+//! commitment from the did:me specification Section 2.5. The implementation is
+//! shared with the core validator so full DID validation cannot omit the
+//! method-specific genesis binding.
 
 mod method;
 

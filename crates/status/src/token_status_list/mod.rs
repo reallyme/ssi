@@ -15,7 +15,7 @@ mod model;
 #[cfg(any(feature = "native", feature = "wasm"))]
 mod verify_jwt;
 
-pub use compress::{build_token_status_list_payload, pack_token_status_values, token_status_value};
+pub use compress::{build_token_status_list_payload, pack_token_status_values};
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub use cwt::{
     issue_token_status_list_cwt, issue_token_status_list_cwt_with_signer,
@@ -25,7 +25,7 @@ pub use cwt::{
 pub use issue_jwt::{issue_token_status_list_jwt, issue_token_status_list_jwt_with_signer};
 pub use model::{
     TokenStatusBits, TokenStatusListClaims, TokenStatusListError, TokenStatusListFreshnessPolicy,
-    TokenStatusListInvalidReason, TokenStatusListPayload, TokenStatusListProfile,
+    TokenStatusListInvalidReason, TokenStatusListPayload, TokenStatusListProfile, TokenStatusValue,
     VerifiedTokenStatusList, DEFAULT_TOKEN_STATUS_LIST_MAX_AGE_SECS,
     STATUS_LIST_CWT_CONTENT_FORMAT, STATUS_LIST_CWT_MEDIA_TYPE, STATUS_LIST_JWT_MEDIA_TYPE,
     STATUS_LIST_JWT_TYPE,

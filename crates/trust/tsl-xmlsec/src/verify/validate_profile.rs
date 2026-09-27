@@ -63,11 +63,15 @@ fn validate_complete_profile(
     if root_references.len() != 1 {
         return Err(profile_violation());
     }
-    let root_reference = root_references[0];
+    let root_reference = root_references.first().ok_or_else(profile_violation)?;
+    let [first_transform, second_transform] = root_reference.transforms.as_slice() else {
+        return Err(XmlSecError::PolicyViolation(
+            XmlSecPolicyViolationReason::RootTransformProfile,
+        ));
+    };
     if root_reference.transforms_count != 1
-        || root_reference.transforms.len() != 2
-        || root_reference.transforms[0].as_bytes() != TRANSFORM_ENVELOPED_SIGNATURE
-        || root_reference.transforms[1].as_bytes() != C14N_EXCLUSIVE
+        || first_transform.as_bytes() != TRANSFORM_ENVELOPED_SIGNATURE
+        || second_transform.as_bytes() != C14N_EXCLUSIVE
         || !root_reference.digest_method_seen
     {
         return Err(XmlSecError::PolicyViolation(
@@ -84,16 +88,24 @@ fn validate_complete_profile(
         .iter()
         .filter(|reference| reference.reference_type.as_deref() == Some(SIGNED_PROPERTIES_TYPE))
         .collect();
-    if profile.signed_properties_count != 1
-        || signed_properties_references.len() != 1
-        || signed_properties_references[0].uri != expected_signed_properties_uri
-        || signed_properties_references[0].transforms_count > 1
-        || signed_properties_references[0].transforms.len() > 1
-        || signed_properties_references[0]
+    if profile.signed_properties_count != 1 || signed_properties_references.len() != 1 {
+        return Err(XmlSecError::PolicyViolation(
+            XmlSecPolicyViolationReason::InvalidSignedProperties,
+        ));
+    }
+    let signed_properties_reference = signed_properties_references
+        .first()
+        .ok_or(XmlSecError::PolicyViolation(
+            XmlSecPolicyViolationReason::InvalidSignedProperties,
+        ))?;
+    if signed_properties_reference.uri != expected_signed_properties_uri
+        || signed_properties_reference.transforms_count > 1
+        || signed_properties_reference.transforms.len() > 1
+        || signed_properties_reference
             .transforms
             .first()
             .is_some_and(|value| value.as_bytes() != C14N_EXCLUSIVE)
-        || !signed_properties_references[0].digest_method_seen
+        || !signed_properties_reference.digest_method_seen
     {
         return Err(XmlSecError::PolicyViolation(
             XmlSecPolicyViolationReason::InvalidSignedProperties,
@@ -128,7 +140,7 @@ fn validate_complete_profile(
             .iter()
             .filter(|format| format.object_reference == expected_reference)
             .collect();
-        if matching_formats.len() != 1 || matching_formats[0].mime_type.is_none() {
+        if !matches!(matching_formats.as_slice(), [format] if format.mime_type.is_some()) {
             return Err(XmlSecError::PolicyViolation(
                 XmlSecPolicyViolationReason::InvalidDataObjectFormat,
             ));
@@ -364,7 +376,10 @@ pub(super) fn verify_xmlsec_backend(
         signer_der.zeroize();
         return Err(XmlSecError::Internal);
     }
-    signer_der[signer_der_len..].zeroize();
+    let unused = signer_der
+        .get_mut(signer_der_len..)
+        .ok_or(XmlSecError::Internal)?;
+    unused.zeroize();
     signer_der.truncate(signer_der_len);
     Ok(signer_der)
 }

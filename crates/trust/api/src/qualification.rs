@@ -91,11 +91,13 @@ fn subject_contains_attribute(
         .rdns
         .iter()
         .flat_map(|rdn| rdn.attributes.iter())
-        .any(|attribute| name_attribute_oid(&attribute.kind) == required.as_str())
+        .any(|attribute| {
+            name_attribute_oid(&attribute.kind).is_some_and(|oid| oid == required.as_str())
+        })
 }
 
-fn name_attribute_oid(kind: &NameAttributeKind) -> &str {
-    match kind {
+fn name_attribute_oid(kind: &NameAttributeKind) -> Option<&str> {
+    Some(match kind {
         NameAttributeKind::CommonName => "2.5.4.3",
         NameAttributeKind::CountryName => "2.5.4.6",
         NameAttributeKind::GivenName => "2.5.4.42",
@@ -113,7 +115,8 @@ fn name_attribute_oid(kind: &NameAttributeKind) -> &str {
         NameAttributeKind::OrganizationIdentifier => "2.5.4.97",
         NameAttributeKind::TelephoneNumber => "2.5.4.20",
         NameAttributeKind::Other(oid) => oid.as_str(),
-    }
+        _ => return None,
+    })
 }
 
 fn key_usage_bit(usage: &envelopes_x509::KeyUsage, bit: QualificationKeyUsageBit) -> bool {

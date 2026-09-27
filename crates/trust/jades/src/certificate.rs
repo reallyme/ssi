@@ -151,13 +151,25 @@ pub(crate) fn validate_certificate_references(
         // subset of certificates in the certification path. Match every
         // later digest to one distinct supplied path certificate; requiring
         // the array to cover the whole path would reject conforming input.
-        validate_digest_reference(&references[0], &certificates[0], true)?;
+        let signer_reference = references
+            .first()
+            .ok_or_else(|| JadesError::new(JadesErrorReason::InvalidCertificateReference))?;
+        let signer_certificate = certificates
+            .first()
+            .ok_or_else(|| JadesError::new(JadesErrorReason::InvalidCertificateReference))?;
+        validate_digest_reference(signer_reference, signer_certificate, true)?;
         let mut matched = [false; MAX_X509_CHAIN_CERTIFICATES];
-        matched[0] = true;
+        let signer_matched = matched
+            .first_mut()
+            .ok_or_else(|| JadesError::new(JadesErrorReason::InvalidCertificateReference))?;
+        *signer_matched = true;
         for reference in references.iter().skip(1) {
             let mut matched_index = None;
             for (index, certificate) in certificates.iter().enumerate().skip(1) {
-                if !matched[index] && digest_reference_matches(reference, certificate, true)? {
+                let is_matched = matched.get(index).copied().ok_or_else(|| {
+                    JadesError::new(JadesErrorReason::InvalidCertificateReference)
+                })?;
+                if !is_matched && digest_reference_matches(reference, certificate, true)? {
                     if matched_index.is_some() {
                         return Err(JadesError::new(
                             JadesErrorReason::InvalidCertificateReference,
@@ -168,7 +180,10 @@ pub(crate) fn validate_certificate_references(
             }
             let index = matched_index
                 .ok_or_else(|| JadesError::new(JadesErrorReason::SigningCertificateMismatch))?;
-            matched[index] = true;
+            let matched_entry = matched
+                .get_mut(index)
+                .ok_or_else(|| JadesError::new(JadesErrorReason::InvalidCertificateReference))?;
+            *matched_entry = true;
         }
     }
 

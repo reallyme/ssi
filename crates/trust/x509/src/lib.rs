@@ -2,10 +2,6 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-// Keep this implementation crate under the shared lint wall without requiring
-// release-grade rustdoc on every internal trust-model field.
-#![allow(missing_docs)]
-
 //! Portable X.509 parsing and policy checks.
 //!
 //! Overview: Pure-Rust X.509 parsing and inspection helpers suitable for portable targets.
@@ -18,17 +14,27 @@
 //! Non-goals:
 //! - Trusted-list fetching, path discovery, or final application trust decisions.
 
+/// Strict DER validation and SubjectPublicKeyInfo extraction.
 pub mod der;
+/// Typed parse, policy, signature, and resource-limit errors.
 pub mod error;
 mod identity;
+/// X.509 data models.
 pub mod model;
+/// Bounded DER and PEM certificate parsing.
 pub mod parse;
+/// X.509 policy evaluation.
 pub mod policy;
+/// Versioned ETSI and EUDI certificate-policy presets.
 pub mod presets;
+/// ETSI `qcStatements` object identifiers and parsing.
 pub mod qcstatements;
+/// Certificate signature verification.
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub mod signature;
+/// Trusted-list certificate binding.
 pub mod tsl;
+/// WebAssembly trust-lane behavior.
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
@@ -61,9 +67,9 @@ pub use policy::{
     RevocationPointerRequirement, TrustAnchorRequirement, WrpacProfileRequirement, X509Policy,
 };
 pub use presets::{
-    eu_policy, eudi_policy, EuPreset, EudiCertificateProfile, OID_EKU_CLIENT_AUTH,
-    OID_EKU_SERVER_AUTH, OID_QCP_L, OID_QCP_L_QSCD, OID_QCP_N, OID_QCP_N_QSCD, OID_QEVCP_W,
-    OID_QNCP_W, OID_QNCP_W_GEN,
+    eu_policy, eudi_policy, tsl_signer_policy, EuPreset, EudiCertificateProfile,
+    OID_EKU_CLIENT_AUTH, OID_EKU_SERVER_AUTH, OID_QCP_L, OID_QCP_L_QSCD, OID_QCP_N, OID_QCP_N_QSCD,
+    OID_QEVCP_W, OID_QNCP_W, OID_QNCP_W_GEN,
 };
 pub use qcstatements::{
     parse_qc_statements, OID_ETSI_QCS_QC_COMPLIANCE, OID_ETSI_QCS_QC_SSCD, OID_ETSI_QCS_QC_TYPE,
@@ -72,9 +78,10 @@ pub use qcstatements::{
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub use signature::{verify_chain_signatures_pure_rust, PureRustSignatureVerifier};
 pub use tsl::{
-    service_status_from_uri, service_type_from_uri, validate_tsl_trust_service_for_leaf,
-    TslCertificateBinding, TslServiceStatus, TslServiceType, TslTrustService, TslValidationPolicy,
-    TSL_SERVICE_STATUS_GRANTED, TSL_SERVICE_TYPE_CA_QC, TSL_SERVICE_TYPE_OCSP_QC,
+    evaluate_tsl_service_policy_for_ca, service_status_from_uri, service_type_from_uri,
+    TslCertificateBinding, TslServicePolicyInput, TslServiceStatus, TslServiceType,
+    TslValidationPolicy, TSL_KEY_IDENTIFIER_BYTES, TSL_SERVICE_STATUS_GRANTED,
+    TSL_SERVICE_TYPE_CA_QC, TSL_SERVICE_TYPE_OCSP_QC,
 };
 #[cfg(feature = "wasm")]
 pub use wasm::verify_tsl_xml_dsig_wasm_unavailable;

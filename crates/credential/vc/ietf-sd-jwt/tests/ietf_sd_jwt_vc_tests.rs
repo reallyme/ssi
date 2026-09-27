@@ -5,6 +5,7 @@
 
 #![allow(
     missing_docs,
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -132,17 +133,17 @@ fn verify_accepts_valid_issued_sd_jwt_and_restores_claims() {
         verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub, &VERIFY_TEMPORAL_POLICY)
             .expect("verify");
 
-    assert_eq!(verified.disclosures.len(), 2);
+    assert_eq!(verified.disclosures().len(), 2);
     assert_eq!(
         verified
-            .disclosed_claims
+            .disclosed_claims()
             .get("email")
             .and_then(Value::as_str),
         Some("alice@example.com")
     );
     assert_eq!(
         verified
-            .disclosed_claims
+            .disclosed_claims()
             .get("country")
             .and_then(Value::as_str),
         Some("NL")
@@ -237,7 +238,7 @@ fn verify_accepts_compact_without_disclosures() {
             .expect("verify");
     assert_eq!(
         verified
-            .disclosed_claims
+            .disclosed_claims()
             .get("scope")
             .and_then(Value::as_str),
         Some("openid")
@@ -264,7 +265,7 @@ fn issue_and_verify_supports_me_profile_merkle_extension_claim() {
         verify_ietf_sd_jwt_vc(&compact, &issuer_jwk, &issuer_pub, &VERIFY_TEMPORAL_POLICY)
             .expect("verify");
 
-    let payload_obj = verified.payload.as_object().expect("payload object");
+    let payload_obj = verified.payload().as_object().expect("payload object");
     assert!(payload_obj.contains_key(ME_PROFILE_EXTENSION_CLAIM));
 
     let ext = extract_me_profile_merkle_binding(payload_obj)

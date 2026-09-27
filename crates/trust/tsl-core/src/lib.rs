@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
 #![cfg_attr(
     test,
     allow(
@@ -43,11 +42,11 @@ pub use model::{
     TrustServiceStatus, TrustServiceType, TrustedList, TslAddress, TslMediaType,
     TslNonPkiIdentifier, TslObjectIdentifier, TslObjectIdentifierError, TslOrigin, TslPointer,
     TslPostalAddress, TslTimestamp, TslUri, TslVersion, TspRegistrationIdentifier,
-    TspRegistrationIdentifierKind, XmlDsigKeyValue, EU_LOTL_URL, MAX_TSL_OBJECT_IDENTIFIER_BYTES,
-    MAX_TSL_URI_BYTES,
+    TspRegistrationIdentifierKind, XmlDsigKeyValue, EU_LOTL_TSL_TYPE, EU_LOTL_URL,
+    MAX_TSL_OBJECT_IDENTIFIER_BYTES, MAX_TSL_URI_BYTES,
 };
 pub use parse::{
-    parse_tsl_xml, validate_tsl_freshness, validate_tsl_sequence_number,
+    parse_tsl_xml, validate_tsl_freshness, validate_tsl_sequence_number, validate_tsl_xml_boundary,
     MAX_TSL_ISSUE_DATE_TIME_CLOCK_SKEW_SECONDS, MAX_TSL_XML_BYTES,
 };
 pub use pointer::{validate_pointer_target, validate_pointer_traversal};

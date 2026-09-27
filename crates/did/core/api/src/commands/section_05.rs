@@ -114,7 +114,9 @@ fn validate_relationship_replacement(
     for (index, reference) in references.iter().enumerate() {
         if reference.is_empty()
             || reference.len() > MAX_DID_KEY_ROTATION_IDENTIFIER_BYTES
-            || references[..index].contains(reference)
+            || references
+                .get(..index)
+                .is_none_or(|preceding| preceding.contains(reference))
         {
             return Err(invalid);
         }

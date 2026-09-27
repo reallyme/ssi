@@ -28,9 +28,13 @@ pub const MAX_SD_JWT_JSON_BYTES: usize = 3 * 1024 * 1024;
 /// Maximum signatures accepted in the general JWS JSON form.
 pub const MAX_SD_JWT_JSON_SIGNATURES: usize = 32;
 
+/// SD-JWT JSON entry with or without holder key binding.
 #[derive(PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SdJwtJsonSerialization {
+    /// SD-JWT without a holder key-binding JWT.
     SdJwt(SdJwtCompact),
+    /// SD-JWT followed by a holder key-binding JWT.
     SdJwtWithKb(SdJwtWithKbCompact),
 }
 
@@ -41,6 +45,7 @@ impl fmt::Debug for SdJwtJsonSerialization {
 }
 
 impl SdJwtJsonSerialization {
+    /// Issuer signed JWT after validating all caller-supplied inputs.
     pub fn issuer_signed_jwt(&self) -> &str {
         match self {
             SdJwtJsonSerialization::SdJwt(value) => &value.issuer_signed_jwt,
@@ -48,6 +53,7 @@ impl SdJwtJsonSerialization {
         }
     }
 
+    /// Returns the disclosures in their authenticated serialization order.
     pub fn disclosures(&self) -> &[String] {
         match self {
             SdJwtJsonSerialization::SdJwt(value) => &value.disclosures,
@@ -55,6 +61,7 @@ impl SdJwtJsonSerialization {
         }
     }
 
+    /// Returns the optional compact holder key-binding JWT.
     pub fn key_binding_jwt(&self) -> Option<&str> {
         match self {
             SdJwtJsonSerialization::SdJwt(_) => None,
@@ -62,6 +69,7 @@ impl SdJwtJsonSerialization {
         }
     }
 
+    /// Serializes this value in the canonical compact form.
     pub fn to_compact(&self) -> Result<String, SdJwtEnvelopeError> {
         match self {
             SdJwtJsonSerialization::SdJwt(value) => {
@@ -76,8 +84,10 @@ impl SdJwtJsonSerialization {
     }
 }
 
+/// Bounded collection decoded from an SD-JWT JSON serialization.
 #[derive(PartialEq, Eq)]
 pub struct SdJwtJsonSerializationSet {
+    /// Validated SD-JWT entries decoded from the JSON serialization.
     pub entries: Vec<SdJwtJsonSerialization>,
 }
 
@@ -87,6 +97,7 @@ impl fmt::Debug for SdJwtJsonSerializationSet {
     }
 }
 
+/// Parses a bounded SD-JWT JWS JSON serialization.
 pub fn parse_sd_jwt_json_serialization(
     input: &str,
 ) -> Result<SdJwtJsonSerializationSet, SdJwtEnvelopeError> {
@@ -104,6 +115,24 @@ pub fn parse_sd_jwt_json_serialization(
     let object = value
         .as_object()
         .ok_or(SdJwtEnvelopeError::InvalidJsonSerialization)?;
+    let general = object.contains_key(SIGNATURES_MEMBER);
+    let allowed_root = if general {
+        [PAYLOAD_MEMBER, SIGNATURES_MEMBER].as_slice()
+    } else {
+        [
+            PAYLOAD_MEMBER,
+            PROTECTED_MEMBER,
+            SIGNATURE_MEMBER,
+            HEADER_MEMBER,
+        ]
+        .as_slice()
+    };
+    if object
+        .keys()
+        .any(|key| !allowed_root.contains(&key.as_str()))
+    {
+        return Err(SdJwtEnvelopeError::InvalidJsonSerialization);
+    }
 
     let payload = object
         .get(PAYLOAD_MEMBER)
@@ -123,24 +152,36 @@ pub fn parse_sd_jwt_json_serialization(
         }
 
         let mut entries = Vec::with_capacity(signatures.len());
-        for signature in signatures {
-            entries.push(parse_signature_entry(&payload, signature)?);
+        for (index, signature) in signatures.iter().enumerate() {
+            entries.push(parse_signature_entry(&payload, signature, index == 0)?);
         }
         return Ok(SdJwtJsonSerializationSet { entries });
     }
 
     Ok(SdJwtJsonSerializationSet {
-        entries: vec![parse_signature_entry(&payload, &value)?],
+        entries: vec![parse_signature_entry(&payload, &value, true)?],
     })
 }
 
 fn parse_signature_entry(
     payload: &str,
     signature_entry: &Value,
+    allow_sd_header: bool,
 ) -> Result<SdJwtJsonSerialization, SdJwtEnvelopeError> {
     let object = signature_entry
         .as_object()
         .ok_or(SdJwtEnvelopeError::InvalidJsonSerialization)?;
+    if object.keys().any(|key| {
+        ![
+            PAYLOAD_MEMBER,
+            PROTECTED_MEMBER,
+            SIGNATURE_MEMBER,
+            HEADER_MEMBER,
+        ]
+        .contains(&key.as_str())
+    }) {
+        return Err(SdJwtEnvelopeError::InvalidJsonSerialization);
+    }
     let protected = object
         .get(PROTECTED_MEMBER)
         .and_then(Value::as_str)
@@ -153,6 +194,7 @@ fn parse_signature_entry(
     let signature = clean_compact_string(signature)?;
 
     let header = object.get(HEADER_MEMBER);
+    validate_unprotected_header(header, allow_sd_header)?;
     let disclosures = parse_disclosures(header)?;
     let issuer_signed_jwt = format!("{protected}.{payload}.{signature}");
 
@@ -167,6 +209,25 @@ fn parse_signature_entry(
             disclosures,
         })),
     }
+}
+
+fn validate_unprotected_header(
+    header: Option<&Value>,
+    allow_sd_header: bool,
+) -> Result<(), SdJwtEnvelopeError> {
+    let Some(header) = header else {
+        return Ok(());
+    };
+    let object = header
+        .as_object()
+        .ok_or(SdJwtEnvelopeError::InvalidJsonSerialization)?;
+    if object
+        .keys()
+        .any(|key| !allow_sd_header || ![DISCLOSURES_MEMBER, KB_JWT_MEMBER].contains(&key.as_str()))
+    {
+        return Err(SdJwtEnvelopeError::InvalidJsonSerialization);
+    }
+    Ok(())
 }
 
 fn parse_disclosures(header: Option<&Value>) -> Result<Vec<String>, SdJwtEnvelopeError> {

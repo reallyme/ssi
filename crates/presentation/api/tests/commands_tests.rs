@@ -2,21 +2,26 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::unwrap_used)]
+#![allow(missing_docs, clippy::indexing_slicing, clippy::unwrap_used)]
 //! Test coverage for SDK-facing presentation commands.
 
 use identity_core_primitives::Algorithm;
-use reallyme_disclosure_policy::eu_pid_policy;
+use reallyme_disclosure_policy::{eu_age_policy, eu_pid_policy};
 use reallyme_vp_api::error::PresentationCommandReason;
 use reallyme_vp_api::{
-    create_presentation_request, present, verify_presentation, PresentationCheckCode,
-    PresentationCheckName, PresentationCheckOutcome, PresentationDecision,
+    create_presentation_request, evaluate_presentation_policy as verify_presentation, present,
+    PresentationCheckCode, PresentationCheckName, PresentationCheckOutcome, PresentationDecision,
     PresentationDisclosureFact, PresentationExpected, PresentationPresentRequest,
     PresentationQeaaFact, PresentationRequestCreateRequest, PresentationStatusFact,
     PresentationVerificationContext, PresentationVerificationFacts, PresentationVerifyRequest,
     VpApiError,
 };
-use reallyme_vp_core::{DisclosureMode, Presentation, PresentationBinding, SdJwtVcPresentation};
+use reallyme_vp_core::{
+    ClaimDisclosure, CredentialReference, CredentialStatusRef, DisclosureMode, Presentation,
+    PresentationBinding, PresentationFreshness, SdJwtVcPresentation, StatusPurpose, ZkPresentation,
+    ZkProof, ZkProofSuite,
+};
+use std::collections::BTreeMap;
 use zeroize::Zeroize;
 
 fn disclosure() -> PresentationDisclosureFact {
@@ -36,9 +41,49 @@ fn presentation() -> Presentation {
     }))
 }
 
+fn expired_zk_presentation() -> Presentation {
+    Presentation::Zk(Box::new(ZkPresentation {
+        freshness: PresentationFreshness {
+            challenge: [1_u8; 32],
+            audience_hash: [2_u8; 32],
+            expiry_unix: 1_699_999_999,
+        },
+        credential: CredentialReference {
+            envelope_hash: [3_u8; 32],
+            issuer_did: "did:example:issuer".to_owned(),
+            status: CredentialStatusRef {
+                status_list_url: "https://issuer.example/status".to_owned(),
+                status_list_id: [4_u8; 32],
+                status_list_index: 1,
+                purpose: StatusPurpose::Revocation,
+            },
+        },
+        disclosures: vec![ClaimDisclosure {
+            claim_path: "/given_name".to_owned(),
+            mode: DisclosureMode::Reveal,
+            revealed_value: Some(b"Alice".to_vec()),
+            threshold: None,
+            range: None,
+            set: None,
+        }],
+        zk_proof: ZkProof {
+            circuit_id: "eu.pid".to_owned(),
+            circuit_version: "1".to_owned(),
+            vk_id: "vk-1".to_owned(),
+            proof_bytes: vec![1_u8],
+            public_inputs: BTreeMap::new(),
+            proof_suite: ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
+            artifact_manifest_sha256: [5_u8; 32],
+        },
+        qeaa: None,
+    }))
+}
+
 fn facts() -> PresentationVerificationFacts {
     PresentationVerificationFacts {
         binding_ok: true,
+        verified_nonce: Some([1_u8; 32]),
+        verified_audience_hash: Some([2_u8; 32]),
         proof_verified: true,
         key_binding_ok: Some(true),
         issuer_trust_ok: Some(true),
@@ -62,6 +107,16 @@ fn facts() -> PresentationVerificationFacts {
             profile: Some("QEAA-ETSI-1.0".to_owned()),
             identity_proofing_rank: Some(3),
         }),
+    }
+}
+
+fn expected_binding() -> PresentationExpected {
+    PresentationExpected {
+        state: None,
+        nonce: Some([1u8; 32]),
+        audience_hash: Some([2u8; 32]),
+        response_uri: None,
+        transaction_data_hash: None,
     }
 }
 
@@ -230,7 +285,7 @@ fn presentation_record_owner_clears_selection_and_binding_material() {
 fn verify_presentation_allows_policy_satisfying_facts() {
     let result = verify_presentation(PresentationVerifyRequest {
         presentation: presentation(),
-        expected: PresentationExpected::default(),
+        expected: expected_binding(),
         verification_context: PresentationVerificationContext {
             evaluation_time_unix: 1_700_000_000,
             presentation_time_unix: 1_700_000_000,
@@ -249,10 +304,142 @@ fn verify_presentation_allows_policy_satisfying_facts() {
 }
 
 #[test]
+fn optional_unchecked_status_is_skipped_but_adverse_status_is_terminal() {
+    let request = |status: PresentationStatusFact| {
+        let mut status_facts = facts();
+        status_facts.claimset_id = "eu.age.v1".to_owned();
+        status_facts.status = Some(status);
+        PresentationVerifyRequest {
+            presentation: presentation(),
+            expected: expected_binding(),
+            verification_context: PresentationVerificationContext {
+                evaluation_time_unix: 1_700_000_000,
+                presentation_time_unix: 1_700_000_000,
+            },
+            policy: eu_age_policy().require_claim("/given_name", DisclosureMode::Reveal),
+            facts: status_facts,
+            checks: Vec::new(),
+        }
+    };
+
+    let unchecked = verify_presentation(request(PresentationStatusFact {
+        checked: false,
+        revoked: false,
+        suspended: false,
+        age_seconds: None,
+    }));
+    assert_eq!(unchecked.decision, PresentationDecision::Allow);
+    assert!(unchecked.presentation_checks.iter().any(|check| {
+        check.name == PresentationCheckName::CredentialStatus
+            && check.outcome == PresentationCheckOutcome::Skipped
+            && !check.mandatory
+    }));
+
+    for status in [
+        PresentationStatusFact {
+            checked: false,
+            revoked: true,
+            suspended: false,
+            age_seconds: None,
+        },
+        PresentationStatusFact {
+            checked: false,
+            revoked: false,
+            suspended: true,
+            age_seconds: None,
+        },
+    ] {
+        let adverse = verify_presentation(request(status));
+        assert_eq!(adverse.decision, PresentationDecision::Deny);
+        assert!(adverse.presentation_checks.iter().any(|check| {
+            check.name == PresentationCheckName::CredentialStatus
+                && check.outcome == PresentationCheckOutcome::Fail
+                && check.mandatory
+        }));
+    }
+}
+
+#[test]
+fn verify_presentation_requires_expected_nonce_and_audience() {
+    let result = verify_presentation(verify_request_with(
+        PresentationExpected::default(),
+        facts(),
+        Vec::new(),
+    ));
+
+    assert!(!result.valid);
+    assert_eq!(result.decision, PresentationDecision::Deny);
+    for name in [
+        PresentationCheckName::Nonce,
+        PresentationCheckName::Audience,
+    ] {
+        assert!(result.presentation_checks.iter().any(|check| {
+            check.name == name
+                && check.outcome == PresentationCheckOutcome::Fail
+                && check.code == PresentationCheckCode::EvidenceRequired
+                && check.mandatory
+        }));
+    }
+}
+
+#[test]
+fn verify_presentation_compares_authenticated_nonce_and_audience_evidence() {
+    for (verified_nonce, verified_audience_hash, failed_check) in [
+        (
+            Some([9_u8; 32]),
+            Some([2_u8; 32]),
+            PresentationCheckName::Nonce,
+        ),
+        (
+            Some([1_u8; 32]),
+            Some([9_u8; 32]),
+            PresentationCheckName::Audience,
+        ),
+        (None, Some([2_u8; 32]), PresentationCheckName::Nonce),
+        (Some([1_u8; 32]), None, PresentationCheckName::Audience),
+    ] {
+        let mut unbound = facts();
+        // A format adapter's aggregate success bit cannot substitute for the
+        // exact challenge and verifier identity authenticated by the proof.
+        unbound.binding_ok = true;
+        unbound.verified_nonce = verified_nonce;
+        unbound.verified_audience_hash = verified_audience_hash;
+
+        let result =
+            verify_presentation(verify_request_with(expected_binding(), unbound, Vec::new()));
+
+        assert!(!result.valid);
+        assert_eq!(result.decision, PresentationDecision::Deny);
+        assert!(result.presentation_checks.iter().any(|check| {
+            check.name == failed_check
+                && check.outcome == PresentationCheckOutcome::Fail
+                && check.code == PresentationCheckCode::BindingMismatch
+                && check.mandatory
+        }));
+    }
+}
+
+#[test]
+fn verify_presentation_rejects_an_expired_zk_binding() {
+    let mut request = verify_request_with(expected_binding(), facts(), Vec::new());
+    request.presentation = expired_zk_presentation();
+
+    let result = verify_presentation(request);
+
+    assert!(!result.valid);
+    assert_eq!(result.decision, PresentationDecision::Deny);
+    assert!(result.presentation_checks.iter().any(|check| {
+        check.name == PresentationCheckName::HolderBinding
+            && check.outcome == PresentationCheckOutcome::Fail
+            && check.code == PresentationCheckCode::BindingMismatch
+    }));
+}
+
+#[test]
 fn verify_presentation_is_indeterminate_for_requested_missing_evidence() {
     let result = verify_presentation(PresentationVerifyRequest {
         presentation: presentation(),
-        expected: PresentationExpected::default(),
+        expected: expected_binding(),
         verification_context: PresentationVerificationContext {
             evaluation_time_unix: 1_700_000_000,
             presentation_time_unix: 1_700_000_000,
@@ -299,7 +486,7 @@ fn verify_presentation_requested_checks_never_drop_mandatory_failures() {
     failed.proof_verified = false;
     failed.binding_ok = false;
     let result = verify_presentation(verify_request_with(
-        PresentationExpected::default(),
+        expected_binding(),
         failed,
         vec![PresentationCheckName::IssuerTrust],
     ));
@@ -317,9 +504,28 @@ fn verify_presentation_requested_checks_never_drop_mandatory_failures() {
 }
 
 #[test]
+fn verify_presentation_requested_optional_failure_is_mandatory() {
+    let mut failed = facts();
+    failed.issuer_trust_ok = Some(false);
+    let result = verify_presentation(verify_request_with(
+        expected_binding(),
+        failed,
+        vec![PresentationCheckName::IssuerTrust],
+    ));
+
+    assert!(!result.valid);
+    assert_eq!(result.decision, PresentationDecision::Deny);
+    assert!(result.presentation_checks.iter().any(|check| {
+        check.name == PresentationCheckName::IssuerTrust
+            && check.outcome == PresentationCheckOutcome::Fail
+            && check.mandatory
+    }));
+}
+
+#[test]
 fn verify_presentation_expected_state_requires_observed_comparison() {
     let expected = || {
-        let mut expected = PresentationExpected::default();
+        let mut expected = expected_binding();
         expected.state = Some("state-1".to_owned());
         expected
     };
@@ -350,7 +556,7 @@ fn verify_presentation_expected_state_requires_observed_comparison() {
 #[test]
 fn verify_presentation_expected_response_uri_requires_observed_comparison() {
     let expected = |uri: &str| {
-        let mut expected = PresentationExpected::default();
+        let mut expected = expected_binding();
         expected.response_uri = Some(uri.to_owned());
         expected
     };
@@ -376,7 +582,7 @@ fn verify_presentation_expected_response_uri_requires_observed_comparison() {
 fn presentation_verification_result_owner_clears_disclosed_identity_material() {
     let mut result = verify_presentation(PresentationVerifyRequest {
         presentation: presentation(),
-        expected: PresentationExpected::default(),
+        expected: expected_binding(),
         verification_context: PresentationVerificationContext {
             evaluation_time_unix: 1_700_000_000,
             presentation_time_unix: 1_700_000_000,

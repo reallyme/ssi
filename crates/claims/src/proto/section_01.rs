@@ -160,7 +160,7 @@ pub fn subject_private_bundle_to_proto(
         issuer_signature: MessageField::some(signature_to_proto(&bundle.issuer_signature)),
         tree: MessageField::some(merkle_tree_info_to_proto(bundle.tree)),
         claims: bundle.claims.iter().map(claim_opening_to_proto).collect(),
-        ..pb::SubjectPrivateBundle::default()
+        __buffa_unknown_fields: Default::default(),
     })
 }
 
@@ -200,7 +200,7 @@ fn claim_opening_to_proto(opening: &ClaimOpening) -> pb::ClaimOpening {
         value: opening.value.clone(),
         index: opening.index,
         merkle_path: opening.merkle_path.clone(),
-        ..pb::ClaimOpening::default()
+        __buffa_unknown_fields: Default::default(),
     }
 }
 

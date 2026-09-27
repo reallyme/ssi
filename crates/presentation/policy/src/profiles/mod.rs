@@ -57,7 +57,7 @@ pub use pid::eu_pid_policy;
 pub use pid_baseline::eu_pid_baseline_policy;
 
 pub use address::eu_address_policy;
-pub use age::eu_age_policy;
+pub use age::{eu_age_over_policy, eu_age_policy};
 pub use company::eu_company_policy;
 pub use diploma::eu_diploma_policy;
 pub use driving_license::eu_driving_license_policy;

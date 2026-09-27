@@ -61,7 +61,7 @@
     "feature": "stable_profile_identity",
     "implementation": ["crates/profiles/src/lib.rs"],
     "positive_tests": ["haip_identity_is_stable_and_eidas_relevant", "eudi_pid_identity_is_eidas_relevant"],
-    "negative_tests": [],
+    "negative_tests": ["eu_pid_rejects_wrong_profile_family"],
     "applicable": true,
     "exclusion_reason": null
   },

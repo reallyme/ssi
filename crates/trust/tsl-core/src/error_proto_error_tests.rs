@@ -83,6 +83,7 @@ fn digital_identity_failures_map_to_distinct_proto_reasons() {
         (TslDigitalIdentityFailure::MixedRepresentations, IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_DIGITAL_IDENTITY_MIXED_REPRESENTATIONS),
         (TslDigitalIdentityFailure::PublicKeyMismatch, IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_DIGITAL_IDENTITY_PUBLIC_KEY_MISMATCH),
         (TslDigitalIdentityFailure::SubjectNameMismatch, IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_DIGITAL_IDENTITY_SUBJECT_NAME_MISMATCH),
+        (TslDigitalIdentityFailure::CertificateAuthorityMismatch, IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_DIGITAL_IDENTITY_MALFORMED_REPRESENTATION),
         (TslDigitalIdentityFailure::SubjectKeyIdentifierMismatch, IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_DIGITAL_IDENTITY_SKI_MISMATCH),
         (TslDigitalIdentityFailure::InvalidNonPkiIdentifier, IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_DIGITAL_IDENTITY_INVALID_NON_PKI_IDENTIFIER),
         (TslDigitalIdentityFailure::UnsupportedKeyValue, IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_DIGITAL_IDENTITY_UNSUPPORTED_KEY_VALUE),

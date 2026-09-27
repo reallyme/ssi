@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use ciborium::value::Value;
+
 use crate::MdocEnvelopeError;
 use reallyme_cose::{
     cose_sign1, cose_sign1_with_signature_algorithm_and_external_aad, cose_verify1,
@@ -92,25 +94,84 @@ pub struct ValidatedX5ChainIssuerAuth {
     pub payload: Zeroizing<Vec<u8>>,
     /// Bounded certificate path authenticated by the supplied trust resolver.
     pub x5chain_der: Vec<Vec<u8>>,
+    /// Inclusive certificate validity start selected by the trust resolver.
+    pub certificate_not_before_unix: u64,
+    /// Inclusive certificate validity end selected by the trust resolver.
+    pub certificate_not_after_unix: u64,
+}
+
+/// Trust-resolver output bound to a document-signer path validated at the
+/// supplied MSO signing time.
+pub struct MdocCertificatePathValidation {
+    /// P-256 document-signer public key bytes.
+    pub public_key: Vec<u8>,
+    /// Inclusive certificate validity start as Unix seconds.
+    pub not_before_unix: u64,
+    /// Inclusive certificate validity end as Unix seconds.
+    pub not_after_unix: u64,
 }
 
 /// Validate an ES256 issuerAuth using its RFC 9360 certificate path.
 ///
 /// The resolver is responsible for certificate parsing, path validation,
-/// document-signer profile policy, and returning the leaf P-256 public key.
+/// document-signer profile policy, and returning the leaf P-256 public key. It
+/// receives the MSO signing time so certificate validity can be evaluated when
+/// the document was signed rather than when it is presented. The time is read
+/// before signature verification, but this function accepts the result only
+/// after the same payload and timestamp have been authenticated.
 pub fn validate_x5chain_issuer_auth(
     issuer_auth: &[u8],
-    trust_resolver: impl FnOnce(&[Vec<u8>]) -> Option<Vec<u8>>,
+    trust_resolver: impl FnOnce(&[Vec<u8>], u64) -> Option<MdocCertificatePathValidation>,
 ) -> Result<ValidatedX5ChainIssuerAuth, MdocEnvelopeError> {
+    let mso_signing_time_unix = unverified_mso_signing_time(issuer_auth)?;
     let policy = CosePolicy::new().allow_cose_algorithm(CoseSignatureAlgorithm::Es256);
+    let mut certificate_window = None;
     let verified = cose_verify1_with_x5chain(issuer_auth, &policy, |algorithm, certificates| {
-        (algorithm == Algorithm::P256)
-            .then(|| trust_resolver(certificates))
-            .flatten()
+        if algorithm != Algorithm::P256 {
+            return None;
+        }
+        let validated = trust_resolver(certificates, mso_signing_time_unix)?;
+        if validated.not_before_unix > validated.not_after_unix {
+            return None;
+        }
+        certificate_window = Some((validated.not_before_unix, validated.not_after_unix));
+        Some(validated.public_key)
     })
     .map_err(|_| MdocEnvelopeError::InvalidSignature)?;
+    let authenticated_mso = crate::cbor::decode_mso_cbor(&verified.payload)
+        .map_err(|_| MdocEnvelopeError::InvalidSignature)?;
+    if authenticated_mso.validity_info.signed != mso_signing_time_unix {
+        return Err(MdocEnvelopeError::InvalidSignature);
+    }
+    let (certificate_not_before_unix, certificate_not_after_unix) =
+        certificate_window.ok_or(MdocEnvelopeError::InvalidSignature)?;
+    if mso_signing_time_unix < certificate_not_before_unix
+        || mso_signing_time_unix > certificate_not_after_unix
+    {
+        return Err(MdocEnvelopeError::InvalidSignature);
+    }
     Ok(ValidatedX5ChainIssuerAuth {
         payload: verified.payload,
         x5chain_der: verified.x5chain_der,
+        certificate_not_before_unix,
+        certificate_not_after_unix,
     })
+}
+
+fn unverified_mso_signing_time(issuer_auth: &[u8]) -> Result<u64, MdocEnvelopeError> {
+    let issuer_auth = crate::cbor::cbor_bytes_to_value(issuer_auth)
+        .map_err(|_| MdocEnvelopeError::InvalidSignature)?;
+    let body = match issuer_auth.as_value() {
+        Value::Tag(18, body) => body.as_ref(),
+        value => value,
+    };
+    let Value::Array(fields) = body else {
+        return Err(MdocEnvelopeError::InvalidSignature);
+    };
+    let [_, _, Value::Bytes(payload), _] = fields.as_slice() else {
+        return Err(MdocEnvelopeError::InvalidSignature);
+    };
+    let mso =
+        crate::cbor::decode_mso_cbor(payload).map_err(|_| MdocEnvelopeError::InvalidSignature)?;
+    Ok(mso.validity_info.signed)
 }

@@ -16,7 +16,7 @@ across the ReallyMe stack. It defines protocol-neutral models and operations
 for credentials, presentations, claims, DIDs, trust, status, and selective
 disclosure.
 
-Credential formats including SD-JWT, mdoc, and JWT-VC are
+Credential formats including SD-JWT, mdoc, and the ReallyMe canonical-envelope JWT profile are
 implemented here independently of issuance and presentation protocols.
 OpenID4VCI and OpenID4VP build on these capabilities without duplicating
 credential, trust, or disclosure logic.
@@ -41,7 +41,7 @@ packages remain in ReallyMe Identity.
 | Area | Support |
 | --- | --- |
 | Identity data | Typed DID documents, verification methods, credentials, presentations, normalized claims, and canonical paths |
-| Credential formats | RFC 9901 SD-JWT, issuer-signed mdoc issuance and verification, JWT-VC, and W3C Data Integrity |
+| Credential formats | RFC 9901 SD-JWT, issuer-signed mdoc issuance and verification, a ReallyMe canonical-envelope JWT profile, and W3C Data Integrity |
 | Presentations | Protocol-neutral presentation construction, validation, and disclosure requirements |
 | Trust | X.509 helpers, trust policy, trusted-list processing, registration evidence, and Wasm-safe trust boundaries |
 | Status and revocation | Status-list validation and composition of resolved OCSP, CRL, and StatusList evidence |
@@ -140,7 +140,7 @@ foundational repositories rather than being reimplemented here.
 | `crates/ssi` | Composed Rust facade consumed by protocols and services. |
 | `crates/proto`, `crates/proto-codec` | Canonical SSI protobuf schemas, generated messages, bounded codecs, and validated mappings. |
 | `crates/credential`, `crates/claims` | Credential semantics, issuance APIs, normalized claims, and disclosure validation. |
-| `crates/envelopes/*` | SD-JWT, mdoc, JWT-VC, Data Integrity, and envelope-profile implementations. |
+| `crates/envelopes/*` | SD-JWT, mdoc, canonical-envelope JWT, Data Integrity, and envelope-profile implementations. |
 | `crates/did/*` | DID primitives, resolution engine, APIs, and method adapters. |
 | `crates/presentation/*` | Protocol-neutral presentation policy, validation, and SD-JWT support. |
 | `crates/trust/*` | Trust policy, X.509, trusted lists, JAdES, and Wasm boundaries. |
@@ -162,12 +162,14 @@ The facade exposes identity-owned capabilities through stable paths including
 | Build an application with ReallyMe | Use [ReallyMe Identity](https://github.com/reallyme/identity), the application-facing SDK. |
 | Integrate a credential protocol | Consume the `reallyme-ssi` facade from the corresponding ReallyMe source workspace. |
 | Use bounded Brotli independently | Use the published `reallyme-compression-brotli` crate. |
-| Develop SSI | Clone this repository and run the repository gate; no sibling checkout is required. |
+| Develop SSI | Clone this repository and run the repository gate. Protobuf generation and lint also require the sibling `reallyme/me-id` checkout because SSI imports its canonical DID schema. |
 
 Published foundational crates—`reallyme-crypto`, `reallyme-codec`,
-`reallyme-jose`, and `reallyme-cose`—are consumed at reviewed versions. The SSI
-facade remains a source-workspace composition crate until its private internal
-dependencies are approved for publication.
+`reallyme-jose`, and `reallyme-cose`—are version-pinned workspace dependencies.
+The SSI facade remains a source-workspace composition crate. Its reusable
+component crates are published separately when their manifests opt into
+publication; `cargo metadata` and the release preflight are the authoritative
+package inventory.
 
 ## Architecture Boundaries
 

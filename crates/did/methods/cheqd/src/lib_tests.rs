@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    effective_namespace, generate_did_cheqd, parse_did_cheqd, CheqdIdentifierKind,
-    DidCheqdErrorReason,
+    canonicalize_did_cheqd, effective_namespace, generate_did_cheqd, parse_did_cheqd,
+    CheqdIdentifierKind, DidCheqdErrorReason,
 };
 
 #[test]
@@ -76,12 +76,36 @@ fn did_cheqd_rejects_malformed_uuid() {
 }
 
 #[test]
-fn did_cheqd_rejects_non_canonical_uppercase_uuid() {
+fn did_cheqd_rejects_noncanonical_uppercase_uuid_hex() {
     for did in [
         "did:cheqd:mainnet:DE9786CD-EC53-458C-857C-9342CF264F80",
         "did:cheqd:de9786cd-ec53-458c-857c-9342cf264F80",
     ] {
-        let err = parse_did_cheqd(did).err().map(|error| error.reason);
-        assert_eq!(err, Some(DidCheqdErrorReason::InvalidUniqueIdentifier));
+        assert_eq!(
+            parse_did_cheqd(did).err().map(|error| error.reason),
+            Some(DidCheqdErrorReason::InvalidUniqueIdentifier)
+        );
+    }
+    assert_eq!(
+        canonicalize_did_cheqd("did:cheqd:mainnet:DE9786CD-EC53-458C-857C-9342CF264F80"),
+        Ok("did:cheqd:de9786cd-ec53-458c-857c-9342cf264f80".to_owned())
+    );
+    assert_eq!(
+        canonicalize_did_cheqd("did:cheqd:MAINNET:DE9786CD-EC53-458C-857C-9342CF264F80"),
+        Ok("did:cheqd:de9786cd-ec53-458c-857c-9342cf264f80".to_owned())
+    );
+}
+
+#[test]
+fn did_cheqd_rejects_alphanumeric_values_that_are_not_sixteen_byte_base58() {
+    for did in [
+        "did:cheqd:mainnet:000000000000000000000",
+        "did:cheqd:mainnet:OOOOOOOOOOOOOOOOOOOOOO",
+        "did:cheqd:mainnet:1111111111111111111111",
+    ] {
+        assert_eq!(
+            parse_did_cheqd(did).err().map(|error| error.reason),
+            Some(DidCheqdErrorReason::InvalidUniqueIdentifier)
+        );
     }
 }

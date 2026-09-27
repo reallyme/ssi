@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
@@ -16,9 +17,16 @@ use identity_presentation_vp_policy::{
     plan_satisfaction, SatisfactionPlan, VpPolicy, VpPolicyError,
 };
 
+fn test_policy() -> VpPolicy {
+    VpPolicy {
+        require_status: false,
+        ..VpPolicy::default()
+    }
+}
+
 #[test]
 fn planner_returns_semantic_inputs_without_selecting_a_circuit() {
-    let policy = VpPolicy::dev_default()
+    let policy = test_policy()
         .require_claim("/claims/age", DisclosureMode::Gte)
         .require_claim("/claims/family_name", DisclosureMode::Reveal);
 
@@ -38,8 +46,7 @@ fn planner_returns_semantic_inputs_without_selecting_a_circuit() {
 
 #[test]
 fn planner_discloses_when_only_reveal_claims_are_required() {
-    let policy =
-        VpPolicy::dev_default().require_claim("/claims/family_name", DisclosureMode::Reveal);
+    let policy = test_policy().require_claim("/claims/family_name", DisclosureMode::Reveal);
 
     let plan = plan_satisfaction(&policy).unwrap();
 
@@ -54,7 +61,7 @@ fn planner_discloses_when_only_reveal_claims_are_required() {
 
 #[test]
 fn planner_preserves_proof_system_neutral_predicates() {
-    let policy = VpPolicy::dev_default().require_claim("/claims/age", DisclosureMode::MemberOfSet);
+    let policy = test_policy().require_claim("/claims/age", DisclosureMode::MemberOfSet);
 
     let plan = plan_satisfaction(&policy).unwrap();
 
@@ -70,7 +77,7 @@ fn planner_preserves_proof_system_neutral_predicates() {
 
 #[test]
 fn planner_rejects_when_zk_is_not_allowed_for_derived_claims() {
-    let mut policy = VpPolicy::dev_default().require_claim("/claims/age", DisclosureMode::Gte);
+    let mut policy = test_policy().require_claim("/claims/age", DisclosureMode::Gte);
     policy.allow_zk = false;
 
     let err = plan_satisfaction(&policy).unwrap_err();

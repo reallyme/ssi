@@ -20,7 +20,7 @@ pub fn create_engine(
     // 0. Basic preconditions
     if opts.id.is_empty()
         || opts.controller.is_empty()
-        || opts.controller[0].is_empty()
+        || opts.controller.first().is_none_or(String::is_empty)
         || opts.sequence < 1
         || (opts.sequence == 1
             && (opts.prev.is_some() || opts.nonce.as_ref().map(|n| n.len()) != Some(16)))
@@ -152,6 +152,43 @@ pub fn create_engine(
 
     let mut core_controller_keys = core_controller_keys.clone();
     core_controller_keys.sort_by(|a, b| a.id.cmp(&b.id));
+    let update_policy = CoreUpdatePolicy {
+        allowed_verification_methods: opts.allowed_verification_methods.clone(),
+        threshold: opts.threshold,
+    };
+    if opts.sequence == 1 {
+        let nonce = opts.nonce.as_deref().ok_or(DidCoreError::InvalidCanonicalState(
+            CanonicalStateViolation::GenesisNonce,
+        ))?;
+        let expected = crate::identifier::generate_did_me(
+            nonce,
+            &update_policy,
+            &core_controller_keys,
+        )
+        .map_err(|_| {
+            DidCoreError::InvalidCanonicalState(
+                CanonicalStateViolation::GenesisIdentifierMismatch,
+            )
+        })?;
+        if expected != opts.id {
+            return Err(DidCoreError::InvalidCanonicalState(
+                CanonicalStateViolation::GenesisIdentifierMismatch,
+            ));
+        }
+    }
+
+    let projection_hash = projection_binding_hash(&ProjectionBinding {
+        context: &default_context(),
+        also_known_as: &opts.also_known_as,
+        hardware_bound: opts.hardware_bound,
+        biometric_protected: opts.biometric_protected,
+        user_verification_method: opts.user_verification_method.as_deref(),
+        device_model: opts.device_model.as_deref(),
+        key_history: &[],
+        domain_verification: &domain_verification,
+        eudi_level_of_assurance: None,
+        eudi_schema_version: None,
+    })?;
 
     // 4. Build DidCore
     let core = DidCore {
@@ -163,11 +200,9 @@ pub fn create_engine(
         assertion: opts.assertion.clone(),
         key_agreement: opts.key_agreement.clone(),
         services: core_services,
+        projection_hash,
         nonce: opts.nonce.clone(),
-        update_policy: CoreUpdatePolicy {
-            allowed_verification_methods: opts.allowed_verification_methods.clone(),
-            threshold: opts.threshold,
-        },
+        update_policy,
         prev: opts.prev.clone(),
     };
 

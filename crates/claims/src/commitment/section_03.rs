@@ -428,7 +428,16 @@ fn canonical_typed_claim_value_bytes(
             let unsigned = u64::try_from(*signed).map_err(|_| {
                 ClaimsError::InvalidInput(ClaimsInvalidReason::ClaimValueTypeMismatch)
             })?;
-            canonical_claim_value_bytes(&ClaimValue::Unsigned(unsigned))
+            let decimal = ClaimDecimal::new(unsigned.to_string())?;
+            canonical_claim_value_bytes(&ClaimValue::Decimal(decimal))
+        }
+        (ClaimType::Number, ClaimValue::Signed(signed)) => {
+            let decimal = ClaimDecimal::new(signed.to_string())?;
+            canonical_claim_value_bytes(&ClaimValue::Decimal(decimal))
+        }
+        (ClaimType::Number, ClaimValue::Unsigned(unsigned)) => {
+            let decimal = ClaimDecimal::new(unsigned.to_string())?;
+            canonical_claim_value_bytes(&ClaimValue::Decimal(decimal))
         }
         _ => canonical_claim_value_bytes(value),
     }

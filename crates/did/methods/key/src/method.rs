@@ -61,10 +61,10 @@ impl DidKeyMulticodec {
     }
 }
 
-/// Multibase encodings allowed by the did:key ABNF.
+/// Multibase encoding allowed by the published did:key method specification.
 ///
-/// The did:key ABNF permits only Base58 BTC (`z`). Accepting further encodings
-/// would give one key several distinct DIDs.
+/// Restricting identifiers to Base58 BTC prevents one public key from having
+/// multiple DID aliases with different multibase prefixes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DidKeyMultibase {
     /// Multibase Base58 BTC, `z` prefix.
@@ -82,14 +82,14 @@ pub enum DidKeyErrorReason {
     UnsupportedMultibase,
     /// The identifier contained an invalid Base58 BTC character.
     InvalidBase58,
-    /// The identifier contained invalid unpadded base64url.
-    InvalidBase64Url,
     /// The decoded multicodec varint was malformed.
     InvalidVarint,
     /// The decoded multicodec is not part of the supported public key profile.
     UnsupportedMulticodec,
     /// The decoded key byte length does not match the multicodec.
     InvalidPublicKeyLength,
+    /// The key bytes are not a valid encoding for the selected curve.
+    InvalidPublicKey,
     /// Checked arithmetic failed while converting between bases.
     ArithmeticOverflow,
     /// The method-specific identifier exceeded the supported length.
@@ -121,9 +121,6 @@ impl From<DidKeyErrorReason> for IdentityCoreErrorReason {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_UNSUPPORTED_MULTIBASE
             }
             DidKeyErrorReason::InvalidBase58 => Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_BASE58,
-            DidKeyErrorReason::InvalidBase64Url => {
-                Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_BASE64URL
-            }
             DidKeyErrorReason::InvalidVarint => Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_VARINT,
             DidKeyErrorReason::UnsupportedMulticodec => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_UNSUPPORTED_MULTICODEC
@@ -133,6 +130,9 @@ impl From<DidKeyErrorReason> for IdentityCoreErrorReason {
             }
             DidKeyErrorReason::InvalidPublicKeyLength => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_PUBLIC_KEY_LENGTH
+            }
+            DidKeyErrorReason::InvalidPublicKey => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_METHOD_IDENTIFIER
             }
             DidKeyErrorReason::IdentifierTooLong => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_METHOD_IDENTIFIER
@@ -171,6 +171,7 @@ pub fn generate_did_key(
     if public_key.len() != multicodec.public_key_len() {
         return Err(DidKeyError::new(DidKeyErrorReason::InvalidPublicKeyLength));
     }
+    validate_public_key(multicodec, public_key)?;
 
     let header = encode_varint(multicodec.code())?;
     let capacity = header
@@ -234,12 +235,44 @@ pub fn parse_did_key(did: &str) -> Result<DidKeyIdentifier, DidKeyError> {
     if public_key.len() != multicodec.public_key_len() {
         return Err(DidKeyError::new(DidKeyErrorReason::InvalidPublicKeyLength));
     }
+    validate_public_key(multicodec, public_key)?;
 
     Ok(DidKeyIdentifier {
         multibase,
         multicodec,
         public_key: public_key.to_vec(),
     })
+}
+
+fn validate_public_key(multicodec: DidKeyMulticodec, public_key: &[u8]) -> Result<(), DidKeyError> {
+    use reallyme_crypto::operations::key_encoding::{
+        decompress_p256_public_key, decompress_p384_public_key, encode_ed25519_public_key,
+        encode_secp256k1_public_key, encode_x25519_public_key,
+    };
+
+    let valid = match multicodec {
+        DidKeyMulticodec::Secp256k1 => encode_secp256k1_public_key(public_key).is_ok(),
+        DidKeyMulticodec::X25519 => encode_x25519_public_key(public_key).is_ok(),
+        DidKeyMulticodec::Ed25519 => {
+            encode_ed25519_public_key(public_key).is_ok() && validate_ed25519_point(public_key)
+        }
+        DidKeyMulticodec::P256 => decompress_p256_public_key(public_key).is_ok(),
+        DidKeyMulticodec::P384 => decompress_p384_public_key(public_key).is_ok(),
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(DidKeyError::new(DidKeyErrorReason::InvalidPublicKey))
+    }
+}
+
+fn validate_ed25519_point(public_key: &[u8]) -> bool {
+    let Ok(encoded) = <[u8; 32]>::try_from(public_key) else {
+        return false;
+    };
+    curve25519_dalek::edwards::CompressedEdwardsY(encoded)
+        .decompress()
+        .is_some_and(|point| point.compress().to_bytes() == encoded && !point.is_small_order())
 }
 
 /// Return true when the DID is a syntactically valid did:key identifier.

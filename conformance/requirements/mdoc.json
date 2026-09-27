@@ -132,6 +132,18 @@
     "exclusion_reason": null
   },
   {
+    "id": "MDOC-MUST-012",
+    "source": "ISO18013-5",
+    "section": "9.1.2.4 DeviceKeyInfo KeyAuthorizations",
+    "keyword": "MUST",
+    "feature": "device_key_namespace_and_element_authorization",
+    "implementation": ["crates/envelopes/mdoc/src/validate_device_key_authorizations.rs", "crates/envelopes/mdoc/src/issue.rs", "crates/envelopes/mdoc/src/verify.rs"],
+    "positive_tests": ["device_key_authorizations_limit_signed_elements"],
+    "negative_tests": ["issuance_rejects_empty_device_key_authorizations", "issuance_bounds_authorized_namespace_and_element_names", "missing_device_key_authorizations_rejects_nonempty_device_namespaces", "issuance_rejects_ambiguous_device_key_authorizations", "device_key_authorizations_limit_signed_elements"],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
     "id": "MDOC-EXCLUSION-001",
     "source": "CONTRACT",
     "section": "Sources Of Truth",

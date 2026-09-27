@@ -96,6 +96,7 @@ fn genesis_binding_verification_uses_core_fields_from_spec_section_2_6(
         assertion: vec!["#ed25519".to_owned()],
         key_agreement: vec![],
         services: vec![],
+        projection_hash: [0_u8; 32],
         update_policy,
         prev: None,
     };
@@ -127,6 +128,7 @@ fn genesis_identifier_verification_rejects_unsorted_controller_keys(
         assertion: vec!["#a".to_owned()],
         key_agreement: vec![],
         services: vec![],
+        projection_hash: [0_u8; 32],
         update_policy,
         prev: None,
     };
@@ -157,6 +159,7 @@ fn genesis_identifier_verification_rejects_duplicate_controller_key_ids(
         assertion: vec![],
         key_agreement: vec![],
         services: vec![],
+        projection_hash: [0_u8; 32],
         update_policy,
         prev: None,
     };

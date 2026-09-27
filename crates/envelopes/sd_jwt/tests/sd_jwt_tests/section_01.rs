@@ -17,8 +17,8 @@ use reallyme_sd_jwt::{
     SdJwtHashAlgorithm, SdJwtIssuanceInput, SdJwtIssuancePolicy, SdJwtOrKbCompact,
     SdJwtProcessingPolicy, SdJwtReceiptVerificationPolicy, SdJwtSaltSource,
     SdJwtVerificationOptions, DEFAULT_SD_JWT_CLOCK_SKEW_SECONDS, MAX_SD_JWT_CLOCK_SKEW_SECONDS,
-    MAX_SD_JWT_COMPACT_BYTES, MAX_SD_JWT_DISCLOSURES, MAX_SD_JWT_DISCLOSURE_BYTES,
-    MAX_SD_JWT_JSON_SIGNATURES,
+    MAX_KB_JWT_AGE_SECONDS, MAX_KB_JWT_FUTURE_IAT_SKEW_SECONDS, MAX_SD_JWT_COMPACT_BYTES,
+    MAX_SD_JWT_DISCLOSURES, MAX_SD_JWT_DISCLOSURE_BYTES, MAX_SD_JWT_JSON_SIGNATURES,
 };
 use reallyme_codec::base64url::{base64url_to_bytes, bytes_to_base64url};
 use reallyme_crypto::core::{Algorithm, HashAlgorithm};
@@ -94,26 +94,23 @@ fn sanitize_json_for_parsing(input: &str) -> String {
     out
 }
 
-fn workspace_root() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .parent()
-        .and_then(Path::parent)
-        .and_then(Path::parent)
-        .map(Path::to_path_buf)
-        .expect("crate must live under crates/envelopes/sd_jwt")
+fn bundled_vectors_root(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("vectors")
+        .join(name)
 }
 
 fn ietf_vectors_root() -> PathBuf {
     std::env::var_os(IETF_SD_JWT_VECTORS_ENV)
         .map(PathBuf::from)
-        .unwrap_or_else(|| workspace_root().join("vectors").join("ietf-sd-jwt"))
+        .unwrap_or_else(|| bundled_vectors_root("ietf-sd-jwt"))
 }
 
 fn rfc9901_vectors_root() -> PathBuf {
     std::env::var_os(RFC9901_VECTORS_ENV)
         .map(PathBuf::from)
-        .unwrap_or_else(|| workspace_root().join("vectors").join("sd-jwt-rfc9901"))
+        .unwrap_or_else(|| bundled_vectors_root("sd-jwt-rfc9901"))
 }
 
 fn vector_case(name: &str) -> PathBuf {
@@ -355,6 +352,7 @@ fn compact_sd_jwt_with_key_binding_parses_final_jwt() {
             assert_eq!(parsed.key_binding_jwt, "h.i.j");
         }
         SdJwtOrKbCompact::SdJwt(_) => panic!("expected key binding compact form"),
+        _ => panic!("expected a supported compact form"),
     }
 }
 
@@ -477,6 +475,7 @@ fn process_sd_jwt_payload_resolves_each_local_owf_presentation_vector() {
         }) {
             SdJwtOrKbCompact::SdJwt(parsed) => parsed.disclosures.clone(),
             SdJwtOrKbCompact::SdJwtWithKb(parsed) => parsed.disclosures.clone(),
+            _ => panic!("{}: unsupported compact form", case_dir.display()),
         };
         let resolved =
             process_sd_jwt_payload(payload, &disclosures, SdJwtProcessingPolicy::default())
@@ -559,6 +558,14 @@ fn jws_json_serialization_vectors_parse_and_process() {
         let presentation_json = fs::read_to_string(case_dir.join("sd_jwt_presentation.json"))
             .unwrap_or_else(|err| panic!("{case_name}: read presentation JSON: {err}"));
         let sanitized_json = sanitize_json_for_parsing(&presentation_json);
+        if case_name == "json_serialization_general" {
+            assert_eq!(
+                parse_sd_jwt_json_serialization(&sanitized_json).err(),
+                Some(SdJwtEnvelopeError::InvalidJsonSerialization),
+                "unprotected key-selection metadata must be rejected",
+            );
+            continue;
+        }
         let parsed = parse_sd_jwt_json_serialization(&sanitized_json)
             .unwrap_or_else(|err| panic!("{case_name}: parse JSON serialization: {err}"));
         assert!(
@@ -603,6 +610,7 @@ fn issue_sd_jwt_top_level_roundtrip_verifies() {
     let issuer = gen_ed25519();
     let claims = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "given_name": "Max",
         "family_name": "Mustermann",
         "address": {
@@ -644,8 +652,8 @@ fn issue_sd_jwt_top_level_roundtrip_verifies() {
     )
     .expect("issued SD-JWT must verify");
 
-    assert_eq!(verified.issuer_payload, issued.issuer_payload);
-    assert_eq!(verified.resolved_payload, claims);
+    assert_eq!(verified.issuer_payload(), &issued.issuer_payload);
+    assert_eq!(verified.resolved_payload(), &claims);
 }
 
 #[test]
@@ -653,6 +661,7 @@ fn issue_sd_jwt_all_levels_supports_array_elements_and_decoys() {
     let issuer = gen_ed25519();
     let claims = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "given_name": "Max",
         "roles": ["driver", "resident"],
         "address": {
@@ -692,7 +701,7 @@ fn issue_sd_jwt_all_levels_supports_array_elements_and_decoys() {
     )
     .expect("nested issued SD-JWT must verify");
 
-    assert_eq!(verified.resolved_payload, claims);
+    assert_eq!(verified.resolved_payload(), &claims);
 }
 
 #[test]
@@ -733,6 +742,7 @@ fn verify_sd_jwt_verifies_issuer_signature_and_resolves_payload() {
         digest_disclosure(disclosure.encoded(), SdJwtHashAlgorithm::Sha256).expect("digest");
     let issuer_payload = json!({
         "iss": "https://example.com/issuer",
+        "vct": "urn:example:test",
         "iat": 1683000000u64,
         "_sd": [digest],
         "_sd_alg": "sha-256",
@@ -755,11 +765,12 @@ fn verify_sd_jwt_verifies_issuer_signature_and_resolves_payload() {
     )
     .expect("verified SD-JWT");
 
-    assert_eq!(verified.issuer_payload, issuer_payload);
+    assert_eq!(verified.issuer_payload(), &issuer_payload);
     assert_eq!(
-        verified.resolved_payload,
+        *verified.resolved_payload(),
         json!({
             "iss": "https://example.com/issuer",
+            "vct": "urn:example:test",
             "iat": 1683000000u64,
             "given_name": "Max",
         })

@@ -25,6 +25,7 @@ pub const ISO_23220_NAMESPACE: &str = "org.iso.23220.1";
 
 /// Relationship identifiers defined by ISO/IEC TS 23220-2:2026 clause 6.3.2.3.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum Iso23220RelationshipKind {
     /// Father.
     Father,

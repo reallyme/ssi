@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -15,15 +16,17 @@ use reallyme_codec::base64url::{base64url_to_bytes, bytes_to_base64url};
 use reallyme_crypto::core::Algorithm as CryptoAlgorithm;
 use reallyme_crypto::dispatch::{generate_keypair, public_key_to_multikey, sign};
 use reallyme_did_core::error::DidCoreError;
+use reallyme_did_core::projection_binding::{projection_binding_hash, ProjectionBinding};
 use reallyme_did_core::validate::limits::MAX_VERIFICATION_METHODS;
 use reallyme_did_core::validate::{
     validate_did_document, validate_did_document_consistency, validate_did_document_transition,
-    validate_domain_entry, DidDocumentViewForDV, DidValidationCode, DidValidationIssue,
-    DomainVerificationEnv, DomainVerificationError,
+    validate_domain_entry, validate_observed_did_document_successors, DidDocumentViewForDV,
+    DidValidationCode, DidValidationIssue, DomainVerificationEnv, DomainVerificationError,
 };
 use reallyme_did_core::{
-    core_signature_input, sign_core, update_engine, Canonical, CoreVerificationMethod, DidCore,
-    UpdateMetadata, UpdateOptions, UpdatePolicy, UpdateRelationships,
+    core_signature_input, generate_did_me, sign_core, update_engine, Canonical,
+    CoreVerificationMethod, DidCore, UpdateMetadata, UpdateOptions, UpdatePolicy,
+    UpdateRelationships,
 };
 use reallyme_did_types::{
     Controller, DIDDocument, DNSBinding, DomainVerification, VerificationMethod, WellKnownBinding,
@@ -57,25 +60,47 @@ fn has_code(errors: &[DidValidationIssue], code: DidValidationCode) -> bool {
 }
 
 fn genesis(key: &Keypair) -> DIDDocument {
+    let context = vec![
+        "https://www.w3.org/ns/did/v1".into(),
+        "https://w3id.org/security/multikey/v1".into(),
+        "https://did-me.org/ns/did-me/v1".into(),
+    ];
     let update_policy = UpdatePolicy {
         allowed_verification_methods: vec!["#k1".into()],
         threshold: None,
     };
+    let controller_keys = vec![CoreVerificationMethod {
+        id: "#k1".into(),
+        vm_type: "Multikey".into(),
+        algorithm: Algorithm::Ed25519,
+        public_key_multibase: key.multikey.clone(),
+    }];
+    let nonce = [0_u8; 16];
+    let did = generate_did_me(&nonce, &update_policy, &controller_keys).unwrap();
+    let projection_hash = projection_binding_hash(&ProjectionBinding {
+        context: &context,
+        also_known_as: &[],
+        hardware_bound: None,
+        biometric_protected: None,
+        user_verification_method: None,
+        device_model: None,
+        key_history: &[],
+        domain_verification: &[],
+        eudi_level_of_assurance: None,
+        eudi_schema_version: None,
+    })
+    .unwrap();
     let core = DidCore {
-        id: DID.into(),
+        id: did.clone(),
         sequence: 1,
-        nonce: Some(vec![0; 16]),
-        controller: vec![DID.into()],
-        controller_keys: vec![CoreVerificationMethod {
-            id: "#k1".into(),
-            vm_type: "Multikey".into(),
-            algorithm: Algorithm::Ed25519,
-            public_key_multibase: key.multikey.clone(),
-        }],
+        nonce: Some(nonce.to_vec()),
+        controller: vec![did.clone()],
+        controller_keys,
         authentication: vec!["#k1".into()],
         assertion: vec![],
         key_agreement: vec![],
         services: vec![],
+        projection_hash,
         update_policy,
         prev: None,
     };
@@ -93,13 +118,9 @@ fn genesis(key: &Keypair) -> DIDDocument {
     .collect();
 
     DIDDocument {
-        context: vec![
-            "https://www.w3.org/ns/did/v1".into(),
-            "https://w3id.org/security/multikey/v1".into(),
-            "https://did-me.org/ns/did-me/v1".into(),
-        ],
-        id: DID.into(),
-        controller: Controller::Single(DID.into()),
+        context,
+        id: did.clone(),
+        controller: Controller::Single(did.clone()),
         sequence: 1,
         prev: None,
         nonce: Some("AAAAAAAAAAAAAAAAAAAAAA".into()),
@@ -109,7 +130,7 @@ fn genesis(key: &Keypair) -> DIDDocument {
         verification_method: vec![VerificationMethod {
             id: "#k1".into(),
             vm_type: "Multikey".into(),
-            controller: DID.into(),
+            controller: did,
             algorithm: Some("Ed25519".into()),
             public_key_multibase: key.multikey.clone(),
         }],
@@ -382,6 +403,25 @@ fn transition_rejects_unlinked_or_deactivated_previous_state() {
     assert!(has_code(&step.errors, DidValidationCode::TransitionInvalid));
 }
 
+#[test]
+fn observed_successor_set_rejects_two_individually_valid_forks() {
+    let owner = ed25519();
+    let previous = genesis(&owner);
+    let active = next_document(&previous, &owner.secret, None, false);
+    let deactivated = next_document(&previous, &owner.secret, None, true);
+
+    assert!(validate_did_document_transition(&previous, &active, no_env()).ok);
+    assert!(validate_did_document_transition(&previous, &deactivated, no_env()).ok);
+
+    let result =
+        validate_observed_did_document_successors(&previous, &[active, deactivated], no_env());
+    assert!(!result.ok);
+    assert!(has_code(
+        &result.errors,
+        DidValidationCode::TransitionEquivocation
+    ));
+}
+
 // -----------------------------------------------------------------------------
 // M3: P-256 is not an update-authority algorithm
 // -----------------------------------------------------------------------------
@@ -414,6 +454,7 @@ fn genesis_core_for_signing() -> DidCore {
         assertion: vec![],
         key_agreement: vec![],
         services: vec![],
+        projection_hash: [0_u8; 32],
         update_policy: UpdatePolicy {
             allowed_verification_methods: vec!["#p256".into()],
             threshold: None,

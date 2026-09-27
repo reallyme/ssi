@@ -5,7 +5,7 @@
 //! Tests for generated credential protobuf bindings.
 
 #![cfg(feature = "generated")]
-#![allow(missing_docs)]
+#![allow(missing_docs, clippy::indexing_slicing)]
 
 use buffa::{EnumValue, Message, MessageField};
 use reallyme_ssi_proto::generated::proto::identity::credential::v1::{
@@ -105,9 +105,9 @@ fn credential_claim_bundle_proto_round_trips_with_buffa() {
             value: b"42".to_vec(),
             index: 0,
             merkle_path: vec![vec![5; 32]],
-            ..ClaimOpening::default()
+            __buffa_unknown_fields: Default::default(),
         }],
-        ..SubjectPrivateBundle::default()
+        __buffa_unknown_fields: Default::default(),
     };
     let commitment = ClaimsCommitment {
         merkle_root: vec![7; 32],
@@ -152,9 +152,15 @@ fn subject_private_bundle_debug_redacts_openings() {
             claim_path: CLAIM_PATH.to_owned(),
             salt: vec![0xA5_u8; 16],
             value: b"sensitive-value".to_vec(),
-            ..ClaimOpening::default()
+            index: 0,
+            merkle_path: Vec::new(),
+            __buffa_unknown_fields: Default::default(),
         }],
-        ..SubjectPrivateBundle::default()
+        holder_key: Default::default(),
+        envelope_hash: Vec::new(),
+        issuer_signature: Default::default(),
+        tree: Default::default(),
+        __buffa_unknown_fields: Default::default(),
     };
 
     let debug = format!("{bundle:?}");

@@ -10,11 +10,12 @@ use reallyme_did_method_ebsi::{
 };
 
 const DID: &str = "did:ebsi:zub5ZZUfHLLptCduwEy8xRj";
-const COORDINATE: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const P256_X: &str = "axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpY";
+const P256_Y: &str = "T-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU";
 
 fn document(did: &str, relationship: &str, private_member: &str) -> Vec<u8> {
     format!(
-        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{did}","controller":["{did}"],"verificationMethod":[{{"id":"{did}#key-1","type":"JsonWebKey2020","controller":"{did}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{COORDINATE}","y":"{COORDINATE}"{private_member}}}}}],"assertionMethod":["{relationship}"],"capabilityInvocation":["{did}#key-1"]}}"#
+        r#"{{"@context":"https://www.w3.org/ns/did/v1","id":"{did}","controller":["{did}"],"verificationMethod":[{{"id":"{did}#key-1","type":"JsonWebKey2020","controller":"{did}","publicKeyJwk":{{"kty":"EC","crv":"P-256","alg":"ES256","use":"sig","key_ops":["verify"],"x":"{P256_X}","y":"{P256_Y}"{private_member}}}}}],"assertionMethod":["{relationship}"],"capabilityInvocation":["{did}#key-1"]}}"#
     )
     .into_bytes()
 }

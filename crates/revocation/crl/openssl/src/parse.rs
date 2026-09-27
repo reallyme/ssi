@@ -5,6 +5,7 @@
 use std::cmp::Ordering;
 
 use openssl::x509::{X509Crl, X509};
+use x509_parser::certificate::X509Certificate as ParsedX509Certificate;
 use x509_parser::extensions::ParsedExtension;
 use x509_parser::prelude::FromDer;
 use x509_parser::revocation_list::CertificateRevocationList;
@@ -64,6 +65,39 @@ fn check_encoded_len(len: usize, max: usize) -> Result<(), CrlError> {
 /// - mandatory `thisUpdate`/`nextUpdate` extraction
 /// - bounded revoked serial extraction
 fn parse_crl(der: &[u8], issuer_cert: X509) -> Result<ParsedOpenSslCrl, CrlError> {
+    // Inspect and cap the CRL before asking a second parser to allocate its own
+    // representation. This keeps a syntactically valid oversized entry set
+    // from paying both parser costs before the resource boundary is applied.
+    let (remaining, parsed) =
+        CertificateRevocationList::from_der(der).map_err(|_| CrlError::InvalidCrl)?;
+    if !remaining.is_empty() {
+        return Err(CrlError::InvalidCrl);
+    }
+    let entry_count = parsed.iter_revoked_certificates().count();
+    if entry_count > MAX_CRL_REVOKED_ENTRIES {
+        return Err(CrlError::TooLarge);
+    }
+    inspect_crl_extensions(parsed.extensions())?;
+
+    let issuer_der = issuer_cert.to_der().map_err(|_| CrlError::InvalidCrl)?;
+    let (issuer_remaining, parsed_issuer) =
+        ParsedX509Certificate::from_der(&issuer_der).map_err(|_| CrlError::InvalidCrl)?;
+    let issuer_key_usage = parsed_issuer
+        .key_usage()
+        .map_err(|_| CrlError::InvalidCrl)?;
+    let issuer_basic_constraints = parsed_issuer
+        .basic_constraints()
+        .map_err(|_| CrlError::InvalidCrl)?;
+    // RFC 5280 §6.3 requires cRLSign when KeyUsage is present. Certificates
+    // that omit the optional extension remain eligible; their CA profile and
+    // signature are checked independently below.
+    if !issuer_remaining.is_empty()
+        || !issuer_basic_constraints.is_some_and(|constraints| constraints.value.ca)
+        || issuer_key_usage.is_some_and(|usage| !usage.value.crl_sign())
+    {
+        return Err(CrlError::IssuerMismatch);
+    }
+
     let crl = X509Crl::from_der(der).map_err(|_| CrlError::InvalidCrl)?;
 
     // ------------------------------------------------------------
@@ -98,12 +132,6 @@ fn parse_crl(der: &[u8], issuer_cert: X509) -> Result<ParsedOpenSslCrl, CrlError
     // ------------------------------------------------------------
     // 3) Structural inspection of the verified encoding
     // ------------------------------------------------------------
-    let (remaining, parsed) =
-        CertificateRevocationList::from_der(der).map_err(|_| CrlError::InvalidCrl)?;
-    if !remaining.is_empty() {
-        return Err(CrlError::InvalidCrl);
-    }
-    inspect_crl_extensions(parsed.extensions())?;
     let authority_key_identifier = parsed
         .extensions()
         .iter()
@@ -129,33 +157,29 @@ fn parse_crl(der: &[u8], issuer_cert: X509) -> Result<ParsedOpenSslCrl, CrlError
     // ------------------------------------------------------------
     // 5) Revoked serials (bounded)
     // ------------------------------------------------------------
-    let entry_count = parsed.iter_revoked_certificates().count();
-    if entry_count > MAX_CRL_REVOKED_ENTRIES {
-        return Err(CrlError::TooLarge);
-    }
     let mut revoked_serials = Vec::with_capacity(entry_count);
     let mut suspended_serials = Vec::new();
     for entry in parsed.iter_revoked_certificates() {
         inspect_entry_extensions(entry.extensions())?;
         let serial = normalize_serial(entry.raw_serial()).to_vec();
-        if entry
-            .reason_code()
-            .is_some_and(|(_, reason)| reason == ReasonCode::CertificateHold)
-        {
-            suspended_serials.push(serial);
-        } else {
-            revoked_serials.push(serial);
+        match entry.reason_code().map(|(_, reason)| reason) {
+            Some(ReasonCode::CertificateHold) => suspended_serials.push(serial),
+            // removeFromCRL is meaningful only in a delta CRL. This parser
+            // deliberately accepts complete CRLs only, so treating it as a
+            // revocation would invert the status transition.
+            Some(ReasonCode::RemoveFromCRL) => return Err(CrlError::UnsupportedScope),
+            _ => revoked_serials.push(serial),
         }
     }
 
     Ok(ParsedOpenSslCrl {
         issuer_key,
-        crl,
+        _crl: crl,
         revoked_serials,
         suspended_serials,
         this_update_unix,
         next_update_unix,
-        issuer_cert,
+        _issuer_cert: issuer_cert,
     })
 }
 

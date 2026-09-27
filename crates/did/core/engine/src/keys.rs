@@ -22,6 +22,9 @@ fn map_identity_to_crypto_alg(alg: IdentityAlgorithm) -> Result<CryptoAlgorithm,
         IdentityAlgorithm::X25519 => Ok(CryptoAlgorithm::X25519),
         IdentityAlgorithm::MlKem768 => Ok(CryptoAlgorithm::MlKem768),
         IdentityAlgorithm::MlKem1024 => Ok(CryptoAlgorithm::MlKem1024),
+        _ => Err(DidCoreError::InvalidCanonicalState(
+            CanonicalStateViolation::UnsupportedVerificationMethodAlgorithm,
+        )),
     }
 }
 

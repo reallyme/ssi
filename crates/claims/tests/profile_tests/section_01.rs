@@ -18,7 +18,7 @@ use reallyme_credential_claims::{
 };
 use serde_json::Value;
 
-const CLAIMS_CATALOG_SOURCES: &str = include_str!("../../../../vectors/claims/catalog-sources.json");
+const CLAIMS_CATALOG_SOURCES: &str = include_str!("../fixtures/catalog-sources.json");
 
 #[test]
 fn predefined_registry_catalogs_cover_policy_claimsets() {

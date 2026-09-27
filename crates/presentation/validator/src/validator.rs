@@ -19,8 +19,8 @@ use identity_core_primitives::Algorithm;
 use identity_credential_claims_core::ClaimsRegistry;
 use identity_presentation_vp_core::model::Presentation;
 use reallyme_credential_audit::{
-    validate_qeaa_compliance_with_policy, IdentityProofingLevel, QeaaCompliance,
-    QeaaValidationPolicy, DEFAULT_MAX_STATUS_AGE_SECONDS,
+    screen_qeaa_metadata_with_policy, IdentityProofingLevel, QeaaCompliance, QeaaMetadataPolicy,
+    DEFAULT_MAX_STATUS_AGE_SECONDS,
 };
 
 use crate::{error::VpValidationError, oidc_error::map_policy_decision};
@@ -76,7 +76,7 @@ pub struct VpValidationInput<'a> {
     pub now_unix: u64,
 }
 
-/// Verify a Verifiable Presentation against policy.
+/// Evaluate a Verifiable Presentation against caller-supplied policy facts.
 ///
 /// This function is:
 /// - protocol-agnostic
@@ -86,7 +86,7 @@ pub struct VpValidationInput<'a> {
 /// # Returns
 /// - `PolicyDecision::Accept` on success
 /// - `VpValidationError` mapped from policy rejection otherwise
-pub fn validate_presentation<'a>(
+pub fn evaluate_presentation_policy<'a>(
     input: VpValidationInput<'a>,
 ) -> Result<PolicyDecision, VpValidationError> {
     // ---------------------------------------------------------------------
@@ -96,16 +96,11 @@ pub fn validate_presentation<'a>(
     let policy =
         policy_for_claimset(input.claimset_id).ok_or(VpValidationError::UnsupportedClaimset)?;
 
-    // ---------------------------------------------------------------------
-    // 2) Validate QEAA audit material if present
-    //
-    // IMPORTANT:
-    // - Missing QEAA must be treated as a failure *when required*
-    // - qeaa_audit_ok uses presence as the success signal
-    // - profile-specific LOIP thresholds belong to policy evaluation below
-    // ---------------------------------------------------------------------
+    // Presence in `qeaa_audit_ok` means the evidence passed cryptographic and
+    // freshness validation. Profile-specific LOIP thresholds are evaluated by
+    // the presentation policy below, including mandatory-evidence handling.
 
-    let qeaa_audit_policy = QeaaValidationPolicy {
+    let qeaa_audit_policy = QeaaMetadataPolicy {
         now_unix: input.now_unix,
         min_identity_proofing_level: IdentityProofingLevel::Unspecified,
         max_status_age_seconds: DEFAULT_MAX_STATUS_AGE_SECONDS,
@@ -117,7 +112,7 @@ pub fn validate_presentation<'a>(
             // QEAA provided: audit evidence must pass. Presentation policy
             // still owns whether the evidence level is sufficient for the
             // selected claimset/profile.
-            validate_qeaa_compliance_with_policy(q, qeaa_audit_policy)
+            screen_qeaa_metadata_with_policy(q, qeaa_audit_policy)
                 .ok()
                 .map(|_| q)
         }

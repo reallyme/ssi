@@ -8,13 +8,13 @@
 use super::{mobile_security_object_from_cbor, Value};
 use crate::{
     MdocEnvelopeError, MdocIdentifierList, MdocInvalidInputReason, MdocStatus, MdocStatusExtension,
-    MdocStatusList, MAX_MDOC_STATUS_CERTIFICATE_BYTES, MAX_MDOC_STATUS_EXTENSION_VALUE_BYTES,
-    MAX_MDOC_STATUS_IDENTIFIER_BYTES, MAX_MDOC_STATUS_URI_BYTES,
+    MdocStatusList, MAX_MDOC_KEY_INFO_BYTES, MAX_MDOC_STATUS_CERTIFICATE_BYTES,
+    MAX_MDOC_STATUS_EXTENSION_VALUE_BYTES, MAX_MDOC_STATUS_IDENTIFIER_BYTES,
+    MAX_MDOC_STATUS_URI_BYTES,
 };
 
 const STATUS_URI: &str = "https://issuer.example/status/1";
-const STATUS_CERTIFICATE_DER: &[u8] =
-    include_bytes!("../../../revocation/ocsp/openssl/tests/fixtures/leaf.der");
+const STATUS_CERTIFICATE_DER: &[u8] = include_bytes!("fixtures/ocsp-leaf.der");
 
 fn text(value: &str) -> Value {
     Value::Text(value.to_owned())
@@ -63,6 +63,38 @@ fn parse_error(status: Value) -> MdocEnvelopeError {
     mobile_security_object_from_cbor(&valid_mso(status))
         .err()
         .unwrap()
+}
+
+#[test]
+fn parse_rejects_oversized_device_key_info() {
+    let mut mso = valid_mso(status_list(vec![
+        (text("idx"), Value::Integer(42_u64.into())),
+        (text("uri"), text(STATUS_URI)),
+    ]));
+    let Value::Map(entries) = &mut mso else {
+        panic!("test helper must produce an MSO map");
+    };
+    let device_key_info = entries
+        .iter_mut()
+        .find_map(|(key, value)| (key == &text("deviceKeyInfo")).then_some(value))
+        .unwrap();
+    let Value::Map(device_key_entries) = device_key_info else {
+        panic!("test helper must produce a deviceKeyInfo map");
+    };
+    device_key_entries.push((
+        text("keyInfo"),
+        Value::Map(vec![(
+            text("opaque"),
+            Value::Bytes(vec![0; MAX_MDOC_KEY_INFO_BYTES + 1]),
+        )]),
+    ));
+
+    assert_eq!(
+        mobile_security_object_from_cbor(&mso).err(),
+        Some(MdocEnvelopeError::InvalidInput(
+            MdocInvalidInputReason::KeyInfoTooLarge
+        ))
+    );
 }
 
 #[test]
@@ -133,17 +165,26 @@ fn preserves_both_optional_mechanisms_and_forward_compatible_members() {
     let status = parsed.status.as_ref().unwrap();
     assert!(status.status_list_ref().is_some());
     assert_eq!(
-        status.status_list_ref().unwrap().extensions()[0].name(),
+        status
+            .status_list_ref()
+            .unwrap()
+            .extensions()
+            .first()
+            .unwrap()
+            .name(),
         "future_status_list_member"
     );
     let identifier = status.identifier_list_ref().unwrap();
     assert_eq!(identifier.extensions().len(), 1);
     assert_eq!(
-        identifier.extensions()[0].name(),
+        identifier.extensions().first().unwrap().name(),
         "future_identifier_member"
     );
     assert_eq!(status.extensions().len(), 1);
-    assert_eq!(status.extensions()[0].name(), "future_status_member");
+    assert_eq!(
+        status.extensions().first().unwrap().name(),
+        "future_status_member"
+    );
 }
 
 #[test]

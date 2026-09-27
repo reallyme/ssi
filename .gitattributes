@@ -6,3 +6,5 @@
 # formatting includes significant historical whitespace that is not owned here.
 crates/trust/tsl-xmlsec/schemas/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space
 vectors/ietf-sd-jwt/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space
+crates/envelopes/sd_jwt/tests/vectors/ietf-sd-jwt/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space
+crates/envelopes/sd_jwt/tests/vectors/sd-jwt-rfc9901/** whitespace=-blank-at-eof,-space-before-tab,-trailing-space

@@ -90,6 +90,9 @@ pub enum TrustedListPolicyErrorReason {
     /// external LOTL bootstrap source.
     #[error("trusted-list signer does not match externally authorized certificate")]
     ExternalSignerCertificateMismatch,
+    /// Pointer traversal did not start from the externally bootstrapped EU LOTL.
+    #[error("authenticated pointer parent is not the EU LOTL")]
+    InvalidPointerParent,
     /// Subject country does not equal the authenticated scheme territory.
     #[error("certificate subject country does not match SchemeTerritory")]
     CountryMismatch,
@@ -263,6 +266,9 @@ impl From<TrustedListPolicyErrorReason> for IdentityCoreErrorReason {
             }
             TrustedListPolicyErrorReason::ExternalSignerCertificateMismatch => {
                 Self::IDENTITY_CORE_ERROR_REASON_TSL_SIGNER_EXTERNAL_CERTIFICATE_MISMATCH
+            }
+            TrustedListPolicyErrorReason::InvalidPointerParent => {
+                Self::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT
             }
             TrustedListPolicyErrorReason::CountryMismatch => {
                 Self::IDENTITY_CORE_ERROR_REASON_TSL_SIGNER_PROFILE_COUNTRY_MISMATCH

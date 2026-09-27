@@ -11,7 +11,9 @@ use reallyme_did_core::validate::core::{validate_core_snapshot, DidMeDocCoreView
 use reallyme_did_core::validate::{DidValidationCode, DidValidationIssue};
 
 use identity_core_primitives::Algorithm;
-use reallyme_did_core::{Canonical, CoreVerificationMethod, DidCore, UpdatePolicy};
+use reallyme_did_core::{
+    generate_did_me, Canonical, CoreVerificationMethod, DidCore, UpdatePolicy,
+};
 
 use reallyme_codec::base64url::bytes_to_base64url;
 use reallyme_did_types::Controller;
@@ -22,8 +24,9 @@ fn has_code(errors: &[DidValidationIssue], code: DidValidationCode) -> bool {
 
 /// Helper: build a valid DidCore + matching CID
 fn make_valid_core(sequence: u64, prev: Option<&str>) -> (DidCore, String) {
+    let genesis_nonce = [0_u8; 16];
     let nonce = if sequence == 1 {
-        Some(vec![0; 16])
+        Some(genesis_nonce.to_vec())
     } else {
         None
     };
@@ -37,7 +40,7 @@ fn make_valid_core(sequence: u64, prev: Option<&str>) -> (DidCore, String) {
         allowed_verification_methods: vec!["#ed25519".into()],
         threshold: None,
     };
-    let id = "did:me:test".to_owned();
+    let id = generate_did_me(&genesis_nonce, &update_policy, &controller_keys).unwrap();
 
     let core = DidCore {
         id: id.clone(),
@@ -49,6 +52,7 @@ fn make_valid_core(sequence: u64, prev: Option<&str>) -> (DidCore, String) {
         assertion: vec!["#ed25519".into()],
         key_agreement: vec![],
         services: vec![],
+        projection_hash: [0_u8; 32],
         update_policy,
         prev: prev.map(|s| s.into()),
     };
@@ -77,6 +81,30 @@ fn valid_core_snapshot_passes() {
     assert!(res.errors.is_empty());
     assert!(res.core.is_some());
     assert!(res.cbor_bytes.is_some());
+}
+
+#[test]
+fn genesis_core_rejects_a_different_well_formed_method_identifier() {
+    let (core, cid) = make_valid_core(1, None);
+    let alternate_nonce = [1_u8; 16];
+    let alternate_id =
+        generate_did_me(&alternate_nonce, &core.update_policy, &core.controller_keys).unwrap();
+    let cbor_b64 = bytes_to_base64url(&core.canonical_cbor().unwrap());
+
+    let result = validate_core_snapshot(DidMeDocCoreView {
+        id: &alternate_id,
+        controller: &Controller::Single(alternate_id.clone()),
+        sequence: 1,
+        prev: None,
+        current_core: &cid,
+        core_cbor: &cbor_b64,
+    });
+
+    assert!(!result.ok);
+    assert!(has_code(
+        &result.errors,
+        DidValidationCode::IdentifierInvalid
+    ));
 }
 
 #[test]

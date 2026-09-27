@@ -7,15 +7,15 @@ use thiserror::Error;
 
 const DID_ION_PREFIX: &str = "did:ion:";
 const MAX_DID_BYTES: usize = 24_000;
-const TESTNET3_NETWORK: &str = "testnet3";
+const TEST_NETWORK: &str = "test";
 
 /// ION network segment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IonNetwork {
     /// Mainnet / production network, represented by omitting a network segment.
     Mainnet,
-    /// Bitcoin Testnet3 network segment.
-    Testnet3,
+    /// ION Bitcoin test-network segment, encoded as `test` by the reference node.
+    Testnet,
 }
 
 /// Audit-safe did:ion failure reasons.
@@ -108,7 +108,7 @@ pub fn generate_did_ion(network: IonNetwork, did_suffix: &str) -> Result<String,
 
     match network {
         IonNetwork::Mainnet => Ok(format!("{DID_ION_PREFIX}{did_suffix}")),
-        IonNetwork::Testnet3 => Ok(format!("{DID_ION_PREFIX}{TESTNET3_NETWORK}:{did_suffix}")),
+        IonNetwork::Testnet => Ok(format!("{DID_ION_PREFIX}{TEST_NETWORK}:{did_suffix}")),
     }
 }
 
@@ -125,8 +125,8 @@ pub fn generate_long_form_did_ion(
         IonNetwork::Mainnet => Ok(format!(
             "{DID_ION_PREFIX}{did_suffix}:{long_form_suffix_data}"
         )),
-        IonNetwork::Testnet3 => Ok(format!(
-            "{DID_ION_PREFIX}{TESTNET3_NETWORK}:{did_suffix}:{long_form_suffix_data}"
+        IonNetwork::Testnet => Ok(format!(
+            "{DID_ION_PREFIX}{TEST_NETWORK}:{did_suffix}:{long_form_suffix_data}"
         )),
     }
 }
@@ -149,12 +149,12 @@ pub fn parse_did_ion(did: &str) -> Result<IonDidIdentifier<'_>, DidIonError> {
 
     match parts.as_slice() {
         [suffix] => parse_mainnet_short(suffix),
-        [TESTNET3_NETWORK, suffix] => parse_network_short(suffix),
+        [TEST_NETWORK, suffix] => parse_network_short(suffix),
         [network, _suffix] if is_network_like(network) => {
             Err(DidIonError::new(DidIonErrorReason::UnsupportedNetwork))
         }
         [suffix, long_form_suffix_data] => parse_mainnet_long(suffix, long_form_suffix_data),
-        [TESTNET3_NETWORK, suffix, long_form_suffix_data] => {
+        [TEST_NETWORK, suffix, long_form_suffix_data] => {
             parse_network_long(suffix, long_form_suffix_data)
         }
         [network, _suffix, _long_form_suffix_data] => {
@@ -185,7 +185,7 @@ fn parse_mainnet_short(suffix: &str) -> Result<IonDidIdentifier<'_>, DidIonError
 fn parse_network_short(suffix: &str) -> Result<IonDidIdentifier<'_>, DidIonError> {
     crate::validate_initial_state::validate_suffix(suffix)?;
     Ok(IonDidIdentifier {
-        network: IonNetwork::Testnet3,
+        network: IonNetwork::Testnet,
         did_suffix: suffix,
         long_form_suffix_data: None,
     })
@@ -211,7 +211,7 @@ fn parse_network_long<'a>(
     crate::validate_initial_state::validate_suffix(suffix)?;
     crate::validate_initial_state::validate_initial_state(suffix, long_form_suffix_data)?;
     Ok(IonDidIdentifier {
-        network: IonNetwork::Testnet3,
+        network: IonNetwork::Testnet,
         did_suffix: suffix,
         long_form_suffix_data: Some(long_form_suffix_data),
     })

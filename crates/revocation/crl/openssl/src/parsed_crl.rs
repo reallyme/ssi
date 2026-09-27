@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use identity_revocation_crl_core::ParsedCrl;
 use openssl::x509::{X509Crl, X509};
 
 /// OpenSSL-backed parsed CRL.
@@ -12,19 +11,41 @@ use openssl::x509::{X509Crl, X509};
 /// - issuer validation
 pub struct ParsedOpenSslCrl {
     /// Issuer key identifier used to match certificates to this CRL.
-    pub issuer_key: Vec<u8>,
+    pub(crate) issuer_key: Vec<u8>,
     /// OpenSSL CRL handle retained during native validation.
-    pub crl: X509Crl,
+    pub(crate) _crl: X509Crl,
     /// Revoked certificate serial numbers.
-    pub revoked_serials: Vec<Vec<u8>>,
+    pub(crate) revoked_serials: Vec<Vec<u8>>,
     /// Serial numbers carrying the temporary `certificateHold` reason.
-    pub suspended_serials: Vec<Vec<u8>>,
+    pub(crate) suspended_serials: Vec<Vec<u8>>,
     /// `thisUpdate` as Unix seconds.
-    pub this_update_unix: u64,
+    pub(crate) this_update_unix: u64,
     /// `nextUpdate` as Unix seconds.
-    pub next_update_unix: u64,
+    pub(crate) next_update_unix: u64,
     /// Issuer certificate used to verify the CRL signature.
-    pub issuer_cert: X509,
+    pub(crate) _issuer_cert: X509,
+}
+
+impl ParsedOpenSslCrl {
+    /// Revoked serial numbers extracted from the verified CRL.
+    pub fn revoked_serials(&self) -> &[Vec<u8>] {
+        &self.revoked_serials
+    }
+
+    /// Suspended serial numbers extracted from `certificateHold` entries.
+    pub fn suspended_serials(&self) -> &[Vec<u8>] {
+        &self.suspended_serials
+    }
+
+    /// CRL `thisUpdate` as Unix seconds.
+    pub const fn this_update_unix(&self) -> u64 {
+        self.this_update_unix
+    }
+
+    /// CRL `nextUpdate` as Unix seconds.
+    pub const fn next_update_unix(&self) -> u64 {
+        self.next_update_unix
+    }
 }
 
 impl core::fmt::Debug for ParsedOpenSslCrl {
@@ -36,17 +57,5 @@ impl core::fmt::Debug for ParsedOpenSslCrl {
             .field("this_update_unix", &self.this_update_unix)
             .field("next_update_unix", &self.next_update_unix)
             .finish()
-    }
-}
-
-impl From<ParsedOpenSslCrl> for ParsedCrl {
-    fn from(crl: ParsedOpenSslCrl) -> Self {
-        ParsedCrl {
-            issuer_key: crl.issuer_key,
-            revoked_serials: crl.revoked_serials,
-            suspended_serials: crl.suspended_serials,
-            this_update_unix: crl.this_update_unix,
-            next_update_unix: crl.next_update_unix,
-        }
     }
 }

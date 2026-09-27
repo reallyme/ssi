@@ -76,6 +76,23 @@ Rust identity crates expose only `native` and `wasm` backend lanes. They must
 not expose cargo features named `swift` or `kotlin`; platform provider selection
 belongs to `reallyme/identity`.
 
+Some package manifests also contain narrowly scoped composition switches. They
+are not runtime/provider lanes and must not be used to infer security
+capability at run time:
+
+| Feature family | Purpose and support boundary |
+| --- | --- |
+| `proto`, `generated`, `credential-proto` | Compile generated message surfaces and their validated codecs. These are serialization composition switches, not providers. |
+| `jwt`, `ietf-sd-jwt` | Select optional public credential envelope adapters in the VC facade. They do not select a cryptographic backend. |
+| `credential-crypto`, `dispatch-signatures`, `jwt-vc-crypto`, `mdoc-crypto`, `sd-jwt-crypto` | Private dependency groupings enabled by `native` or `wasm`. Applications must select a lane rather than enabling these implementation features directly. |
+| `xmlsec-ffi` | Native-only build plumbing for the pinned XMLSec verifier. It is enabled by the reviewed native trust composition and is not a portable provider choice. |
+| `conformance-vectors`, `reference-tests` | Test/vector construction only. No production policy or provider decision may depend on either feature. |
+
+New provider behavior must be reachable through `native` or `wasm`; new
+composition switches require an explicit boundary description here and a
+release-readiness review. In particular, a feature must never change an
+operation from verified to unverified or silently enable fallback behavior.
+
 Unsupported providers fail closed with a typed error. There is no silent
 provider fallback. The `crates/envelopes/mdoc` implementation owns
 issuer-signed mdoc issuance and verification plus ISO/IEC 18013-5
@@ -126,8 +143,8 @@ surfaces must not be added under root `bindings/`, `gen/`, `packages/`, or
 
 - `vectors/` owns reusable cross-crate and cross-language vectors.
 - `conformance/fixtures/` owns inputs that exist only for conformance runs.
-- `reallyme/identity-conformance` retains generated release evidence; SSI owns
-  the requirement mappings and the generator that produces the clean bundle.
+- SSI owns the requirement mappings and the generator that produces a clean,
+  commit-stamped evidence bundle for attachment to the corresponding release.
 - OIDF certification orchestration remains outside this repository in
   `reallyme/identity-conformance`.
 

@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-method-web"
-version = "0.2.0"
+version = "0.3.0"
 description = "did:web identifier generation, validation, and HTTPS location mapping."
 edition.workspace = true
 rust-version.workspace = true
@@ -12,9 +12,16 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[features]
+default = ["native"]
+native = ["reallyme-did-method-jwk/native"]
+wasm = ["reallyme-did-method-jwk/wasm"]
+
 [dependencies]
 identity-core-primitives = { workspace = true }
 percent-encoding = { workspace = true }
+reallyme-did-method-jwk = { path = "../jwk", version = "0.3.0", default-features = false }
+reallyme-did-method-key = { path = "../key", version = "0.3.0", default-features = false }
 reallyme-ssi-proto = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

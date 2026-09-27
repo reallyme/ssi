@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Stable reason codes for invalid credential status-list inputs.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialStatusInvalidReason {
     /// The status-list issuer identifier is absent.
     #[error("empty status-list issuer")]
@@ -47,6 +48,7 @@ pub enum CredentialStatusInvalidReason {
 
 /// Credential status-list verification errors.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CredentialStatusError {
     /// Input status-list data was structurally invalid.
     #[error("invalid credential status input")]

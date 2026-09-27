@@ -4,42 +4,33 @@
 
 //! Public JWK policy for legal-entity did:ebsi verification methods.
 
+use reallyme_did_method_jwk::{validate_public_jwk as validate_did_jwk, DidJwkErrorReason};
 use serde_json::Value;
 
 use crate::{DidEbsiError, DidEbsiErrorReason};
 
-const PRIVATE_JWK_MEMBERS: [&str; 8] = ["d", "p", "q", "dp", "dq", "qi", "oth", "k"];
-const P256_COORDINATE_BASE64URL_BYTES: usize = 43;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct EbsiJwkPurposes {
+    pub(crate) signature: bool,
+    pub(crate) key_agreement: bool,
+}
 
 pub(crate) fn validate_public_jwk(
     value: Option<&Value>,
     method_id: &str,
-) -> Result<(), DidEbsiError> {
+) -> Result<EbsiJwkPurposes, DidEbsiError> {
+    let value = value.ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
     let jwk = value
-        .and_then(Value::as_object)
+        .as_object()
         .ok_or(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument))?;
-    if PRIVATE_JWK_MEMBERS
-        .iter()
-        .any(|name| jwk.contains_key(*name))
-    {
-        return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
-    }
-    if jwk.get("kty").and_then(Value::as_str) != Some("EC")
-        || jwk.get("crv").and_then(Value::as_str) != Some("P-256")
-        || jwk.get("alg").and_then(Value::as_str) != Some("ES256")
-    {
+    let curve = jwk.get("crv").and_then(Value::as_str);
+    let algorithm = jwk.get("alg").and_then(Value::as_str);
+    let profile_algorithm_is_valid = matches!(
+        (curve, algorithm),
+        (Some("P-256"), None | Some("ES256")) | (Some("secp256k1"), None | Some("ES256K"))
+    );
+    if jwk.get("kty").and_then(Value::as_str) != Some("EC") || !profile_algorithm_is_valid {
         return Err(DidEbsiError::new(DidEbsiErrorReason::UnsupportedAlgorithm));
-    }
-    if !jwk
-        .get("x")
-        .and_then(Value::as_str)
-        .is_some_and(valid_p256_coordinate)
-        || !jwk
-            .get("y")
-            .and_then(Value::as_str)
-            .is_some_and(valid_p256_coordinate)
-    {
-        return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
     }
     if jwk
         .get("use")
@@ -54,7 +45,22 @@ pub(crate) fn validate_public_jwk(
             return Err(DidEbsiError::new(DidEbsiErrorReason::InvalidDocument));
         }
     }
-    Ok(())
+    validate_did_jwk(value).map_err(|error| {
+        let reason = match error.reason {
+            DidJwkErrorReason::PrivateKeyMaterial => DidEbsiErrorReason::InvalidDocument,
+            DidJwkErrorReason::InvalidPublicJwk
+            | DidJwkErrorReason::InvalidJson
+            | DidJwkErrorReason::InvalidBase64Url
+            | DidJwkErrorReason::InvalidPrefix
+            | DidJwkErrorReason::EmptyIdentifier
+            | DidJwkErrorReason::SerializationFailed => DidEbsiErrorReason::InvalidDocument,
+        };
+        DidEbsiError::new(reason)
+    })?;
+    Ok(EbsiJwkPurposes {
+        signature: true,
+        key_agreement: false,
+    })
 }
 
 fn valid_key_operations(value: Option<&Value>) -> bool {
@@ -62,33 +68,4 @@ fn valid_key_operations(value: Option<&Value>) -> bool {
         return true;
     };
     matches!(value, Value::Array(values) if values.len() == 1 && values.first().and_then(Value::as_str) == Some("verify"))
-}
-
-fn valid_p256_coordinate(value: &str) -> bool {
-    value.len() == P256_COORDINATE_BASE64URL_BYTES
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        // A 32-byte coordinate has two unused base64url bits. Restricting the
-        // final sextet ensures there is one canonical unpadded representation.
-        && value.as_bytes().last().is_some_and(|last| {
-            matches!(
-                last,
-                b'A' | b'E'
-                    | b'I'
-                    | b'M'
-                    | b'Q'
-                    | b'U'
-                    | b'Y'
-                    | b'c'
-                    | b'g'
-                    | b'k'
-                    | b'o'
-                    | b's'
-                    | b'w'
-                    | b'0'
-                    | b'4'
-                    | b'8'
-            )
-        })
 }

@@ -10,7 +10,8 @@ use std::collections::BTreeMap;
 /// Presentation models deliberately do not implement Serde. Protobuf is the
 /// canonical transport contract; ProtoJSON interoperability is provided only
 /// by the bounded generated-message codec.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Presentation {
     /// Zero-knowledge presentation with semantic disclosures and proof bytes.
     Zk(Box<ZkPresentation>),
@@ -26,7 +27,7 @@ pub enum Presentation {
 ///
 /// The VP layer does not verify `issuerAuth` or `deviceAuth`; mdoc verification
 /// belongs in the mdoc envelope layer so the presentation core stays reusable.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct MdocPresentation {
     /// CBOR bytes of an ISO 18013-5 `DeviceResponse`.
     pub device_response: Vec<u8>,
@@ -39,7 +40,7 @@ pub struct MdocPresentation {
 }
 
 /// SD-JWT VC presentation transport payload.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct SdJwtVcPresentation {
     /// Compact SD-JWT issuance or presentation string.
     pub sd_jwt: String,
@@ -58,7 +59,7 @@ pub struct SdJwtVcPresentation {
 }
 
 /// Semantic zero-knowledge presentation.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct ZkPresentation {
     /// Freshness and audience binding.
     pub freshness: PresentationFreshness,
@@ -77,7 +78,7 @@ pub struct ZkPresentation {
 }
 
 /// Freshness and audience-binding inputs for a presentation.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct PresentationFreshness {
     /// Verifier challenge or nonce.
     pub challenge: [u8; 32],
@@ -90,7 +91,7 @@ pub struct PresentationFreshness {
 }
 
 /// Reference to the credential being presented.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct CredentialReference {
     /// Hash of canonical VC bytes or the signed credential envelope.
     pub envelope_hash: [u8; 32],
@@ -103,7 +104,7 @@ pub struct CredentialReference {
 }
 
 /// Minimal credential status reference.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct CredentialStatusRef {
     /// Status-list URL.
     pub status_list_url: String,
@@ -120,6 +121,7 @@ pub struct CredentialStatusRef {
 
 /// Credential status purpose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum StatusPurpose {
     /// Status purpose was not specified.
     Unspecified,
@@ -133,6 +135,7 @@ pub enum StatusPurpose {
 
 /// Claim disclosure mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DisclosureMode {
     /// Disclosure mode was not specified.
     Unspecified,
@@ -160,7 +163,7 @@ pub enum DisclosureMode {
 }
 
 /// Disclosure request or satisfied disclosure for a single claim.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct ClaimDisclosure {
     /// Dot/path-like claim selector.
     pub claim_path: String,
@@ -182,7 +185,7 @@ pub struct ClaimDisclosure {
 }
 
 /// Inclusive numeric range.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct Range {
     /// Minimum accepted value.
     pub min: u64,
@@ -192,7 +195,7 @@ pub struct Range {
 }
 
 /// Set of accepted byte-string values.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct ValueSet {
     /// Accepted values.
     pub values: Vec<Vec<u8>>,
@@ -200,13 +203,14 @@ pub struct ValueSet {
 
 /// Exact audited proving and verification suite for a ZK proof.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ZkProofSuite {
     /// Barretenberg UltraHonk with Keccak transcript, ZK enabled, and no IPA.
     BarretenbergUltraHonkKeccakZkNoIpa,
 }
 
 /// Zero-knowledge proof payload and verification metadata.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct ZkProof {
     /// Circuit identifier.
     pub circuit_id: String,
@@ -231,7 +235,7 @@ pub struct ZkProof {
 }
 
 /// QEAA verifier hints.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct QeaaVerifierHints {
     /// Whether QEAA evidence is required.
     pub required: bool,

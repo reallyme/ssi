@@ -45,14 +45,133 @@ function assertProtoZeroizeCoverage() {
   }
 }
 
+function assertFixtureCopies() {
+  const result = spawnSync("node", ["scripts/check_fixture_copies.mjs"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    fail(result.stderr.trim() || "fixture copy validation failed");
+  }
+}
+
 shared.assertReallyMeVendoredCorePolicy({
   scriptPath: "scripts/check_release_readiness.mjs",
   version: "0.6.2",
 });
 shared.assertWorkflowActionsPinned();
+shared.assertWorkflowPolicy({
+  path: ".github/workflows/rust-ci.yml",
+  jobs: { rust: { needs: [] } },
+  runSteps: [
+    {
+      job: "rust",
+      name: "Format",
+      run: "cargo fmt --check",
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "rust",
+      name: "Check conformance requirement coverage",
+      run: "node scripts/check_conformance_coverage.mjs",
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "rust",
+      name: "Execute pinned upstream conformance evidence",
+      run: 'node scripts/run_upstream_conformance_tests.mjs --source reallyme-jose=../jose --source reallyme-cose=../cose --output "${RUNNER_TEMP}/upstream-conformance.json"',
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "rust",
+      name: "Generate conformance evidence from the clean CI commit",
+      run: 'node scripts/generate_conformance_reports.mjs --output-dir "${RUNNER_TEMP}/ssi-conformance" --upstream-results "${RUNNER_TEMP}/upstream-conformance.json"',
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "rust",
+      name: "Check all features with warnings denied",
+      run: "cargo check --locked --workspace --all-features",
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "rust",
+      name: "Clippy",
+      run: "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "rust",
+      name: "Test native lane",
+      run: "node scripts/run_bounded_nextest.mjs native",
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "rust",
+      name: "Release readiness",
+      run: "node .release-readiness/scripts/run-consumer-check.mjs",
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "rust",
+      name: "Inspect and test normalized crate archives",
+      run: "node scripts/publish_crates_in_order.mjs inspect",
+      workingDirectory: "reallyme/ssi",
+    },
+  ],
+});
+shared.assertWorkflowPolicy({
+  path: ".github/workflows/crates-package-preflight.yml",
+  jobs: {
+    "verify-source-sha": { needs: [] },
+    "crates-package": { needs: ["verify-source-sha"] },
+  },
+  runSteps: [
+    {
+      job: "crates-package",
+      name: "Inspect normalized crate tarballs and dry-run publication",
+      run: "node scripts/publish_crates_in_order.mjs inspect",
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "crates-package",
+      name: "Generate clean SSI conformance evidence",
+      run: 'node scripts/generate_conformance_reports.mjs --output-dir "${RUNNER_TEMP}/ssi-conformance" --upstream-results ../../upstream-conformance/upstream-conformance.json',
+      workingDirectory: "reallyme/ssi",
+    },
+  ],
+});
+shared.assertWorkflowPolicy({
+  path: ".github/workflows/crates-release.yml",
+  jobs: {
+    "verify-preflight": { needs: [] },
+    publish: { needs: ["verify-preflight"] },
+    finalize: { needs: ["verify-preflight", "publish"] },
+  },
+  runSteps: [
+    {
+      job: "publish",
+      name: "Publish crates in reviewed dependency order",
+      run: "node scripts/publish_crates_in_order.mjs publish",
+      workingDirectory: "reallyme/ssi",
+    },
+  ],
+});
+shared.assertWorkflowPolicy({
+  path: ".github/workflows/secret-scan.yml",
+  jobs: { "secret-scan": { needs: [] } },
+  runSteps: [
+    {
+      job: "secret-scan",
+      name: "Scan complete Git history",
+      run: "scripts/run_gitleaks.sh",
+    },
+  ],
+});
 shared.assertNodeWorkflowJobsPinNode({ nodeVersion: "24" });
 shared.assertCargoWorkspacePolicy();
 assertProtoZeroizeCoverage();
+assertFixtureCopies();
 shared.assertRepositoryShapePolicy({
   archetype: "protocol-engine",
   requiredLanes: ["crates", "contracts", "conformance", "docs", "scripts", ".github"],
@@ -106,7 +225,6 @@ shared.assertRepositoryShapePolicy({
     { path: "crates/proto", role: "proto" },
     { path: "crates/proto-codec", role: "proto-codec" },
     { path: "crates/revocation", role: "domain" },
-    { path: "crates/revocation/crl/core", role: "domain" },
     { path: "crates/revocation/crl/openssl", role: "provider" },
     { path: "crates/revocation/ocsp/core", role: "domain" },
     { path: "crates/revocation/ocsp/dispatch", role: "runtime" },
@@ -147,15 +265,17 @@ shared.assertRustSourcePolicy({
   productionHardLines: 500,
   testTargetLines: 800,
   testHardLines: 800,
-  moduleHardLines: 100,
+  // Declaration-only facades may exceed 100 lines when they preserve a flat,
+  // named public API; substantive facade logic is rejected independently.
+  moduleHardLines: 120,
   forbidWildcardImports: true,
   forbidInlineTests: true,
   forbidSubstantiveFacades: true,
   forbidPanickingProductionCode: true,
   forbidDynamicErrorSurfaces: true,
 });
-// This repository currently owns no TypeScript, Swift, or Kotlin source lanes.
-// Add the corresponding v0.6 source policy when one of those lanes is introduced.
+// Rust is the only source lane owned by this repository. Platform SDK source is
+// validated in the repository that owns each SDK.
 shared.assertSpdxHeaders({
   exclusions: [
     { path: "scripts/release-readiness/core.mjs", reason: "vendored" },
@@ -173,6 +293,10 @@ shared.assertSpdxHeaders({
       reason: "third-party",
     },
     { path: "vectors/ietf-sd-jwt", reason: "third-party" },
+    {
+      path: "crates/envelopes/sd_jwt/tests/vectors/ietf-sd-jwt",
+      reason: "third-party",
+    },
   ],
   requireExclusionsMatched: true,
   requireExclusionReasons: true,
@@ -259,9 +383,11 @@ const approvedPublicPackages = new Set([
 
 const requiredWorkspaceLintLines = [
   'unsafe_code = "deny"',
-  'missing_docs = "warn"',
+  'missing_docs = "deny"',
+  'arithmetic_side_effects = "deny"',
   'dbg_macro = "deny"',
   'expect_used = "deny"',
+  'indexing_slicing = "deny"',
   'large_include_file = "deny"',
   'panic = "deny"',
   'print_stderr = "deny"',
@@ -279,8 +405,11 @@ const requiredCiNeedles = [
   "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
   "node scripts/run_bounded_nextest.mjs native",
   "node scripts/run_bounded_nextest.mjs all-features",
-  "cargo check --locked --workspace --no-default-features --features wasm --target wasm32-unknown-unknown",
+  "node scripts/run_bounded_nextest.mjs default",
+  'cargo check --locked -p "${package}" --no-default-features --features wasm --target wasm32-unknown-unknown',
+  "select(.features.wasm != null)",
   "cargo doc --locked --workspace --no-deps --all-features",
+  "cargo test --locked --doc --workspace --all-features",
   "sh scripts/lint-protos.sh",
   "sh scripts/check-proto-contract.sh",
   "sh scripts/check-protos-fresh.sh",
@@ -295,6 +424,9 @@ const requiredFuzzTargets = [
   "fuzz_claim_set",
   "fuzz_mdoc_device_response",
   "fuzz_sd_jwt_processing",
+  "fuzz_xml_signature_profile",
+  "fuzz_jades_header",
+  "fuzz_status_tokens",
   "fuzz_status_list",
   "fuzz_x509_trust_der",
 ];
@@ -346,12 +478,14 @@ const requiredCryptoFeatureBundles = [
   ],
 ];
 
-const fail = (message) => {
+function fail(message) {
   console.error(`release readiness check failed: ${message}`);
   process.exit(1);
-};
+}
 
-const readText = (path) => readFileSync(resolve(root, path), "utf8");
+function readText(path) {
+  return readFileSync(resolve(root, path), "utf8");
+}
 
 const headerPolicyExtensions = new Set([
   ".js",
@@ -368,6 +502,8 @@ const headerPolicyExtensions = new Set([
 const byteExactUpstreamVectorPrefixes = [
   "vectors/ietf-sd-jwt/",
   "vectors/sd-jwt-rfc9901/",
+  "crates/envelopes/sd_jwt/tests/vectors/ietf-sd-jwt/",
+  "crates/envelopes/sd_jwt/tests/vectors/sd-jwt-rfc9901/",
 ];
 
 const findHeaderPolicyFiles = (relativeDir = "") => {
@@ -446,6 +582,23 @@ const findRustSources = (relativeDir) => {
   return sources;
 };
 
+const assertMissingDocsSuppressionsScoped = () => {
+  const allowedGeneratedSources = new Set(["crates/proto/src/generated.rs"]);
+  const suppression = /\b(?:allow|expect)\s*\([^)]*\bmissing_docs\b/su;
+
+  for (const path of findRustSources("crates")) {
+    const isTest = path.includes("/tests/") || path.endsWith("_tests.rs");
+    const isExample = path.includes("/examples/");
+    const isGenerated =
+      allowedGeneratedSources.has(path) || path.includes("/src/generated/");
+    if (!isTest && !isExample && !isGenerated && suppression.test(readText(path))) {
+      fail(`${path} suppresses missing_docs outside tests, examples, or generated code`);
+    }
+  }
+};
+
+assertMissingDocsSuppressionsScoped();
+
 const focusedSourceContinuations = new Map([
   [
     "crates/proto-codec/src/lib.rs",
@@ -468,13 +621,29 @@ const readExpandedRustSource = (path, visited = new Set()) => {
   });
 };
 
+const readSearchableSource = (path) => {
+  const source = path.endsWith(".rs") ? readExpandedRustSource(path) : readText(path);
+  if (!/\.(?:rs|toml|mjs|js|sh|ya?ml)$/u.test(path)) {
+    return source;
+  }
+  // Invariant evidence must be executable/configuration content. A commented
+  // copy of a required setting must never satisfy a release gate.
+  return source
+    .split(/\r?\n/u)
+    .filter((line) => !/^\s*(?:#|\/\/)/u.test(line))
+    .join("\n");
+};
+
 const assertContains = (path, needle) => {
   const sourcePaths = [path, ...(focusedSourceContinuations.get(path) ?? [])];
   if (
     !sourcePaths.some((sourcePath) =>
-      (sourcePath.endsWith(".rs") ? readExpandedRustSource(sourcePath) : readText(sourcePath)).includes(
-        needle,
-      ),
+      (/\.(?:toml|ya?ml)$/u.test(sourcePath) && needle.includes("="))
+        ? readSearchableSource(sourcePath).includes(needle)
+        : (sourcePath.endsWith(".rs")
+            ? readExpandedRustSource(sourcePath)
+            : readText(sourcePath)
+          ).includes(needle),
     )
   ) {
     fail(`${sourcePaths.join(" or ")} does not contain ${needle}`);
@@ -671,8 +840,8 @@ for (const needle of requiredCiNeedles) {
   }
 }
 const rustCiMarkdownIgnoreCount = ci.match(/- "\*\*\/\*\.md"/gu)?.length ?? 0;
-if (rustCiMarkdownIgnoreCount !== 2) {
-  fail("rust-ci.yml must ignore Markdown-only pushes and pull requests");
+if (rustCiMarkdownIgnoreCount !== 1) {
+  fail("rust-ci.yml may ignore Markdown-only pull requests but must scan every push to main");
 }
 const allFeaturesCheckCount =
   ci.match(/cargo check --locked --workspace --all-features/gu)?.length ?? 0;
@@ -902,6 +1071,34 @@ assertExists("scripts/run_bounded_nextest.mjs");
 for (const needle of requiredBoundedNextestNeedles) {
   assertContains("scripts/run_bounded_nextest.mjs", needle);
 }
+const rustCiWorkflow = ".github/workflows/rust-ci.yml";
+assertContains(rustCiWorkflow, "toolchain: 1.96.0");
+assertContains(
+  rustCiWorkflow,
+  "cargo check --locked --workspace --no-default-features --features native",
+);
+assertContains(rustCiWorkflow, "cargo +nightly-2026-09-01 fuzz build");
+assertContains(rustCiWorkflow, "cargo-mutants@${{ env.CARGO_MUTANTS_VERSION }}");
+assertContains(rustCiWorkflow, "--examine-re '${{ matrix.examine }}'");
+assertContains(rustCiWorkflow, "scripts/check-protos-breaking.sh");
+assertContains(rustCiWorkflow, "identity-revocation-crl-openssl");
+assertContains(rustCiWorkflow, "identity-revocation-ocsp-openssl");
+assertContains(rustCiWorkflow, "identity-trust-openssl");
+assertContains(rustCiWorkflow, "identity-trust-tsl-openssl");
+assertContains(rustCiWorkflow, "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER");
+assertContains(rustCiWorkflow, "wasm-bindgen-test-runner");
+assertContains(
+  rustCiWorkflow,
+  "cargo check --locked -p reallyme-ssi -p identity-credential-trust-api",
+);
+assertExists("scripts/check-protos-breaking.sh");
+assertContains("scripts/check-protos-breaking.sh", '"WIRE_JSON"');
+assertExists(".github/workflows/repository-security.yml");
+assertContains(".github/workflows/repository-security.yml", "schedule:");
+assertContains(
+  ".github/workflows/repository-security.yml",
+  'gh api "repos/${GITHUB_REPOSITORY}/private-vulnerability-reporting"',
+);
 assertContains(
   ".github/workflows/rust-ci.yml",
   "repository: reallyme/release-readiness",
@@ -938,10 +1135,9 @@ if (releaseVersionMatch?.[1] === undefined) {
 }
 const releaseVersion = releaseVersionMatch[1];
 
-// Keep the operator-facing release flow and its fail-closed authorization
-// boundary aligned with reallyme/cose. Repository-specific package gates may
-// differ, but the two manual buttons, reviewed attestation, secret, and
-// finalization mechanics must not drift.
+// Package preflight and publication share a fail-closed authorization contract:
+// explicit dispatch, source attestation, registry-secret authentication, and a
+// separate publication step.
 assertContains(packagePreflightWorkflow, "name: Crates Package Preflight");
 assertContains(
   packagePreflightWorkflow,
@@ -1041,6 +1237,9 @@ assertContains(
 assertNotContains(releaseWorkflow, "git push");
 assertContains(releaseWorkflow, 'gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs"');
 assertContains(releaseWorkflow, "gh release create");
+assertContains(releaseWorkflow, 'node scripts/extract_release_notes.mjs "$RELEASE_VERSION"');
+assertContains(releaseWorkflow, "gh release upload");
+assertContains(releaseWorkflow, "--notes-file release-notes.md");
 assertContains(releaseWorkflow, "RELEASE_TAG: ${{ steps.release-tag.outputs.tag }}");
 assertNotContains(releaseWorkflow, "--generate-notes");
 assertContains(
@@ -1051,10 +1250,21 @@ assertContains(
   packagePreflightWorkflow,
   "node scripts/write_release_attestation.mjs",
 );
+assertContains(packagePreflightWorkflow, "attestations: write");
+assertContains(packagePreflightWorkflow, "id-token: write");
+assertContains(
+  packagePreflightWorkflow,
+  "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
+);
 assertContains(
   releaseWorkflow,
   "node scripts/verify_release_attestation.mjs",
 );
+assertContains(releaseWorkflow, "attestations: read");
+assertContains(releaseWorkflow, "gh attestation verify release-attestation/crates-preflight.json");
+assertContains(releaseWorkflow, "--source-digest \"$RELEASE_SHA\"");
+assertContains(releaseWorkflow, "--source-ref refs/heads/main");
+assertContains(releaseWorkflow, "--deny-self-hosted-runners");
 assertContains(
   releaseWorkflow,
   "node scripts/publish_crates_in_order.mjs publish",
@@ -1070,6 +1280,7 @@ assertContains("scripts/publish_crates_in_order.mjs", "checkRequiredPublishOrder
 assertContains("scripts/publish_crates_in_order.mjs", "checkReleaseVersion();");
 assertContains("scripts/publish_crates_in_order.mjs", 'const MODE_ORDER = "order";');
 assertContains("scripts/publish_crates_in_order.mjs", '"--offline"');
+assertNotContains("scripts/publish_crates_in_order.mjs", '"--no-run"');
 assertContains("scripts/publish_crates_in_order.mjs", "CARGO_TARGET_DIR");
 assertContains("scripts/publish_crates_in_order.mjs", "isEarlierWorkspaceDependency");
 assertContains(
@@ -1107,8 +1318,8 @@ assertContains(secretScanWorkflow, "run: scripts/run_gitleaks.sh");
 const secretScanMarkdownIgnoreCount = readText(secretScanWorkflow).match(
   /- "\*\*\/\*\.md"/gu,
 )?.length ?? 0;
-if (secretScanMarkdownIgnoreCount !== 2) {
-  fail("secret-scan.yml must ignore Markdown-only pushes and pull requests");
+if (secretScanMarkdownIgnoreCount !== 0) {
+  fail("secret-scan.yml must scan Markdown and text-only changes on pull requests and pushes");
 }
 assertContains("scripts/run_gitleaks.sh", 'readonly GITLEAKS_VERSION="8.30.1"');
 assertContains(
@@ -1134,9 +1345,23 @@ for (const target of requiredFuzzTargets) {
   assertContains("fuzz/Cargo.toml", `name = "${target}"`);
   assertContains("fuzz/README.md", `\`${target}\``);
   assertContains(".github/workflows/fuzz.yml", target);
+  assertContains("scripts/generate_conformance_reports.mjs", `id: "${target}"`);
 }
 assertContains(".github/workflows/rust-ci.yml", "node scripts/check_conformance_coverage.mjs");
+assertContains(".github/workflows/rust-ci.yml", "node scripts/check_fixture_copies.mjs");
+assertContains(".github/workflows/rust-ci.yml", "node scripts/check_public_api_evolution.mjs");
+assertContains(".github/workflows/rust-ci.yml", "node scripts/generate_conformance_reports.mjs");
+assertContains(".github/workflows/rust-ci.yml", "--upstream-results");
+assertContains(".github/workflows/rust-ci.yml", "node scripts/run_upstream_conformance_tests.mjs");
+assertContains(".github/workflows/rust-ci.yml", "CARGO_SEMVER_CHECKS_VERSION: 0.50.0");
+assertContains(".github/workflows/rust-ci.yml", "cargo-semver-checks@${{ env.CARGO_SEMVER_CHECKS_VERSION }}");
+assertContains(
+  ".github/workflows/rust-ci.yml",
+  "cargo semver-checks check-release --workspace --release-type minor",
+);
+assertExists("scripts/check_fixture_copies.mjs");
 assertExists("scripts/generate_conformance_reports.mjs");
+assertExists("scripts/run_upstream_conformance_tests.mjs");
 assertExists("conformance/dependencies.lock.json");
 assertExists("scripts/generate_conformance_vectors.mjs");
 assertExists("conformance/README.md");
@@ -1178,12 +1403,15 @@ assertContains(
   "conformance/dependencies.lock.json",
   '"version": "0.3.9"',
 );
-assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.2.0");
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.3.0");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
 assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
 assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");
 assertContains("docs/ARCHITECTURE.md", "Rust identity crates expose only `native` and `wasm`");
 assertContains("docs/ARCHITECTURE.md", "cargo features named `swift` or `kotlin`");
+assertContains("docs/ARCHITECTURE.md", "`conformance-vectors`, `reference-tests`");
+assertContains("docs/ARCHITECTURE.md", "`xmlsec-ffi`");
+assertContains("docs/ARCHITECTURE.md", "Applications must select a lane");
 assertContains("docs/ARCHITECTURE.md", "`crates/oauth` owns reusable OAuth substrate");
 assertContains("docs/ARCHITECTURE.md", "endpoint orchestration, HTTP");
 assertContains("docs/ARCHITECTURE.md", "[`reallyme/jose`](https://github.com/reallyme/jose)");
@@ -1232,12 +1460,21 @@ assertContains("scripts/proto-workspace.sh", '"me-id/protos"');
 assertContains("scripts/check-proto-contract.sh", "reallyme.crypto.v1.CryptoAlgorithmIdentifier");
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity.common.v1");
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity_core.v1");
-assertContains("Cargo.toml", 'reallyme-codec = { version = "=0.2.3"');
-assertContains("Cargo.toml", 'reallyme-crypto = { version = "=0.3.9"');
-assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "=0.3.9"');
+assertContains("Cargo.toml", 'reallyme-codec = { version = "0.2.3"');
+assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.9"');
+assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.9"');
 assertContains("crates/proto/Cargo.toml", "reallyme-crypto-proto/generated");
-assertContains("Cargo.toml", 'reallyme-cose = { version = "=0.2.5"');
-assertContains("Cargo.toml", 'reallyme-jose = { version = "=0.4.0"');
+assertContains("Cargo.toml", 'reallyme-cose = { version = "0.2.5"');
+assertContains("Cargo.toml", 'reallyme-jose = { version = "0.4.0"');
+for (const dependency of [
+  "reallyme-codec",
+  "reallyme-cose",
+  "reallyme-crypto",
+  "reallyme-crypto-proto",
+  "reallyme-jose",
+]) {
+  assertNotContains("Cargo.toml", `${dependency} = { version = "=`);
+}
 assertContains("crates/envelopes/mdoc/Cargo.toml", "reallyme-cose = { workspace = true }");
 assertContains("crates/envelopes/sd_jwt/Cargo.toml", "reallyme-jose = { workspace = true }");
 assertContains("crates/envelopes/jwt_vc/Cargo.toml", "reallyme-jose = { workspace = true }");

@@ -7,14 +7,16 @@ pub fn resolve_did_web_with_provider<P: DidProvider + ?Sized>(
     provider: &P,
     did: &str,
 ) -> Result<DidWebProviderResolution, DidApiError> {
-    let identifier = parse_did_web(did).map_err(|_| DidApiError::InvalidDid)?;
+    let identifier = parse_did_web(did).map_err(DidApiError::from)?;
     let result = provider.resolve_did_web(identifier.as_str())?;
     if result
         .document
         .as_ref()
         .is_some_and(|document| document.id() != Some(identifier.as_str()))
     {
-        return Err(DidApiError::DidWebDocumentMismatch);
+        return Err(DidApiError::DidWeb(
+            DidWebErrorReason::DocumentIdentifierMismatch,
+        ));
     }
     let valid = match result.deactivation_status {
         DidDeactivationStatus::Active => result.document.is_some() && result.media_type.is_some(),
@@ -33,13 +35,17 @@ pub fn create_did_web_with_provider<P: DidProvider + ?Sized>(
     did: &str,
     document: &DidWebDocument,
 ) -> Result<DidWebDocument, DidApiError> {
-    let identifier = parse_did_web(did).map_err(|_| DidApiError::InvalidDid)?;
+    let identifier = parse_did_web(did).map_err(DidApiError::from)?;
     if document.id() != Some(identifier.as_str()) {
-        return Err(DidApiError::DidWebDocumentMismatch);
+        return Err(DidApiError::DidWeb(
+            DidWebErrorReason::DocumentIdentifierMismatch,
+        ));
     }
     let created = provider.create_did_web(identifier.as_str(), document)?;
     if created.id() != Some(identifier.as_str()) {
-        return Err(DidApiError::DidWebDocumentMismatch);
+        return Err(DidApiError::DidWeb(
+            DidWebErrorReason::DocumentIdentifierMismatch,
+        ));
     }
     Ok(created)
 }
@@ -50,13 +56,17 @@ pub fn update_did_web_with_provider<P: DidProvider + ?Sized>(
     did: &str,
     document: &DidWebDocument,
 ) -> Result<DidWebDocument, DidApiError> {
-    let identifier = parse_did_web(did).map_err(|_| DidApiError::InvalidDid)?;
+    let identifier = parse_did_web(did).map_err(DidApiError::from)?;
     if document.id() != Some(identifier.as_str()) {
-        return Err(DidApiError::DidWebDocumentMismatch);
+        return Err(DidApiError::DidWeb(
+            DidWebErrorReason::DocumentIdentifierMismatch,
+        ));
     }
     let updated = provider.update_did_web(identifier.as_str(), document)?;
     if updated.id() != Some(identifier.as_str()) {
-        return Err(DidApiError::DidWebDocumentMismatch);
+        return Err(DidApiError::DidWeb(
+            DidWebErrorReason::DocumentIdentifierMismatch,
+        ));
     }
     Ok(updated)
 }
@@ -66,6 +76,6 @@ pub fn deactivate_did_web_with_provider<P: DidProvider + ?Sized>(
     provider: &P,
     did: &str,
 ) -> Result<(), DidApiError> {
-    let identifier = parse_did_web(did).map_err(|_| DidApiError::InvalidDid)?;
+    let identifier = parse_did_web(did).map_err(DidApiError::from)?;
     provider.deactivate_did_web(identifier.as_str())
 }

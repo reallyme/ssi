@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::indexing_slicing)]
+
 use serde_json::json;
 
 use crate::{
@@ -92,6 +94,42 @@ fn wildcard_array_path_selects_each_disclosed_element() {
             assert!(selected.is_ok());
             if let Ok(selected) = selected {
                 assert_eq!(selected.as_slice(), disclosures);
+            }
+        }
+    }
+}
+
+#[test]
+fn array_indices_ignore_decoy_placeholders() {
+    let first = create_array_element_disclosure("MDEyMzQ1Njc4OWFiY2RlZg", json!("US"));
+    let second = create_array_element_disclosure("MDEyMzQ1Njc4OWFiY2RlZg", json!("CA"));
+    assert!(first.is_ok());
+    assert!(second.is_ok());
+    if let (Ok(first), Ok(second)) = (first, second) {
+        let first_digest = digest_disclosure(first.encoded(), SdJwtHashAlgorithm::Sha256);
+        let second_digest = digest_disclosure(second.encoded(), SdJwtHashAlgorithm::Sha256);
+        assert!(first_digest.is_ok());
+        assert!(second_digest.is_ok());
+        if let (Ok(first_digest), Ok(second_digest)) = (first_digest, second_digest) {
+            let disclosures = vec![first.encoded().to_owned(), second.encoded().to_owned()];
+            let selected = select_sd_jwt_disclosures(
+                &json!({
+                    "nationalities": [
+                        {"...": "decoy-digest"},
+                        {"...": first_digest},
+                        {"...": second_digest}
+                    ]
+                }),
+                &disclosures,
+                &[vec![
+                    SdJwtClaimPathComponent::Name("nationalities".to_owned()),
+                    SdJwtClaimPathComponent::Index(1),
+                ]],
+                SdJwtProcessingPolicy::default(),
+            );
+            assert!(selected.is_ok());
+            if let Ok(selected) = selected {
+                assert_eq!(selected.as_slice(), &[disclosures[1].clone()]);
             }
         }
     }

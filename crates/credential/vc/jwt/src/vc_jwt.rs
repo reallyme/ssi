@@ -21,35 +21,39 @@ use crate::{VcJwtError, VcJwtVerificationOptions};
 
 /// VC-JWT payload.
 ///
-/// This is intentionally minimal:
-/// - Standard registered claims live here (iss/sub/nbf/exp)
-/// - The VC itself is carried as base64url bytes (CBOR canonical form)
-/// - Optional protobuf bytes can be included for dual-format transport
-///
-/// IMPORTANT: This payload contains NO claim values; those are committed by merkle_root.
+/// Registered JWT claims identify the parties and validity interval. The
+/// credential is carried as canonical CBOR bytes, with optional protobuf bytes
+/// for dual-format transport. Subject claim values remain protected by the
+/// credential's Merkle commitment and are not copied into this payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VcJwtPayload {
+    /// Issuer identifier carried by `iss`.
     pub iss: String,
+    /// Subject identifier carried by `sub`.
     pub sub: String,
 
+    /// Earliest accepted time from the registered `nbf` claim.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nbf: Option<i64>,
+    /// Expiration time from the registered `exp` claim.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp: Option<i64>,
+    /// Issuance time from the registered `iat` claim.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iat: Option<i64>,
+    /// Optional JWT identifier carried by `jti`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jti: Option<String>,
 
-    /// base64url(CBOR signed envelope wrapper)
+    /// Base64url-encoded canonical CBOR signed-envelope wrapper.
     pub vc_se: String,
 
-    /// optional base64url(proto bytes)
+    /// Optional base64url-encoded protobuf representation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vc_proto: Option<String>,
 }
 
-/// Encode a VC-JWT.
+/// Encodes and signs a VC-JWT.
 ///
 /// - Uses `envelopes-jwt::encode_signed_jwt` for signing.
 /// - Embeds the signed VC envelope as `vc_cbor` (base64url).
@@ -78,7 +82,7 @@ pub fn encode_vc_jwt(
     encode_signed_jwt(&payload, issuer_jwk, issuer_private_key).map_err(|_| VcJwtError::Jwt)
 }
 
-/// Encode a VC-JWT using an abstract signer (HSM/QSCD/remote signing friendly).
+/// Encodes a VC-JWT through an external signing provider.
 pub fn encode_vc_jwt_with_signer(
     envelope: &CredentialEnvelope,
     issuer_did: &str,
@@ -103,7 +107,7 @@ pub fn encode_vc_jwt_with_signer(
     encode_signed_jwt_with_signer(&payload, issuer_jwk, signer).map_err(|_| VcJwtError::Jwt)
 }
 
-/// Decode + verify a VC-JWT and return the parsed payload plus canonical VC bytes.
+/// Verifies and decodes a VC-JWT into its payload and canonical credential bytes.
 ///
 /// This verifies the JWT signature using `envelopes-jwt`, validates the `exp`,
 /// `nbf`, and `iat` claims against the caller-supplied verification time, and

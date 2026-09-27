@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::indexing_slicing)]
 //! Integration coverage for DID protobuf conversion and bounded transport.
 
 #[path = "did/attestation_tests.rs"]

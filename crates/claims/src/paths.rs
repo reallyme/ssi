@@ -28,6 +28,7 @@ pub struct ClaimPath {
 
 /// One canonical path segment below `/claims`.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ClaimPathSegment {
     /// Object member selected by escaped JSON Pointer token.
     Field(String),

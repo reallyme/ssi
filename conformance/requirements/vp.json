@@ -7,7 +7,7 @@
     "feature": "vp_model_roundtrip_and_holder_binding_fields",
     "implementation": ["crates/presentation/core/src/model.rs", "crates/presentation/core/src/binding.rs"],
     "positive_tests": ["sd_jwt_presentation_is_redacted_and_zeroizes", "sd_jwt_presentation_round_trips_through_proto_bytes", "presentation_freshness_is_32_bytes"],
-    "negative_tests": [],
+    "negative_tests": ["invalid_hash_length_is_rejected"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -19,7 +19,7 @@
     "feature": "vp_disclosure_mode_stability",
     "implementation": ["crates/presentation/core/src/model.rs"],
     "positive_tests": ["disclosure_mode_enum_is_stable"],
-    "negative_tests": [],
+    "negative_tests": ["unspecified_disclosure_mode_is_rejected"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -95,7 +95,7 @@
     "feature": "presentation_verification_domain_command",
     "implementation": ["crates/presentation/api/src/commands.rs"],
     "positive_tests": ["verify_presentation_allows_policy_satisfying_facts"],
-    "negative_tests": ["verify_presentation_is_indeterminate_for_requested_missing_evidence"],
+    "negative_tests": ["verify_presentation_is_indeterminate_for_requested_missing_evidence", "verify_presentation_requested_checks_never_drop_mandatory_failures", "optional_unchecked_status_is_skipped_but_adverse_status_is_terminal"],
     "applicable": true,
     "exclusion_reason": null
   }

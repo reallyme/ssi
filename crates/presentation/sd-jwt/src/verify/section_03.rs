@@ -60,30 +60,31 @@ fn verify_merkle_disclosures(
             .ok_or(SdJwtVpError::InvalidDisclosure)?;
 
         // Legacy disclosures are [salt, claim path, value, index, Merkle path].
-        if fields.len() != 5 {
+        let [salt_field, claim_path_field, value_field, index_field, path_field] = fields.as_slice()
+        else {
             return Err(SdJwtVpError::InvalidDisclosure);
-        }
+        };
 
-        let salt_b64u = fields[0]
+        let salt_b64u = salt_field
             .as_str()
             .ok_or(SdJwtVpError::InvalidDisclosure)?;
-        let claim_path = fields[1]
+        let claim_path = claim_path_field
             .as_str()
             .ok_or(SdJwtVpError::InvalidDisclosure)?;
         if claim_path.len() > MAX_CLAIM_PATH_BYTES {
             return Err(SdJwtVpError::InvalidDisclosure);
         }
         let claim_path = claim_path.to_owned();
-        let value_b64u = fields[2]
+        let value_b64u = value_field
             .as_str()
             .ok_or(SdJwtVpError::InvalidDisclosure)?;
         let index = usize::try_from(
-            fields[3]
+            index_field
                 .as_u64()
                 .ok_or(SdJwtVpError::InvalidDisclosure)?,
         )
         .map_err(|_| SdJwtVpError::InvalidDisclosure)?;
-        let path = fields[4]
+        let path = path_field
             .as_array()
             .ok_or(SdJwtVpError::InvalidDisclosure)?;
 

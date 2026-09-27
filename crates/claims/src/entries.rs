@@ -77,9 +77,12 @@ fn insert_field(
             ClaimsInvalidReason::ClaimValueLimitExceeded,
         ));
     }
+    let next_segment = rest.first().ok_or(ClaimsError::InvalidInput(
+        ClaimsInvalidReason::InvalidClaimPath,
+    ))?;
     let next = object
         .entry(field.to_owned())
-        .or_insert_with(|| container_for_next(&rest[0]));
+        .or_insert_with(|| container_for_next(next_segment));
     insert_entry(next, rest, value)
 }
 
@@ -107,20 +110,26 @@ fn insert_array_index(
         ))?;
         array.resize_with(target_len, || ClaimValue::Null);
     }
+    let slot = array.get_mut(index).ok_or(ClaimsError::InvalidInput(
+        ClaimsInvalidReason::InvalidClaimPathSegment,
+    ))?;
     if rest.is_empty() {
-        if !matches!(array[index], ClaimValue::Null) {
+        if !matches!(slot, ClaimValue::Null) {
             return Err(ClaimsError::InvalidInput(
                 ClaimsInvalidReason::DuplicateClaimPath,
             ));
         }
-        array[index] = value;
+        *slot = value;
         return Ok(());
     }
 
-    if matches!(array[index], ClaimValue::Null) {
-        array[index] = container_for_next(&rest[0]);
+    if matches!(slot, ClaimValue::Null) {
+        let next_segment = rest.first().ok_or(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidClaimPath,
+        ))?;
+        *slot = container_for_next(next_segment);
     }
-    insert_entry(&mut array[index], rest, value)
+    insert_entry(slot, rest, value)
 }
 
 fn container_for_next(segment: &ClaimPathSegment) -> ClaimValue {

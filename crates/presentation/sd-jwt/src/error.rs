@@ -28,6 +28,10 @@ pub enum SdJwtVpError {
     #[error("crypto error")]
     Crypto,
 
+    /// A compact token exceeded a pre-verification resource ceiling.
+    #[error("resource limit exceeded")]
+    ResourceLimit,
+
     /// A holder-bound credential was presented without a verifiable KB-JWT.
     #[error("missing key binding proof")]
     MissingKeyBinding,
@@ -35,6 +39,10 @@ pub enum SdJwtVpError {
     /// The credential envelope is not the one committed by the issuer SD-JWT.
     #[error("credential envelope binding mismatch")]
     EnvelopeBindingMismatch,
+
+    /// The authenticated key-binding proof covers a different disclosure set.
+    #[error("presentation disclosure set binding mismatch")]
+    DisclosureSetMismatch,
 }
 
 impl From<SdJwtVpError> for IdentityCoreErrorReason {
@@ -49,11 +57,15 @@ impl From<SdJwtVpError> for IdentityCoreErrorReason {
             }
             SdJwtVpError::Serialization => Self::IDENTITY_CORE_ERROR_REASON_SERIALIZATION_FAILED,
             SdJwtVpError::Crypto => Self::IDENTITY_CORE_ERROR_REASON_INVALID_SIGNATURE,
+            SdJwtVpError::ResourceLimit => Self::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED,
             SdJwtVpError::MissingKeyBinding => {
                 Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_HOLDER_BINDING_FAILED
             }
             SdJwtVpError::EnvelopeBindingMismatch => {
                 Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE
+            }
+            SdJwtVpError::DisclosureSetMismatch => {
+                Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_HOLDER_BINDING_FAILED
             }
         }
     }

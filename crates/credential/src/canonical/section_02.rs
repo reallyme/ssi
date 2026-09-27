@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-fn issuer_credential_to_cbor(issuer: &IssuerCredential) -> CborValue {
-    CborValue::Map(vec![
+fn issuer_credential_to_cbor(issuer: &IssuerCredential) -> Result<CborValue, CredentialError> {
+    Ok(CborValue::Map(vec![
         (
             "kind".to_owned(),
-            CborValue::String(issuer_credential_kind_label(issuer.kind).to_owned()),
+            CborValue::String(issuer_credential_kind_label(issuer.kind)?.to_owned()),
         ),
         (
             "certFingerprintSha256".to_owned(),
@@ -28,31 +28,31 @@ fn issuer_credential_to_cbor(issuer: &IssuerCredential) -> CborValue {
             "qcstatementsOids".to_owned(),
             string_array_to_cbor(&issuer.qcstatements_oids),
         ),
-    ])
+    ]))
 }
 
-fn key_management_to_cbor(keys: &KeyManagement) -> CborValue {
-    CborValue::Map(vec![
+fn key_management_to_cbor(keys: &KeyManagement) -> Result<CborValue, CredentialError> {
+    Ok(CborValue::Map(vec![
         (
             "signingKeyId".to_owned(),
             CborValue::String(keys.signing_key_id.clone()),
         ),
         (
             "protection".to_owned(),
-            CborValue::String(key_protection_label(keys.protection).to_owned()),
+            CborValue::String(key_protection_label(keys.protection)?.to_owned()),
         ),
-    ])
+    ]))
 }
 
-fn identity_proofing_to_cbor(proofing: &IdentityProofing) -> CborValue {
-    CborValue::Map(vec![
+fn identity_proofing_to_cbor(proofing: &IdentityProofing) -> Result<CborValue, CredentialError> {
+    Ok(CborValue::Map(vec![
         (
             "standard".to_owned(),
             CborValue::String(proofing.standard.clone()),
         ),
         (
             "loip".to_owned(),
-            CborValue::String(identity_proofing_level_label(proofing.loip).to_owned()),
+            CborValue::String(identity_proofing_level_label(proofing.loip)?.to_owned()),
         ),
         (
             "evidenceRef".to_owned(),
@@ -62,7 +62,7 @@ fn identity_proofing_to_cbor(proofing: &IdentityProofing) -> CborValue {
             "evidenceHash".to_owned(),
             CborValue::Bytes(proofing.evidence_hash.to_vec()),
         ),
-    ])
+    ]))
 }
 
 fn audit_info_to_cbor(audit: &AuditInfo) -> Result<CborValue, CredentialError> {
@@ -94,11 +94,11 @@ fn audit_info_to_cbor(audit: &AuditInfo) -> Result<CborValue, CredentialError> {
     ]))
 }
 
-fn revocation_policy_to_cbor(revocation: &RevocationPolicy) -> CborValue {
-    CborValue::Map(vec![
+fn revocation_policy_to_cbor(revocation: &RevocationPolicy) -> Result<CborValue, CredentialError> {
+    Ok(CborValue::Map(vec![
         (
             "statusMethod".to_owned(),
-            CborValue::String(status_method_label(revocation.status_method).to_owned()),
+            CborValue::String(status_method_label(revocation.status_method)?.to_owned()),
         ),
         (
             "signingKeyId".to_owned(),
@@ -108,7 +108,7 @@ fn revocation_policy_to_cbor(revocation: &RevocationPolicy) -> CborValue {
             "maxStatusAgeSeconds".to_owned(),
             CborValue::Int(i64::from(revocation.max_status_age_seconds)),
         ),
-    ])
+    ]))
 }
 
 fn string_array_to_cbor(values: &[String]) -> CborValue {
@@ -136,15 +136,18 @@ fn assurance_label(assurance: AssuranceLevel) -> &'static str {
     }
 }
 
-fn status_purpose_label(purpose: StatusPurpose) -> &'static str {
-    match purpose {
+fn status_purpose_label(purpose: StatusPurpose) -> Result<&'static str, CredentialError> {
+    Ok(match purpose {
         StatusPurpose::Revocation => "revocation",
         StatusPurpose::Suspension => "suspension",
-    }
+        _ => return Err(canonical_encoding_error()),
+    })
 }
 
-fn credential_algorithm_label(algorithm: CredentialAlgorithm) -> &'static str {
-    match algorithm {
+fn credential_algorithm_label(
+    algorithm: CredentialAlgorithm,
+) -> Result<&'static str, CredentialError> {
+    Ok(match algorithm {
         CredentialAlgorithm::Unspecified => "unspecified",
         CredentialAlgorithm::Ed25519 => "ed25519",
         CredentialAlgorithm::X25519 => "x25519",
@@ -156,43 +159,57 @@ fn credential_algorithm_label(algorithm: CredentialAlgorithm) -> &'static str {
         CredentialAlgorithm::MlKem768 => "ml-kem-768",
         CredentialAlgorithm::MlKem1024 => "ml-kem-1024",
         CredentialAlgorithm::MlDsa44 => "ml-dsa-44",
-    }
+        _ => return Err(canonical_encoding_error()),
+    })
 }
 
-fn qtsp_role_label(role: QtspRole) -> &'static str {
-    match role {
+fn qtsp_role_label(role: QtspRole) -> Result<&'static str, CredentialError> {
+    Ok(match role {
         QtspRole::Unspecified => "unspecified",
         QtspRole::QeaaProvider => "qeaa-provider",
-    }
+        _ => return Err(canonical_encoding_error()),
+    })
 }
 
-fn issuer_credential_kind_label(kind: IssuerCredentialKind) -> &'static str {
-    match kind {
+fn issuer_credential_kind_label(
+    kind: IssuerCredentialKind,
+) -> Result<&'static str, CredentialError> {
+    Ok(match kind {
         IssuerCredentialKind::Unspecified => "unspecified",
         IssuerCredentialKind::X509 => "x509",
-    }
+        _ => return Err(canonical_encoding_error()),
+    })
 }
 
-fn key_protection_label(protection: KeyProtection) -> &'static str {
-    match protection {
+fn key_protection_label(protection: KeyProtection) -> Result<&'static str, CredentialError> {
+    Ok(match protection {
         KeyProtection::Unspecified => "unspecified",
         KeyProtection::Hsm => "hsm",
         KeyProtection::Qscd => "qscd",
-    }
+        _ => return Err(canonical_encoding_error()),
+    })
 }
 
-fn identity_proofing_level_label(level: IdentityProofingLevel) -> &'static str {
-    match level {
+fn identity_proofing_level_label(
+    level: IdentityProofingLevel,
+) -> Result<&'static str, CredentialError> {
+    Ok(match level {
         IdentityProofingLevel::Unspecified => "unspecified",
         IdentityProofingLevel::Baseline => "baseline",
         IdentityProofingLevel::Extended => "extended",
         IdentityProofingLevel::High => "high",
-    }
+        _ => return Err(canonical_encoding_error()),
+    })
 }
 
-fn status_method_label(method: StatusMethod) -> &'static str {
-    match method {
+fn status_method_label(method: StatusMethod) -> Result<&'static str, CredentialError> {
+    Ok(match method {
         StatusMethod::Unspecified => "unspecified",
         StatusMethod::StatusList => "status-list",
-    }
+        _ => return Err(canonical_encoding_error()),
+    })
+}
+
+fn canonical_encoding_error() -> CredentialError {
+    CredentialError::Canonical(CredentialCanonicalReason::Encoding)
 }

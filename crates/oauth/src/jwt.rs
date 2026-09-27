@@ -60,14 +60,32 @@ impl CompactJwt {
             .value
             .find('.')
             .ok_or(OauthError::new(Reason::InvalidJson))?;
-        let second_offset = self.value[first + 1..]
+        let payload_start = first
+            .checked_add(1)
+            .ok_or(OauthError::new(Reason::InvalidJson))?;
+        let after_first = self
+            .value
+            .get(payload_start..)
+            .ok_or(OauthError::new(Reason::InvalidJson))?;
+        let second_offset = after_first
             .find('.')
             .ok_or(OauthError::new(Reason::InvalidJson))?;
         let second = first
             .checked_add(1)
             .and_then(|value| value.checked_add(second_offset))
             .ok_or(OauthError::new(Reason::InvalidJson))?;
-        Ok((&self.value[..second], &self.value[second + 1..]))
+        let signing_input = self
+            .value
+            .get(..second)
+            .ok_or(OauthError::new(Reason::InvalidJson))?;
+        let signature_start = second
+            .checked_add(1)
+            .ok_or(OauthError::new(Reason::InvalidJson))?;
+        let signature = self
+            .value
+            .get(signature_start..)
+            .ok_or(OauthError::new(Reason::InvalidJson))?;
+        Ok((signing_input, signature))
     }
 }
 

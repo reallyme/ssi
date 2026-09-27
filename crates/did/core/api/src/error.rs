@@ -2,10 +2,12 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use reallyme_did_method_web::{DidWebError, DidWebErrorReason};
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
 
 /// Public API errors with fixed, non-PII failure categories.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum DidApiError {
     /// The supplied DID does not use the supported did:me method.
     #[error("unsupported DID method")]
@@ -19,41 +21,9 @@ pub enum DidApiError {
     #[error("invalid DID URL")]
     InvalidDidUrl,
 
-    /// did:web resolution or publication violated destination policy.
-    #[error("did:web policy violation")]
-    DidWebPolicyViolation,
-
-    /// did:web network resolution failed.
-    #[error("did:web network failure")]
-    DidWebNetworkFailure,
-
-    /// did:web TLS negotiation or validation failed.
-    #[error("did:web TLS failure")]
-    DidWebTlsFailure,
-
-    /// did:web redirect policy rejected the response chain.
-    #[error("did:web redirect rejected")]
-    DidWebRedirectRejected,
-
-    /// did:web response media type was not accepted.
-    #[error("did:web media type rejected")]
-    DidWebMediaTypeRejected,
-
-    /// did:web response exceeded the configured limit.
-    #[error("did:web response too large")]
-    DidWebResponseTooLarge,
-
-    /// did:web document identifier did not match the request.
-    #[error("did:web document mismatch")]
-    DidWebDocumentMismatch,
-
-    /// did:web operation exceeded its deadline.
-    #[error("did:web timeout")]
-    DidWebTimeout,
-
-    /// did:web operation was cancelled.
-    #[error("did:web cancelled")]
-    DidWebCancelled,
+    /// A did:web operation failed with a stable method-specific reason.
+    #[error("did:web operation failed")]
+    DidWeb(DidWebErrorReason),
 
     /// did:ebsi registry document id did not match the requested legal-entity DID.
     #[error("did:ebsi document mismatch")]
@@ -86,6 +56,10 @@ pub enum DidApiError {
     /// A provider-supplied DID resolution result violated did:me resolution invariants.
     #[error("DID resolution result invalid")]
     ResolutionResultInvalid,
+
+    /// The provider could not prove a result at the requested assurance level.
+    #[error("DID resolution assurance insufficient")]
+    ResolutionAssuranceInsufficient,
 
     /// A provider-supplied DID creation result violated did:me genesis invariants.
     #[error("DID creation result invalid")]
@@ -248,10 +222,11 @@ impl From<DidApiError> for IdentityCoreErrorReason {
             DidApiError::ProviderCapabilityUnsupported => {
                 Self::IDENTITY_CORE_ERROR_REASON_BACKEND_UNAVAILABLE
             }
+            DidApiError::ResolutionAssuranceInsufficient => {
+                Self::IDENTITY_CORE_ERROR_REASON_BACKEND_UNAVAILABLE
+            }
             DidApiError::InvalidDid
-            | DidApiError::InvalidDidUrl
             | DidApiError::UnsupportedDidUrl
-            | DidApiError::DidUrlFragmentNotFound
             | DidApiError::DidEbsiDocumentMismatch
             | DidApiError::DidEbsiDocumentInvalid
             | DidApiError::DidEbsiTimelineInvalid
@@ -274,8 +249,12 @@ impl From<DidApiError> for IdentityCoreErrorReason {
             | DidApiError::UnsupportedDidRelationship => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOCUMENT
             }
+            DidApiError::InvalidDidUrl => Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_URL,
+            DidApiError::DidUrlFragmentNotFound => {
+                Self::IDENTITY_CORE_ERROR_REASON_DID_RESOURCE_NOT_FOUND
+            }
             DidApiError::PolicyViolation => Self::IDENTITY_CORE_ERROR_REASON_POLICY_VIOLATION,
-            DidApiError::DidWebPolicyViolation => Self::IDENTITY_CORE_ERROR_REASON_POLICY_VIOLATION,
+            DidApiError::DidWeb(reason) => reason.into(),
             DidApiError::ProtoEncodeFailed | DidApiError::BrotliEncodeFailed => {
                 Self::IDENTITY_CORE_ERROR_REASON_SERIALIZATION_FAILED
             }
@@ -294,8 +273,23 @@ impl From<DidApiError> for IdentityCoreErrorReason {
             | DidApiError::MessagingPreKeyRotationInvalid => {
                 Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOCUMENT
             }
-            _ => Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOCUMENT,
+            DidApiError::KeyRelationshipAssignmentRequestInvalid
+            | DidApiError::KeyRelationshipAssignmentResultInvalid
+            | DidApiError::MissingGenesisNonce
+            | DidApiError::MissingVerificationMethodAlgorithm
+            | DidApiError::MissingVerificationMethods
+            | DidApiError::VerificationMethodNotFound
+            | DidApiError::RotationRequiresCreated
+            | DidApiError::MissingOldDocumentId
+            | DidApiError::MissingUpdatePolicy
+            | DidApiError::EngineFailure => Self::IDENTITY_CORE_ERROR_REASON_DID_INVALID_DOCUMENT,
         }
+    }
+}
+
+impl From<DidWebError> for DidApiError {
+    fn from(error: DidWebError) -> Self {
+        Self::DidWeb(error.reason)
     }
 }
 

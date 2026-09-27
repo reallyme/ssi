@@ -9,7 +9,7 @@ use crate::{
     MAX_CREDENTIAL_COUNTRY_BYTES, MAX_CREDENTIAL_TEXT_BYTES, MAX_PUBLIC_KEY_BYTES,
     MAX_STATUS_LIST_URL_BYTES,
 };
-use reallyme_credential_audit::validate_qeaa_compliance;
+use reallyme_credential_audit::screen_qeaa_metadata;
 use reallyme_credential_claims::{
     validate_claims_commitment, validate_public_key_ref as validate_claims_public_key_ref,
     validate_public_key_representation, verify_subject_private_bundle, PublicKeyRef, Signature,
@@ -72,7 +72,7 @@ pub fn validate_credential_unsigned_envelope(
     }
 
     match (envelope.kind, envelope.qeaa_compliance.as_ref()) {
-        (CredentialKind::Qeaa, Some(qeaa)) => validate_qeaa_compliance(
+        (CredentialKind::Qeaa, Some(qeaa)) => screen_qeaa_metadata(
             qeaa,
             u64::try_from(envelope.valid_from).map_err(|_| {
                 CredentialError::InvalidInput(CredentialInvalidReason::InvalidValidityWindow)

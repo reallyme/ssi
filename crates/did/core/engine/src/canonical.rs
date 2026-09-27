@@ -56,6 +56,10 @@ fn did_core_to_cbor(core: &DidCore) -> Result<CborValue, DidCoreError> {
             Array(core.services.iter().map(service_to_cbor).collect()),
         ),
         (
+            "projectionHash".into(),
+            Bytes(core.projection_hash.to_vec()),
+        ),
+        (
             "updatePolicy".into(),
             update_policy_to_cbor(&core.update_policy)?,
         ),

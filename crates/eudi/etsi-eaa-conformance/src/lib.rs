@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Protocol-neutral ETSI TS 119 472 and EU PID conformance policy over privacy-safe, fail-closed facts.
+//! Protocol-neutral ETSI TS 119 472 and EU PID conformance policy evaluation.
+//!
+//! This crate evaluates caller-supplied capability and conformance facts. It
+//! does not verify JOSE/COSE signatures, certificate paths, mdoc proofs, or
+//! transaction bindings; protocol verifiers must establish those properties
+//! before invoking these policy evaluators.
 mod catalogue;
 mod country;
 mod error;
@@ -28,7 +33,8 @@ pub use eu_status::{
     EuMdocStatusCapabilities, EuMdocStatusTokenFacts, MdocStatusCorrelationKey,
 };
 pub use issuance::{
-    validate_eu_issuance, validate_issuance, CredentialFormatSet, CredentialProofFacts,
+    validate_eu_issuance as evaluate_eu_issuance_conformance,
+    validate_issuance as evaluate_issuance_conformance, CredentialFormatSet, CredentialProofFacts,
     EmbeddedDisclosurePolicy, IssuanceFacts, IssuanceFlow, IssuerMetadataFacts, NotificationEvent,
     NotificationRequest, ReuseMethod, ReuseMethodSet, ReusePolicy, ReusePolicyDecision,
 };
@@ -60,10 +66,13 @@ pub use portrait::{
     PortraitDisclosureRequest,
 };
 pub use presentation::{
-    authorize_eu_presentation, validate_eu_mediating_api, validate_mdoc_presentation,
-    validate_openid4vp_presentation, validate_openid4vp_presentation_for_profile,
-    validate_sd_jwt_presentation, EtsiPart2Profile, EuMediatingApiFacts, FailedRegistrationPolicy,
-    MdocPresentationFacts, OpenId4VpPresentationFacts, OveraskingPolicy, PresentationAuthorization,
+    authorize_eu_presentation, validate_eu_mediating_api as evaluate_eu_mediating_api_conformance,
+    validate_mdoc_presentation as evaluate_mdoc_presentation_conformance,
+    validate_openid4vp_presentation as evaluate_openid4vp_presentation_conformance,
+    validate_openid4vp_presentation_for_profile as evaluate_openid4vp_presentation_conformance_for_profile,
+    validate_sd_jwt_presentation as evaluate_sd_jwt_presentation_conformance, EtsiPart2Profile,
+    EuMediatingApiFacts, FailedRegistrationPolicy, MdocPresentationFacts,
+    OpenId4VpPresentationFacts, OveraskingPolicy, PresentationAuthorization,
     PresentationUserDecision, RegisteredClaim, RelyingPartyRegistrationStatus,
     SdJwtPresentationFacts, SdJwtSerialization,
 };
@@ -84,9 +93,9 @@ pub use standards::{
 };
 pub use validate::validate_attestation;
 pub use wallet_attestation::{
-    validate_wallet_attestation_profile, KeyAttestationIndexPolicy, KeyAttestationProof,
-    PerIssuerIndexReuse, StatusPeriodSelection, WalletAttestationAlgorithm,
-    WalletAttestationProfile, WiaIndexBinding, WiaStatusIndexPolicy,
+    validate_wallet_attestation_profile as evaluate_wallet_attestation_profile,
+    KeyAttestationIndexPolicy, KeyAttestationProof, PerIssuerIndexReuse, StatusPeriodSelection,
+    WalletAttestationAlgorithm, WalletAttestationProfile, WiaIndexBinding, WiaStatusIndexPolicy,
 };
 pub use wallet_core::{
     evaluate_wallet_disclosure_policy, validate_relying_party_pseudonym,

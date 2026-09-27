@@ -53,7 +53,8 @@ fn public_key_meets_minimums(certificate: &crate::X509Certificate, policy: &X509
         PublicKeyProfile::Ec { bits, .. } => policy
             .minimum_ec_bits
             .is_none_or(|minimum| *bits >= minimum),
-        _ => true,
+        PublicKeyProfile::Ed25519 | PublicKeyProfile::Ed448 => true,
+        PublicKeyProfile::Dsa { .. } | PublicKeyProfile::Other { .. } => false,
     }
 }
 
@@ -352,7 +353,9 @@ fn rsa_public_exponent_allowed(exponent: &[u8]) -> bool {
     let Some(first_non_zero) = first_non_zero else {
         return false;
     };
-    let normalized = &exponent[first_non_zero..];
+    let Some(normalized) = exponent.get(first_non_zero..) else {
+        return false;
+    };
     if normalized.len() > 32 || normalized.last().is_none_or(|byte| byte & 1 == 0) {
         return false;
     }

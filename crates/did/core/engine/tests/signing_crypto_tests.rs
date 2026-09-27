@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::panic)]
 #![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
 
 use identity_core_primitives::Algorithm;
 use reallyme_did_core::{
@@ -141,6 +142,7 @@ fn sample_core() -> DidCore {
         assertion: vec![],
         key_agreement: vec![],
         services: vec![],
+        projection_hash: [0_u8; 32],
         update_policy: UpdatePolicy {
             allowed_verification_methods: vec!["#ed25519".into()],
             threshold: None,

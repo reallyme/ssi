@@ -14,6 +14,12 @@ pub const MSO_VERSION: &str = "1.0";
 /// Digest algorithm label used by ISO 18013-5 MobileSecurityObject.
 pub const DIGEST_ALG_SHA256: &str = "SHA-256";
 
+/// SHA-384 digest algorithm label permitted by ISO/IEC 18013-5.
+pub const DIGEST_ALG_SHA384: &str = "SHA-384";
+
+/// SHA-512 digest algorithm label permitted by ISO/IEC 18013-5.
+pub const DIGEST_ALG_SHA512: &str = "SHA-512";
+
 /// CBOR tag number for encoded CBOR data item, used by IssuerSignedItemBytes.
 pub const ENCODED_CBOR_DATA_ITEM_TAG: u64 = 24;
 
@@ -69,6 +75,12 @@ pub const MAX_MDOC_ELEMENT_VALUE_BYTES: usize = 256 * 1024;
 
 /// Maximum combined encoded element values accepted for one issuance.
 pub const MAX_MDOC_TOTAL_ELEMENT_VALUE_BYTES: usize = 1024 * 1024;
+
+/// Maximum UTF-8 length accepted for an mdoc namespace or data-element name.
+pub const MAX_MDOC_IDENTIFIER_BYTES: usize = 255;
+
+/// Maximum canonical CBOR size accepted for the optional MSO `keyInfo` map.
+pub const MAX_MDOC_KEY_INFO_BYTES: usize = 64 * 1024;
 
 /// ISO `IssuerSignedItem` map containing `digestID`, `random`,
 /// `elementIdentifier`, and `elementValue`.
@@ -131,6 +143,10 @@ pub struct ValidityInfo {
 
     /// Exclusive validity end timestamp.
     pub valid_until: u64,
+
+    /// Optional expected time for the next mobile document update.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_update: Option<u64>,
 }
 
 /// Holder device key information.
@@ -139,6 +155,35 @@ pub struct ValidityInfo {
 pub struct DeviceKeyInfo {
     /// CBOR bytes encoding the holder device COSE_Key.
     pub device_key_cose_key_cbor: Vec<u8>,
+    /// Optional issuer-authenticated limits on data the device key may sign.
+    pub key_authorizations: Option<DeviceKeyAuthorizations>,
+    /// Optional implementation-defined device-key information as bounded CBOR.
+    pub key_info_cbor: Option<Vec<u8>>,
+}
+
+/// ISO/IEC 18013-5 device-key authorization limits.
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DeviceKeyAuthorizations {
+    /// Namespaces for which the device key may authenticate every element.
+    pub name_spaces: Vec<String>,
+    /// Individually authorized elements grouped by namespace.
+    pub data_elements: BTreeMap<String, Vec<String>>,
+}
+
+impl Zeroize for DeviceKeyAuthorizations {
+    fn zeroize(&mut self) {
+        self.name_spaces.zeroize();
+        for (mut namespace, mut elements) in std::mem::take(&mut self.data_elements) {
+            namespace.zeroize();
+            elements.zeroize();
+        }
+    }
+}
+
+impl Drop for DeviceKeyAuthorizations {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
 }
 
 /// MobileSecurityObject fields signed by issuerAuth.

@@ -58,7 +58,7 @@ pub use trust_roots::{
     MAX_TSL_TRUST_ROOT_PEM_BUNDLE_BYTES,
 };
 pub use verify::{
-    verify_tsl_xml_openssl, verify_tsl_xml_openssl_with_community_lists,
-    verify_tsl_xml_openssl_with_external_signer, TslSignerAuthorizationEvidence,
-    VerifiedTrustedList,
+    verify_tsl_xml_openssl, verify_tsl_xml_openssl_from_authenticated_pointer,
+    verify_tsl_xml_openssl_with_community_lists, verify_tsl_xml_openssl_with_external_signer,
+    AuthenticatedPointerVerification, TslSignerAuthorizationEvidence, VerifiedTrustedList,
 };

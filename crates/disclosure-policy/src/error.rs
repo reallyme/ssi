@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Fixed policy evaluation errors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum VpPolicyError {
     /// Presentation holder binding was not validated or failed validation.
     #[error("presentation binding invalid")]
@@ -87,10 +88,15 @@ pub enum VpPolicyError {
     /// Policy requires derived satisfaction but no registered circuit can satisfy it.
     #[error("zk derivation unavailable")]
     ZkDerivationUnavailable,
+
+    /// Policy fields form a contradictory or incomplete configuration.
+    #[error("policy configuration invalid")]
+    PolicyMisconfiguration,
 }
 
 /// Policy evaluation decision.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PolicyDecision {
     /// Presentation satisfies policy.
     Accept,
@@ -136,6 +142,9 @@ impl From<VpPolicyError> for IdentityCoreErrorReason {
             VpPolicyError::ProofInvalid => Self::IDENTITY_CORE_ERROR_REASON_INVALID_PROOF,
             VpPolicyError::ZkDerivationUnavailable => {
                 Self::IDENTITY_CORE_ERROR_REASON_ZK_UNSUPPORTED_CIRCUIT
+            }
+            VpPolicyError::PolicyMisconfiguration => {
+                Self::IDENTITY_CORE_ERROR_REASON_PRESENTATION_POLICY_NOT_SATISFIED
             }
         }
     }

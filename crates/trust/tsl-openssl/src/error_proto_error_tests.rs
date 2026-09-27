@@ -240,3 +240,11 @@ fn tlso_profile_failures_map_to_distinct_proto_reasons() {
         assert_eq!(IdentityCoreErrorReason::from(reason), expected);
     }
 }
+
+#[test]
+fn invalid_pointer_parent_has_a_distinct_proto_reason() {
+    assert_eq!(
+        IdentityCoreErrorReason::from(super::TslOpenSslError::InvalidPointerParent),
+        IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_TSL_POINTER_INVALID_PARENT
+    );
+}

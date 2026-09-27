@@ -85,6 +85,25 @@ fn codec_rejects_oversized_inputs_before_decoding() {
 }
 
 #[test]
+fn codec_rejects_trailing_frame_data() {
+    let frame = ContactFrame {
+        version: "1.0".into(),
+        session_id: vec![1u8; 16],
+        message_id: 1,
+        seq: 0,
+        total: 1,
+        chunk: vec![9],
+    };
+    let mut encoded = encode_contact_frame_cbor(&frame).unwrap();
+    encoded.push(0);
+
+    assert!(matches!(
+        decode_contact_frame_cbor(&encoded),
+        Err(ContactDeliveryError::Serialization)
+    ));
+}
+
+#[test]
 fn codec_rejects_models_that_exceed_owned_memory_policy() {
     let message = ContactMessage {
         version: "1.0".into(),

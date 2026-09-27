@@ -39,23 +39,27 @@ pub struct TrustConfig {
 #[derive(Debug, Clone)]
 pub struct TrustDecision {
     /// Typed outcome. Callers must not infer indeterminate as rejection.
-    pub outcome: TrustOutcome,
+    pub(crate) outcome: TrustOutcome,
 
     /// Backward-compatible projection of `outcome == Trusted`.
-    pub accepted: bool,
+    pub(crate) accepted: bool,
 
     /// The validated chain (leaf → root), if accepted
-    pub chain: Option<X509Chain>,
+    pub(crate) chain: Option<X509Chain>,
 
     /// Fixed failure reasons, if rejected.
-    pub failures: Vec<TrustFailureReason>,
+    pub(crate) failures: Vec<TrustFailureReason>,
 
     /// Audit evidence explaining the evaluation context and selected path.
-    pub evidence: TrustEvidence,
+    pub(crate) evidence: TrustEvidence,
 }
+
+#[path = "model/trust_decision.rs"]
+mod trust_decision;
 
 /// Three-state trust result used at security-sensitive authorization boundaries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrustOutcome {
     /// A complete path or explicit direct-trust entry satisfied all requirements.
     Trusted,
@@ -67,6 +71,7 @@ pub enum TrustOutcome {
 
 /// Stable purpose for which trust is being evaluated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrustPurpose {
     /// Generic X.509 validation without a protocol-specific authorization purpose.
     Generic,
@@ -102,18 +107,22 @@ pub enum TrustPurpose {
 
 /// Stable policy identifier retained in a trust receipt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrustPolicyId {
     /// Baseline X.509 policy supplied directly by the caller.
     GenericX509V1,
-    /// EU qualified electronic attestation policy.
+    /// EU qualified electronic attestation policy, combining the fixed PKIX
+    /// baseline with authenticated trusted-list service authorization.
     EuQeaaV1,
     /// EU qualified website authentication policy.
     EuQwacV1,
     /// EU qualified electronic seal policy.
     EuQsealV1,
-    /// EU trusted-list signer policy.
+    /// EU trusted-list signer policy. The default PKIX component is combined
+    /// with the TLSO signer profile enforced by the trusted-list adapter.
     EuTrustedListSignerV1,
-    /// Wallet-attestation issuer policy.
+    /// Wallet-attestation issuer policy using exact, source-scoped direct
+    /// trust and the fixed default PKIX component.
     WalletAttestationIssuerV1,
     /// ETSI TS 119 182-1 JAdES Baseline-B signer policy.
     EtsiJadesBaselineBV1,
@@ -127,7 +136,8 @@ pub enum TrustPolicyId {
     EudiWalletOrKeyStorageStatusV1,
     /// ETSI TS 119 411-8 wallet-relying-party access-certificate policy.
     EtsiTs1194118WrpacV1,
-    /// ETSI TS 119 475 wallet-relying-party registration-certificate policy.
+    /// ETSI TS 119 475 wallet-relying-party registration-certificate policy,
+    /// combining the fixed default PKIX component with WRPRC proof checks.
     EtsiTs119475WrprcV1,
     /// ETSI TS 119 475 registration-certificate status policy.
     EtsiTs119475WrprcStatusV1,
@@ -146,6 +156,7 @@ pub struct TrustSourceEvidence {
 
 /// Whether status must be established for a certificate position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StatusRequirement {
     /// A configured status checker must return good.
     Required,
@@ -282,6 +293,7 @@ impl core::fmt::Debug for DirectTrustEntry {
 
 /// Position of a certificate in an evaluated path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CertificatePosition {
     /// End-entity certificate.
     Leaf,
@@ -293,6 +305,7 @@ pub enum CertificatePosition {
 
 /// Typed status result retained as audit evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CertificateStatus {
     /// Status evidence established that the certificate is good.
     Good,
@@ -314,6 +327,8 @@ pub enum CertificateStatus {
     InvalidSignature,
     /// The advertised status mechanism is unsupported.
     Unsupported,
+    /// Status was optional and no status checker was supplied.
+    NotChecked,
     /// Policy explicitly exempted this certificate position.
     Exempt,
 }
@@ -329,6 +344,7 @@ pub struct CertificateStatusEvidence {
 
 /// Kind of configured trust anchor that terminated evaluation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrustAnchorKind {
     /// A configured CA trust root terminated a certificate path.
     RootCertificate,
@@ -364,6 +380,7 @@ pub struct TrustEvidence {
 
 /// Fixed, non-secret trust failure reasons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrustFailureReason {
     /// No valid path reached a configured trust root.
     NoValidPath,
@@ -417,20 +434,14 @@ pub enum TrustFailureReason {
     PathSearchLimit,
 }
 
-//
-// ------------------------------------------------------------
-// AKI/SKI validation
-// ------------------------------------------------------------
-//
-
 /// Chain linking policy (non-crypto).
 #[derive(Debug, Clone)]
 pub struct ChainLinkPolicy {
     /// Require subject/issuer DN continuity for each hop.
     pub require_dn_continuity: bool,
 
-    /// If true: require AKI present on non-root certs and SKI present on issuers, and require matches.
-    /// If false: if either side missing, skip AKI/SKI check for that hop.
+    /// Whether each non-root certificate must carry an Authority Key Identifier
+    /// matching its issuer's Subject Key Identifier.
     pub require_aki_ski_when_present: bool,
 }
 
@@ -443,14 +454,9 @@ impl Default for ChainLinkPolicy {
     }
 }
 
-//
-// ------------------------------------------------------------
-// Signature verification abstraction
-// ------------------------------------------------------------
-//
-
 /// Signature verification failures produced by a concrete backend.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SignatureVerifyError {
     /// Signature bytes did not verify for the signed certificate data.
     #[error("signature verification failed")]

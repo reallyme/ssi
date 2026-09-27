@@ -19,14 +19,16 @@ use crate::committed::{
     },
     model::{ClaimsCommitment, CredentialEnvelope, SubjectPrivateBundle},
 };
+use reallyme_credential_claims::public_key_bytes;
 
 /// Result of VC verification.
 #[derive(Debug, Clone)]
 pub struct VerifyResult {
+    /// Digest of the canonical signed envelope.
     pub envelope_hash: [u8; 32],
 }
 
-/// Verify a credential envelope and optional subject bundle.
+/// Verifies a credential envelope and optional subject bundle.
 ///
 /// This performs **cryptographic and structural verification only**:
 /// - canonical CBOR bytes are recomputed
@@ -54,6 +56,11 @@ pub fn verify_credential(
     let sig = &envelope.issuer_signature;
 
     if sig.verification_key.alg != issuer_credential_algorithm(issuer_crypto_alg)? {
+        return Err(VcError::InvalidCredential);
+    }
+    let embedded_public_key =
+        public_key_bytes(&sig.verification_key).map_err(|_| VcError::InvalidCredential)?;
+    if embedded_public_key.as_slice() != issuer_public_key {
         return Err(VcError::InvalidCredential);
     }
 
@@ -174,40 +181,6 @@ fn verify_merkle_openings(
             return Err(VcError::InvalidCredential);
         }
     }
-
-    Ok(())
-}
-
-/// Verify Merkle openings only (no signature verification).
-///
-/// This checks:
-/// - envelope hash consistency
-/// - Merkle path correctness
-///
-/// It does NOT:
-/// - verify issuer signature
-/// - check issuer algorithm
-pub fn verify_merkle_only(
-    envelope: &CredentialEnvelope,
-    bundle: &SubjectPrivateBundle,
-) -> Result<(), VcError> {
-    // Canonical CBOR bytes
-    let canonical = canonical_credential_bytes(envelope).map_err(|_| VcError::Canonicalization)?;
-
-    let envelope_hash = sha256(&canonical);
-
-    // Envelope hash must match
-    if bundle.envelope_hash != envelope_hash {
-        return Err(VcError::InvalidCredential);
-    }
-
-    // Issuer signature bytes must match (consistency, not crypto)
-    if bundle.issuer_signature != envelope.issuer_signature {
-        return Err(VcError::InvalidCredential);
-    }
-
-    // Verify Merkle openings
-    verify_merkle_openings(&envelope.claims_commitment, bundle)?;
 
     Ok(())
 }

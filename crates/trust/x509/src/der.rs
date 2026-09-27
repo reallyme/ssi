@@ -10,26 +10,42 @@ use crate::X509Error;
 
 const MAX_DER_INPUT_BYTES: usize = 16 * 1024;
 
+/// Public-key algorithm identified by a DER SubjectPublicKeyInfo value.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum SubjectPublicKeyAlgorithm {
+    /// Ed25519 public key.
     Ed25519,
+    /// X25519 public key.
     X25519,
+    /// NIST P-256 public key.
     P256,
+    /// secp256k1 public key.
     Secp256k1,
+    /// ML-DSA-44 public key.
     MlDsa44,
+    /// ML-DSA-65 public key.
     MlDsa65,
+    /// ML-DSA-87 public key.
     MlDsa87,
+    /// ML-KEM-768 encapsulation key.
     MlKem768,
+    /// ML-KEM-1024 encapsulation key.
     MlKem1024,
+    /// Algorithm outside the supported closed set.
     Unsupported,
 }
 
+/// Bounded projection of a DER SubjectPublicKeyInfo value.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SubjectPublicKeyInfo {
+    /// Algorithm identified by the SubjectPublicKeyInfo parameters.
     pub algorithm: SubjectPublicKeyAlgorithm,
+    /// Encoded subject public key bytes.
     pub public_key: Vec<u8>,
 }
 
+/// Returns whether `value` is exactly one valid DER-encoded X.509 Name.
 #[must_use]
 pub fn validate_x509_name_der(value: &[u8]) -> bool {
     if value.is_empty() || value.len() > MAX_DER_INPUT_BYTES {
@@ -38,11 +54,13 @@ pub fn validate_x509_name_der(value: &[u8]) -> bool {
     x509_parser::x509::X509Name::from_der(value).is_ok_and(|(remaining, _)| remaining.is_empty())
 }
 
+/// Returns whether `value` is exactly one supported DER certificate.
 #[must_use]
 pub fn validate_certificate_der(value: &[u8]) -> bool {
     parse_certificate(value).is_ok()
 }
 
+/// Parses one bounded DER SubjectPublicKeyInfo value.
 pub fn parse_subject_public_key_info_der(value: &[u8]) -> Result<SubjectPublicKeyInfo, X509Error> {
     if value.is_empty() || value.len() > MAX_DER_INPUT_BYTES {
         return Err(X509Error::InvalidDer);
@@ -55,6 +73,7 @@ pub fn parse_subject_public_key_info_der(value: &[u8]) -> Result<SubjectPublicKe
     Ok(project_subject_public_key_info(&value))
 }
 
+/// Extracts and parses the certificate SubjectPublicKeyInfo.
 pub fn certificate_subject_public_key_info(
     value: &[u8],
 ) -> Result<SubjectPublicKeyInfo, X509Error> {

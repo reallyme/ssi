@@ -138,6 +138,32 @@ fn verifiers_enforce_credential_validity_window() {
 }
 
 #[test]
+fn strict_temporal_policy_requires_an_issuer_signed_expiration() {
+    let issuer = issuer();
+    let artifact = signed_artifact(
+        &issuer,
+        &json!({"iss": "https://issuer.example", "iat": NOW}),
+        Vec::new(),
+    );
+    let strict = IetfSdJwtTemporalPolicy {
+        now_unix: NOW,
+        clock_skew_seconds: 60,
+        require_exp: true,
+    };
+
+    assert!(matches!(
+        verify_rfc9901_sd_jwt(&artifact, &issuer.jwk, &issuer.public, &strict, None),
+        Err(IetfSdJwtVcError::InvalidTemporalClaim)
+    ));
+
+    let compact = artifact.to_compact().expect("compact");
+    assert!(matches!(
+        verify_ietf_sd_jwt_vc(&compact, &issuer.jwk, &issuer.public, &strict),
+        Err(IetfSdJwtVcError::InvalidTemporalClaim)
+    ));
+}
+
+#[test]
 fn verifiers_reject_unset_or_unbounded_clock_before_signature_work() {
     let issuer = issuer();
     let unsigned = SdJwtArtifact {
@@ -153,6 +179,7 @@ fn verifiers_reject_unset_or_unbounded_clock_before_signature_work() {
     let unbounded = IetfSdJwtTemporalPolicy {
         now_unix: NOW,
         clock_skew_seconds: MAX_IETF_SD_JWT_CLOCK_SKEW_SECONDS + 1,
+        require_exp: true,
     };
     assert!(matches!(
         verify_ietf_sd_jwt_vc("e30.e30.c2ln~", &issuer.jwk, &issuer.public, &unbounded),
@@ -216,14 +243,14 @@ fn rfc9901_verifier_returns_resolved_payload() {
     )
     .expect("verify");
     assert_eq!(
-        verified.resolved_payload,
+        *verified.resolved_payload(),
         json!({
             "iss": "https://issuer.example",
             "address": {"street": "Main St"},
             "nationalities": ["DE"],
         })
     );
-    assert_eq!(verified.provided_disclosures.len(), 3);
+    assert_eq!(verified.provided_disclosures().len(), 3);
 }
 
 #[test]
@@ -297,6 +324,12 @@ fn verifiers_reject_duplicate_digests_and_kind_mismatches() {
     assert!(matches!(
         verify_error(&issuer, &non_string_alg, NOW),
         IetfSdJwtVcError::InvalidInput
+    ));
+
+    let unsupported_alg = signed_artifact(&issuer, &json!({"_sd_alg": "sha-512"}), Vec::new());
+    assert!(matches!(
+        verify_error(&issuer, &unsupported_alg, NOW),
+        IetfSdJwtVcError::UnsupportedHashAlgorithm
     ));
 
     let (non_string_salt, non_string_salt_digest) =
@@ -403,10 +436,10 @@ fn rfc9901_issuance_keeps_registered_claims_fixed_and_plaintext() {
         None,
     )
     .expect("verify");
-    assert_eq!(verified.payload.get("status"), Some(&status));
-    assert!(verified.payload.get("given_name").is_none());
+    assert_eq!(verified.payload().get("status"), Some(&status));
+    assert!(verified.payload().get("given_name").is_none());
     assert_eq!(
-        verified.resolved_payload.get("given_name"),
+        verified.resolved_payload().get("given_name"),
         Some(&json!("Ada"))
     );
 }

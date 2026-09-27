@@ -2,7 +2,7 @@
   {
     "id": "OAUTH-PKCE-MUST-001",
     "source": "RFC7636",
-    "section": "4.2 Client Creates the Code Challenge",
+    "section": "4.1 Client Creates a Code Verifier and 4.2 Client Creates the Code Challenge",
     "keyword": "MUST",
     "feature": "pkce_s256_challenge_generation",
     "implementation": ["crates/oauth/src/pkce.rs"],
@@ -18,7 +18,7 @@
     "keyword": "MUST NOT",
     "feature": "par_request_uri_rejection",
     "implementation": ["reallyme_openid_oauth::ParRequest::validate"],
-    "positive_tests": ["metadata_accepts_par_dpop_and_s256"],
+    "positive_tests": ["par_accepts_valid_authorization_code_request"],
     "negative_tests": ["par_rejects_request_uri_parameter"],
     "applicable": true,
     "exclusion_reason": null
@@ -58,7 +58,7 @@
       "dpop_generation_and_validation_enforces_replay_hook",
       "dpop_validation_accepts_matching_access_token_jkt_binding"
     ],
-    "negative_tests": ["dpop_validation_rejects_mismatched_access_token_jkt_binding"],
+    "negative_tests": ["dpop_validation_rejects_mismatched_access_token_jkt_binding", "dpop_validation_rejects_wrong_http_method", "dpop_validation_rejects_wrong_target_uri", "dpop_validation_enforces_inclusive_issued_at_boundaries", "dpop_validation_rejects_wrong_nonce", "dpop_validation_rejects_wrong_or_missing_access_token_hash"],
     "applicable": true,
     "exclusion_reason": null
   },
@@ -89,7 +89,7 @@
     "feature": "attestation_client_authentication_with_cnf_jwk_bound_pop_validation",
     "implementation": ["crates/oauth/src/attestation_client_auth.rs", "crates/oauth/src/attestation_trust_receipt.rs", "crates/oauth/src/attestation_trust_receipt/freshness.rs", "crates/oauth/src/bind_attested_client_key.rs", "crates/oauth/src/jwt.rs", "crates/oauth/src/strict_json.rs"],
     "positive_tests": ["attestation_client_auth_headers_are_draft_names", "attestation_client_authentication_validation_enforces_replay_hook"],
-    "negative_tests": ["attestation_client_authentication_rejects_pop_signed_by_different_key", "attestation_client_authentication_rejects_pop_algorithm_key_family_mismatch", "attestation_client_authentication_rejects_receipt_for_a_different_jwt", "attestation_client_authentication_rejects_missing_or_non_public_cnf_jwk", "attestation_client_authentication_rejects_noncurrent_trust_receipts", "attestation_trust_receipt_rejects_inconsistent_path_evidence", "attestation_trust_receipt_rejects_stale_and_future_evidence", "compact_jwt_decode_rejects_duplicate_json_members_at_every_depth", "compact_jwt_decode_rejects_noncanonical_base64url", "proof_headers_reject_unprocessed_jose_parameters", "attestation_client_authentication_rejects_wrong_challenge"],
+    "negative_tests": ["attestation_client_authentication_rejects_pop_signed_by_different_key", "attestation_client_authentication_rejects_pop_algorithm_key_family_mismatch", "attestation_client_authentication_rejects_receipt_for_a_different_jwt", "attestation_client_authentication_rejects_missing_or_non_public_cnf_jwk", "attestation_client_authentication_rejects_noncurrent_trust_receipts", "attestation_trust_receipt_preserves_rejected_and_indeterminate_outcomes", "attestation_trust_receipt_rejects_stale_and_future_evidence", "compact_jwt_decode_rejects_duplicate_json_members_at_every_depth", "compact_jwt_decode_rejects_noncanonical_base64url", "proof_headers_reject_unprocessed_jose_parameters", "attestation_client_authentication_rejects_wrong_challenge", "attestation_client_authentication_rejects_client_id_mismatch"],
     "applicable": true,
     "exclusion_reason": null
   }

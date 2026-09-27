@@ -63,6 +63,23 @@ fn https_urls_reject_userinfo() {
 }
 
 #[test]
+fn issuer_identifiers_reject_local_literal_and_localhost_aliases() {
+    for rejected in [
+        "https://127.0.0.1",
+        "https://[::1]",
+        "https://localhost./",
+        "https://localhost../",
+        "https://[::ffff:0:127.0.0.1]",
+    ] {
+        assert_eq!(
+            reason(validate_issuer_identifier(rejected)),
+            Some(Reason::InvalidUrl),
+            "{rejected}"
+        );
+    }
+}
+
+#[test]
 fn pkce_challenge_requires_canonical_s256_encoding() -> Result<(), OauthError> {
     let verifier = PkceVerifier::new(SecretString::from(
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~",

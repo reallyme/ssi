@@ -60,7 +60,14 @@ fn language_tag_has_valid_shape(value: &str) -> bool {
     }
     let mut index = 0_usize;
     if subtags.first() == Some(&"x") {
-        return subtags.len() > 1 && subtags[1..].iter().all(|subtag| valid_alphanumeric(subtag, 1, 8));
+        return subtags
+            .get(1..)
+            .is_some_and(|private_use| {
+                !private_use.is_empty()
+                    && private_use
+                        .iter()
+                        .all(|subtag| valid_alphanumeric(subtag, 1, 8))
+            });
     }
     let Some(primary) = subtags.first() else {
         return false;
@@ -68,7 +75,9 @@ fn language_tag_has_valid_shape(value: &str) -> bool {
     if !(2..=8).contains(&primary.len()) || !primary.bytes().all(|byte| byte.is_ascii_lowercase()) {
         return false;
     }
-    index += 1;
+    if !advance_index(&mut index) {
+        return false;
+    }
 
     let mut extlang_count = 0_usize;
     while primary.len() <= 3
@@ -77,19 +86,22 @@ fn language_tag_has_valid_shape(value: &str) -> bool {
             subtag.len() == 3 && subtag.bytes().all(|byte| byte.is_ascii_lowercase())
         })
     {
-        index += 1;
-        extlang_count += 1;
+        if !advance_index(&mut index) || !advance_index(&mut extlang_count) {
+            return false;
+        }
     }
     if subtags.get(index).is_some_and(|subtag| {
         subtag.len() == 4 && subtag.bytes().all(|byte| byte.is_ascii_lowercase())
-    }) {
-        index += 1;
+    }) && !advance_index(&mut index)
+    {
+        return false;
     }
     if subtags.get(index).is_some_and(|subtag| {
         (subtag.len() == 2 && subtag.bytes().all(|byte| byte.is_ascii_lowercase()))
             || (subtag.len() == 3 && subtag.bytes().all(|byte| byte.is_ascii_digit()))
-    }) {
-        index += 1;
+    }) && !advance_index(&mut index)
+    {
+        return false;
     }
     while subtags.get(index).is_some_and(|subtag| {
         valid_alphanumeric(subtag, 5, 8)
@@ -97,39 +109,57 @@ fn language_tag_has_valid_shape(value: &str) -> bool {
                 && subtag.as_bytes().first().is_some_and(u8::is_ascii_digit)
                 && subtag.bytes().all(|byte| byte.is_ascii_alphanumeric()))
     }) {
-        index += 1;
+        if !advance_index(&mut index) {
+            return false;
+        }
     }
     while subtags.get(index).is_some_and(|subtag| {
         subtag.len() == 1
             && subtag != &"x"
             && subtag.bytes().all(|byte| byte.is_ascii_alphanumeric())
     }) {
-        index += 1;
+        if !advance_index(&mut index) {
+            return false;
+        }
         let extension_start = index;
         while subtags
             .get(index)
             .is_some_and(|subtag| valid_alphanumeric(subtag, 2, 8))
         {
-            index += 1;
+            if !advance_index(&mut index) {
+                return false;
+            }
         }
         if index == extension_start {
             return false;
         }
     }
     if subtags.get(index) == Some(&"x") {
-        index += 1;
+        if !advance_index(&mut index) {
+            return false;
+        }
         let private_use_start = index;
         while subtags
             .get(index)
             .is_some_and(|subtag| valid_alphanumeric(subtag, 1, 8))
         {
-            index += 1;
+            if !advance_index(&mut index) {
+                return false;
+            }
         }
         if index == private_use_start {
             return false;
         }
     }
     index == subtags.len()
+}
+
+fn advance_index(index: &mut usize) -> bool {
+    let Some(next) = index.checked_add(1) else {
+        return false;
+    };
+    *index = next;
+    true
 }
 
 fn valid_alphanumeric(value: &str, minimum: usize, maximum: usize) -> bool {

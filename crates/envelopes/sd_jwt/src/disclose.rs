@@ -18,13 +18,20 @@ pub(crate) const SD_CLAIM_NAME: &str = "_sd";
 pub(crate) const ARRAY_DIGEST_CLAIM_NAME: &str = "...";
 const SD_ALG_CLAIM_NAME: &str = "_sd_alg";
 
+/// Claim shape encoded by an RFC 9901 disclosure.
 #[derive(PartialEq)]
+#[non_exhaustive]
 pub enum DisclosureKind {
+    /// Disclosure of a named object property.
     ObjectProperty {
+        /// Object member name revealed by this disclosure.
         claim_name: String,
+        /// JSON value revealed by this disclosure.
         claim_value: Value,
     },
+    /// Disclosure of one array element.
     ArrayElement {
+        /// JSON value revealed by this disclosure.
         claim_value: Value,
     },
 }
@@ -58,6 +65,7 @@ impl Drop for DisclosureKind {
 
 impl ZeroizeOnDrop for DisclosureKind {}
 
+/// Validated disclosure together with its exact encoded form and decoded claim.
 #[derive(PartialEq)]
 pub struct Disclosure {
     encoded: String,
@@ -88,14 +96,17 @@ impl Drop for Disclosure {
 impl ZeroizeOnDrop for Disclosure {}
 
 impl Disclosure {
+    /// Encoded after validating all caller-supplied inputs.
     pub fn encoded(&self) -> &str {
         &self.encoded
     }
 
+    /// Returns the disclosure salt after successful decoding.
     pub fn salt(&self) -> &str {
         &self.salt
     }
 
+    /// Returns the decoded object-property or array-element claim.
     pub fn kind(&self) -> &DisclosureKind {
         &self.kind
     }
@@ -110,6 +121,7 @@ impl Disclosure {
     }
 }
 
+/// Creates an RFC 9901 disclosure for an object property.
 pub fn create_object_property_disclosure(
     salt: &str,
     claim_name: &str,
@@ -141,6 +153,7 @@ pub fn create_object_property_disclosure(
     })
 }
 
+/// Creates an RFC 9901 disclosure for an array element.
 pub fn create_array_element_disclosure(
     salt: &str,
     claim_value: Value,
@@ -165,6 +178,7 @@ pub fn create_array_element_disclosure(
     })
 }
 
+/// Decode disclosure while rejecting malformed, ambiguous, or oversized input.
 pub fn decode_disclosure(encoded: &str) -> Result<Disclosure, SdJwtEnvelopeError> {
     if encoded.is_empty() || encoded.len() > MAX_SD_JWT_DISCLOSURE_BYTES || !encoded.is_ascii() {
         return Err(SdJwtEnvelopeError::InvalidDisclosureEncoding);
@@ -187,6 +201,7 @@ pub fn decode_disclosure(encoded: &str) -> Result<Disclosure, SdJwtEnvelopeError
     }
 }
 
+/// Computes the selected hash over an encoded disclosure for `_sd` comparison.
 pub fn digest_disclosure(
     encoded: &str,
     algorithm: SdJwtHashAlgorithm,

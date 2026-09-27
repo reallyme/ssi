@@ -381,7 +381,7 @@ fn validate_claim_set(claims: &[RegisteredClaim<'_>]) -> Result<()> {
                     && value.trim() == value
                     && !value.chars().any(char::is_control)
             });
-        if !identifiers_valid || claims[..index].contains(claim) {
+        if !identifiers_valid || claims.iter().take(index).any(|prior| prior == claim) {
             return Err(ConformanceError::RelyingPartyOverasking);
         }
     }

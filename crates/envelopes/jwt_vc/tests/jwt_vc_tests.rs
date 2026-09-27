@@ -17,6 +17,8 @@ use reallyme_crypto::jwk::{ed25519_public_key_to_jwk, Jwk, JwkOptions};
 use reallyme_jose::jwt::{encode_signed_jwt_with_header_options, JwtHeaderEncodeOptions};
 use serde::Serialize;
 
+const CANONICAL_CREDENTIAL_CBOR: &[u8] = &[0xA1, 0x61, b'a', 0x01];
+
 struct TestKey {
     public: Vec<u8>,
     private: Vec<u8>,
@@ -47,7 +49,7 @@ fn issue_input<'a>(key: &'a TestKey) -> JwtVcIssueInput<'a> {
     JwtVcIssueInput {
         issuer: "did:me:issuer",
         subject: "did:me:subject",
-        credential_cbor: b"canonical-credential-envelope-cbor",
+        credential_cbor: CANONICAL_CREDENTIAL_CBOR,
         credential_proto: Some(b"credential-proto-bytes"),
         not_before_unix: Some(1_700_000_000),
         expires_at_unix: Some(1_800_000_000),
@@ -65,7 +67,20 @@ fn valid_payload() -> JwtVcPayload {
         exp: Some(1_800_000_000),
         iat: None,
         jti: Some("credential-1".to_owned()),
-        credential_cbor: bytes_to_base64url(b"canonical-credential-envelope-cbor"),
+        credential_cbor: bytes_to_base64url(CANONICAL_CREDENTIAL_CBOR),
+        credential_proto: None,
+    }
+}
+
+fn payload_with_credential_bytes(bytes: &[u8]) -> JwtVcPayload {
+    JwtVcPayload {
+        iss: "did:me:issuer".to_owned(),
+        sub: "did:me:subject".to_owned(),
+        nbf: Some(1_700_000_000),
+        exp: Some(1_800_000_000),
+        iat: None,
+        jti: Some("credential-1".to_owned()),
+        credential_cbor: bytes_to_base64url(bytes),
         credential_proto: None,
     }
 }
@@ -101,15 +116,12 @@ fn jwt_vc_issues_and_verifies_canonical_and_proto_bytes() {
     let verified =
         verify_jwt_vc(&jwt, &key.jwk, &key.public, &options()).expect("JWT-VC must verify");
 
-    assert_eq!(verified.payload.iss, "did:me:issuer");
-    assert_eq!(verified.payload.sub, "did:me:subject");
-    assert_eq!(verified.payload.jti.as_deref(), Some("credential-1"));
+    assert_eq!(verified.payload().iss, "did:me:issuer");
+    assert_eq!(verified.payload().sub, "did:me:subject");
+    assert_eq!(verified.payload().jti.as_deref(), Some("credential-1"));
+    assert_eq!(verified.credential_cbor(), CANONICAL_CREDENTIAL_CBOR);
     assert_eq!(
-        verified.credential_cbor,
-        b"canonical-credential-envelope-cbor"
-    );
-    assert_eq!(
-        verified.credential_proto.as_deref(),
+        verified.credential_proto(),
         Some(b"credential-proto-bytes".as_slice())
     );
 }
@@ -123,6 +135,36 @@ fn jwt_vc_rejects_empty_canonical_credential_bytes() {
     let err = issue_jwt_vc(&input).expect_err("empty credential bytes must fail");
 
     assert_eq!(err, JwtVcEnvelopeError::InvalidInput);
+}
+
+#[test]
+fn jwt_vc_rejects_malformed_noncanonical_duplicate_and_trailing_credential_cbor() {
+    let malformed = [0xff];
+    let noncanonical_integer = [0xa1, 0x18, 0x01, 0x01];
+    let duplicate_map_key = [0xa2, 0x61, b'a', 0x01, 0x61, b'a', 0x02];
+    let trailing_data = [0xa1, 0x61, b'a', 0x01, 0x00];
+
+    for credential in [
+        malformed.as_slice(),
+        noncanonical_integer.as_slice(),
+        duplicate_map_key.as_slice(),
+        trailing_data.as_slice(),
+    ] {
+        let error = validate_jwt_vc_claims(&payload_with_credential_bytes(credential))
+            .expect_err("invalid canonical credential CBOR must fail");
+        assert_eq!(error, JwtVcEnvelopeError::InvalidCredentialCbor);
+    }
+}
+
+#[test]
+fn jwt_vc_rejects_oversized_credential_before_base64url_decoding() {
+    let mut payload = valid_payload();
+    payload.credential_cbor = "A".repeat(1_398_105);
+
+    let error = validate_jwt_vc_claims(&payload)
+        .expect_err("encoded credential over the decoded-byte limit must fail");
+
+    assert_eq!(error, JwtVcEnvelopeError::ResourceLimit);
 }
 
 #[test]
@@ -161,7 +203,7 @@ fn jwt_vc_rejects_invalid_temporal_window() {
         exp: Some(10),
         iat: None,
         jti: None,
-        credential_cbor: bytes_to_base64url(b"canonical-cbor"),
+        credential_cbor: bytes_to_base64url(CANONICAL_CREDENTIAL_CBOR),
         credential_proto: None,
     };
 
@@ -190,10 +232,7 @@ fn jwt_vc_accepts_legacy_jwt_typ_for_a_valid_profile_payload() {
     let verified = verify_jwt_vc(&jwt, &key.jwk, &key.public, &options())
         .expect("legacy JWT typ must remain compatible for a valid JWT-VC payload");
 
-    assert_eq!(
-        verified.credential_cbor,
-        b"canonical-credential-envelope-cbor"
-    );
+    assert_eq!(verified.credential_cbor(), CANONICAL_CREDENTIAL_CBOR);
 }
 
 #[test]
@@ -296,10 +335,8 @@ fn jwt_vc_accepts_not_before_within_clock_skew() {
 #[test]
 fn jwt_vc_rejects_future_issued_at() {
     let key = gen_ed25519();
-    let payload = JwtVcPayload {
-        iat: Some(1_750_000_000 + 61),
-        ..valid_payload()
-    };
+    let mut payload = valid_payload();
+    payload.iat = Some(1_750_000_000 + 61);
     let jwt = sign_with_typ(&payload, &key, Some("vc+jwt"));
 
     let error = verify_jwt_vc(&jwt, &key.jwk, &key.public, &options())
@@ -311,21 +348,14 @@ fn jwt_vc_rejects_future_issued_at() {
 #[test]
 fn jwt_vc_rejects_negative_numeric_dates() {
     let key = gen_ed25519();
-    let cases = [
-        JwtVcPayload {
-            nbf: Some(-1),
-            ..valid_payload()
-        },
-        JwtVcPayload {
-            nbf: None,
-            exp: Some(-1),
-            ..valid_payload()
-        },
-        JwtVcPayload {
-            iat: Some(-1),
-            ..valid_payload()
-        },
-    ];
+    let mut negative_nbf = valid_payload();
+    negative_nbf.nbf = Some(-1);
+    let mut negative_exp = valid_payload();
+    negative_exp.nbf = None;
+    negative_exp.exp = Some(-1);
+    let mut negative_iat = valid_payload();
+    negative_iat.iat = Some(-1);
+    let cases = [negative_nbf, negative_exp, negative_iat];
 
     for payload in cases {
         let jwt = sign_with_typ(&payload, &key, Some("vc+jwt"));
@@ -350,7 +380,7 @@ fn jwt_vc_rejects_non_integer_expiry() {
         iss: "did:me:issuer",
         sub: "did:me:subject",
         exp: 1_800_000_000.5,
-        vc_cbor: bytes_to_base64url(b"canonical-credential-envelope-cbor"),
+        vc_cbor: bytes_to_base64url(CANONICAL_CREDENTIAL_CBOR),
     };
     let jwt = sign_with_typ(&payload, &key, Some("vc+jwt"));
 

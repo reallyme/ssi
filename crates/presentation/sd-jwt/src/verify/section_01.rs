@@ -31,6 +31,10 @@ const MAX_KB_JWT_AGE_SECONDS: u64 = 86_400;
 const SD_HASH_BYTES: usize = 32;
 // Upper bound for the KB-JWT `nonce` claim before hashing.
 const MAX_KB_JWT_NONCE_BYTES: usize = 1_024;
+/// Maximum compact KB-JWT length accepted before any segment is decoded.
+pub const MAX_KB_JWT_BYTES: usize = 64 * 1_024;
+/// Maximum encoded protected-header length accepted before base64url decoding.
+pub const MAX_KB_JWT_HEADER_ENCODED_BYTES: usize = 8 * 1_024;
 
 /// Expected binding constraints for the legacy ReallyMe Merkle envelope.
 #[derive(Debug, Clone, Copy)]
@@ -45,15 +49,6 @@ pub struct ExpectedKbJwtBinding<'a> {
     pub max_iat_age_seconds: u64,
     /// Maximum accepted future skew for the KB-JWT `iat` claim.
     pub max_future_iat_skew_seconds: u64,
-}
-
-/// Verified disclosure output (verifier-facing)
-#[derive(Debug, Clone)]
-pub struct VerifiedDisclosure {
-    /// Canonical claim path disclosed by the holder.
-    pub claim_path: String,
-    /// JCS-encoded disclosed claim value.
-    pub value_jcs: Vec<u8>,
 }
 
 /// Verify an SD-JWT VC presentation against a VC envelope.
@@ -212,6 +207,25 @@ fn verify_sd_jwt_vp_inner(
             return Err(SdJwtVpError::InvalidDisclosure);
         }
 
+        let expected_disclosure_set_hash = crate::build::canonical_disclosure_set_hash(
+            &vp.disclosures,
+        )?;
+        let disclosed_set_hash = kb_payload
+            .get("disclosure_set_hash")
+            .and_then(|value| value.as_str())
+            .ok_or(SdJwtVpError::DisclosureSetMismatch)
+            .and_then(|value| {
+                base64url_to_bytes(value).map_err(|_| SdJwtVpError::DisclosureSetMismatch)
+            })?;
+        if disclosed_set_hash.len() != SD_HASH_BYTES
+            || !constant_time_equal(
+                disclosed_set_hash.as_slice(),
+                expected_disclosure_set_hash.as_bytes(),
+            )
+        {
+            return Err(SdJwtVpError::DisclosureSetMismatch);
+        }
+
         validate_kb_jwt_claims(&kb_payload, expected)?;
     } else if expected_binding.is_some() {
         return Err(SdJwtVpError::MissingKeyBinding);
@@ -249,6 +263,7 @@ fn validate_envelope_holder_key(
         HolderBinding::ClaimsBased(_) | HolderBinding::BearerWithoutBinding => {
             return Err(SdJwtVpError::MissingKeyBinding);
         }
+        _ => return Err(SdJwtVpError::MissingKeyBinding),
     };
 
     // RFC 9901 §§4.1.2 and 7.3: a valid signature from an arbitrary key is
@@ -295,13 +310,20 @@ fn envelope_issuer_crypto_algorithm(
 // -----------------------------------------------------------------------------
 
 fn jwk_for_public_key_for_jwt_alg(jwt: &str, public_key: &[u8]) -> Result<Jwk, SdJwtVpError> {
+    if jwt.len() > MAX_KB_JWT_BYTES {
+        return Err(SdJwtVpError::ResourceLimit);
+    }
+
     // Decode header.alg without trusting the JWT (signature still verified by strict JWT verifier).
-    let mut it = jwt.splitn(3, '.');
+    let mut it = jwt.split('.');
     let h = it.next().ok_or(SdJwtVpError::Crypto)?;
     let p = it.next().ok_or(SdJwtVpError::Crypto)?;
     let s = it.next().ok_or(SdJwtVpError::Crypto)?;
-    if h.is_empty() || p.is_empty() || s.is_empty() {
+    if h.is_empty() || p.is_empty() || s.is_empty() || it.next().is_some() {
         return Err(SdJwtVpError::Crypto);
+    }
+    if h.len() > MAX_KB_JWT_HEADER_ENCODED_BYTES {
+        return Err(SdJwtVpError::ResourceLimit);
     }
     let header_bytes = base64url_to_bytes(h).map_err(|_| SdJwtVpError::Crypto)?;
 

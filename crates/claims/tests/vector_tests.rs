@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::unwrap_used)]
+#![allow(missing_docs, clippy::indexing_slicing, clippy::unwrap_used)]
 //! Test coverage for this crate.
 
 use std::collections::BTreeMap;
@@ -26,12 +26,11 @@ use reallyme_ssi_proto::generated::proto::identity::presentation::v1::{
 };
 use serde_json::Value;
 
-const CLAIMS_NORMALIZATION_VECTORS: &str =
-    include_str!("../../../vectors/claims/normalization.json");
+const CLAIMS_NORMALIZATION_VECTORS: &str = include_str!("fixtures/normalization.json");
 const CLAIMS_PREDEFINED_CREDENTIAL_VECTORS: &str =
-    include_str!("../../../vectors/claims/predefined-credentials.json");
-const CLAIMS_CATALOG_SOURCES: &str = include_str!("../../../vectors/claims/catalog-sources.json");
-const CLAIMS_VECTOR_MANIFEST: &str = include_str!("../../../vectors/manifest.json");
+    include_str!("fixtures/predefined-credentials.json");
+const CLAIMS_CATALOG_SOURCES: &str = include_str!("fixtures/catalog-sources.json");
+const CLAIMS_VECTOR_MANIFEST: &str = include_str!("fixtures/vector-manifest.json");
 const CLAIMS_NAMESPACE: &str = "org.iso.18013.5.1";
 const APPROVED_CLAIMS_VECTOR_SOURCES: &[&str] = &[
     "ReallyMe claim normalization model",
@@ -297,6 +296,7 @@ fn path_from_segments(segments: &[String]) -> String {
     out
 }
 
+#[allow(clippy::panic)]
 fn json_value_for_definition(definition: &ClaimDefinition, value: &Value) -> ClaimValue {
     match definition.claim_type {
         ClaimType::String => ClaimValue::String(value.as_str().unwrap().to_owned()),
@@ -324,6 +324,7 @@ fn json_value_for_definition(definition: &ClaimDefinition, value: &Value) -> Cla
         ClaimType::Object | ClaimType::Array | ClaimType::Unspecified => {
             ClaimValue::from_json(value).unwrap()
         }
+        _ => panic!("unexpected future claim type"),
     }
 }
 
@@ -376,12 +377,18 @@ fn generated_private_bundle_from_vector(payload: &Value) -> credential_pb::Subje
             .enumerate()
             .map(|(index, claim)| credential_pb::ClaimOpening {
                 claim_path: claim["path"].as_str().unwrap().to_owned(),
+                salt: Vec::new(),
                 value: serde_json::to_vec(&claim["value"]).unwrap(),
                 index: u32::try_from(index).unwrap(),
-                ..credential_pb::ClaimOpening::default()
+                merkle_path: Vec::new(),
+                __buffa_unknown_fields: Default::default(),
             })
             .collect(),
-        ..credential_pb::SubjectPrivateBundle::default()
+        holder_key: Default::default(),
+        envelope_hash: Vec::new(),
+        issuer_signature: Default::default(),
+        tree: Default::default(),
+        __buffa_unknown_fields: Default::default(),
     };
     let encoded = bundle.encode_to_vec();
     credential_pb::SubjectPrivateBundle::decode(&mut encoded.as_slice()).unwrap()

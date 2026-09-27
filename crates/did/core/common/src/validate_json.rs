@@ -17,6 +17,7 @@ const MAX_NODES: usize = 16_384;
 
 /// Stable reason for rejecting a JSON boundary input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum JsonBoundaryErrorReason {
     /// Invalid JSON, duplicate decoded member names, or excessive nesting/work.
     InvalidDocument,
@@ -25,6 +26,7 @@ pub enum JsonBoundaryErrorReason {
 /// Sanitized JSON boundary error; parser diagnostics never leave this module.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 #[error("invalid bounded JSON document")]
+#[non_exhaustive]
 pub struct JsonBoundaryError {
     /// Domain-specific failure reason.
     pub reason: JsonBoundaryErrorReason,

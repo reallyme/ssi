@@ -17,9 +17,7 @@ use std::collections::BTreeMap;
 use crypto_core::Algorithm;
 use crypto_dispatch::generate_keypair;
 
-use identity_credential_vc_api::{
-    validate_credential, verify_credential_merkle_root, verify_credential_signature,
-};
+use identity_credential_vc_api::{validate_credential, verify_credential_signature};
 
 use reallyme_credential::committed::{
     issue::{issue_credential, IssueInput, OsSaltRng},
@@ -30,14 +28,14 @@ use reallyme_credential::committed::{
     },
 };
 
-fn base_input() -> IssueInput {
+fn base_input(issuer_public_key: &[u8]) -> IssueInput {
     IssueInput {
         kind: CredentialKind::Pid,
         profile_id: "claims-v1".into(),
         assurance: AssuranceLevel::Substantial,
 
         issuer_reference: PartyReference::Did("did:test:issuer".into()),
-        issuer_verification_key: ed25519_key("did:test:issuer#key-1", vec![7; 32]),
+        issuer_verification_key: ed25519_key("did:test:issuer#key-1", issuer_public_key.to_vec()),
         issuer_country: "EU".into(),
 
         valid_from: 1_700_000_000,
@@ -98,7 +96,7 @@ fn api_validates_full_credential() {
     let mut rng = OsSaltRng;
 
     let issued = issue_credential(
-        base_input(),
+        base_input(&pk),
         &base_claims(),
         Algorithm::Ed25519,
         &sk,
@@ -121,7 +119,7 @@ fn api_verifies_signature_only() {
     let mut rng = OsSaltRng;
 
     let issued = issue_credential(
-        base_input(),
+        base_input(&pk),
         &base_claims(),
         Algorithm::Ed25519,
         &sk,
@@ -134,12 +132,12 @@ fn api_verifies_signature_only() {
 }
 
 #[test]
-fn api_verifies_merkle_only() {
-    let (_pk, sk) = generate_keypair(Algorithm::Ed25519).unwrap();
+fn api_verifies_signature_and_merkle_openings_together() {
+    let (pk, sk) = generate_keypair(Algorithm::Ed25519).unwrap();
     let mut rng = OsSaltRng;
 
     let issued = issue_credential(
-        base_input(),
+        base_input(&pk),
         &base_claims(),
         Algorithm::Ed25519,
         &sk,
@@ -147,9 +145,13 @@ fn api_verifies_merkle_only() {
     )
     .unwrap();
 
-    // Merkle verification ignores issuer signature
-    verify_credential_merkle_root(&issued.envelope, &issued.subject_bundle)
-        .expect("merkle verification should succeed");
+    validate_credential(
+        &issued.envelope,
+        Algorithm::Ed25519,
+        &pk,
+        Some(&issued.subject_bundle),
+    )
+    .expect("signature and Merkle verification should succeed together");
 }
 
 #[test]
@@ -158,7 +160,7 @@ fn api_signature_only_succeeds_without_bundle() {
     let mut rng = OsSaltRng;
 
     let issued = issue_credential(
-        base_input(),
+        base_input(&pk),
         &base_claims(),
         Algorithm::Ed25519,
         &sk,

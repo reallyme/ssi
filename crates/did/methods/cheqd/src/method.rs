@@ -11,6 +11,8 @@ const UUID_HYPHEN_POSITIONS: [usize; 4] = [8, 13, 18, 23];
 const INDY_ID_MIN_LEN: usize = 21;
 const INDY_ID_MAX_LEN: usize = 22;
 const DEFAULT_NAMESPACE: &str = "mainnet";
+const INDY_IDENTIFIER_BYTES: usize = 16;
+const BASE58_ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 /// cheqd unique identifier family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,6 +118,36 @@ pub fn generate_did_cheqd(
     Ok(did)
 }
 
+/// Canonicalize UUID hex to lowercase while preserving case-sensitive Indy identifiers.
+pub fn canonicalize_did_cheqd(did: &str) -> Result<String, DidCheqdError> {
+    let method_specific = did
+        .strip_prefix(DID_CHEQD_PREFIX)
+        .ok_or(DidCheqdError::new(DidCheqdErrorReason::InvalidPrefix))?;
+    if method_specific.is_empty() {
+        return Err(DidCheqdError::new(DidCheqdErrorReason::EmptyIdentifier));
+    }
+    let parts: Vec<&str> = method_specific.split(':').collect();
+    let (namespace, unique_id) = match parts.as_slice() {
+        [unique_id] => (None, *unique_id),
+        [namespace, unique_id] => {
+            if namespace.is_empty() || !namespace.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+                return Err(DidCheqdError::new(DidCheqdErrorReason::InvalidNamespace));
+            }
+            (Some(*namespace), *unique_id)
+        }
+        _ => return Err(DidCheqdError::new(DidCheqdErrorReason::UnexpectedSegment)),
+    };
+    let canonical_namespace = namespace
+        .map(str::to_ascii_lowercase)
+        .filter(|value| value != DEFAULT_NAMESPACE);
+    let canonical_unique_id = if is_uuid_with_any_hex_case(unique_id) {
+        unique_id.to_ascii_lowercase()
+    } else {
+        unique_id.to_owned()
+    };
+    generate_did_cheqd(canonical_namespace.as_deref(), &canonical_unique_id)
+}
+
 /// Return the effective namespace for a did:cheqd identifier.
 pub fn effective_namespace(did: &str) -> Result<&str, DidCheqdError> {
     let parsed = parse_did_cheqd(did)?;
@@ -160,7 +192,10 @@ pub fn is_valid_did_cheqd(did: &str) -> bool {
 }
 
 fn validate_namespace(namespace: &str) -> Result<(), DidCheqdError> {
-    if namespace.is_empty() || !namespace.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+    if namespace.is_empty()
+        || !namespace.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        || namespace.bytes().any(|byte| byte.is_ascii_uppercase())
+    {
         return Err(DidCheqdError::new(DidCheqdErrorReason::InvalidNamespace));
     }
     Ok(())
@@ -195,8 +230,8 @@ fn is_uuid(value: &str) -> bool {
             }
             continue;
         }
-        // Canonical lowercase only: mixed-case UUIDs name the same DID and
-        // would otherwise be accepted as distinct aliases.
+        // UUID hex is canonical lowercase so case variants cannot identify the
+        // same ledger object with distinct DID strings.
         if !(byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
             return false;
         }
@@ -204,11 +239,62 @@ fn is_uuid(value: &str) -> bool {
     true
 }
 
+fn is_uuid_with_any_hex_case(value: &str) -> bool {
+    if value.len() != UUID_LEN {
+        return false;
+    }
+    value.bytes().enumerate().all(|(index, byte)| {
+        if UUID_HYPHEN_POSITIONS.contains(&index) {
+            byte == b'-'
+        } else {
+            byte.is_ascii_hexdigit()
+        }
+    })
+}
+
 fn is_indy_style_id(value: &str) -> bool {
     if value.len() < INDY_ID_MIN_LEN || value.len() > INDY_ID_MAX_LEN {
         return false;
     }
-    value.bytes().all(|byte| byte.is_ascii_alphanumeric())
+    base58_decode(value).is_some_and(|decoded| decoded.len() == INDY_IDENTIFIER_BYTES)
+}
+
+fn base58_decode(input: &str) -> Option<Vec<u8>> {
+    if input.is_empty() {
+        return None;
+    }
+    let mut bytes = vec![0u8];
+    for character in input.bytes() {
+        let mut carry = u32::from(base58_value(character)?);
+        for byte in &mut bytes {
+            let value = u32::from(*byte).checked_mul(58)?.checked_add(carry)?;
+            *byte = u8::try_from(value & 0xff).ok()?;
+            carry = value >> 8;
+        }
+        while carry > 0 {
+            bytes.push(u8::try_from(carry & 0xff).ok()?);
+            carry >>= 8;
+        }
+    }
+
+    while bytes.last() == Some(&0) {
+        bytes.pop();
+    }
+    for character in input.bytes() {
+        if character != b'1' {
+            break;
+        }
+        bytes.push(0);
+    }
+    bytes.reverse();
+    Some(bytes)
+}
+
+fn base58_value(byte: u8) -> Option<u8> {
+    let index = BASE58_ALPHABET
+        .iter()
+        .position(|candidate| *candidate == byte)?;
+    u8::try_from(index).ok()
 }
 
 #[cfg(test)]

@@ -17,6 +17,7 @@ use crate::validation::validate_token;
 
 /// PKCE code challenge method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CodeChallengeMethod {
     /// S256 code challenge method.
     #[serde(rename = "S256")]

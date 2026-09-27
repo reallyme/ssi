@@ -68,6 +68,7 @@ fn policy_issue() -> DidValidationIssue {
 /// explicit and auditable.
 pub fn validate_attestation_policy(
     update_policy: &UpdatePolicy,
+    verification_methods: &[VerificationMethod],
     attestations: &[Attestation],
 ) -> AttestationPolicyValidationResult {
     let mut errors = Vec::new();
@@ -105,11 +106,35 @@ pub fn validate_attestation_policy(
         .map(String::as_str)
         .collect();
     let mut satisfied: HashSet<&str> = HashSet::new();
+    let mut satisfied_keys: HashSet<(&'static str, Vec<u8>)> = HashSet::new();
 
     for (index, att) in attestations.iter().enumerate() {
         if allowed.contains(att.vm.as_str()) {
             // A signer may attest at most once; repeated entries never count twice.
             if !satisfied.insert(att.vm.as_str()) {
+                errors.push(indexed_issue(
+                    DidValidationCode::AttestationPolicyNotSatisfied,
+                    index,
+                ));
+            }
+            let Some(method) = verification_methods
+                .iter()
+                .find(|method| method.id == att.vm)
+            else {
+                errors.push(attestation_issue(index));
+                continue;
+            };
+            // Thresholds count independent authorities, not aliases. Compare
+            // the decoded multicodec identity and public-key bytes so alternate
+            // textual encodings cannot make one key satisfy two policy slots.
+            let parsed_key = match parse_multikey(&method.public_key_multibase) {
+                Ok(parsed) => (parsed.codec_name, parsed.public_key),
+                Err(_) => {
+                    errors.push(attestation_issue(index));
+                    continue;
+                }
+            };
+            if !satisfied_keys.insert(parsed_key) {
                 errors.push(indexed_issue(
                     DidValidationCode::AttestationPolicyNotSatisfied,
                     index,
@@ -123,7 +148,7 @@ pub fn validate_attestation_policy(
         }
     }
 
-    if threshold_usize > 0 && satisfied.len() < threshold_usize {
+    if threshold_usize > 0 && satisfied_keys.len() < threshold_usize {
         errors.push(policy_issue());
     }
 

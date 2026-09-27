@@ -312,7 +312,13 @@ fn validate_status_period_selection(
     }
 
     for (position, candidate) in selection.available_expires_at.iter().enumerate() {
-        if *candidate <= now || selection.available_expires_at[..position].contains(candidate) {
+        if *candidate <= now
+            || selection
+                .available_expires_at
+                .iter()
+                .take(position)
+                .any(|prior| prior == candidate)
+        {
             return Err(ConformanceError::InvalidWalletAttestationProfile);
         }
     }

@@ -6,6 +6,7 @@ use crate::algorithm::Algorithm;
 
 /// The cryptographic role of a key
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum KeyRole {
     /// Key is used to produce signatures.
     Signing,

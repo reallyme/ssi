@@ -7,15 +7,23 @@ use crate::{model::QcStatements, X509Error};
 use asn1_rs::{Any, FromDer, Sequence};
 use oid_registry::Oid;
 
+/// X.509 extension identifier for ETSI QCStatements.
 pub const OID_QC_STATEMENTS_EXT: &str = "1.3.6.1.5.5.7.1.3";
+/// ETSI qualified-certificate compliance statement identifier.
 pub const OID_ETSI_QCS_QC_COMPLIANCE: &str = "0.4.0.1862.1.1";
+/// ETSI qualified-signature or seal creation-device statement identifier.
 pub const OID_ETSI_QCS_QC_SSCD: &str = "0.4.0.1862.1.4";
+/// ETSI qualified-certificate type statement identifier.
 pub const OID_ETSI_QCS_QC_TYPE: &str = "0.4.0.1862.1.6";
 
+/// ETSI electronic-signature qualified-certificate type identifier.
 pub const OID_ETSI_QCT_ESIGN: &str = "0.4.0.1862.1.6.1";
+/// ETSI electronic-seal qualified-certificate type identifier.
 pub const OID_ETSI_QCT_ESEAL: &str = "0.4.0.1862.1.6.2";
+/// ETSI website-authentication qualified-certificate type identifier.
 pub const OID_ETSI_QCT_WEB: &str = "0.4.0.1862.1.6.3";
 
+/// Parses one bounded DER-encoded ETSI QCStatements extension.
 pub fn parse_qc_statements(der: &[u8]) -> Result<QcStatements, X509Error> {
     // qcStatements ::= SEQUENCE { QCStatement, QCStatement, ... }
     let (outer_remaining, outer) = Sequence::from_der(der).map_err(|_| X509Error::ParseError)?;

@@ -333,10 +333,9 @@ fn validate_reuse_policy(policy: ReusePolicy<'_>, decision: ReusePolicyDecision)
         } => {
             let details_valid = !details.is_empty()
                 && details.len() <= 4
-                && details
-                    .iter()
-                    .enumerate()
-                    .all(|(position, method)| !details[..position].contains(method));
+                && details.iter().enumerate().all(|(position, method)| {
+                    !details.iter().take(position).any(|prior| prior == method)
+                });
             let once_only = details.contains(&ReuseMethod::OnceOnly);
             let limited_time = details.contains(&ReuseMethod::LimitedTime);
             let rotating_batch = details.contains(&ReuseMethod::RotatingBatch);

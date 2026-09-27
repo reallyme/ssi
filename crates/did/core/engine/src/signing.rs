@@ -12,6 +12,7 @@ use identity_core_primitives::Algorithm as IdentityAlgorithm;
 use reallyme_codec::base64url::bytes_to_base64url;
 use reallyme_crypto::core::Algorithm as CryptoAlgorithm;
 use reallyme_crypto::dispatch::sign;
+use std::collections::HashSet;
 use zeroize::Zeroizing;
 
 /// Map an identity-level algorithm to the crypto algorithm used for core attestations.
@@ -31,6 +32,7 @@ pub(crate) fn attestation_crypto_algorithm(alg: IdentityAlgorithm) -> Option<Cry
         IdentityAlgorithm::X25519 => None,
         IdentityAlgorithm::MlKem768 => None,
         IdentityAlgorithm::MlKem1024 => None,
+        _ => None,
     }
 }
 
@@ -82,42 +84,48 @@ pub fn sign_core_with_policy(
 
     // Every allowed reference must name a controller key with an attestation
     // algorithm; otherwise the policy could never be verified.
+    let mut allowed_key_material = HashSet::new();
+    let mut selected_keys = Vec::new();
+    selected_keys
+        .try_reserve_exact(allowed.len())
+        .map_err(|_| DidCoreError::InternalInvariant)?;
     for id in allowed {
-        match controller_keys.iter().find(|vm| &vm.id == id) {
-            Some(vm) if attestation_crypto_algorithm(vm.algorithm).is_some() => {}
-            _ => return Err(DidCoreError::PolicyViolation),
+        let mut matching_keys = controller_keys.iter().filter(|vm| &vm.id == id);
+        let vm = matching_keys.next().ok_or(DidCoreError::PolicyViolation)?;
+        if matching_keys.next().is_some()
+            || attestation_crypto_algorithm(vm.algorithm).is_none()
+            || !allowed_key_material.insert(vm.public_key_multibase.as_str())
+        {
+            return Err(DidCoreError::PolicyViolation);
         }
+        selected_keys.push(vm);
     }
+    selected_keys.sort_by(|left, right| left.id.cmp(&right.id));
 
     let bytes = core.canonical_cbor()?;
     let signing_input = core_signature_input(&bytes)?;
     let mut out = Vec::new();
 
-    for vm in controller_keys {
-        // 1. Must be allowed by update policy
-        if !allowed.contains(&vm.id) {
-            continue;
-        }
-
-        // 2. Identity algorithm is already typed
+    for vm in selected_keys {
+        // 1. Identity algorithm is already typed and was admitted above.
         let identity_alg = vm.algorithm;
 
-        // 3. Map to crypto algorithm (rejected above for allowed keys)
+        // 2. Map to crypto algorithm (rejected above for allowed keys)
         let crypto_alg = match attestation_crypto_algorithm(identity_alg) {
             Some(a) => a,
             None => return Err(DidCoreError::PolicyViolation),
         };
 
-        // 4. Lookup private key; the engine-owned copy is cleared on drop.
+        // 3. Lookup private key; the engine-owned copy is cleared on drop.
         let Some(secret) = key_lookup(&vm.id).map(Zeroizing::new) else {
             continue;
         };
 
-        // 5. Sign canonical core
+        // 4. Sign canonical core
         let sig = sign(crypto_alg, &secret, &signing_input)
             .map_err(|_| DidCoreError::InternalInvariant)?;
 
-        // 6. Emit attestation
+        // 5. Emit attestation in canonical verification-method order.
         out.push(CoreAttestation {
             algorithm: alg_to_did_alg_str(identity_alg).to_string(),
             verification_method: vm.id.clone(),

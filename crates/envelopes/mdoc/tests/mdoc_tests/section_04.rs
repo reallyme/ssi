@@ -24,7 +24,7 @@ fn issuer_signed_transport_decodes_and_verifies_through_canonical_path() {
     .unwrap();
 
     assert!(decoded == issued);
-    assert_eq!(verified.doc_type, "org.iso.18013.5.1.mDL");
+    assert_eq!(verified.doc_type(), "org.iso.18013.5.1.mDL");
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn issuer_signed_transport_rejects_duplicate_top_level_and_namespace_members() {
         )
         .err(),
         Some(MdocEnvelopeError::InvalidInput(
-            MdocInvalidInputReason::MalformedIssuerSignedDocument
+            MdocInvalidInputReason::DuplicateCborMapKey
         ))
     );
 
@@ -105,7 +105,7 @@ fn issuer_signed_transport_rejects_duplicate_top_level_and_namespace_members() {
         )
         .err(),
         Some(MdocEnvelopeError::InvalidInput(
-            MdocInvalidInputReason::MalformedIssuerSignedDocument
+            MdocInvalidInputReason::DuplicateCborMapKey
         ))
     );
 }

@@ -98,8 +98,7 @@ pub fn validate_domain_bindings(
     (errors.is_empty(), errors)
 }
 
-/// Convenience facade:
-/// validateDidDomain(doc, env)
+/// Validates every domain binding in a DID document.
 pub fn validate_did_domain(
     doc: &DIDDocument,
     env: &DomainVerificationEnv<'_>,
