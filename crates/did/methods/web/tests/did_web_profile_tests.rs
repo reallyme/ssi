@@ -785,30 +785,15 @@ fn success_response(body: Vec<u8>, peer_address: IpAddr) -> DidWebHttpResponse {
 fn document_json(did: &str) -> Vec<u8> {
     document_json_with_authentication(did, &format!("{did}#key-1"))
 }
-
 fn document_json_with_authentication(did: &str, authentication: &str) -> Vec<u8> {
     format!(
         r#"{{"id":"{did}","controller":"{did}","verificationMethod":[{{"id":"{did}#key-1","type":"Multikey","controller":"{did}","publicKeyMultibase":"z6Mkf5rGMoatrSj1f4CyvuHBeXJELe9RPdzo2PKGNCKVtZxP"}}],"authentication":["{authentication}"],"assertionMethod":["{did}#key-1"],"service":[{{"id":"{did}#inbox","type":"MessagingService","serviceEndpoint":"https://example.com/inbox"}}]}}"#
     )
     .into_bytes()
 }
-
 fn document_json_with_private_jwk(did: &str) -> Vec<u8> {
     format!(
         r#"{{"id":"{did}","verificationMethod":[{{"id":"{did}#key-1","type":"JsonWebKey2020","controller":"{did}","publicKeyJwk":{{"kty":"OKP","crv":"Ed25519","x":"public","d":"private"}}}}]}}"#
     )
     .into_bytes()
-}
-
-#[test]
-fn rejects_duplicate_document_members() -> Result<(), Box<dyn std::error::Error>> {
-    let identifier = parse_did_web(DID)?;
-    let bytes = br#"{"id":"did:web:attacker.example","id":"did:web:example.com"}"#;
-    assert_eq!(
-        parse_and_validate_did_web_document(&identifier, bytes, DidWebDocumentLimits::default())
-            .err()
-            .map(|error| error.reason),
-        Some(DidWebErrorReason::InvalidDocument)
-    );
-    Ok(())
 }

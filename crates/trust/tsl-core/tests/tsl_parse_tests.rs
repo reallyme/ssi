@@ -125,18 +125,40 @@ fn retains_multiple_official_provider_registration_identifiers() {
 }
 
 #[test]
-fn rejects_a_repeated_current_public_key_for_the_same_service_type_and_scope() {
+fn marks_a_repeated_current_public_key_indeterminate() {
     let certificate = certificate_base64();
     let service = format!(
         r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/CA/QC</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceInformation></TSPService>"#
     );
     let xml = document(&provider(&format!("{service}{service}")));
+    let parsed = parse_tsl_xml(&xml).unwrap();
+    let services = parsed.services().collect::<Vec<_>>();
+    assert_eq!(services.len(), 1);
+    assert_eq!(services[0].status, TrustServiceStatus::Indeterminate);
+}
 
+#[test]
+fn duplicate_provider_name_merge_stops_at_the_fixed_limit() {
+    let certificate = certificate_base64();
+    let service = format!(
+        r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/EAA/Q</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Service</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceInformation></TSPService>"#
+    );
+    let wrapper = provider(&service);
+    let template = wrapper
+        .strip_prefix("<TrustServiceProviderList>")
+        .and_then(|value| value.strip_suffix("</TrustServiceProviderList>"))
+        .unwrap();
+    let mut providers = String::from("<TrustServiceProviderList>");
+    for index in 0..65 {
+        providers.push_str(&template.replace(
+            "<Name xml:lang=\"en\">Provider</Name>",
+            &format!("<Name xml:lang=\"en\">Provider {index}</Name>"),
+        ));
+    }
+    providers.push_str("</TrustServiceProviderList>");
     assert_eq!(
-        parse_tsl_xml(&xml).unwrap_err(),
-        TslError::DigitalIdentity(
-            identity_trust_tsl_core::TslDigitalIdentityFailure::DuplicateServiceKey
-        )
+        parse_tsl_xml(&document(&providers)).unwrap_err(),
+        TslError::ResourceLimit(TslResourceLimit::XmlElements)
     );
 }
 
@@ -322,7 +344,7 @@ fn conflicting_history_rows_at_one_starting_time_become_a_barrier() {
 }
 
 #[test]
-fn duplicate_current_service_key_is_rejected_across_service_rows() {
+fn duplicate_current_service_key_isolated_as_indeterminate() {
     let certificate = certificate_base64();
     let qualification = r#"<ServiceInformationExtensions><Extension Critical="true"><q:Qualifications xmlns:q="http://uri.etsi.org/TrstSvc/SvcInfoExt/eSigDir-1999-93-EC-TrustedList/#"><q:QualificationElement><q:Qualifiers><q:Qualifier uri="http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/QCWithQSCD"/></q:Qualifiers><q:CriteriaList assert="all"><q:KeyUsage><q:KeyUsageBit name="digitalSignature">true</q:KeyUsageBit></q:KeyUsage></q:CriteriaList></q:QualificationElement></q:Qualifications></Extension></ServiceInformationExtensions>"#;
     let service = |start: &str, extensions: &str, supply: &str| {
@@ -337,13 +359,34 @@ fn duplicate_current_service_key_is_rejected_across_service_rows() {
     );
     let newer = service("2025-01-01T00:00:00Z", "", "");
     for body in [format!("{older}{newer}"), format!("{newer}{older}")] {
-        assert_eq!(
-            parse_tsl_xml(&document(&provider(&body))).unwrap_err(),
-            TslError::DigitalIdentity(
-                identity_trust_tsl_core::TslDigitalIdentityFailure::DuplicateServiceKey
-            )
-        );
+        let parsed = parse_tsl_xml(&document(&provider(&body))).unwrap();
+        let services = parsed.services().collect::<Vec<_>>();
+        assert_eq!(services.len(), 1);
+        assert_eq!(services[0].status, TrustServiceStatus::Indeterminate);
+        assert!(services[0].history.is_empty());
     }
+}
+
+#[test]
+fn out_of_order_history_marks_only_its_service_indeterminate() {
+    let certificate = certificate_base64();
+    let malformed = format!(
+        r#"<TSPService><ServiceInformation><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/EAA/Q</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Malformed history</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509Certificate>{certificate}</X509Certificate></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-01-01T00:00:00Z</StatusStartingTime></ServiceInformation><ServiceHistory><ServiceHistoryInstance><ServiceTypeIdentifier>http://uri.etsi.org/TrstSvc/Svctype/EAA/Q</ServiceTypeIdentifier><ServiceName><Name xml:lang="en">Future history</Name></ServiceName><ServiceDigitalIdentity><DigitalId><X509SKI>PxWGGXCj+NKIUPe/FVOiS18mojA=</X509SKI></DigitalId></ServiceDigitalIdentity><ServiceStatus>http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted</ServiceStatus><StatusStartingTime>2025-02-01T00:00:00Z</StatusStartingTime></ServiceHistoryInstance></ServiceHistory></TSPService>"#
+    );
+    let unrelated = malformed
+        .replace("Malformed history", "Unrelated service")
+        .replace("Future history", "Older history")
+        .replace("2025-02-01T00:00:00Z", "2024-01-01T00:00:00Z")
+        .replace(
+            "http://uri.etsi.org/TrstSvc/Svctype/EAA/Q",
+            "https://example.test/unrelated",
+        );
+    let parsed = parse_tsl_xml(&document(&provider(&format!("{malformed}{unrelated}")))).unwrap();
+    let services = parsed.services().collect::<Vec<_>>();
+
+    assert_eq!(services.len(), 2);
+    assert_eq!(services[0].status, TrustServiceStatus::Indeterminate);
+    assert_eq!(services[1].status, TrustServiceStatus::Granted);
 }
 
 #[test]

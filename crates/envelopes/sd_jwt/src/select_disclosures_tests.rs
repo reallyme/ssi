@@ -8,7 +8,8 @@ use serde_json::json;
 
 use crate::{
     create_array_element_disclosure, create_object_property_disclosure, digest_disclosure,
-    select_sd_jwt_disclosures, SdJwtClaimPathComponent, SdJwtHashAlgorithm, SdJwtProcessingPolicy,
+    select_sd_jwt_disclosures, SdJwtClaimPathComponent, SdJwtEnvelopeError, SdJwtHashAlgorithm,
+    SdJwtProcessingPolicy,
 };
 
 #[test]
@@ -136,6 +137,52 @@ fn array_indices_ignore_decoy_placeholders() {
 }
 
 #[test]
+fn array_indices_ignore_multiple_decoys_at_every_position() {
+    let first = create_array_element_disclosure("MDEyMzQ1Njc4OWFiY2RlZg", json!("US"));
+    let second = create_array_element_disclosure("MDEyMzQ1Njc4OWFiY2RlZg", json!("CA"));
+    assert!(first.is_ok());
+    assert!(second.is_ok());
+    if let (Ok(first), Ok(second)) = (first, second) {
+        let first_digest = digest_disclosure(first.encoded(), SdJwtHashAlgorithm::Sha256);
+        let second_digest = digest_disclosure(second.encoded(), SdJwtHashAlgorithm::Sha256);
+        assert!(first_digest.is_ok());
+        assert!(second_digest.is_ok());
+        if let (Ok(first_digest), Ok(second_digest)) = (first_digest, second_digest) {
+            let disclosures = vec![first.encoded().to_owned(), second.encoded().to_owned()];
+            for decoy_count in 1..=3 {
+                for insertion_position in 0..=2 {
+                    let mut placeholders = vec![
+                        json!({"...": first_digest.clone()}),
+                        json!({"...": second_digest.clone()}),
+                    ];
+                    for decoy_index in 0..decoy_count {
+                        placeholders.insert(
+                            insertion_position,
+                            json!({"...": format!("decoy-{insertion_position}-{decoy_index}")}),
+                        );
+                    }
+                    for resolved_index in 0..=1 {
+                        let selected = select_sd_jwt_disclosures(
+                            &json!({"nationalities": placeholders.clone()}),
+                            &disclosures,
+                            &[vec![
+                                SdJwtClaimPathComponent::Name("nationalities".to_owned()),
+                                SdJwtClaimPathComponent::Index(resolved_index),
+                            ]],
+                            SdJwtProcessingPolicy::default(),
+                        );
+                        assert!(selected.is_ok());
+                        if let Ok(selected) = selected {
+                            assert_eq!(selected.as_slice(), &[disclosures[resolved_index].clone()]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn rejects_unmatched_disclosures_and_empty_paths() {
     let disclosure =
         create_object_property_disclosure("MDEyMzQ1Njc4OWFiY2RlZg", "given_name", json!("Ada"));
@@ -152,5 +199,37 @@ fn rejects_unmatched_disclosures_and_empty_paths() {
         let empty_path =
             select_sd_jwt_disclosures(&json!({}), &[], &[vec![]], SdJwtProcessingPolicy::default());
         assert!(empty_path.is_err());
+    }
+}
+
+#[test]
+fn rejects_requested_path_absent_from_reconstructed_claims() {
+    let result = select_sd_jwt_disclosures(
+        &json!({"given_name": "Ada"}),
+        &[],
+        &[vec![SdJwtClaimPathComponent::Name(
+            "family_name".to_owned(),
+        )]],
+        SdJwtProcessingPolicy::default(),
+    );
+
+    assert!(matches!(
+        result,
+        Err(SdJwtEnvelopeError::RequestedPathNotFound)
+    ));
+}
+
+#[test]
+fn cleartext_requested_path_remains_a_valid_empty_selection() {
+    let result = select_sd_jwt_disclosures(
+        &json!({"given_name": "Ada"}),
+        &[],
+        &[vec![SdJwtClaimPathComponent::Name("given_name".to_owned())]],
+        SdJwtProcessingPolicy::default(),
+    );
+
+    assert!(result.is_ok());
+    if let Ok(selected) = result {
+        assert!(selected.is_empty());
     }
 }

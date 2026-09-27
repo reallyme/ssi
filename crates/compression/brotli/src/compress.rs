@@ -20,6 +20,8 @@ use crate::BrotliError;
 const BROTLI_BUFFER_SIZE: usize = 4096;
 const BROTLI_QUALITY_BEST: i32 = 11;
 const BROTLI_LG_WINDOW_DEFAULT: i32 = 22;
+const BROTLI_LG_WINDOW_MINIMUM: i32 = 16;
+const BROTLI_MINIMUM_WINDOW_BYTES: usize = 1 << BROTLI_LG_WINDOW_MINIMUM;
 
 #[derive(Default)]
 struct ClearingBrotliAllocator {
@@ -98,7 +100,7 @@ pub fn brotli_compress(data: &[u8]) -> Result<Zeroizing<Vec<u8>>, BrotliError> {
     let mut input = Cursor::new(data);
     let params = BrotliEncoderParams {
         quality: BROTLI_QUALITY_BEST,
-        lgwin: BROTLI_LG_WINDOW_DEFAULT,
+        lgwin: encoder_window_bits(data.len())?,
         large_window: false,
         size_hint: data.len(),
         ..BrotliEncoderParams::default()
@@ -114,4 +116,18 @@ pub fn brotli_compress(data: &[u8]) -> Result<Zeroizing<Vec<u8>>, BrotliError> {
     )
     .map_err(|_| BrotliError::CompressionFailed)?;
     Ok(out)
+}
+
+fn encoder_window_bits(input_len: usize) -> Result<i32, BrotliError> {
+    let mut window_bits = BROTLI_LG_WINDOW_MINIMUM;
+    let mut window_bytes = BROTLI_MINIMUM_WINDOW_BYTES;
+    while window_bytes < input_len && window_bits < BROTLI_LG_WINDOW_DEFAULT {
+        window_bytes = window_bytes
+            .checked_mul(2)
+            .ok_or(BrotliError::CompressionFailed)?;
+        window_bits = window_bits
+            .checked_add(1)
+            .ok_or(BrotliError::CompressionFailed)?;
+    }
+    Ok(window_bits)
 }

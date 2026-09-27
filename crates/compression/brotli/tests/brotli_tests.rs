@@ -114,3 +114,15 @@ fn decompression_rejects_non_standard_large_window_stream() {
         Err(BrotliError::DecompressionFailed)
     );
 }
+
+#[test]
+fn decompression_rejects_rfc_window_larger_than_output_bound() {
+    // WBITS=24 followed by a valid one-byte metablock. Validating WBITS before
+    // constructing the decoder prevents the 16 MiB ring-buffer allocation.
+    let hostile = [0x0f, 0x00, 0x80, 0x41, 0x00, 0x00, 0x08, 0x42, 0x03];
+
+    assert_eq!(
+        brotli_decompress_with_limit(&hostile, 64),
+        Err(BrotliError::WindowTooLarge)
+    );
+}

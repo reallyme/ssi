@@ -121,8 +121,8 @@ const fn registration_identifier_kind_tag(kind: TspRegistrationIdentifierKind) -
 fn coalesce_duplicate_current_services(
     services: Vec<TrustService>,
 ) -> Result<Vec<TrustService>, TslError> {
-    let mut output = Vec::new();
-    let mut service_indices = BTreeMap::new();
+    let mut output: Vec<TrustService> = Vec::new();
+    let mut service_indices: BTreeMap<_, usize> = BTreeMap::new();
     for service in services {
         let identity_key = match &service.digital_identity {
             ServiceDigitalIdentity::Pki(identity) => {
@@ -161,14 +161,15 @@ fn coalesce_duplicate_current_services(
         )?;
         let key = (service.service_type.clone(), identity_key, purpose_scope_key);
         match service_indices.entry(key) {
-            std::collections::btree_map::Entry::Occupied(_) => {
-                // Multiple entries for the same key and purpose scope are
-                // ambiguous and historically caused repeated history sorting.
-                // Distinct ASi scopes remain distinct because they are part of the
-                // key above, as required by TS 119 615.
-                return Err(TslError::DigitalIdentity(
-                    TslDigitalIdentityFailure::DuplicateServiceKey,
-                ));
+            std::collections::btree_map::Entry::Occupied(entry) => {
+                let existing = output
+                    .get_mut(*entry.get())
+                    .ok_or(TslError::ResourceLimit(TslResourceLimit::Services))?;
+                // An ambiguous row must fail closed for its service key, not
+                // make every unrelated provider in the authenticated list
+                // unusable. Distinct ASi scopes remain separate keys.
+                existing.status = TrustServiceStatus::Indeterminate;
+                existing.history.clear();
             }
             std::collections::btree_map::Entry::Vacant(entry) => {
                 entry.insert(output.len());

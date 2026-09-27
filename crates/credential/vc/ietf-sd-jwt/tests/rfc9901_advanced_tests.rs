@@ -299,6 +299,57 @@ fn top_level_vs_all_levels_vs_json_paths_strategy() {
 }
 
 #[test]
+fn top_level_strategy_discloses_dotted_and_uri_claim_names() {
+    let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).expect("keygen");
+    let issuer_jwk = issuer_jwk_from_public_key(&issuer_pub);
+    let claims = json!({
+        "email.verified": true,
+        "https://example.com/claims/ssn": "123-45-6789",
+    });
+    let mut input = Rfc9901IssueInput::new("https://example.com/issuer", claims.clone());
+    input.strategy = SelectiveDisclosureStrategy::TopLevel;
+
+    let artifact = issue_rfc9901_sd_jwt(&input, &issuer_jwk, &issuer_priv).expect("issue");
+    let payload = decode_payload(&artifact.issuer_signed_jwt);
+    assert!(payload.get("email.verified").is_none());
+    assert!(payload.get("https://example.com/claims/ssn").is_none());
+
+    let verified = verify_rfc9901_sd_jwt(
+        &artifact,
+        &issuer_jwk,
+        &issuer_pub,
+        &VERIFY_TEMPORAL_POLICY,
+        None,
+    )
+    .expect("verify");
+    assert_eq!(
+        verified.resolved_payload().get("email.verified"),
+        claims.get("email.verified")
+    );
+    assert_eq!(
+        verified
+            .resolved_payload()
+            .get("https://example.com/claims/ssn"),
+        claims.get("https://example.com/claims/ssn")
+    );
+}
+
+#[test]
+fn json_paths_strategy_rejects_unmatched_path() {
+    let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).expect("keygen");
+    let issuer_jwk = issuer_jwk_from_public_key(&issuer_pub);
+    let mut input =
+        Rfc9901IssueInput::new("https://example.com/issuer", json!({"given_name": "Ada"}));
+    input.strategy = SelectiveDisclosureStrategy::JsonPaths;
+    input.custom_json_paths = vec!["$.family_name".to_owned()];
+
+    assert!(matches!(
+        issue_rfc9901_sd_jwt(&input, &issuer_jwk, &issuer_priv),
+        Err(IetfSdJwtVcError::DisclosurePathNotFound)
+    ));
+}
+
+#[test]
 fn decoy_digests_are_added_and_do_not_break_verification() {
     let (issuer_pub, issuer_priv) = generate_keypair(Algorithm::Ed25519).expect("keygen");
     let issuer_jwk = issuer_jwk_from_public_key(&issuer_pub);

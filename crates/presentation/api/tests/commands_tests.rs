@@ -523,6 +523,51 @@ fn verify_presentation_requested_optional_failure_is_mandatory() {
 }
 
 #[test]
+fn verify_presentation_denies_every_supplied_optional_negative_fact() {
+    let cases = [
+        PresentationCheckName::IssuerTrust,
+        PresentationCheckName::WalletTrust,
+        PresentationCheckName::AgeOverAttestation,
+    ];
+
+    for failed_name in cases {
+        let mut failed = facts();
+        let expected_code = match failed_name {
+            PresentationCheckName::IssuerTrust => {
+                failed.issuer_trust_ok = Some(false);
+                PresentationCheckCode::InvalidTrust
+            }
+            PresentationCheckName::WalletTrust => {
+                failed.wallet_trust_ok = Some(false);
+                PresentationCheckCode::InvalidTrust
+            }
+            PresentationCheckName::AgeOverAttestation => {
+                failed.age_over_attestation_ok = Some(false);
+                PresentationCheckCode::InvalidDisclosure
+            }
+            _ => PresentationCheckCode::InvalidDisclosure,
+        };
+        let result = verify_presentation(verify_request_with(
+            expected_binding(),
+            failed,
+            vec![PresentationCheckName::Signature],
+        ));
+
+        assert!(!result.valid);
+        assert_eq!(result.decision, PresentationDecision::Deny);
+        assert!(result.presentation_checks.iter().any(|check| {
+            check.name == failed_name
+                && check.outcome == PresentationCheckOutcome::Fail
+                && check.mandatory
+        }));
+        assert!(result
+            .errors
+            .iter()
+            .any(|issue| issue.code == expected_code));
+    }
+}
+
+#[test]
 fn verify_presentation_expected_state_requires_observed_comparison() {
     let expected = || {
         let mut expected = expected_binding();

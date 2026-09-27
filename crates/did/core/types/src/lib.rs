@@ -8,29 +8,14 @@
 //! exchange DID documents as JSON, even when ReallyMe also supports protobuf transport.
 
 mod model;
+mod parse;
 
 pub use model::{
     Attestation, Controller, DIDDocument, DNSBinding, DataIntegrityProof, DomainVerification,
     Service, UpdatePolicy, VerificationMethod, WellKnownBinding,
 };
-
-/// Parse an untrusted did:me document through the bounded, duplicate-rejecting
-/// JSON boundary before constructing the typed model.
-pub fn parse_did_document_json(
-    bytes: &[u8],
-) -> Result<DIDDocument, identity_core_primitives::validate_json::JsonBoundaryError> {
-    identity_core_primitives::validate_json::validate_json(bytes)?;
-    serde_json::from_slice(bytes)
-        .map_err(|_| identity_core_primitives::validate_json::JsonBoundaryError::invalid_document())
-}
+pub use parse::parse_did_document_json;
 
 #[cfg(test)]
-mod json_boundary_tests {
-    use super::parse_did_document_json;
-
-    #[test]
-    fn did_document_json_rejects_duplicate_members_and_oversized_input() {
-        assert!(parse_did_document_json(br#"{"id":"did:me:a","id":"did:me:b"}"#).is_err());
-        assert!(parse_did_document_json(&vec![b' '; 1_048_577]).is_err());
-    }
-}
+#[path = "json_boundary_tests.rs"]
+mod json_boundary_tests;

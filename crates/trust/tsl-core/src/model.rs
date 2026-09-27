@@ -277,9 +277,14 @@ pub enum TrustServiceType {
     Other(TslUri),
 }
 
-/// Known ETSI service status or a bounded future URI.
+/// Known ETSI service status, a bounded future URI, or a fail-closed projected state.
 #[derive(Debug, Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub enum TrustServiceStatus {
+    /// Authenticated rows for this service key are structurally ambiguous.
+    ///
+    /// This state is synthesized during projection and never parsed from a
+    /// status URI. Policy must treat it as non-authorizing and indeterminate.
+    Indeterminate,
     /// Service is granted.
     Granted,
     /// Service is expired.

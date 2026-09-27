@@ -1,23 +1,22 @@
 // SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use envelopes_x509::{
-    CertificatePolicyId, QcStatementId, X509Certificate, X509Chain, TSL_KEY_IDENTIFIER_BYTES,
-};
+use envelopes_x509::{X509Certificate, X509Chain, TSL_KEY_IDENTIFIER_BYTES};
 use time::OffsetDateTime;
 
 use crate::{AuthorizationPurpose, TrustApiError, TrustedListPolicyErrorReason};
 use identity_trust_tsl_core::{
-    AdditionalServiceInformation, AdditionalServiceInformationKind, ServiceDigitalIdentity,
-    ServiceQualification, ServiceQualifierKind, TrustService, TrustServiceHistoryEntry,
-    TrustServiceStatus, TrustServiceType, TrustedList, TslError, TslTimestamp,
+    AdditionalServiceInformation, ServiceDigitalIdentity, ServiceQualification, TrustService,
+    TrustServiceHistoryEntry, TrustServiceStatus, TrustServiceType, TrustedList, TslError,
+    TslTimestamp,
 };
 use reallyme_trust_core::{
     CertificatePosition as CoreCertificatePosition, CertificateStatus as CoreCertificateStatus,
     TrustDecision, TrustOutcome, TrustPolicyId as CoreTrustPolicyId,
     TrustPurpose as CoreTrustPurpose,
 };
-const QUALIFIED_TYPE_DETERMINATION_EFFECTIVE_UNIX: i64 = 1_467_244_800;
+
+mod qualified;
 
 mod sealed {
     /// Restricts [`super::AuthenticatedTrustedList`] to backend receipts.
@@ -149,6 +148,16 @@ pub(crate) fn authorize_validated_chain_in_list(
         },
     )?;
 
+    if let Some(qualified_purpose) = qualified_certificate_purpose(purpose) {
+        return qualified::authorize_qualified_certificate(
+            chain,
+            leaf,
+            evaluated_at,
+            tsl,
+            qualified_purpose,
+        );
+    }
+
     let mut matched_service = false;
     let mut active_service = false;
     let mut unknown_status = false;
@@ -181,7 +190,7 @@ pub(crate) fn authorize_validated_chain_in_list(
             Err(TrustApiError::ServiceNotActive) => continue,
             Err(error) => return Err(error),
         }
-        match verify_service_purpose(state, leaf, purpose) {
+        match verify_service_purpose(state, purpose) {
             Ok(()) => return Ok(()),
             Err(TrustApiError::ServiceTypeUnknown) => unknown_type = true,
             Err(TrustApiError::ServiceTypeMismatch) => known_type_mismatch = true,
@@ -206,7 +215,9 @@ pub(crate) fn authorize_validated_chain_in_list(
 fn verify_service_status(service: EffectiveServiceState<'_>) -> Result<(), TrustApiError> {
     match service.status() {
         TrustServiceStatus::Granted => Ok(()),
-        TrustServiceStatus::Other(_) => Err(TrustApiError::ServiceStatusUnknown),
+        TrustServiceStatus::Indeterminate | TrustServiceStatus::Other(_) => {
+            Err(TrustApiError::ServiceStatusUnknown)
+        }
         _ => Err(TrustApiError::ServiceNotActive),
     }
 }
@@ -214,19 +225,14 @@ fn verify_service_status(service: EffectiveServiceState<'_>) -> Result<(), Trust
 /// Validate that the service authorizes the requested purpose.
 fn verify_service_purpose(
     service: EffectiveServiceState<'_>,
-    leaf: &X509Certificate,
     purpose: AuthorizationPurpose,
 ) -> Result<(), TrustApiError> {
     let allowed = match (purpose, service.service_type()) {
         (AuthorizationPurpose::QeaaIssuer, TrustServiceType::QualifiedElectronicAttestation) => {
             true
         }
-        (AuthorizationPurpose::QwacTlsServer, TrustServiceType::CaQualifiedCertificates) => {
-            qualified_ca_authorizes(service, leaf, QualifiedCertificatePurpose::Website)
-        }
-        (AuthorizationPurpose::QsealSigner, TrustServiceType::CaQualifiedCertificates) => {
-            qualified_ca_authorizes(service, leaf, QualifiedCertificatePurpose::ElectronicSeal)
-        }
+        (AuthorizationPurpose::QwacTlsServer, TrustServiceType::CaQualifiedCertificates)
+        | (AuthorizationPurpose::QsealSigner, TrustServiceType::CaQualifiedCertificates) => false,
         (_, TrustServiceType::Other(_)) => return Err(TrustApiError::ServiceTypeUnknown),
         _ => false,
     };
@@ -239,136 +245,23 @@ fn verify_service_purpose(
 }
 
 #[derive(Clone, Copy)]
-enum QualifiedCertificatePurpose {
+pub(super) enum QualifiedCertificatePurpose {
     Website,
     ElectronicSeal,
 }
 
-fn qualified_ca_authorizes(
-    service: EffectiveServiceState<'_>,
-    leaf: &X509Certificate,
-    purpose: QualifiedCertificatePurpose,
-) -> bool {
-    // TS 119 615 qualified-type determination for electronic seals and
-    // website authentication applies only from 2016-06-30. Older CA/QC state
-    // cannot be upgraded into either type from leaf assertions.
-    if service.status_starting_time().unix_seconds() < QUALIFIED_TYPE_DETERMINATION_EFFECTIVE_UNIX {
-        return false;
+fn qualified_certificate_purpose(
+    purpose: AuthorizationPurpose,
+) -> Option<QualifiedCertificatePurpose> {
+    match purpose {
+        AuthorizationPurpose::QwacTlsServer => Some(QualifiedCertificatePurpose::Website),
+        AuthorizationPurpose::QsealSigner => Some(QualifiedCertificatePurpose::ElectronicSeal),
+        AuthorizationPurpose::QeaaIssuer => None,
     }
-    // TS 119 612 v2.4.1 clause 5.5.9.2 makes matching qualification
-    // elements authoritative for the examined certificate. In particular,
-    // NotQualified must override a certificate's own qualified claims.
-    if crate::qualification::matching_service_qualifiers(leaf, service.qualifications())
-        .any(|qualifier| matches!(&qualifier.kind, ServiceQualifierKind::NotQualified))
-    {
-        return false;
-    }
-    let service_qualifiers = service.qualifications();
-    let qualified = crate::qualification::matching_service_qualifiers(leaf, service_qualifiers)
-        .any(|qualifier| {
-            matches!(
-                &qualifier.kind,
-                ServiceQualifierKind::QualifiedCertificateStatement
-            )
-        })
-        || certificate_claims_qualified(leaf);
-    let additional_information = service.additional_service_information();
-    let service_scope_matches = additional_information
-        .iter()
-        .any(|information| additional_information_matches_purpose(information, purpose));
-    let matching_qualifiers =
-        crate::qualification::matching_service_qualifiers(leaf, service_qualifiers)
-            .collect::<Vec<_>>();
-    let typed_qualifiers = matching_qualifiers
-        .iter()
-        .filter(|qualifier| qualifier_defines_purpose(&qualifier.kind))
-        .collect::<Vec<_>>();
-    let qualifiers_allow_purpose = typed_qualifiers.is_empty()
-        || typed_qualifiers
-            .iter()
-            .all(|qualifier| qualifier_matches_purpose(&qualifier.kind, purpose));
-
-    // TS 119 615 makes the authenticated service's ASi purpose table
-    // authoritative. Certificate QC statements establish the leaf profile but
-    // cannot widen the service. Matching Sie qualifiers further restrict that
-    // purpose; conflicting type qualifiers are indeterminate and fail closed.
-    let purpose_matches = service_scope_matches && qualifiers_allow_purpose;
-
-    // TS 119 612 clause 5.5.9.2 defines qualification and certificate purpose
-    // as independent properties. For example, QCForWSA does not make an
-    // otherwise non-qualified certificate qualified. Both properties must be
-    // established before CA/QC can authorize a purpose-specific leaf.
-    qualified && purpose_matches
-}
-
-fn qualifier_defines_purpose(kind: &ServiceQualifierKind) -> bool {
-    matches!(
-        kind,
-        ServiceQualifierKind::QualifiedCertificateForElectronicSignature
-            | ServiceQualifierKind::QualifiedCertificateForElectronicSeal
-            | ServiceQualifierKind::QualifiedCertificateForWebsiteAuthentication
-    )
-}
-
-fn certificate_claims_qualified(certificate: &X509Certificate) -> bool {
-    certificate
-        .profile
-        .qc_statement_ids
-        .contains(&QcStatementId::Compliance)
-        || certificate
-            .profile
-            .certificate_policies
-            .iter()
-            .any(is_qualified_certificate_policy)
-}
-
-fn is_qualified_certificate_policy(policy: &CertificatePolicyId) -> bool {
-    matches!(
-        policy,
-        CertificatePolicyId::QcpNaturalPerson
-            | CertificatePolicyId::QcpLegalPerson
-            | CertificatePolicyId::QcpNaturalPersonQscd
-            | CertificatePolicyId::QcpLegalPersonQscd
-            | CertificatePolicyId::QevcpWeb
-            | CertificatePolicyId::QncpWeb
-            | CertificatePolicyId::QncpWebGeneric
-    )
-}
-
-fn qualifier_matches_purpose(
-    kind: &ServiceQualifierKind,
-    purpose: QualifiedCertificatePurpose,
-) -> bool {
-    matches!(
-        (kind, purpose),
-        (
-            ServiceQualifierKind::QualifiedCertificateForWebsiteAuthentication,
-            QualifiedCertificatePurpose::Website
-        ) | (
-            ServiceQualifierKind::QualifiedCertificateForElectronicSeal,
-            QualifiedCertificatePurpose::ElectronicSeal
-        )
-    )
-}
-
-fn additional_information_matches_purpose(
-    information: &AdditionalServiceInformation,
-    purpose: QualifiedCertificatePurpose,
-) -> bool {
-    matches!(
-        (&information.kind, purpose),
-        (
-            AdditionalServiceInformationKind::ForWebsiteAuthentication,
-            QualifiedCertificatePurpose::Website
-        ) | (
-            AdditionalServiceInformationKind::ForElectronicSeals,
-            QualifiedCertificatePurpose::ElectronicSeal
-        )
-    )
 }
 
 #[derive(Clone, Copy)]
-enum EffectiveServiceState<'a> {
+pub(super) enum EffectiveServiceState<'a> {
     Current(&'a TrustService),
     Historical(&'a TrustServiceHistoryEntry),
 }

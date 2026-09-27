@@ -26,4 +26,8 @@ pub enum BrotliError {
     /// Decompressed output exceeded the configured maximum length.
     #[error("brotli decompressed output exceeds configured limit")]
     OutputTooLarge,
+
+    /// The stream requests a decoder window larger than the configured bound.
+    #[error("brotli decoder window exceeds configured limit")]
+    WindowTooLarge,
 }

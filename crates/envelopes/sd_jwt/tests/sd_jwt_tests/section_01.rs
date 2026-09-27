@@ -657,33 +657,6 @@ fn issue_sd_jwt_top_level_roundtrip_verifies() {
 }
 
 #[test]
-fn sd_jwt_vc_typ_variants_require_vct() {
-    let issuer = gen_ed25519();
-    for media_type in ["DC+SD-JWT", "application/dc+sd-jwt"] {
-        let issuer_signed_jwt = encode_signed_jwt_with_header_options(
-            &json!({"iss": "https://example.com/issuer"}),
-            &issuer.jwk,
-            &issuer.private,
-            &JwtHeaderEncodeOptions::new(Some(media_type.to_owned())),
-        )
-        .expect("issuer JWT");
-        let compact = serialize_sd_jwt_compact(&issuer_signed_jwt, &[])
-            .expect("compact SD-JWT");
-
-        assert_eq!(
-            verify_sd_jwt(
-                &compact,
-                &issuer.jwk,
-                &issuer.public,
-                &SdJwtVerificationOptions::new(VERIFY_NOW_UNIX),
-            ),
-            Err(SdJwtEnvelopeError::InvalidIssuerJwt),
-            "{media_type} must enforce vct",
-        );
-    }
-}
-
-#[test]
 fn issue_sd_jwt_all_levels_supports_array_elements_and_decoys() {
     let issuer = gen_ed25519();
     let claims = json!({

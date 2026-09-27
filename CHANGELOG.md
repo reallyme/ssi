@@ -28,13 +28,18 @@ changes to authenticate its externally visible projection commitment.
 - TSL pointer verification derives signer authorization from an authenticated
   parent list and applies the correct QWAC and QSeal certificate profiles.
   Qualified-type determination evaluates ASi and Sie restrictions before leaf
-  claims, and semantically projects a list only after XML signature validation.
+  claims, combines every purpose-scoped row for one service key, and cannot
+  mask a withdrawal with a sibling grant. Structurally ambiguous service rows
+  become non-authorizing without discarding unrelated providers, and semantic
+  projection occurs only after XML signature validation.
 - Presentation verification requires configured nonce and audience bindings,
   validates ZK expiry, and removes the stateless SIOP response entry point.
 - Committed-credential proofs verify against a caller-trusted issuer key and
   reject raw P-256 keys whose bytes do not match their declared SEC1 encoding.
 - Legacy status lists receive a 24-hour maximum-age ceiling through the default
   `verify_status` policy, and token-list `exp` deadlines are exclusive.
+  Composite credential revocation verification always checks the credential's
+  own status-list entry as well as the issuer certificate.
   Replay storage uses store-owned wall time to validate
   exclusive absolute expiries, monotonic deadlines, protocol namespaces, a
   global capacity limit, and bounded per-protocol quotas. WebAssembly callers
@@ -69,6 +74,9 @@ changes to authenticate its externally visible projection commitment.
 
 - mdoc digest identifiers are randomized, and projected mdoc JSON values are
   zeroized on drop.
+- SD-JWT top-level disclosure classifies dotted and URI claim names by
+  structure rather than path-string syntax. Presentation selection indexes
+  reconstructed arrays, ignores decoys, and rejects absent requested paths.
 - Numeric claims normalize equivalent signed and unsigned values before
   commitment while preserving the 0.2.x `RM-CV-JCS-V1` integer tags, and
   committed-credential salts are zeroized on all paths.
@@ -116,8 +124,12 @@ changes to authenticate its externally visible projection commitment.
   expiry deadlines instead. Constructors backed by the system clock are not
   available on `wasm32-unknown-unknown`; WebAssembly callers inject a clock.
 - `DidCore` includes its signed projection commitment, and `BrotliError`
-  includes a distinct trailing-data variant. Both `brotli_compress` and Brotli
-  decompression now return `Zeroizing<Vec<u8>>`.
+  includes distinct trailing-data and oversized-window variants. Both
+  `brotli_compress` and Brotli decompression now return
+  `Zeroizing<Vec<u8>>`.
+- `CredentialRevocationVerificationInput` and
+  `verify_credential_revocation_status` require authenticated credential
+  status-list evidence in addition to certificate-revocation evidence.
 - The OpenSSL OCSP parser accepts certificate DER instead of OpenSSL handles;
   nonce-aware verification is available through
   `parse_ocsp_response_der_with_nonce`, and sealed `ParsedOcspResponse`

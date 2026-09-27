@@ -92,6 +92,10 @@ pub enum SdJwtEnvelopeError {
     #[error("unmatched SD-JWT disclosure")]
     UnmatchedDisclosure,
 
+    /// A requested presentation path is absent from the reconstructed claims.
+    #[error("requested SD-JWT claim path was not found")]
+    RequestedPathNotFound,
+
     /// Applying a disclosure would replace an existing claim.
     #[error("conflicting SD-JWT disclosure claim")]
     ConflictingDisclosureClaim,
@@ -272,6 +276,9 @@ impl From<SdJwtEnvelopeError> for IdentityCoreErrorReason {
                 Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_DUPLICATE_DISCLOSURE
             }
             SdJwtEnvelopeError::UnmatchedDisclosure => {
+                Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_UNMATCHED_DISCLOSURE
+            }
+            SdJwtEnvelopeError::RequestedPathNotFound => {
                 Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_UNMATCHED_DISCLOSURE
             }
             SdJwtEnvelopeError::ConflictingDisclosureClaim => {

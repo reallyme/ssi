@@ -268,6 +268,7 @@ fn credential_status_revocation_is_terminal_before_certificate_fallback() {
 fn credential_revocation_policy_maps_unavailable_sources() {
     let mut envelope = sample_envelope(CredentialKind::Pid);
     let cert = sample_certificate();
+    let status_list = sample_status_list(vec![0]);
     envelope.issuer_reference = sample_certificate_reference();
     let checker = StaticStatusChecker {
         result: Err(StatusCheckError::Unavailable),
@@ -278,6 +279,8 @@ fn credential_revocation_policy_maps_unavailable_sources() {
         &checker,
         &cert,
         1_750_000_000,
+        &status_list,
+        &X509StatusVerifier,
     )
     .unwrap_err();
 
@@ -291,6 +294,7 @@ fn credential_revocation_policy_maps_unavailable_sources() {
 fn credential_revocation_rejects_certificate_not_bound_to_issuer() {
     let envelope = sample_envelope(CredentialKind::Pid);
     let cert = sample_certificate();
+    let status_list = sample_status_list(vec![0]);
     let checker = StaticStatusChecker { result: Ok(()) };
 
     let err = reallyme_credential::verify_credential_revocation_status(
@@ -298,6 +302,8 @@ fn credential_revocation_rejects_certificate_not_bound_to_issuer() {
         &checker,
         &cert,
         1_750_000_000,
+        &status_list,
+        &TestStatusVerifier,
     )
     .unwrap_err();
 
@@ -314,6 +320,7 @@ fn verify_credential_composes_signature_and_revocation_policy() {
     envelope.issuer_reference = sample_certificate_reference();
     reallyme_credential::sign_credential_envelope(&mut envelope, &test_signer()).unwrap();
     let checker = StaticStatusChecker { result: Ok(()) };
+    let status_list = sample_status_list(vec![0]);
 
     reallyme_credential::verify_credential_with_revocation(
         &CredentialRevocationVerificationInput {
@@ -322,11 +329,57 @@ fn verify_credential_composes_signature_and_revocation_policy() {
                 expected_method: "did:web:issuer.example#key-1",
             },
             status_checker: &checker,
+            status_list: &status_list,
+            status_verifier: &X509StatusVerifier,
             certificate: &cert,
             now_unix: 1_750_000_000,
         },
     )
     .unwrap();
+}
+
+#[test]
+fn credential_revocation_rejects_revoked_credential_when_certificate_is_clean() {
+    let mut envelope = sample_envelope(CredentialKind::Pid);
+    envelope.issuer_reference = sample_certificate_reference();
+    reallyme_credential::sign_credential_envelope(&mut envelope, &test_signer()).unwrap();
+    let cert = sample_certificate();
+    let status_list = sample_status_list(vec![0b1000_0000]);
+    let checker = StaticStatusChecker { result: Ok(()) };
+
+    let error = reallyme_credential::verify_credential_revocation_status(
+        &envelope,
+        &checker,
+        &cert,
+        1_750_000_000,
+        &status_list,
+        &X509StatusVerifier,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        error,
+        CredentialError::Status(CredentialStatusReason::Revoked)
+    );
+
+    let composed_error = reallyme_credential::verify_credential_with_revocation(
+        &CredentialRevocationVerificationInput {
+            envelope: &envelope,
+            issuer_verifier: &TestVerifier {
+                expected_method: "did:web:issuer.example#key-1",
+            },
+            status_checker: &checker,
+            status_list: &status_list,
+            status_verifier: &X509StatusVerifier,
+            certificate: &cert,
+            now_unix: 1_750_000_000,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        composed_error,
+        CredentialError::Status(CredentialStatusReason::Revoked)
+    );
 }
 
 #[test]
@@ -476,6 +529,7 @@ fn verify_credential_with_revocation_rejects_credential_outside_window() {
     let envelope = signed_sample_envelope();
     let cert = sample_certificate();
     let checker = StaticStatusChecker { result: Ok(()) };
+    let status_list = sample_status_list(vec![0]);
     let verify_at = |now_unix| {
         reallyme_credential::verify_credential_with_revocation(
             &CredentialRevocationVerificationInput {
@@ -484,6 +538,8 @@ fn verify_credential_with_revocation_rejects_credential_outside_window() {
                     expected_method: "did:web:issuer.example#key-1",
                 },
                 status_checker: &checker,
+                status_list: &status_list,
+                status_verifier: &TestStatusVerifier,
                 certificate: &cert,
                 now_unix,
             },

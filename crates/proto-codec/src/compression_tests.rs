@@ -23,4 +23,8 @@ fn maps_each_brotli_failure_to_a_stable_proto_reason() {
         brotli_error_to_proto_reason(BrotliError::OutputTooLarge),
         IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_RESOURCE_LIMIT_EXCEEDED
     );
+    assert_eq!(
+        brotli_error_to_proto_reason(BrotliError::WindowTooLarge),
+        IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_INVALID_ENCODING
+    );
 }
