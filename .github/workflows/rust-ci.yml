@@ -150,7 +150,7 @@ jobs:
 
       - name: Check planned public crate versions against crates.io
         working-directory: reallyme/ssi
-        run: cargo semver-checks check-release --workspace --release-type minor
+        run: cargo semver-checks check-release --workspace
 
   rust:
     name: fmt, lint, test, dependency policy
@@ -161,6 +161,9 @@ jobs:
         with:
           path: reallyme/ssi
           persist-credentials: false
+          # Wire-compatibility compares against the latest published release
+          # tag, so this job requires tags and their reachable history.
+          fetch-depth: 0
 
       - name: Checkout pinned JOSE conformance source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -360,6 +363,12 @@ jobs:
             | while IFS= read -r package; do
                 cargo check --locked -p "${package}" --no-default-features --features wasm --target wasm32-unknown-unknown
               done
+          cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select((.publish == null) or (.publish | length > 0)) | select(.features.wasm == null) | .name' \
+            | while IFS= read -r package; do
+                cargo check --locked -p "${package}" --no-default-features --target wasm32-unknown-unknown
+              done
+          cargo check --locked -p reallyme-ssi --no-default-features --features wasm --target wasm32-unknown-unknown
 
       - name: Check wasm lane excludes native providers
         working-directory: reallyme/ssi

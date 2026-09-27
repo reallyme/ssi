@@ -1357,7 +1357,7 @@ assertContains(".github/workflows/rust-ci.yml", "CARGO_SEMVER_CHECKS_VERSION: 0.
 assertContains(".github/workflows/rust-ci.yml", "cargo-semver-checks@${{ env.CARGO_SEMVER_CHECKS_VERSION }}");
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "cargo semver-checks check-release --workspace --release-type minor",
+  "cargo semver-checks check-release --workspace",
 );
 assertExists("scripts/check_fixture_copies.mjs");
 assertExists("scripts/generate_conformance_reports.mjs");
