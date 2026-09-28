@@ -1418,9 +1418,22 @@ if (secretScanMarkdownIgnoreCount !== 0) {
 assertContains("scripts/run_gitleaks.sh", 'readonly GITLEAKS_VERSION="8.30.1"');
 assertContains(
   "scripts/run_gitleaks.sh",
-  'readonly GITLEAKS_ARCHIVE_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"',
+  'readonly archive_platform="darwin_arm64"',
 );
-assertContains("scripts/run_gitleaks.sh", "sha256sum --check --strict");
+assertContains("scripts/run_gitleaks.sh", 'readonly archive_platform="darwin_x64"');
+assertContains("scripts/run_gitleaks.sh", 'readonly archive_platform="linux_arm64"');
+assertContains("scripts/run_gitleaks.sh", 'readonly archive_platform="linux_x64"');
+for (const checksum of [
+  "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
+  "dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709",
+  "e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080",
+  "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+]) {
+  assertContains("scripts/run_gitleaks.sh", checksum);
+}
+assertContains("scripts/run_gitleaks.sh", "command -v sha256sum");
+assertContains("scripts/run_gitleaks.sh", "command -v shasum");
+assertContains("scripts/run_gitleaks.sh", "gitleaks archive digest mismatch");
 assertContains("scripts/run_gitleaks.sh", 'git --redact --no-banner --verbose .');
 assertMissing(".github/workflows/release-preflight.yml");
 assertExists("scripts/inspect_publishable_crates.mjs");
