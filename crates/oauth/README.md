@@ -35,7 +35,7 @@ parsed.
 
 ```toml
 [dependencies]
-reallyme-openid-oauth = "0.3.3"
+reallyme-openid-oauth = "0.3.4"
 ```
 
 The default `native` feature selects native trust dependencies. Disable

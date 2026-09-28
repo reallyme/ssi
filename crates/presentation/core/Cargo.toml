@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-vp-core"
-version = "0.3.3"
+version = "0.3.4"
 description = "Protocol-agnostic verifiable presentation models and holder-binding primitives."
 edition.workspace = true
 rust-version.workspace = true

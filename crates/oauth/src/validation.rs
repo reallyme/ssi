@@ -242,12 +242,24 @@ fn ipv4_translated_address(segments: [u16; 8]) -> Option<Ipv4Addr> {
     }
 }
 
-/// Normalizes an HTTP target URI for RFC 9449 `htu` comparison.
+/// Normalizes an HTTPS target URI for RFC 9449 `htu` comparison.
 pub fn normalize_uri_without_query_or_fragment(value: &str) -> OauthResult<String> {
-    validate_https_url(value, false)?;
+    validate_token(value)?;
+    // `Url` follows the WHATWG special-URL rules and treats a backslash as a
+    // path separator. Reject the raw spelling before parsing so normalization
+    // cannot turn an ambiguous authority into a different HTTPS target.
+    if value.as_bytes().contains(&b'\\') {
+        return Err(OauthError::new(Reason::InvalidUrl));
+    }
     let mut url = Url::parse(value).map_err(|_| OauthError::new(Reason::InvalidUrl))?;
+
+    // RFC 9449 §4.3(9) compares `htu` after ignoring both components. Strip
+    // them before the shared URL policy runs; that policy intentionally rejects
+    // fragments for every other OAuth URL boundary.
     url.set_query(None);
     url.set_fragment(None);
+    validate_https_url(url.as_str(), false)?;
+
     if let Some(host) = url.host_str() {
         let normalized_host = host.to_ascii_lowercase();
         url.set_host(Some(&normalized_host))

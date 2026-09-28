@@ -1035,7 +1035,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-jades"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -1052,7 +1052,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "quick-xml",
  "reallyme-codec-base64",
@@ -1067,7 +1067,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-xmlsec"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "quick-xml",
  "reallyme-codec-base64",
@@ -1818,7 +1818,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-claims"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-cose",
@@ -1834,7 +1834,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-status"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "flate2",
  "reallyme-codec",
@@ -2387,7 +2387,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-mdoc"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "ciborium",
  "reallyme-codec",
@@ -2404,7 +2404,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-revocation"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-credential-status",
  "reallyme-ssi-proto",
@@ -2417,7 +2417,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-sd-jwt"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -2430,7 +2430,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-fuzz"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-trust-jades",
  "identity-trust-tsl-core",
@@ -2450,7 +2450,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-proto"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -2461,7 +2461,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-trust-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-revocation",
  "reallyme-ssi-proto",
@@ -2472,7 +2472,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-trust-x509"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "asn1-rs",
  "oid-registry",
