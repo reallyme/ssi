@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-trust-tsl-openssl"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -27,11 +27,11 @@ time = "0.3"
 openssl = { version = "0.10.81", optional = true }
 zeroize = { workspace = true, features = ["derive"] }
 
-identity-trust-tsl-core = { version = "0.3.3", path = "../tsl-core" }
-reallyme-trust-core = { version = "0.3.3", path = "../core" }
+identity-trust-tsl-core = { version = "0.3.4", path = "../tsl-core" }
+reallyme-trust-core = { version = "0.3.4", path = "../core" }
 identity-revocation-core = { workspace = true }
-identity-trust-openssl = { version = "0.3.3", path = "../openssl", optional = true }
-identity-trust-tsl-xmlsec = { version = "0.3.3", path = "../tsl-xmlsec", optional = true, default-features = false }
+identity-trust-openssl = { version = "0.3.4", path = "../openssl", optional = true }
+identity-trust-tsl-xmlsec = { version = "0.3.4", path = "../tsl-xmlsec", optional = true, default-features = false }
 envelopes-x509 = { workspace = true }
 [lints]
 workspace = true

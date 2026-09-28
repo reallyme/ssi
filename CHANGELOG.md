@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.4
+
+This patch release aligns DPoP HTTP target URI validation with RFC 9449 by
+ignoring query and fragment components during `htu` comparison without
+weakening the surrounding HTTPS URL policy.
+
+### DPoP target URI normalization
+
+- `normalize_uri_without_query_or_fragment` now parses the bounded target as a
+  URL, removes its query and fragment, and then applies the remaining HTTPS,
+  authority, userinfo, and host checks.
+- Raw backslashes remain rejected before WHATWG URL parsing so an ambiguous
+  authority or path cannot be reinterpreted during normalization.
+- Signed-proof coverage demonstrates query-only, fragment-only, and combined
+  normalization, with negative controls for scheme, host, path, userinfo,
+  backslashes, malformed URLs, replay, `ath`, and `cnf.jkt` binding.
+- All workspace crates, including source-only internal crates, advance in
+  lockstep to version 0.3.4.
+
 ## 0.3.3
 
 This patch release adds certificate-path verification for IETF Token Status

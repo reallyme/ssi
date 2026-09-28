@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-delivery-web-validator"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -24,10 +24,10 @@ identity-core-primitives = { workspace = true }
 identity-credential-claims-core = { workspace = true }
 reallyme-credential = { workspace = true }
 identity-presentation-vp-core = { workspace = true }
-identity-presentation-vp-policy = { version = "0.3.3", path = "../../../presentation/policy" }
-identity-presentation-vp-sd-jwt = { version = "0.3.3", path = "../../../presentation/sd-jwt", default-features = false }
-identity-presentation-vp-validator = { version = "0.3.3", path = "../../../presentation/validator", default-features = false }
-identity-presentation-delivery-web-core = { version = "0.3.3", path = "../core", default-features = false }
+identity-presentation-vp-policy = { version = "0.3.4", path = "../../../presentation/policy" }
+identity-presentation-vp-sd-jwt = { version = "0.3.4", path = "../../../presentation/sd-jwt", default-features = false }
+identity-presentation-vp-validator = { version = "0.3.4", path = "../../../presentation/validator", default-features = false }
+identity-presentation-delivery-web-core = { version = "0.3.4", path = "../core", default-features = false }
 
 [features]
 default = ["native"]

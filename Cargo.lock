@@ -794,7 +794,7 @@ checksum = "e079f19b08ca6239f47f8ba8509c11cf3ea30095831f7fed61441475edd8c449"
 
 [[package]]
 name = "envelopes-data-integrity"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -807,7 +807,7 @@ dependencies = [
 
 [[package]]
 name = "envelopes-jwt-vc"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "envelopes-profiles"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-ssi-proto",
  "thiserror",
@@ -1141,7 +1141,7 @@ dependencies = [
 
 [[package]]
 name = "identity-credential-trust-api"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "buffa",
  "identity-trust-openssl",
@@ -1163,7 +1163,7 @@ dependencies = [
 
 [[package]]
 name = "identity-credential-vc-api"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-vc-ietf-sd-jwt",
  "identity-vc-jwt",
@@ -1185,7 +1185,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-contact-api"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-presentation-delivery-contact-core",
  "identity-presentation-delivery-contact-validator",
@@ -1196,7 +1196,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-contact-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "ciborium",
  "reallyme-crypto",
@@ -1209,7 +1209,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-contact-validator"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-presentation-delivery-contact-core",
  "reallyme-ssi-proto",
@@ -1219,7 +1219,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-ssi-proto",
  "thiserror",
@@ -1228,7 +1228,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-siop-api"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-presentation-delivery-siop-core",
  "identity-presentation-delivery-siop-verifier",
@@ -1241,7 +1241,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-siop-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-ssi-proto",
  "serde",
@@ -1251,7 +1251,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-siop-verifier"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-presentation-delivery-siop-core",
  "reallyme-codec-base64url",
@@ -1269,7 +1269,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-web-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-presentation-delivery-core",
  "reallyme-codec-base64url",
@@ -1287,7 +1287,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-web-validator"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-presentation-delivery-web-core",
  "identity-presentation-vp-policy",
@@ -1312,7 +1312,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-vp-policy"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-credential",
@@ -1328,7 +1328,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-vp-sd-jwt"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-credential",
@@ -1348,7 +1348,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-vp-validator"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-presentation-vp-policy",
  "identity-presentation-vp-sd-jwt",
@@ -1366,7 +1366,7 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-crl-openssl"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "openssl",
  "reallyme-revocation",
@@ -1379,7 +1379,7 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-ocsp-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-crypto",
  "reallyme-revocation",
@@ -1392,7 +1392,7 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-ocsp-dispatch"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-revocation-ocsp-core",
  "identity-revocation-ocsp-openssl",
@@ -1410,7 +1410,7 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-ocsp-openssl"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-revocation-ocsp-core",
  "openssl",
@@ -1424,7 +1424,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-jades"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "openssl",
  "reallyme-codec",
@@ -1442,7 +1442,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-openssl"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "openssl",
  "reallyme-trust-core",
@@ -1452,7 +1452,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "quick-xml",
  "reallyme-codec-base64",
@@ -1468,7 +1468,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-openssl"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-trust-openssl",
  "identity-trust-tsl-core",
@@ -1486,7 +1486,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-xmlsec"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-trust-tsl-xmlsec-sys",
  "libc",
@@ -1501,11 +1501,11 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-xmlsec-sys"
-version = "0.3.3"
+version = "0.3.4"
 
 [[package]]
 name = "identity-trust-wasm"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-trust-tsl-core",
  "openssl",
@@ -1518,7 +1518,7 @@ dependencies = [
 
 [[package]]
 name = "identity-vc-ietf-sd-jwt"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-crypto",
@@ -1537,7 +1537,7 @@ dependencies = [
 
 [[package]]
 name = "identity-vc-jwt"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-credential",
@@ -2332,7 +2332,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-compression-brotli"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "brotli",
  "thiserror",
@@ -2355,7 +2355,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -2381,7 +2381,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-audit"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-crypto",
  "reallyme-ssi-proto",
@@ -2391,7 +2391,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-claims"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "buffa",
  "reallyme-codec",
@@ -2408,7 +2408,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-status"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -2960,7 +2960,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-api"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-compression-brotli",
  "reallyme-cose",
@@ -2986,7 +2986,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "envelopes-data-integrity",
  "reallyme-codec",
@@ -3002,7 +3002,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-cheqd"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-ssi-proto",
  "thiserror",
@@ -3010,7 +3010,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-conformance"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-did-method-cheqd",
  "reallyme-did-method-ebsi",
@@ -3025,7 +3025,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-ebsi"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-did-method-jwk",
@@ -3040,7 +3040,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-ion"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -3053,7 +3053,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-jwk"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "curve25519-dalek",
  "reallyme-codec",
@@ -3066,7 +3066,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-key"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "curve25519-dalek",
  "reallyme-crypto",
@@ -3076,7 +3076,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-me"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -3088,7 +3088,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-web"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "percent-encoding",
  "reallyme-codec",
@@ -3104,7 +3104,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-types"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-ssi-core",
  "serde",
@@ -3114,7 +3114,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-disclosure-policy"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-credential-claims",
  "reallyme-ssi-core",
@@ -3126,7 +3126,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-etsi-eaa-conformance"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "email_address",
  "serde",
@@ -3138,7 +3138,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-eudi-rp-registration"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "identity-trust-jades",
  "openssl",
@@ -3171,7 +3171,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-keys"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -3185,7 +3185,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-mdoc"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "ciborium",
  "reallyme-codec",
@@ -3205,7 +3205,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-openid-oauth"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "buffa",
  "percent-encoding",
@@ -3226,14 +3226,14 @@ dependencies = [
 
 [[package]]
 name = "reallyme-openid4vc-profiles"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "reallyme-revocation"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-credential-status",
  "reallyme-ssi-proto",
@@ -3246,7 +3246,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-sd-jwt"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -3259,7 +3259,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-single-use"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-ssi-proto",
  "thiserror",
@@ -3268,7 +3268,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "envelopes-data-integrity",
  "envelopes-jwt-vc",
@@ -3329,7 +3329,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-ssi-proto",
  "serde",
@@ -3340,7 +3340,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-proto"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -3352,7 +3352,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-proto-codec"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -3370,7 +3370,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-trust-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-revocation",
  "reallyme-ssi-proto",
@@ -3381,7 +3381,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-trust-x509"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "asn1-rs",
  "oid-registry",
@@ -3400,7 +3400,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-vp-api"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "buffa",
  "identity-presentation-vp-policy",
@@ -3417,7 +3417,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-vp-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "reallyme-ssi-proto",
  "serde",
