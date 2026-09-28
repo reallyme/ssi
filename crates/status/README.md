@@ -24,12 +24,24 @@ signature-verification boundaries.
 
 ```toml
 [dependencies]
-reallyme-credential-status = "0.3.2"
+reallyme-credential-status = "0.3.3"
 ```
 
 The default `native` feature enables the native cryptographic provider. Use
 `default-features = false` with `wasm` for WebAssembly, or enable `proto` for
 protobuf conversions.
+
+## Certificate-bound Token Status Lists
+
+Use `verify_token_status_list_jwt_with_x5c` when the Token Status List signing
+key is authenticated through the JWT's protected `x5c` path. The caller
+supplies an X.509 resolver that validates the exact leaf-first DER chain at the
+provided verification time and returns the authenticated leaf P-256 key. The
+presented chain is never used as a trust source.
+
+Use `verify_token_status_list_jwt` for an issuer key already authenticated by a
+different trust mechanism. That raw-key API continues to reject embedded key
+material.
 
 ## Signing payload version
 

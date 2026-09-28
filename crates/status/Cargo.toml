@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-credential-status"
-version = "0.3.2"
+version = "0.3.3"
 description = "Credential status-list models and verification policy for ReallyMe identity."
 edition.workspace = true
 rust-version.workspace = true
@@ -29,6 +29,7 @@ native = [
     "dep:reallyme-cose",
     "dep:reallyme-crypto",
     "dep:reallyme-jose",
+    "dep:serde_json",
     "reallyme-cose/native",
     "reallyme-crypto/native",
     "reallyme-jose/native",
@@ -41,6 +42,7 @@ wasm = [
     "dep:reallyme-cose",
     "dep:reallyme-crypto",
     "dep:reallyme-jose",
+    "dep:serde_json",
     "reallyme-cose/wasm",
     "reallyme-crypto/wasm",
     "reallyme-jose/wasm",
@@ -50,12 +52,13 @@ wasm = [
 buffa = { workspace = true, optional = true }
 buffa-types = { workspace = true, optional = true }
 flate2 = { workspace = true }
-reallyme-codec = { workspace = true, features = ["base64url", "cbor"] }
+reallyme-codec = { workspace = true, features = ["base64", "base64url", "cbor"] }
 reallyme-cose = { workspace = true, optional = true }
 reallyme-crypto = { workspace = true, optional = true }
 reallyme-ssi-proto = { workspace = true }
 reallyme-jose = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 zeroize = { workspace = true, features = ["derive"] }

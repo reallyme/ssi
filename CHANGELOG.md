@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.3
+
+This patch release adds certificate-path verification for IETF Token Status
+List JWTs without changing the existing raw-key verifier.
+
+### Token Status List certificate authentication
+
+- `verify_token_status_list_jwt_with_x5c` parses a bounded, leaf-first `x5c`
+  protected header and passes the exact DER chain plus verification time to a
+  caller-supplied X.509 path resolver.
+- The new verifier accepts only `alg = ES256`, `typ = statuslist+jwt`, and
+  `x5c` in the protected header. It rejects duplicate members, alternate key
+  selectors, empty or malformed `x5c` encodings, and per-certificate,
+  path-count, aggregate-path, and compact-JWT limit violations before trust
+  resolution. The caller's resolver remains responsible for DER certificate
+  and path validation.
+- Resolver-authenticated leaf keys are validated and canonicalized through a
+  P-256 JWK before JWS verification. The existing subject, decompression,
+  status-value, index, `iat`, `exp`, `ttl`, and local freshness checks remain in
+  force.
+- `verify_token_status_list_jwt` retains its original raw-key contract and
+  continues to reject embedded `jwk` and `x5c` key material.
+- All workspace crates, including source-only internal crates, advance in
+  lockstep to version 0.3.3.
+
 ## 0.3.2
 
 This patch release hardens OAuth Authorization Server metadata discovery for

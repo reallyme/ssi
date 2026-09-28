@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-delivery-siop-verifier"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -16,7 +16,7 @@ native = ["envelopes-jwk/native", "envelopes-jwt/native"]
 wasm   = ["envelopes-jwk/wasm", "envelopes-jwt/wasm"]
 
 [dependencies]
-identity-presentation-delivery-siop-core = { version = "0.3.2", path = "../core" }
+identity-presentation-delivery-siop-core = { version = "0.3.3", path = "../core" }
 reallyme-ssi-proto = { workspace = true }
 envelopes-jwt = { workspace = true }
 envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.9", default-features = false }

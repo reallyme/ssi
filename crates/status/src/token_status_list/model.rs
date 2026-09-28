@@ -25,6 +25,13 @@ pub const MAX_TOKEN_STATUS_CWT_BYTES: usize = 700_000;
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub const MAX_STATUS_URI_BYTES: usize = 2_048;
 
+/// Maximum number of certificates accepted in a Token Status List `x5c` path.
+pub const MAX_TOKEN_STATUS_X5C_CERTIFICATES: usize = 8;
+/// Maximum DER byte length accepted for one Token Status List certificate.
+pub const MAX_TOKEN_STATUS_X5C_CERTIFICATE_BYTES: usize = 65_536;
+/// Maximum aggregate DER byte length accepted for a Token Status List path.
+pub const MAX_TOKEN_STATUS_X5C_CHAIN_BYTES: usize = 262_144;
+
 /// Default maximum accepted age of a Token Status List, measured from `iat`.
 pub const DEFAULT_TOKEN_STATUS_LIST_MAX_AGE_SECS: u64 = 86_400;
 
@@ -225,4 +232,13 @@ pub enum TokenStatusListError {
     /// The authenticated subject does not equal the expected publication URI.
     #[error("token status list subject mismatch")]
     SubjectMismatch,
+    /// The protected `x5c` header is absent, malformed, or exceeds a bound.
+    #[error("invalid token status list certificate chain")]
+    InvalidCertificateChain,
+    /// The caller-supplied path resolver did not authenticate the certificate path.
+    #[error("token status list certificate path rejected")]
+    CertificatePathRejected,
+    /// The authenticated leaf certificate did not contain a valid P-256 key.
+    #[error("invalid token status list certificate key")]
+    InvalidCertificateKey,
 }

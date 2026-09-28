@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-vp-sd-jwt"
-version = "0.3.2"
+version = "0.3.3"
 description = "Legacy ReallyMe Merkle-envelope presentation compatibility; not RFC 9901 SD-JWT VC"
 edition = "2021"
 publish = false
