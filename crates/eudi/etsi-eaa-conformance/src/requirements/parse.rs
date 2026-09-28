@@ -179,7 +179,7 @@ pub(super) fn parse_handler(code_symbol: &str) -> Result<NormativeRequirementHan
         "validate_x509_attribute_certificate" => {
             NormativeRequirementHandler::X509AttributeCertificate
         }
-        "validate_openid4vp_presentation_for_profile;validate_authorization_response_with_options" => {
+        "validate_openid4vp_presentation_for_profile;diagnose_authorization_response_with_options" => {
             NormativeRequirementHandler::OpenId4VpPresentation
         }
         "validate_mdoc_presentation;verify_mdoc_presentation" => {
