@@ -27,8 +27,9 @@ pub use model::{
     TokenStatusBits, TokenStatusListClaims, TokenStatusListError, TokenStatusListFreshnessPolicy,
     TokenStatusListInvalidReason, TokenStatusListPayload, TokenStatusListProfile, TokenStatusValue,
     VerifiedTokenStatusList, DEFAULT_TOKEN_STATUS_LIST_MAX_AGE_SECS,
-    STATUS_LIST_CWT_CONTENT_FORMAT, STATUS_LIST_CWT_MEDIA_TYPE, STATUS_LIST_JWT_MEDIA_TYPE,
-    STATUS_LIST_JWT_TYPE,
+    MAX_TOKEN_STATUS_X5C_CERTIFICATES, MAX_TOKEN_STATUS_X5C_CERTIFICATE_BYTES,
+    MAX_TOKEN_STATUS_X5C_CHAIN_BYTES, STATUS_LIST_CWT_CONTENT_FORMAT, STATUS_LIST_CWT_MEDIA_TYPE,
+    STATUS_LIST_JWT_MEDIA_TYPE, STATUS_LIST_JWT_TYPE,
 };
 #[cfg(any(feature = "native", feature = "wasm"))]
-pub use verify_jwt::verify_token_status_list_jwt;
+pub use verify_jwt::{verify_token_status_list_jwt, verify_token_status_list_jwt_with_x5c};

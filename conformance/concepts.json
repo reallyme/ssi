@@ -24,7 +24,7 @@
         "role": "unpublished_internal",
         "package": "reallyme-ssi",
         "publish_ready": true,
-        "notes": "The reallyme-ssi facade remains source-only and publish = false. The smaller support-crate closure consumed by the public reallyme-identity package is released separately at version 0.3.2."
+        "notes": "The reallyme-ssi facade remains source-only and publish = false. The smaller support-crate closure consumed by the public reallyme-identity package is released separately at version 0.3.3."
       },
       "release_blocker": false,
       "next_actions": []

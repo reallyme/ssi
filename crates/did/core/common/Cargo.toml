@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-ssi-core"
-version = "0.3.2"
+version = "0.3.3"
 description = "Semantic algorithm, canonicalization, and profile registry primitives for ReallyMe identity."
 edition.workspace = true
 rust-version.workspace = true
