@@ -191,7 +191,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: reallyme/jose
-          ref: 0d5f809d175fb9a10765bbfa50df8fc7c24b43ec
+          ref: 1e421cffb9daabf445affe19cc9e7872c376b845
           path: reallyme/jose
           persist-credentials: false
 
@@ -199,7 +199,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: reallyme/cose
-          ref: 92932a57ad4dd99d9d00b1a8ac521fdec998abe6
+          ref: 107cb2a76145c0466db4dac4a524c44d671d1dbb
           path: reallyme/cose
           persist-credentials: false
 
