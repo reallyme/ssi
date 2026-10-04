@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-trust-tsl-xmlsec"
-version = "0.3.4"
+version = "0.4.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -22,11 +22,11 @@ reallyme-ssi-proto = { workspace = true }
 reallyme-crypto = { workspace = true, features = ["sha2"] }
 thiserror = { workspace = true }
 quick-xml = "0.42"
-codec-base64 = { package = "reallyme-codec-base64", version = "0.2.3" }
+codec-base64 = { package = "reallyme-codec-base64", version = "0.3.1" }
 zeroize = { workspace = true, features = ["derive"] }
 time = { workspace = true, features = ["parsing"] }
 
-identity-trust-tsl-xmlsec-sys = { version = "0.3.4", path = "../tsl-xmlsec-sys", optional = true, features = ["xmlsec-ffi"] }
+identity-trust-tsl-xmlsec-sys = { version = "0.4.0", path = "../tsl-xmlsec-sys", optional = true, features = ["xmlsec-ffi"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dev-dependencies]
 libc = "0.2"

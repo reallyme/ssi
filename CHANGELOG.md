@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0
+
+This release raises the minimum supported Rust version to 1.99, updates the
+pinned Crypto, Codec, COSE, and JOSE dependencies, and changes the public
+credential proof-binding API.
+
+- Credential proof bindings now include the transaction-data hash in the
+  session commitment and an issuer signature over the credential validity
+  interval and status pointer. `CredentialProofBinding` gains a required field,
+  and `credential_binding` gains a required argument.
+- SD-JWT disclosure selection gains an exact-scope API that rejects selected
+  parent disclosures containing cleartext claims outside the requested paths.
+- WRPRC authentication retains the presented signer certificate chain and
+  exposes authenticated registration scope, canonical registry and status
+  URIs, and registrar-provided descriptions for trust and consent evaluation.
+- Status-list verification exposes authenticity and freshness checks without
+  selecting a private status index.
+- `reallyme-mdoc` declares the `reallyme-codec/base64url` feature used by its
+  data-element projection, so the published crate compiles in isolation.
+
 ## 0.3.4
 
 This patch release aligns DPoP HTTP target URI validation with RFC 9449 by

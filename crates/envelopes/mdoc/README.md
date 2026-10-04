@@ -24,7 +24,7 @@ presentation, and DeviceResponse verification.
 
 ```toml
 [dependencies]
-reallyme-mdoc = "0.3.4"
+reallyme-mdoc = "0.4.0"
 ```
 
 The default `native` feature enables the native cryptographic provider. Use

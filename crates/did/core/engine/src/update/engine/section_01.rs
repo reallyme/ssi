@@ -112,7 +112,7 @@ fn canonicalize_services(services: &[Service]) -> Result<Vec<CanonicalService>, 
         out.push(CanonicalService {
             id: s.id.clone(),
             service_type: s.service_type.clone(),
-            service_endpoint,
+            service_endpoint: std::sync::Arc::new(service_endpoint),
         });
     }
 

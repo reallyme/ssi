@@ -21,7 +21,10 @@ use reallyme_credential::committed::model::{
     CredentialSubject, DomainTags, HolderBinding, KeyAssurance, KeyReference, PartyReference,
     PublicKeyRef, PublicKeyRepresentation, RawPublicKeySerialization, StatusPurpose,
 };
-use reallyme_credential::committed::proof_binding::validate_credential_proof_binding;
+use reallyme_credential::committed::proof_binding::{
+    issue_credential_proof_binding, validate_credential_proof_binding,
+};
+use reallyme_credential::DispatchCredentialIssuerSigner;
 
 use crypto_core::Algorithm as CryptoAlgorithm;
 use crypto_dispatch::{generate_keypair, verify};
@@ -178,13 +181,73 @@ fn p256_issuance_emits_and_validates_atomic_proof_binding() {
     assert_ne!(binding.issuance_binding, [0_u8; 32]);
     assert_ne!(
         binding
-            .credential_binding([1_u8; 32], [2_u8; 32], 1_800_000_000)
+            .credential_binding([1_u8; 32], [2_u8; 32], [4_u8; 32], 1_800_000_000)
             .unwrap(),
         binding
-            .credential_binding([3_u8; 32], [2_u8; 32], 1_800_000_000)
+            .credential_binding([3_u8; 32], [2_u8; 32], [4_u8; 32], 1_800_000_000)
+            .unwrap()
+    );
+    assert_ne!(
+        binding
+            .credential_binding([1_u8; 32], [2_u8; 32], [4_u8; 32], 1_800_000_000)
+            .unwrap(),
+        binding
+            .credential_binding([1_u8; 32], [2_u8; 32], [5_u8; 32], 1_800_000_000)
             .unwrap()
     );
     assert!(!format!("{binding:?}").contains("102"));
+}
+
+#[test]
+fn proof_binding_can_be_issued_for_an_existing_signed_envelope() {
+    let (issuer_public, issuer_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let (holder_public, _holder_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let mut claims = BTreeMap::new();
+    claims.insert("age".into(), serde_json::json!(42));
+    let result = issue_credential(
+        p256_input(issuer_public.clone(), holder_public),
+        &claims,
+        CryptoAlgorithm::P256,
+        &issuer_private,
+        &mut OsSaltRng,
+    )
+    .unwrap();
+    let signer = DispatchCredentialIssuerSigner {
+        private_key: &issuer_private,
+        verification_key: &result.envelope.issuer_signature.verification_key,
+    };
+    let binding = issue_credential_proof_binding(&result.envelope, &signer).unwrap();
+    validate_credential_proof_binding(
+        &result.envelope,
+        &result.subject_bundle,
+        &binding,
+        &issuer_public,
+    )
+    .unwrap();
+    assert_eq!(
+        binding.issuance_binding,
+        result.proof_binding.as_ref().unwrap().issuance_binding
+    );
+
+    let (other_public, other_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let other_key = p256_key("did:test:issuer#key-2", other_public);
+    let wrong_signer = DispatchCredentialIssuerSigner {
+        private_key: &issuer_private,
+        verification_key: &other_key,
+    };
+    assert_eq!(
+        issue_credential_proof_binding(&result.envelope, &wrong_signer),
+        Err(VcError::ProofBindingTrustedIssuerMismatch)
+    );
+
+    let mismatched_private_key = DispatchCredentialIssuerSigner {
+        private_key: &other_private,
+        verification_key: &result.envelope.issuer_signature.verification_key,
+    };
+    assert_eq!(
+        issue_credential_proof_binding(&result.envelope, &mismatched_private_key),
+        Err(VcError::ProofBindingSignatureInvalid)
+    );
 }
 
 #[test]
@@ -304,6 +367,18 @@ fn proof_binding_rejects_tampered_root_subject_and_signatures() {
             &result.envelope,
             &result.subject_bundle,
             &wrong_signature,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingSignatureInvalid)
+    );
+
+    let mut wrong_validity_status_signature = result.proof_binding.as_ref().unwrap().clone();
+    wrong_validity_status_signature.issuer_validity_status_signature[0] ^= 1;
+    assert_eq!(
+        validate_credential_proof_binding(
+            &result.envelope,
+            &result.subject_bundle,
+            &wrong_validity_status_signature,
             &issuer_public,
         ),
         Err(VcError::ProofBindingSignatureInvalid)

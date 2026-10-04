@@ -8,9 +8,108 @@ use serde_json::json;
 
 use crate::{
     create_array_element_disclosure, create_object_property_disclosure, digest_disclosure,
-    select_sd_jwt_disclosures, SdJwtClaimPathComponent, SdJwtEnvelopeError, SdJwtHashAlgorithm,
-    SdJwtProcessingPolicy,
+    select_sd_jwt_disclosures, select_sd_jwt_disclosures_exact_scope, SdJwtClaimPathComponent,
+    SdJwtEnvelopeError, SdJwtHashAlgorithm, SdJwtProcessingPolicy,
 };
+
+#[test]
+fn exact_scope_rejects_cleartext_sibling_inside_selected_parent() -> Result<(), SdJwtEnvelopeError>
+{
+    let address = create_object_property_disclosure(
+        "MDEyMzQ1Njc4OWFiY2RlZg",
+        "address",
+        json!({"street": "Via Roma", "city": "Valletta"}),
+    )?;
+    let digest = digest_disclosure(address.encoded(), SdJwtHashAlgorithm::Sha256)?;
+    let disclosures = vec![address.encoded().to_owned()];
+    let payload = json!({"_sd": [digest]});
+    let path = vec![SdJwtClaimPathComponent::Name("address".to_owned())];
+    let narrow = vec![
+        path[0].clone(),
+        SdJwtClaimPathComponent::Name("street".to_owned()),
+    ];
+
+    let result = select_sd_jwt_disclosures_exact_scope(
+        &payload,
+        &disclosures,
+        &[narrow],
+        SdJwtProcessingPolicy::default(),
+    );
+    assert!(matches!(
+        result,
+        Err(SdJwtEnvelopeError::RequestedScopeExceeded)
+    ));
+
+    let whole_address = select_sd_jwt_disclosures_exact_scope(
+        &payload,
+        &disclosures,
+        &[path],
+        SdJwtProcessingPolicy::default(),
+    )?;
+    assert_eq!(whole_address.as_slice(), disclosures.as_slice());
+    Ok(())
+}
+
+#[test]
+fn exact_scope_accepts_concealed_sibling_inside_selected_parent() -> Result<(), SdJwtEnvelopeError>
+{
+    let street =
+        create_object_property_disclosure("MDEyMzQ1Njc4OWFiY2RlZg", "street", json!("Via Roma"))?;
+    let city =
+        create_object_property_disclosure("MDEyMzQ1Njc4OWFiY2RlZg", "city", json!("Valletta"))?;
+    let street_digest = digest_disclosure(street.encoded(), SdJwtHashAlgorithm::Sha256)?;
+    let city_digest = digest_disclosure(city.encoded(), SdJwtHashAlgorithm::Sha256)?;
+    let address = create_object_property_disclosure(
+        "MDEyMzQ1Njc4OWFiY2RlZg",
+        "address",
+        json!({"_sd": [street_digest, city_digest]}),
+    )?;
+    let address_digest = digest_disclosure(address.encoded(), SdJwtHashAlgorithm::Sha256)?;
+    let disclosures = vec![
+        street.encoded().to_owned(),
+        city.encoded().to_owned(),
+        address.encoded().to_owned(),
+    ];
+    let selected = select_sd_jwt_disclosures_exact_scope(
+        &json!({"_sd": [address_digest]}),
+        &disclosures,
+        &[vec![
+            SdJwtClaimPathComponent::Name("address".to_owned()),
+            SdJwtClaimPathComponent::Name("street".to_owned()),
+        ]],
+        SdJwtProcessingPolicy::default(),
+    )?;
+    assert_eq!(
+        selected.as_slice(),
+        &[disclosures[0].clone(), disclosures[2].clone()]
+    );
+    Ok(())
+}
+
+#[test]
+fn exact_scope_rejects_unrequested_array_element_inside_parent() -> Result<(), SdJwtEnvelopeError> {
+    let roles = create_object_property_disclosure(
+        "MDEyMzQ1Njc4OWFiY2RlZg",
+        "roles",
+        json!(["reader", "administrator"]),
+    )?;
+    let digest = digest_disclosure(roles.encoded(), SdJwtHashAlgorithm::Sha256)?;
+    let disclosures = vec![roles.encoded().to_owned()];
+    let first_only = select_sd_jwt_disclosures_exact_scope(
+        &json!({"_sd": [digest]}),
+        &disclosures,
+        &[vec![
+            SdJwtClaimPathComponent::Name("roles".to_owned()),
+            SdJwtClaimPathComponent::Index(0),
+        ]],
+        SdJwtProcessingPolicy::default(),
+    );
+    assert!(matches!(
+        first_only,
+        Err(SdJwtEnvelopeError::RequestedScopeExceeded)
+    ));
+    Ok(())
+}
 
 #[test]
 fn selects_nested_disclosure_and_its_parent_but_not_sibling() {

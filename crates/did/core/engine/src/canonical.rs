@@ -5,7 +5,8 @@ use identity_core_primitives::algorithm_map::alg_to_did_alg_str;
 
 use crate::core::DidCore;
 use crate::error::{CanonicalStateViolation, DidCoreError};
-use reallyme_codec::cbor::{encode_dag_cbor, CborValue};
+use reallyme_codec::cbor::{decode_dag_cbor, encode_dag_cbor, CborValue};
+use zeroize::Zeroizing;
 
 /// Trait for objects that have a canonical CBOR representation.
 pub trait Canonical {
@@ -53,7 +54,12 @@ fn did_core_to_cbor(core: &DidCore) -> Result<CborValue, DidCoreError> {
         ),
         (
             "services".into(),
-            Array(core.services.iter().map(service_to_cbor).collect()),
+            Array(
+                core.services
+                    .iter()
+                    .map(service_to_cbor)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
         ),
         (
             "projectionHash".into(),
@@ -95,14 +101,23 @@ fn vm_to_cbor(vm: &CoreVerificationMethod) -> reallyme_codec::cbor::CborValue {
     ])
 }
 
-fn service_to_cbor(svc: &CanonicalService) -> reallyme_codec::cbor::CborValue {
+fn service_to_cbor(svc: &CanonicalService) -> Result<CborValue, DidCoreError> {
     use reallyme_codec::cbor::CborValue::{Map, String};
 
-    Map(vec![
+    // The Codec value owns zeroizing buffers and deliberately does not support
+    // implicit cloning. Canonical encoding is bounded; wipe the temporary
+    // bytes after decoding an independently owned value for this outer map.
+    let encoded =
+        Zeroizing::new(encode_dag_cbor(svc.service_endpoint.as_ref()).map_err(|_| {
+            DidCoreError::InvalidCanonicalState(CanonicalStateViolation::CborEncoding)
+        })?);
+    let endpoint = decode_dag_cbor(&encoded)
+        .map_err(|_| DidCoreError::InvalidCanonicalState(CanonicalStateViolation::CborEncoding))?;
+    Ok(Map(vec![
         ("id".into(), String(svc.id.clone())),
         ("type".into(), String(svc.service_type.clone())),
-        ("serviceEndpoint".into(), svc.service_endpoint.clone()),
-    ])
+        ("serviceEndpoint".into(), endpoint),
+    ]))
 }
 
 /// Convert an update policy into its canonical CBOR map representation.

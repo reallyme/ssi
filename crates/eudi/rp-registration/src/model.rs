@@ -24,6 +24,7 @@ pub use protocol::{ProtocolProfile, RegistryPayloadShape, WrpEntitlement};
 pub(crate) use raw::RawWalletRelyingParty;
 
 const MAX_TEXT_BYTES: usize = 2_048;
+const MAX_CREDENTIAL_REQUEST_JSON_BYTES: usize = 64 * 1_024;
 
 /// Bounded UTF-8 protocol text with redacted diagnostics and drop zeroization.
 #[derive(Eq, PartialEq, Serialize, Zeroize, ZeroizeOnDrop)]
@@ -68,6 +69,28 @@ pub struct CredentialRequest {
 }
 
 impl CredentialRequest {
+    /// Parse one bounded TS5 credential request with the same rules used for
+    /// signed WRPRC and registrar records.
+    ///
+    /// This is for comparing a protocol request with authenticated registration
+    /// scope. Parsing alone does not establish that the request is authorized.
+    pub fn from_json(input: &[u8]) -> Result<Self, RegistrationError> {
+        if input.is_empty() || input.len() > MAX_CREDENTIAL_REQUEST_JSON_BYTES {
+            return Err(RegistrationError::from_reason(
+                RegistrationErrorReason::InputTooLarge,
+            ));
+        }
+        let raw: raw::RawCredential = deserialize_strict(input)?;
+        raw.validate()
+    }
+
+    /// Check whether this authenticated registration entry covers every
+    /// format, metadata value, and claim path of a validated request.
+    #[must_use]
+    pub fn authorizes_requested(&self, requested: &Self) -> bool {
+        self.authorizes(requested)
+    }
+
     pub(crate) fn try_new(
         format: String,
         meta: std::collections::BTreeMap<String, crate::json::StrictValue>,
@@ -421,3 +444,7 @@ fn validate_text(value: &str, limit: usize) -> Result<(), RegistrationError> {
 const fn is_false(value: &bool) -> bool {
     !*value
 }
+
+#[cfg(test)]
+#[path = "model/credential_request_tests.rs"]
+mod credential_request_tests;

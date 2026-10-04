@@ -133,6 +133,7 @@ struct PathMapper<'a> {
     policy: SdJwtProcessingPolicy,
     nodes: usize,
     path: Vec<SdJwtClaimPathComponent>,
+    exact_scope: bool,
 }
 
 /// Select the minimal disclosure closure needed for the requested claim paths.
@@ -147,6 +148,45 @@ pub fn select_sd_jwt_disclosures(
     encoded_disclosures: &[String],
     requested_paths: &[Vec<SdJwtClaimPathComponent>],
     policy: SdJwtProcessingPolicy,
+) -> Result<SelectedSdJwtDisclosures, SdJwtEnvelopeError> {
+    select_disclosures(
+        issuer_payload,
+        encoded_disclosures,
+        requested_paths,
+        policy,
+        false,
+    )
+}
+
+/// Select disclosures only when their newly revealed cleartext projection is
+/// covered by the requested paths.
+///
+/// A parent disclosure needed for a nested path can also expose cleartext
+/// siblings. Those siblings are rejected rather than silently included in a
+/// wallet presentation whose consent covered only the nested path.
+/// Claims already cleartext in the issuer-signed payload are mandatory content
+/// and remain subject to the caller's credential and consent policy.
+pub fn select_sd_jwt_disclosures_exact_scope(
+    issuer_payload: &Value,
+    encoded_disclosures: &[String],
+    requested_paths: &[Vec<SdJwtClaimPathComponent>],
+    policy: SdJwtProcessingPolicy,
+) -> Result<SelectedSdJwtDisclosures, SdJwtEnvelopeError> {
+    select_disclosures(
+        issuer_payload,
+        encoded_disclosures,
+        requested_paths,
+        policy,
+        true,
+    )
+}
+
+fn select_disclosures(
+    issuer_payload: &Value,
+    encoded_disclosures: &[String],
+    requested_paths: &[Vec<SdJwtClaimPathComponent>],
+    policy: SdJwtProcessingPolicy,
+    exact_scope: bool,
 ) -> Result<SelectedSdJwtDisclosures, SdJwtEnvelopeError> {
     if !issuer_payload.is_object()
         || encoded_disclosures.len() > MAX_SD_JWT_DISCLOSURES
@@ -197,8 +237,9 @@ pub fn select_sd_jwt_disclosures(
         policy,
         nodes: 0,
         path: Vec::new(),
+        exact_scope,
     };
-    mapper.map_value(issuer_payload, 0)?;
+    mapper.map_value(issuer_payload, 0, false)?;
     let all_requested_paths_found = mapper.requested_paths_found.iter().all(|found| *found);
     drop(mapper);
     if !all_requested_paths_found {
@@ -249,9 +290,22 @@ impl PathMapper<'_> {
         Ok(())
     }
 
-    fn map_value(&mut self, value: &Value, depth: usize) -> Result<(), SdJwtEnvelopeError> {
+    fn map_value(
+        &mut self,
+        value: &Value,
+        depth: usize,
+        within_selected_disclosure: bool,
+    ) -> Result<(), SdJwtEnvelopeError> {
         self.count_node(depth)?;
         self.record_current_path();
+        if self.exact_scope
+            && within_selected_disclosure
+            && !self.requested_paths.iter().any(|requested| {
+                path_is_prefix(&self.path, requested) || path_is_prefix(requested, &self.path)
+            })
+        {
+            return Err(SdJwtEnvelopeError::RequestedScopeExceeded);
+        }
         let child_depth = depth
             .checked_add(1)
             .ok_or(SdJwtEnvelopeError::ProcessingDepthExceeded)?;
@@ -273,7 +327,7 @@ impl PathMapper<'_> {
                         continue;
                     }
                     self.path.push(SdJwtClaimPathComponent::Name(name.clone()));
-                    let result = self.map_value(child, child_depth);
+                    let result = self.map_value(child, child_depth, within_selected_disclosure);
                     self.path.pop();
                     result?;
                 }
@@ -293,7 +347,7 @@ impl PathMapper<'_> {
                         .push(SdJwtClaimPathComponent::Index(resolved_index));
                     let result = match digest {
                         Some(value) => self.map_array_disclosure(value, child_depth),
-                        None => self.map_value(child, child_depth),
+                        None => self.map_value(child, child_depth, within_selected_disclosure),
                     };
                     self.path.pop();
                     result?;
@@ -370,6 +424,10 @@ impl PathMapper<'_> {
         depth: usize,
     ) -> Result<(), SdJwtEnvelopeError> {
         let path = self.path.clone();
+        let selected = self
+            .requested_paths
+            .iter()
+            .any(|requested| disclosure_is_required(&path, requested));
         let entry = self.entry_mut(index)?;
         if entry.path.is_some() {
             return Err(SdJwtEnvelopeError::DuplicateDigest);
@@ -379,7 +437,7 @@ impl PathMapper<'_> {
             DisclosureKind::ObjectProperty { claim_value, .. }
             | DisclosureKind::ArrayElement { claim_value } => core::mem::take(claim_value),
         };
-        let result = self.map_value(&claim_value, depth);
+        let result = self.map_value(&claim_value, depth, selected);
         zeroize_json_value(&mut claim_value);
         result
     }
@@ -429,19 +487,7 @@ fn array_disclosure_digest(value: &Value) -> Result<Option<&str>, SdJwtEnvelopeE
         .ok_or(SdJwtEnvelopeError::InvalidDigestPlaceholder)
 }
 
-fn disclosure_is_required(
-    disclosure_path: &[SdJwtClaimPathComponent],
-    requested_path: &[SdJwtClaimPathComponent],
-) -> bool {
-    disclosure_path.len() <= requested_path.len()
-        && disclosure_path
-            .iter()
-            .zip(requested_path)
-            .all(|(disclosure, requested)| match (disclosure, requested) {
-                (SdJwtClaimPathComponent::Index(_), SdJwtClaimPathComponent::All) => true,
-                (left, right) => left == right,
-            })
-}
+include!("select_disclosures/path_matches.rs");
 
 #[cfg(test)]
 #[path = "select_disclosures_tests.rs"]

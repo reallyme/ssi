@@ -133,6 +133,23 @@ fn decode_jwt_payload(jwt: &str) -> Value {
     serde_json::from_slice(&payload_bytes).expect("JWT payload must be JSON")
 }
 
+fn sign_unvalidated_ed25519_jwt(payload: &Value, key: &TestKey, typ: &str) -> String {
+    // The JOSE issuer validates registered claims before signing. Negative
+    // verifier tests need an authentic signature over deliberately invalid
+    // claims, so they sign those exact bytes at the cryptographic boundary.
+    let header = bytes_to_base64url(
+        &serde_json::to_vec(&json!({"alg": "EdDSA", "kid": "test-key", "typ": typ}))
+            .expect("test JWT header serializes"),
+    );
+    let payload = bytes_to_base64url(
+        &serde_json::to_vec(payload).expect("test JWT payload serializes"),
+    );
+    let signing_input = format!("{header}.{payload}");
+    let signature = sign(Algorithm::Ed25519, &key.private, signing_input.as_bytes())
+        .expect("test JWT signs");
+    format!("{signing_input}.{}", bytes_to_base64url(&signature))
+}
+
 fn expected_full_user_payload(vector: &Value) -> Value {
     let expected_payload = vector
         .get("expected_payload")

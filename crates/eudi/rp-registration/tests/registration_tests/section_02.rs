@@ -65,6 +65,8 @@ fn wrprc_status_and_validity_are_parsed_strictly() -> Result<(), RegistrationErr
     let parsed = parse_registration_certificate(payload)?;
     assert_eq!(parsed.relying_party_id(), "NTRCH-123");
     assert_eq!(parsed.status_list_index(), 9);
+    assert_eq!(parsed.registry_uri(), "https://registry.example/entry/123");
+    assert_eq!(parsed.status_list_uri(), "https://status.example/list");
     assert_eq!(parsed.issued_at(), 100);
     assert_eq!(parsed.expires_at(), 200);
     assert_eq!(
@@ -96,6 +98,23 @@ fn wrprc_requires_the_normative_policy_oid_and_https_cp_cps_location() {
 }
 
 #[test]
+fn wrprc_rejects_oversized_signed_lookup_uris() {
+    let payload = include_str!("../vectors/valid-wrprc-payload.json");
+    for (original, oversized) in [
+        ("https://registry.example/entry/123", format!("https://registry.example/{}", "a".repeat(2_048))),
+        ("https://status.example/list", format!("https://status.example/{}", "a".repeat(2_048))),
+    ] {
+        let substituted = payload.replace(original, &oversized);
+        assert_eq!(
+            parse_registration_certificate(substituted.as_bytes())
+                .err()
+                .map(RegistrationError::reason),
+            Some(RegistrationErrorReason::InvalidField)
+        );
+    }
+}
+
+#[test]
 fn wrprc_rejects_non_normative_entitlement_identifiers() {
     let payload = include_str!("../vectors/valid-wrprc-payload.json").replace(
         "https://uri.etsi.org/19475/Entitlement/Service_Provider",
@@ -116,6 +135,40 @@ fn wrprc_credentials_are_parsed_as_bounded_authorization_inputs(
     ))?;
     assert_eq!(parsed.registered_credentials().len(), 1);
     Ok(())
+}
+
+#[test]
+fn wrprc_retains_signed_purpose_and_optional_intended_use() -> Result<(), RegistrationError> {
+    let payload = include_str!("../vectors/valid-wrprc-payload.json");
+    let without_id = parse_registration_certificate(payload.as_bytes())?;
+    assert_eq!(without_id.intended_use_id(), None);
+    assert_eq!(without_id.purpose()[0].language(), "en");
+    assert_eq!(without_id.purpose()[0].content(), "Verify age");
+    assert_eq!(without_id.service_description()[0].content(), "service");
+    assert_eq!(without_id.privacy_policy_uris()[0].expose(), "https://rp.example/privacy");
+
+    let with_id = payload.replace(
+        "\"purpose\":",
+        "\"intended_use_id\": \"age-check\", \"purpose\":",
+    );
+    let parsed = parse_registration_certificate(with_id.as_bytes())?;
+    assert_eq!(parsed.intended_use_id(), Some("age-check"));
+    Ok(())
+}
+
+#[test]
+fn wrprc_rejects_malformed_signed_purpose_and_policy() {
+    let payload = include_str!("../vectors/valid-wrprc-payload.json");
+    let malformed_purpose = payload.replace(
+        "\"purpose\": [{\"lang\": \"en\", \"content\": \"Verify age\"}]",
+        "\"purpose\": [{\"lang\": \"en\", \"content\": \"Verify age\", \"extra\": true}]",
+    );
+    let malformed_policy = payload.replace(
+        "\"privacy_policy\": [\"https://rp.example/privacy\"]",
+        "\"privacy_policy\": [\"http://rp.example/privacy\"]",
+    );
+    assert!(parse_registration_certificate(malformed_purpose.as_bytes()).is_err());
+    assert!(parse_registration_certificate(malformed_policy.as_bytes()).is_err());
 }
 
 #[test]

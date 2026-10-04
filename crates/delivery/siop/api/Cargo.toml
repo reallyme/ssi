@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-delivery-siop-api"
-version = "0.3.4"
+version = "0.4.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -16,14 +16,14 @@ native = ["envelopes-jwk/native", "identity-presentation-delivery-siop-verifier/
 wasm   = ["envelopes-jwk/wasm", "identity-presentation-delivery-siop-verifier/wasm"]
 
 [dependencies]
-identity-presentation-delivery-siop-core = { version = "0.3.4", path = "../core" }
-identity-presentation-delivery-siop-verifier = { version = "0.3.4", path = "../verifier", default-features = false }
+identity-presentation-delivery-siop-core = { version = "0.4.0", path = "../core" }
+identity-presentation-delivery-siop-verifier = { version = "0.4.0", path = "../verifier", default-features = false }
 
 [dev-dependencies]
-codec-base64url = { package = "reallyme-codec-base64url", version = "0.2.3" }
-crypto-core = { package = "reallyme-crypto-core", version = "0.3.9" }
-crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.9", features = ["native"] }
-envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.9", default-features = false }
+codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.1" }
+crypto-core = { package = "reallyme-crypto-core", version = "0.3.12" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.12", features = ["native"] }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.12", default-features = false }
 envelopes-jwt = { workspace = true, features = ["native"] }
 [lints]
 workspace = true

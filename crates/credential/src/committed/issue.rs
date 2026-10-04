@@ -4,3 +4,4 @@
 
 include!("issue/section_01.rs");
 include!("issue/section_02.rs");
+include!("issue/build_proof_binding.rs");

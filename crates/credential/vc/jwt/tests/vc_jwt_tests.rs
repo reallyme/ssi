@@ -118,6 +118,23 @@ fn sign(payload: &VcJwtPayload, key: &IssuerKey) -> String {
     encode_signed_jwt(payload, &key.jwk, &key.private).unwrap()
 }
 
+fn sign_malformed_temporal_claims(payload: &VcJwtPayload, key: &IssuerKey) -> String {
+    // The validated JOSE signer rejects malformed NumericDate claims before
+    // signing. This test signs the exact invalid payload to exercise the
+    // credential verifier's temporal checks after signature verification.
+    let header = bytes_to_base64url(br#"{"alg":"EdDSA","kid":"kid-1","typ":"JWT"}"#);
+    let payload =
+        bytes_to_base64url(&serde_json::to_vec(payload).expect("test payload serializes"));
+    let signing_input = format!("{header}.{payload}");
+    let signature = crypto_dispatch::sign(
+        CryptoAlgorithm::Ed25519,
+        &key.private,
+        signing_input.as_bytes(),
+    )
+    .expect("malformed test payload signs");
+    format!("{signing_input}.{}", bytes_to_base64url(&signature))
+}
+
 fn ed25519_key(did_url: &str, bytes: Vec<u8>) -> PublicKeyRef {
     PublicKeyRef {
         alg: CredentialAlgorithm::Ed25519,
@@ -275,7 +292,7 @@ fn vc_jwt_rejects_negative_and_inverted_numeric_dates() {
     ];
 
     for payload in cases {
-        let jwt = sign(&payload, &key);
+        let jwt = sign_malformed_temporal_claims(&payload, &key);
         let error =
             decode_verify_vc_jwt(&jwt, &key.jwk, &key.public, &options_at(NOW_UNIX)).unwrap_err();
         assert!(matches!(error, VcJwtError::InvalidTemporalClaim));

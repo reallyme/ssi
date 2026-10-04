@@ -387,19 +387,13 @@ fn issuer_signed_transport_embeds_es256_x5chain_cose() {
         label.as_integer().map(i128::from) == Some(1)
             && value.as_integer().map(i128::from) == Some(-7)
     }));
-    assert!(
-        fields
-            .get(1)
-            .and_then(CiboriumValue::as_map)
-            .unwrap()
-            .iter()
-            .any(|(label, value)| {
-                label.as_integer().map(i128::from) == Some(33)
-                    && value
-                        .as_bytes()
-                        .is_some_and(|bytes| bytes.as_slice() == LEAF_CERTIFICATE_DER)
-            })
-    );
+    assert!(protected.as_map().unwrap().iter().any(|(label, value)| {
+        label.as_integer().map(i128::from) == Some(33)
+            && value
+                .as_bytes()
+                .is_some_and(|bytes| bytes.as_slice() == LEAF_CERTIFICATE_DER)
+    }));
+    assert!(fields.get(1).and_then(CiboriumValue::as_map).unwrap().is_empty());
     let verified = validate_x5chain_issuer_auth(
         &document.issuer_signed.issuer_auth,
         |presented_certificates, signing_time_unix| {

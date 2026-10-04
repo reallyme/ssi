@@ -50,10 +50,10 @@ fn services_project_canonical_endpoint_values() {
     core.services = vec![CanonicalService {
         id: "#svc".into(),
         service_type: "LinkedDomains".into(),
-        service_endpoint: CborValue::Map(vec![(
+        service_endpoint: std::sync::Arc::new(CborValue::Map(vec![(
             "origins".into(),
             CborValue::Array(vec![CborValue::String("https://example.com".into())]),
-        )]),
+        )])),
     }];
 
     let doc = project_did_document(DocumentProjection {

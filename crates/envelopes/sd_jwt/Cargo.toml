@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-sd-jwt"
-version = "0.3.4"
+version = "0.4.0"
 description = "RFC 9901 SD-JWT issuance, presentation, and verification primitives."
 edition.workspace = true
 rust-version.workspace = true

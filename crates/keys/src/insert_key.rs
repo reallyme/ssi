@@ -16,7 +16,7 @@ fn validate_key_pair(
         || <&[u8; 32]>::try_from(secret).map_err(|_| KeySetError::InvalidPrivateKeyMaterial);
     let secret_64 =
         || <&[u8; 64]>::try_from(secret).map_err(|_| KeySetError::InvalidPrivateKeyMaterial);
-    let derived = match parsed.codec_name {
+    let derived = match parsed.codec_name() {
         "ed25519-pub" => reallyme_crypto::ed25519::generate_ed25519_keypair_from_seed(secret_32()?)
             .map(|pair| pair.0),
         "p256-pub" => reallyme_crypto::p256::generate_p256_keypair_from_secret_key(secret_32()?)
@@ -43,7 +43,7 @@ fn validate_key_pair(
     }
     .map_err(|_| KeySetError::InvalidPrivateKeyMaterial)?;
 
-    if !reallyme_crypto::operations::constant_time::equal(&derived, &parsed.public_key) {
+    if !reallyme_crypto::operations::constant_time::equal(&derived, parsed.public_key()) {
         return Err(KeySetError::KeyPairMismatch);
     }
     Ok(())

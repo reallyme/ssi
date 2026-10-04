@@ -135,14 +135,14 @@ pub fn validate_projection(doc: &DIDDocument, core: &CborValue) -> ProjectionVal
     for vm in &doc.verification_method {
         match parse_multikey(&vm.public_key_multibase) {
             Ok(parsed) => {
-                if !public_key_material.insert(parsed.public_key) {
+                if !public_key_material.insert(parsed.public_key().to_vec()) {
                     errors.push(DidValidationIssue::new(
                         DidValidationCode::VerificationMethodInvalid,
                         DidValidationLocation::VerificationMethod,
                     ));
                 }
                 if let Some(alg) = &vm.algorithm {
-                    if alg != parsed.alg {
+                    if alg != parsed.algorithm_name() {
                         errors.push(projection_issue(DidValidationLocation::VerificationMethod));
                     }
                 }

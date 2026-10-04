@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-revocation"
-version = "0.3.4"
+version = "0.4.0"
 description = "Protocol-neutral credential revocation and suspension policy helpers."
 edition.workspace = true
 rust-version.workspace = true
@@ -30,12 +30,12 @@ wasm = ["reallyme-credential-status/wasm", "reallyme-trust-x509/wasm"]
 
 [dependencies]
 zeroize = { workspace = true, features = ["derive"] }
-reallyme-credential-status = { path = "../status", version = "0.3.4", default-features = false }
+reallyme-credential-status = { path = "../status", version = "0.4.0", default-features = false }
 reallyme-ssi-proto = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 time = { workspace = true }
-reallyme-trust-x509 = { path = "../trust/x509", version = "0.3.4", default-features = false }
+reallyme-trust-x509 = { path = "../trust/x509", version = "0.4.0", default-features = false }
 
 [lints]
 workspace = true

@@ -3,6 +3,48 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[test]
+fn presented_wrprc_authentication_uses_only_its_embedded_signer() -> Result<(), RegistrationError> {
+    let payload = include_bytes!("../vectors/valid-wrprc-payload.json");
+    let cwt = wrprc_cwt_claims(payload)?;
+    let (certificate, private_key) = proof_signing_identity()?;
+    let compact = sign_wrprc_jades(payload, &certificate, &private_key)?;
+    let policy = RegistrationCertificateJadesPolicy::default();
+    let jades = authenticate_presented_wrprc_jades(&compact, evaluation_time(), &policy)?;
+    assert_eq!(jades.presented_certificate_chain_der()[0], certificate);
+
+    let cose = sign_wrprc_cose(&cwt, &certificate, &private_key)?;
+    let cose_proof = authenticate_presented_wrprc_cose_sign1(
+        &cose,
+        evaluation_time(),
+        &[RegistrationCertificateCoseAlgorithm::Es256],
+    )?;
+    assert_eq!(cose_proof.presented_certificate_chain_der()[0], certificate);
+
+    let mut tampered = compact.clone();
+    let last = tampered.last_mut().ok_or(RegistrationError::Invalid(
+        RegistrationErrorReason::InvalidCompactJws,
+    ))?;
+    *last = if *last == b'A' { b'B' } else { b'A' };
+    assert_eq!(
+        authenticate_presented_wrprc_jades(&tampered, evaluation_time(), &policy)
+            .err()
+            .map(RegistrationError::reason),
+        Some(RegistrationErrorReason::SignatureVerificationFailed)
+    );
+    assert_eq!(
+        authenticate_presented_wrprc_cose_sign1(
+            &cose,
+            evaluation_time(),
+            &[RegistrationCertificateCoseAlgorithm::Ed25519],
+        )
+        .err()
+        .map(RegistrationError::reason),
+        Some(RegistrationErrorReason::UnsupportedProfile)
+    );
+    Ok(())
+}
+
+#[test]
 fn wrprc_proof_verifiers_reject_tampering_wrong_leaf_and_algorithm_substitution(
 ) -> Result<(), RegistrationError> {
     let payload = include_bytes!("../vectors/valid-wrprc-payload.json");
@@ -351,6 +393,61 @@ fn wrprc_binding_must_match_signed_intermediary() -> Result<(), RegistrationErro
             Some(RegistrationErrorReason::SemanticBindingMismatch)
         );
     }
+    Ok(())
+}
+
+#[test]
+fn wrprc_receipt_retains_the_presented_candidate_path() -> Result<(), RegistrationError> {
+    let payload = include_bytes!("../vectors/valid-wrprc-payload.json");
+    let cwt = wrprc_cwt_claims(payload)?;
+    let (leaf, private_key) = proof_signing_identity()?;
+    let (presented_intermediate, _unused_key) = proof_signing_identity()?;
+    let chain = [leaf.as_slice(), presented_intermediate.as_slice()];
+    let cose = sign_wrprc_cose_profile_with_chain(
+        &cwt,
+        &private_key,
+        "rc-wrp+cwt",
+        TestX5ChainPlacement::Unprotected,
+        TestCoseAlgorithm::Es256,
+        &chain,
+    )?;
+    let proof = authenticate_wrprc_cose_sign1(RegistrationCertificateCoseAuthenticationInput {
+        cose_sign1: &cose,
+        expected_signer_certificate_der: &leaf,
+        evaluation_time: evaluation_time(),
+        allowed_algorithms: &[RegistrationCertificateCoseAlgorithm::Es256],
+    })?;
+    assert_eq!(
+        proof.authenticated_claims().map(|claims| claims.relying_party_id()),
+        Some("NTRCH-123")
+    );
+    assert_eq!(proof.presented_certificate_chain_der().len(), 2);
+    assert_eq!(proof.presented_certificate_chain_der()[0], leaf);
+    assert_eq!(proof.representation_digest(), ArtifactDigest::sha256(&cose));
+    let authenticated = authenticate_registration_certificate(vec![proof], fixture_binding(None)?)?;
+    assert_eq!(authenticated.signer_certificate_der(), Some(leaf.as_slice()));
+    assert_eq!(authenticated.presented_certificate_chain_der().len(), 2);
+    assert_eq!(authenticated.presented_certificate_chain_der()[1], presented_intermediate);
+    let substituted_chain = [presented_intermediate.as_slice(), leaf.as_slice()];
+    let substituted = sign_wrprc_cose_profile_with_chain(
+        &cwt,
+        &private_key,
+        "rc-wrp+cwt",
+        TestX5ChainPlacement::Unprotected,
+        TestCoseAlgorithm::Es256,
+        &substituted_chain,
+    )?;
+    let error = authenticate_wrprc_cose_sign1(RegistrationCertificateCoseAuthenticationInput {
+        cose_sign1: &substituted,
+        expected_signer_certificate_der: &leaf,
+        evaluation_time: evaluation_time(),
+        allowed_algorithms: &[RegistrationCertificateCoseAlgorithm::Es256],
+    })
+    .err();
+    assert_eq!(
+        error.map(RegistrationError::reason),
+        Some(RegistrationErrorReason::AuthenticationReceiptMismatch)
+    );
     Ok(())
 }
 

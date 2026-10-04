@@ -8,21 +8,27 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 use crate::json::canonical_json;
 use crate::{ArtifactDigest, BoundedText, RegistrationError, RegistrationErrorReason};
 
+mod authenticate;
 mod parse;
 #[cfg(any(feature = "native", feature = "wasm"))]
 mod proof;
 
+pub use authenticate::authenticate_registration_certificate;
 pub use parse::parse_registration_certificate;
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub use proof::{
+    authenticate_presented_wrprc_cose_sign1, authenticate_presented_wrprc_jades,
     authenticate_wrprc_cose_sign1, authenticate_wrprc_jades, RegistrationCertificateCoseAlgorithm,
     RegistrationCertificateCoseAuthenticationInput,
     RegistrationCertificateJadesAuthenticationInput, RegistrationCertificateJadesPolicy,
 };
 
+#[cfg(any(feature = "native", feature = "wasm"))]
 const MAX_REPRESENTATION_BYTES: usize = 2 * 1_024 * 1_024;
+#[cfg(any(feature = "native", feature = "wasm"))]
 const MAX_SIGNER_CERTIFICATE_BYTES: usize = 65_536;
-const MAX_REPRESENTATIONS: usize = 2;
+#[cfg(any(feature = "native", feature = "wasm"))]
+const MAX_SIGNER_CERTIFICATE_CHAIN_LENGTH: usize = 10;
 const ETSI_TS_119_475_WRPRC_POLICY_OID: &str = "0.4.0.19475.3.1";
 
 /// Closed certificate-policy identity admitted for an ETSI WRPRC.
@@ -58,6 +64,31 @@ pub enum RegisteredCredentialFormat {
     DcSdJwt,
     /// ISO/IEC 18013-5 mobile document using the `mso_mdoc` identifier.
     MsoMdoc,
+}
+
+/// Registrar-provided text authenticated by a WRPRC signature.
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct SignedLocalizedText {
+    language: BoundedText,
+    content: BoundedText,
+}
+
+impl SignedLocalizedText {
+    /// Borrow the registered language tag.
+    #[must_use]
+    pub fn language(&self) -> &str {
+        self.language.expose()
+    }
+
+    /// Borrow the registered, human-readable text.
+    #[must_use]
+    pub fn content(&self) -> &str {
+        self.content.expose()
+    }
+
+    pub(super) fn new(language: BoundedText, content: BoundedText) -> Self {
+        Self { language, content }
+    }
 }
 
 /// Locally reviewed issuance binding for one WRPRC.
@@ -166,10 +197,32 @@ pub struct RegistrationCertificateProof {
     format: RegistrationCertificateFormat,
     representation_digest: ArtifactDigest,
     parsed: Option<ParsedRegistrationCertificate>,
-    signer_certificate_der: Vec<u8>,
+    presented_certificate_chain_der: Vec<Vec<u8>>,
 }
 
 impl RegistrationCertificateProof {
+    /// Borrow signature-authenticated and time-checked claims before this
+    /// proof is consumed by a higher-level registration binding.
+    ///
+    /// The receipt does not establish issuer trust or current status.
+    #[must_use]
+    pub fn authenticated_claims(&self) -> Option<&ParsedRegistrationCertificate> {
+        self.parsed.as_ref()
+    }
+
+    /// Borrow the exact candidate signer path carried by the authenticated
+    /// representation. A trust evaluator must validate its purpose and path.
+    #[must_use]
+    pub fn presented_certificate_chain_der(&self) -> &[Vec<u8>] {
+        &self.presented_certificate_chain_der
+    }
+
+    /// Return the digest of the exact signed representation.
+    #[must_use]
+    pub const fn representation_digest(&self) -> ArtifactDigest {
+        self.representation_digest
+    }
+
     /// Constructs a receipt after the crate-owned verifier has authenticated
     /// the representation and parsed and time-checked its signed claims.
     #[cfg(any(feature = "native", feature = "wasm"))]
@@ -178,6 +231,7 @@ impl RegistrationCertificateProof {
         signed_representation: &[u8],
         parsed: ParsedRegistrationCertificate,
         signer_certificate_der: &[u8],
+        presented_certificate_chain_der: Vec<Vec<u8>>,
     ) -> Result<Self, RegistrationError> {
         if signed_representation.is_empty()
             || signed_representation.len() > MAX_REPRESENTATION_BYTES
@@ -198,11 +252,25 @@ impl RegistrationCertificateProof {
                 RegistrationErrorReason::InvalidCertificate,
             ));
         }
+        if presented_certificate_chain_der.is_empty()
+            || presented_certificate_chain_der.len() > MAX_SIGNER_CERTIFICATE_CHAIN_LENGTH
+            || presented_certificate_chain_der.first().map(Vec::as_slice)
+                != Some(signer_certificate_der)
+            || presented_certificate_chain_der.iter().any(|certificate| {
+                certificate.is_empty()
+                    || certificate.len() > MAX_SIGNER_CERTIFICATE_BYTES
+                    || !reallyme_trust_x509::validate_certificate_der(certificate)
+            })
+        {
+            return Err(RegistrationError::from_reason(
+                RegistrationErrorReason::InvalidCertificate,
+            ));
+        }
         Ok(Self {
             format,
             representation_digest: ArtifactDigest::of(signed_representation),
             parsed: Some(parsed),
-            signer_certificate_der: signer_certificate_der.to_vec(),
+            presented_certificate_chain_der,
         })
     }
 }
@@ -213,7 +281,9 @@ pub struct ParsedRegistrationCertificate {
     payload_digest: ArtifactDigest,
     relying_party_id: BoundedText,
     intermediary_id: Option<BoundedText>,
+    registry_uri: BoundedText,
     registry_reference_digest: ArtifactDigest,
+    status_list_uri: BoundedText,
     status_list_uri_digest: ArtifactDigest,
     status_list_index: u64,
     issued_at: u64,
@@ -221,6 +291,10 @@ pub struct ParsedRegistrationCertificate {
     certificate_policy: RegistrationCertificatePolicy,
     certificate_policy_uri_digest: ArtifactDigest,
     semantic_content_digest: ArtifactDigest,
+    intended_use_id: Option<BoundedText>,
+    purpose: Vec<SignedLocalizedText>,
+    service_description: Vec<SignedLocalizedText>,
+    privacy_policy_uris: Vec<BoundedText>,
     registered_credentials: Vec<crate::CredentialRequest>,
     registered_credential_formats: Vec<RegisteredCredentialFormat>,
 }
@@ -230,6 +304,30 @@ impl ParsedRegistrationCertificate {
     #[must_use]
     pub const fn payload_digest(&self) -> ArtifactDigest {
         self.payload_digest
+    }
+
+    /// Return the signed intended-use identifier, when the registrar assigned one.
+    #[must_use]
+    pub fn intended_use_id(&self) -> Option<&str> {
+        self.intended_use_id.as_ref().map(BoundedText::expose)
+    }
+
+    /// Return the signed purpose descriptions shown to the user.
+    #[must_use]
+    pub fn purpose(&self) -> &[SignedLocalizedText] {
+        &self.purpose
+    }
+
+    /// Return the signed service descriptions shown to the user.
+    #[must_use]
+    pub fn service_description(&self) -> &[SignedLocalizedText] {
+        &self.service_description
+    }
+
+    /// Return the signed privacy-policy URIs.
+    #[must_use]
+    pub fn privacy_policy_uris(&self) -> &[BoundedText] {
+        &self.privacy_policy_uris
     }
 
     /// Returns the semantic WRP identifier from `sub`.
@@ -242,6 +340,18 @@ impl ParsedRegistrationCertificate {
     #[must_use]
     pub fn intermediary_id(&self) -> Option<&str> {
         self.intermediary_id.as_ref().map(BoundedText::expose)
+    }
+
+    /// Return the canonical URI signed into the WRPRC for registrar lookup.
+    #[must_use]
+    pub fn registry_uri(&self) -> &str {
+        self.registry_uri.expose()
+    }
+
+    /// Return the canonical signed status-list URI for current-status checks.
+    #[must_use]
+    pub fn status_list_uri(&self) -> &str {
+        self.status_list_uri.expose()
     }
 
     /// Returns the digest of the canonical status-list URI.
@@ -319,6 +429,7 @@ pub struct AuthenticatedRepresentation {
 pub struct AuthenticatedRegistrationCertificate {
     representations: Vec<AuthenticatedRepresentation>,
     signer_certificate_digest: ArtifactDigest,
+    presented_certificate_chain_der: Vec<Vec<u8>>,
     parsed: ParsedRegistrationCertificate,
     binding: RegistrationCertificateBinding,
 }
@@ -334,6 +445,25 @@ impl AuthenticatedRegistrationCertificate {
     #[must_use]
     pub const fn signer_certificate_digest(&self) -> ArtifactDigest {
         self.signer_certificate_digest
+    }
+
+    /// Borrows the exact leaf certificate that authenticated every WRPRC
+    /// representation. A trust evaluator must still validate its path and
+    /// registration-signing purpose independently of this proof receipt.
+    #[must_use]
+    pub fn signer_certificate_der(&self) -> Option<&[u8]> {
+        self.presented_certificate_chain_der
+            .first()
+            .map(Vec::as_slice)
+    }
+
+    /// Borrow the bounded leaf-first candidate path from the first WRPRC
+    /// representation. Other encodings may present different intermediates;
+    /// the common leaf is checked across all of them. Path trust and status
+    /// still require independent evaluation.
+    #[must_use]
+    pub fn presented_certificate_chain_der(&self) -> &[Vec<u8>] {
+        &self.presented_certificate_chain_der
     }
 
     /// Returns the strictly parsed common claims.
@@ -358,85 +488,4 @@ impl AuthenticatedRegistrationCertificate {
     pub fn authorizes_credential_request(&self, requested: &crate::CredentialRequest) -> bool {
         self.parsed.authorizes_credential_request(requested)
     }
-}
-
-/// Combines one or both proof receipts for the same WRPRC and checks the
-/// local binding fields that have counterparts in the signed claims.
-///
-/// Each receipt already proved signature validity and that its trusted
-/// evaluation time fell within the signed `iat`/`exp` period. This function
-/// asserts neither issuer nor certification-path trust.
-pub fn authenticate_registration_certificate(
-    proofs: Vec<RegistrationCertificateProof>,
-    binding: RegistrationCertificateBinding,
-) -> Result<AuthenticatedRegistrationCertificate, RegistrationError> {
-    if proofs.is_empty() || proofs.len() > MAX_REPRESENTATIONS {
-        return Err(RegistrationError::from_reason(
-            RegistrationErrorReason::ResourceLimitExceeded,
-        ));
-    }
-    let mut parsed_result: Option<ParsedRegistrationCertificate> = None;
-    let mut signer_digest: Option<ArtifactDigest> = None;
-    let mut representations = Vec::new();
-    for mut proof in proofs {
-        if representations
-            .iter()
-            .any(|item: &AuthenticatedRepresentation| item.format == proof.format)
-        {
-            return Err(RegistrationError::from_reason(
-                RegistrationErrorReason::InvalidField,
-            ));
-        }
-        let parsed = proof
-            .parsed
-            .take()
-            .ok_or_else(|| RegistrationError::from_reason(RegistrationErrorReason::MissingField))?;
-        if parsed.relying_party_id() != binding.relying_party_id()
-            || parsed.intermediary_id() != binding.intermediary_association_id()
-            || parsed.registry_reference_digest != binding.national_register_reference_digest
-        {
-            return Err(RegistrationError::from_reason(
-                RegistrationErrorReason::SemanticBindingMismatch,
-            ));
-        }
-        let current_signer = ArtifactDigest::of(&proof.signer_certificate_der);
-        if signer_digest.is_some_and(|existing| existing != current_signer) {
-            return Err(RegistrationError::from_reason(
-                RegistrationErrorReason::AuthenticationReceiptMismatch,
-            ));
-        }
-        if let Some(existing) = parsed_result.as_ref() {
-            if existing.semantic_content_digest != parsed.semantic_content_digest
-                || existing.relying_party_id != parsed.relying_party_id
-                || existing.intermediary_id != parsed.intermediary_id
-                || existing.registry_reference_digest != parsed.registry_reference_digest
-                || existing.status_list_uri_digest != parsed.status_list_uri_digest
-                || existing.status_list_index != parsed.status_list_index
-                || existing.issued_at != parsed.issued_at
-                || existing.expires_at != parsed.expires_at
-            {
-                return Err(RegistrationError::from_reason(
-                    RegistrationErrorReason::SemanticBindingMismatch,
-                ));
-            }
-        } else {
-            parsed_result = Some(parsed);
-        }
-        signer_digest = Some(current_signer);
-        representations.push(AuthenticatedRepresentation {
-            format: proof.format,
-            digest: proof.representation_digest,
-        });
-    }
-    let parsed = parsed_result
-        .ok_or_else(|| RegistrationError::from_reason(RegistrationErrorReason::MissingField))?;
-    let signer_certificate_digest = signer_digest.ok_or_else(|| {
-        RegistrationError::from_reason(RegistrationErrorReason::MissingSignerCertificate)
-    })?;
-    Ok(AuthenticatedRegistrationCertificate {
-        representations,
-        signer_certificate_digest,
-        parsed,
-        binding,
-    })
 }

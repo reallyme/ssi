@@ -116,6 +116,31 @@ pub fn verify_status_with_policy(
     freshness: StatusListFreshnessPolicy,
     verifier: &dyn StatusListVerifier,
 ) -> Result<(), CredentialStatusError> {
+    verify_status_list_authenticity_with_policy(list, now_unix, freshness, verifier)?;
+    if index >= list.length {
+        return Err(CredentialStatusError::InvalidInput(
+            CredentialStatusInvalidReason::InvalidIndex,
+        ));
+    }
+
+    let bit_set = status_bit(list, index)?;
+    match list.purpose {
+        StatusPurpose::Revocation if bit_set => Err(CredentialStatusError::Revoked),
+        StatusPurpose::Suspension if bit_set => Err(CredentialStatusError::Suspended),
+        _ => Ok(()),
+    }
+}
+
+/// Verify a signed status list without revealing or selecting a private index.
+///
+/// ZK verifiers authenticate the whole list before computing its public Merkle
+/// root. The credential's status index remains a private circuit witness.
+pub fn verify_status_list_authenticity_with_policy(
+    list: &StatusList,
+    now_unix: u64,
+    freshness: StatusListFreshnessPolicy,
+    verifier: &dyn StatusListVerifier,
+) -> Result<(), CredentialStatusError> {
     validate_status_list(list)?;
     if freshness.max_age_secs == 0 {
         return Err(CredentialStatusError::InvalidInput(
@@ -131,12 +156,6 @@ pub fn verify_status_with_policy(
     if now_unix >= local_expiry || now_unix >= list.next_update {
         return Err(CredentialStatusError::Expired);
     }
-    if index >= list.length {
-        return Err(CredentialStatusError::InvalidInput(
-            CredentialStatusInvalidReason::InvalidIndex,
-        ));
-    }
-
     let payload = status_list_signing_payload(list)?;
     verifier.verify_status_list(
         list.issuer.as_str(),
@@ -145,12 +164,7 @@ pub fn verify_status_with_policy(
         list.signature.sig_bytes.as_slice(),
     )?;
 
-    let bit_set = status_bit(list, index)?;
-    match list.purpose {
-        StatusPurpose::Revocation if bit_set => Err(CredentialStatusError::Revoked),
-        StatusPurpose::Suspension if bit_set => Err(CredentialStatusError::Suspended),
-        _ => Ok(()),
-    }
+    Ok(())
 }
 
 /// Return whether a status bit is set after bounds validation.

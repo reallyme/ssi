@@ -109,6 +109,10 @@ fn authenticates_proof_only_against_the_exact_expected_leaf() {
     .expect("the exact expected leaf should authenticate without path trust");
     assert_eq!(authenticated.payload(), b"verified-payload");
     assert_eq!(authenticated.signing_certificate(), Some(&certificate));
+    assert_eq!(
+        authenticated.presented_certificates(),
+        std::slice::from_ref(&certificate)
+    );
 
     let wrong_certificate = signing_certificate();
     let error = authenticate_compact_jades(

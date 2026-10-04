@@ -132,13 +132,7 @@ fn verify_sd_jwt_validates_key_binding_jwt() {
 
     let mut epoch_iat_payload = kb_payload.clone();
     epoch_iat_payload["iat"] = json!(0u64);
-    let epoch_iat_jwt = encode_signed_jwt_with_header_options(
-        &epoch_iat_payload,
-        &holder.jwk,
-        &holder.private,
-        &JwtHeaderEncodeOptions::new(Some("kb+jwt".to_owned())),
-    )
-    .expect("epoch-iat KB JWT fixture");
+    let epoch_iat_jwt = sign_unvalidated_ed25519_jwt(&epoch_iat_payload, &holder, "kb+jwt");
     let epoch_iat_compact = format!("{compact_without_kb}{epoch_iat_jwt}");
     let epoch_evaluation_error = verify_sd_jwt(
         &epoch_iat_compact,

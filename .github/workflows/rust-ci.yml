@@ -41,11 +41,11 @@ jobs:
       - name: Install minimum supported Rust toolchain
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
-          toolchain: 1.96.0
+          toolchain: 1.99.0
 
       - name: Check the native workspace at the declared MSRV
         working-directory: reallyme/ssi
-        run: cargo +1.96.0 check --locked --workspace --no-default-features --features native
+        run: cargo +1.99.0 check --locked --workspace --no-default-features --features native
 
   fuzz-build:
     name: Build fuzz targets
@@ -110,7 +110,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
-          toolchain: 1.98.1
+          toolchain: 1.99.0
 
       - name: Install cargo-mutants
         uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
@@ -140,7 +140,12 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
-          toolchain: 1.98.1
+          toolchain: 1.99.0
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -152,9 +157,11 @@ jobs:
         with:
           tool: cargo-semver-checks@${{ env.CARGO_SEMVER_CHECKS_VERSION }}
 
+      # Check compatible updates per public crate. A pre-1.0 minor bump is a
+      # breaking release, for which cargo-semver-checks executes no API checks.
       - name: Check planned public crate versions against crates.io
         working-directory: reallyme/ssi
-        run: cargo semver-checks check-release --workspace
+        run: node scripts/check_release_semver.mjs
 
   rust:
     name: fmt, lint, test, dependency policy
@@ -172,7 +179,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
-          toolchain: 1.98.1
+          toolchain: 1.99.0
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
 
@@ -208,7 +215,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: reallyme/release-readiness
-          ref: bdedc88f3f25fcc14242730d4dec6ce6a0c75531
+          ref: 5c2da5e5d5795c2c895d0dca0819287ee7101207
           path: reallyme/ssi/.release-readiness
           persist-credentials: false
 
@@ -453,7 +460,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
-          toolchain: 1.98.1
+          toolchain: 1.99.0
           targets: ${{ matrix.target }}
 
       - name: Type-check fail-closed OCSP lane for mobile targets

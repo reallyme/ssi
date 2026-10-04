@@ -6,6 +6,7 @@ use serde::Serialize;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::{BoundedText, WalletRelyingParty};
+#[cfg(any(feature = "native", feature = "wasm"))]
 use crate::{RegistrationError, RegistrationErrorReason};
 
 /// Semantically validated registry payload.
@@ -50,6 +51,7 @@ impl RegistryPagination {
         self.has_next_page
     }
 
+    #[cfg(any(feature = "native", feature = "wasm"))]
     pub(crate) fn try_new(
         next_cursor: Option<&str>,
         has_next_page: bool,

@@ -3,14 +3,14 @@
   "sources": [
     {
       "source": "RFC9052/RFC9053",
-      "path": "crates.io:reallyme-cose@0.2.5/tests/cose_suite",
+      "path": "crates.io:reallyme-cose@0.2.7/tests/cose_suite",
       "execution": {
-        "id": "reallyme-cose-0.2.5",
+        "id": "reallyme-cose-0.2.7",
         "repository": "https://github.com/reallyme/cose",
-        "source_commit": "92932a57ad4dd99d9d00b1a8ac521fdec998abe6",
+        "source_commit": "107cb2a76145c0466db4dac4a524c44d671d1dbb",
         "package": "reallyme-cose",
-        "version": "0.2.5",
-        "cargo_checksum": "c65f4a36fa79915868c10fa4f345c0424ece6df1ec1655c6351e06bff368e28e",
+        "version": "0.2.7",
+        "cargo_checksum": "006513d8213cbfec1745ccbe5465a7db4faecd5e30d2b870f5b5820062019a91",
         "crate_path": "crates/cose",
         "test_binaries": ["cose"],
         "command": ["cargo", "test", "--locked", "-p", "reallyme-cose", "--test", "cose"]
@@ -75,14 +75,14 @@
     },
     {
       "source": "RFC7515/RFC7519/RFC8725",
-      "path": "crates.io:reallyme-jose@0.4.0/tests",
+      "path": "crates.io:reallyme-jose@0.4.4/tests",
       "execution": {
-        "id": "reallyme-jose-0.4.0",
+        "id": "reallyme-jose-0.4.4",
         "repository": "https://github.com/reallyme/jose",
-        "source_commit": "0d5f809d175fb9a10765bbfa50df8fc7c24b43ec",
+        "source_commit": "1e421cffb9daabf445affe19cc9e7872c376b845",
         "package": "reallyme-jose",
-        "version": "0.4.0",
-        "cargo_checksum": "3a4b17fc2621c715cb0a235cc38a1945522935c63c0aec921f47bea93573e2a0",
+        "version": "0.4.4",
+        "cargo_checksum": "14a7360fb1b5e5ca96032eb8805018f8753fad9cd1d014cf6bcde80d9478e9ad",
         "crate_path": "crates/jose",
         "test_binaries": ["jws_eddsa_tests", "jws_es256_tests", "jwt"],
         "command": ["cargo", "test", "--locked", "-p", "reallyme-jose", "--features", "native", "--test", "jws_eddsa_tests", "--test", "jws_es256_tests", "--test", "jwt"]
@@ -157,14 +157,14 @@
     },
     {
       "source": "RFC7516",
-      "path": "crates.io:reallyme-jose@0.4.0/tests/jwe_tests.rs",
+      "path": "crates.io:reallyme-jose@0.4.4/tests/jwe_tests.rs",
       "execution": {
-        "id": "reallyme-jose-jwe-0.4.0",
+        "id": "reallyme-jose-jwe-0.4.4",
         "repository": "https://github.com/reallyme/jose",
-        "source_commit": "0d5f809d175fb9a10765bbfa50df8fc7c24b43ec",
+        "source_commit": "1e421cffb9daabf445affe19cc9e7872c376b845",
         "package": "reallyme-jose",
-        "version": "0.4.0",
-        "cargo_checksum": "3a4b17fc2621c715cb0a235cc38a1945522935c63c0aec921f47bea93573e2a0",
+        "version": "0.4.4",
+        "cargo_checksum": "14a7360fb1b5e5ca96032eb8805018f8753fad9cd1d014cf6bcde80d9478e9ad",
         "crate_path": "crates/jose",
         "test_binaries": ["jwe_tests"],
         "command": ["cargo", "test", "--locked", "-p", "reallyme-jose", "--features", "native", "--test", "jwe_tests"]
@@ -190,7 +190,7 @@
         "rejects_non_empty_encrypted_key_for_dir",
         "rejects_remote_key_header",
         "rejects_tampered_authentication_tag",
-        "rejects_unsupported_compression_header",
+        "rejects_compression_without_explicit_policy",
         "rejects_unsupported_critical_header",
         "rejects_wrong_direct_key"
       ]

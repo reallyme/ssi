@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-delivery-web-validator"
-version = "0.3.4"
+version = "0.4.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -17,17 +17,17 @@ ignored = ["identity-presentation-delivery-web-core"]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 zeroize = { workspace = true, features = ["derive"] }
-codec-base64url = { package = "reallyme-codec-base64url", version = "0.2.3" }
-envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.9", default-features = false }
+codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.1" }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.12", default-features = false }
 
 identity-core-primitives = { workspace = true }
 identity-credential-claims-core = { workspace = true }
 reallyme-credential = { workspace = true }
 identity-presentation-vp-core = { workspace = true }
-identity-presentation-vp-policy = { version = "0.3.4", path = "../../../presentation/policy" }
-identity-presentation-vp-sd-jwt = { version = "0.3.4", path = "../../../presentation/sd-jwt", default-features = false }
-identity-presentation-vp-validator = { version = "0.3.4", path = "../../../presentation/validator", default-features = false }
-identity-presentation-delivery-web-core = { version = "0.3.4", path = "../core", default-features = false }
+identity-presentation-vp-policy = { version = "0.4.0", path = "../../../presentation/policy" }
+identity-presentation-vp-sd-jwt = { version = "0.4.0", path = "../../../presentation/sd-jwt", default-features = false }
+identity-presentation-vp-validator = { version = "0.4.0", path = "../../../presentation/validator", default-features = false }
+identity-presentation-delivery-web-core = { version = "0.4.0", path = "../core", default-features = false }
 
 [features]
 default = ["native"]
@@ -52,8 +52,8 @@ identity-core-primitives = { workspace = true }
 reallyme-credential-audit = { workspace = true }
 identity-credential-status-core = { workspace = true }
 identity-credential-claims-core = { workspace = true }
-crypto-core = { package = "reallyme-crypto-core", version = "0.3.9" }
-crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.9" }
+crypto-core = { package = "reallyme-crypto-core", version = "0.3.12" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.12" }
 envelopes-jwt = { workspace = true }
 [lints]
 workspace = true
