@@ -393,7 +393,7 @@ jobs:
           fi
 
       - name: Install Wasm test runner
-        run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
+        run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
 
       - name: Test fail-closed Wasm provider boundaries
         working-directory: reallyme/ssi

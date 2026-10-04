@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { upstreamCheckoutPinFailures } from "./check_upstream_checkout_pins.mjs";
+import { wasmBindgenCliPinFailures } from "./check_wasm_bindgen_cli_pin.mjs";
 
 const releaseReadinessCoreUrl = process.env.RELEASE_READINESS_CORE_URL;
 if (typeof releaseReadinessCoreUrl !== "string" || releaseReadinessCoreUrl.length === 0) {
@@ -1157,6 +1158,12 @@ assertContains(rustCiWorkflow, "identity-trust-openssl");
 assertContains(rustCiWorkflow, "identity-trust-tsl-openssl");
 assertContains(rustCiWorkflow, "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER");
 assertContains(rustCiWorkflow, "wasm-bindgen-test-runner");
+for (const failure of wasmBindgenCliPinFailures(
+  readText("Cargo.lock"),
+  readText(rustCiWorkflow),
+)) {
+  fail(failure);
+}
 assertContains(
   rustCiWorkflow,
   "cargo check --locked -p reallyme-ssi -p identity-credential-trust-api",
@@ -1484,6 +1491,7 @@ assertExists("scripts/check_fixture_copies.mjs");
 assertExists("scripts/generate_conformance_reports.mjs");
 assertExists("scripts/run_upstream_conformance_tests.mjs");
 assertExists("scripts/check_upstream_checkout_pins.mjs");
+assertExists("scripts/check_wasm_bindgen_cli_pin.mjs");
 assertExists("conformance/dependencies.lock.json");
 assertExists("scripts/generate_conformance_vectors.mjs");
 assertExists("conformance/README.md");
