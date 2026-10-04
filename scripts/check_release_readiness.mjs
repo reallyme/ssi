@@ -7,6 +7,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { upstreamCheckoutPinFailures } from "./check_upstream_checkout_pins.mjs";
 
 const releaseReadinessCoreUrl = process.env.RELEASE_READINESS_CORE_URL;
 if (typeof releaseReadinessCoreUrl !== "string" || releaseReadinessCoreUrl.length === 0) {
@@ -1460,6 +1461,18 @@ assertContains(".github/workflows/rust-ci.yml", "node scripts/check_public_api_e
 assertContains(".github/workflows/rust-ci.yml", "node scripts/generate_conformance_reports.mjs");
 assertContains(".github/workflows/rust-ci.yml", "--upstream-results");
 assertContains(".github/workflows/rust-ci.yml", "node scripts/run_upstream_conformance_tests.mjs");
+let upstreamManifest;
+try {
+  upstreamManifest = JSON.parse(readText("conformance/upstream/tests.json"));
+} catch {
+  fail("upstream conformance manifest is not valid JSON");
+}
+for (const failure of upstreamCheckoutPinFailures(
+  upstreamManifest,
+  readText(".github/workflows/rust-ci.yml"),
+)) {
+  fail(failure);
+}
 assertContains(".github/workflows/rust-ci.yml", "CARGO_SEMVER_CHECKS_VERSION: 0.50.0");
 assertContains(".github/workflows/rust-ci.yml", "cargo-semver-checks@${{ env.CARGO_SEMVER_CHECKS_VERSION }}");
 assertContains(
@@ -1470,6 +1483,7 @@ assertExists("scripts/check_release_semver.mjs");
 assertExists("scripts/check_fixture_copies.mjs");
 assertExists("scripts/generate_conformance_reports.mjs");
 assertExists("scripts/run_upstream_conformance_tests.mjs");
+assertExists("scripts/check_upstream_checkout_pins.mjs");
 assertExists("conformance/dependencies.lock.json");
 assertExists("scripts/generate_conformance_vectors.mjs");
 assertExists("conformance/README.md");
