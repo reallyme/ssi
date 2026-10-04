@@ -91,21 +91,29 @@ fn verify_sd_jwt_enforces_credential_validity_window() {
         SdJwtEnvelopeError::InvalidTemporalClaim
     );
 
-    let malformed_exp = sign_dc_sd_jwt(
-        &issuer,
-        &json!({"iss": "https://issuer.example", "exp": "tomorrow"}),
+    let malformed_exp = serialize_sd_jwt_compact(
+        &sign_unvalidated_ed25519_jwt(
+            &json!({"iss": "https://issuer.example", "vct": "urn:example:test", "exp": "tomorrow"}),
+            &issuer,
+            "dc+sd-jwt",
+        ),
         &[],
-    );
+    )
+    .expect("malformed-exp compact SD-JWT");
     assert_eq!(
         verify_with_clock(&issuer, &malformed_exp, now),
         SdJwtEnvelopeError::InvalidTemporalClaim
     );
 
-    let inverted = sign_dc_sd_jwt(
-        &issuer,
-        &json!({"iss": "https://issuer.example", "nbf": now + 10, "exp": now + 10}),
+    let inverted = serialize_sd_jwt_compact(
+        &sign_unvalidated_ed25519_jwt(
+            &json!({"iss": "https://issuer.example", "vct": "urn:example:test", "nbf": now + 10, "exp": now + 10}),
+            &issuer,
+            "dc+sd-jwt",
+        ),
         &[],
-    );
+    )
+    .expect("inverted-window compact SD-JWT");
     assert_eq!(
         verify_with_clock(&issuer, &inverted, now),
         SdJwtEnvelopeError::InvalidTemporalClaim

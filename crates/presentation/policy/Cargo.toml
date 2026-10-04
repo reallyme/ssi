@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-vp-policy"
-version = "0.3.4"
+version = "0.4.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
@@ -27,7 +27,7 @@ reallyme-credential = { workspace = true }
 # VP models (SD-JWT, ZK)
 identity-presentation-vp-core = { workspace = true }
 
-codec-base64url = { package = "reallyme-codec-base64url", version = "0.2.3" }
+codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.1" }
 
 serde_json = "1.0"
 

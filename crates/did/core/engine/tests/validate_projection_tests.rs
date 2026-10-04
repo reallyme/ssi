@@ -281,11 +281,11 @@ fn relationship_mismatch_detected() {
 
 #[test]
 fn service_mismatch_detected() {
-    let (core, doc) = make_valid_core_and_doc();
+    let (mut core, doc) = make_valid_core_and_doc();
 
     // Inject a core service without JSON projection
-    let core_with_service = match core {
-        CborValue::Map(mut m) => {
+    match &mut core {
+        CborValue::Map(m) => {
             // REMOVE any existing "services" entry
             m.retain(|(k, _)| k != "services");
 
@@ -301,13 +301,11 @@ fn service_mismatch_detected() {
                     ),
                 ])]),
             ));
-
-            CborValue::Map(m)
         }
         _ => panic!("expected core to be a map"),
-    };
+    }
 
-    let res = validate_projection(&doc, &core_with_service);
+    let res = validate_projection(&doc, &core);
 
     assert!(!res.ok);
     assert!(

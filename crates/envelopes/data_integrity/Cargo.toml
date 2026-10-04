@@ -4,7 +4,7 @@
 
 [package]
 name = "envelopes-data-integrity"
-version = "0.3.4"
+version = "0.4.0"
 description = "W3C Data Integrity identity envelope helpers for ReallyMe identity."
 edition.workspace = true
 rust-version.workspace = true
@@ -22,7 +22,7 @@ identity-core-primitives = { workspace = true }
 reallyme-ssi-proto = { workspace = true }
 reallyme-codec = { workspace = true, features = ["base64url", "multikey"] }
 reallyme-crypto = { workspace = true, features = ["dispatch", "p256"] }
-reallyme-did-types = { path = "../../did/core/types", version = "0.3.4" }
+reallyme-did-types = { path = "../../did/core/types", version = "0.4.0" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 

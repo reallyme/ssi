@@ -12,7 +12,7 @@ use envelopes_jwt_vc::{
 };
 use reallyme_codec::base64url::bytes_to_base64url;
 use reallyme_crypto::core::Algorithm;
-use reallyme_crypto::dispatch::generate_keypair;
+use reallyme_crypto::dispatch::{generate_keypair, sign};
 use reallyme_crypto::jwk::{ed25519_public_key_to_jwk, Jwk, JwkOptions};
 use reallyme_jose::jwt::{encode_signed_jwt_with_header_options, JwtHeaderEncodeOptions};
 use serde::Serialize;
@@ -115,6 +115,20 @@ fn sign_with_typ<T: Serialize>(payload: &T, key: &TestKey, typ: Option<&str>) ->
         &JwtHeaderEncodeOptions::new(typ.map(str::to_owned)),
     )
     .expect("test JWT must sign")
+}
+
+fn sign_malformed_temporal_claims<T: Serialize>(payload: &T, key: &TestKey) -> String {
+    // JOSE's normal signer rejects malformed NumericDate claims. These bytes
+    // are signed directly so this negative test reaches the JWT-VC verifier
+    // with an authentic signature over the malformed payload.
+    let header = bytes_to_base64url(br#"{"alg":"EdDSA","kid":"issuer-key","typ":"vc+jwt"}"#);
+    let payload = bytes_to_base64url(
+        &serde_json::to_vec(payload).expect("malformed test payload serializes"),
+    );
+    let signing_input = format!("{header}.{payload}");
+    let signature = sign(Algorithm::Ed25519, &key.private, signing_input.as_bytes())
+        .expect("malformed test payload signs");
+    format!("{signing_input}.{}", bytes_to_base64url(&signature))
 }
 
 #[test]
@@ -366,7 +380,7 @@ fn jwt_vc_rejects_negative_numeric_dates() {
     let cases = [negative_nbf, negative_exp, negative_iat];
 
     for payload in cases {
-        let jwt = sign_with_typ(&payload, &key, Some("vc+jwt"));
+        let jwt = sign_malformed_temporal_claims(&payload, &key);
         let error = verify_jwt_vc(&jwt, &key.jwk, &key.public, &options())
             .expect_err("negative NumericDate must fail closed");
         assert_eq!(error, JwtVcEnvelopeError::InvalidTemporalClaim);
@@ -390,7 +404,7 @@ fn jwt_vc_rejects_non_integer_expiry() {
         exp: 1_800_000_000.5,
         vc_cbor: bytes_to_base64url(CANONICAL_CREDENTIAL_CBOR),
     };
-    let jwt = sign_with_typ(&payload, &key, Some("vc+jwt"));
+    let jwt = sign_malformed_temporal_claims(&payload, &key);
 
     let error = verify_jwt_vc(&jwt, &key.jwk, &key.public, &options())
         .expect_err("non-integer NumericDate must fail closed");

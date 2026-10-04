@@ -93,12 +93,38 @@ pub fn authenticate_wrprc_jades(
     validate_authenticated_payload(authenticated.payload())?;
     let parsed = parse_registration_certificate(authenticated.payload())?;
     validate_validity_period(&parsed, input.evaluation_time)?;
+    let presented_certificate_chain_der = authenticated
+        .presented_certificates()
+        .iter()
+        .map(|certificate| certificate.der.clone())
+        .collect();
     RegistrationCertificateProof::from_verified(
         RegistrationCertificateFormat::JadesJwt,
         input.compact_jws,
         parsed,
         input.expected_signer_certificate_der,
+        presented_certificate_chain_der,
     )
+}
+
+/// Authenticate a presented JAdES WRPRC using its protected embedded leaf.
+///
+/// The embedded certificate is only a candidate verification key. The result
+/// remains proof-only until a separate registrar-purpose path evaluation.
+pub fn authenticate_presented_wrprc_jades(
+    compact_jws: &[u8],
+    evaluation_time: OffsetDateTime,
+    policy: &RegistrationCertificateJadesPolicy,
+) -> Result<RegistrationCertificateProof, RegistrationError> {
+    let compact = core::str::from_utf8(compact_jws)
+        .map_err(|_| RegistrationError::from_reason(RegistrationErrorReason::InvalidCompactJws))?;
+    let signer = jades_profile::presented_signer_certificate(compact)?;
+    authenticate_wrprc_jades(RegistrationCertificateJadesAuthenticationInput {
+        compact_jws,
+        expected_signer_certificate_der: &signer,
+        evaluation_time,
+        policy,
+    })
 }
 
 /// Authenticates one attached COSE_Sign1 WRPRC representation without asserting trust.
@@ -110,23 +136,46 @@ pub fn authenticate_wrprc_cose_sign1(
         input.expected_signer_certificate_der,
     )?;
     validate_algorithm_allowlist(input.allowed_algorithms)?;
-    let authenticated_payload = cose::authenticate_attached_cose_sign1(
+    let authenticated = cose::authenticate_attached_cose_sign1(
         input.cose_sign1,
         input.expected_signer_certificate_der,
         input.allowed_algorithms,
     )?;
-    validate_authenticated_payload(authenticated_payload)?;
+    validate_authenticated_payload(authenticated.payload)?;
     // ETSI TS 119 475 `rc-wrp+cwt` payloads are RFC 8392 CWT claims sets:
     // a CBOR map, never JSON.
-    let claims = cwt::decode_cwt_claims(authenticated_payload)?;
-    let parsed = parse_registration_certificate_claims(&claims, authenticated_payload)?;
+    let claims = cwt::decode_cwt_claims(authenticated.payload)?;
+    let parsed = parse_registration_certificate_claims(&claims, authenticated.payload)?;
     validate_validity_period(&parsed, input.evaluation_time)?;
+    let presented_certificate_chain_der = authenticated
+        .presented_certificate_chain_der
+        .iter()
+        .map(|certificate| certificate.to_vec())
+        .collect();
     RegistrationCertificateProof::from_verified(
         RegistrationCertificateFormat::CoseCwt,
         input.cose_sign1,
         parsed,
         input.expected_signer_certificate_der,
+        presented_certificate_chain_der,
     )
+}
+
+/// Authenticate an attached COSE WRPRC using its embedded leaf certificate.
+///
+/// The result does not assert issuer trust or current registration status.
+pub fn authenticate_presented_wrprc_cose_sign1(
+    cose_sign1: &[u8],
+    evaluation_time: OffsetDateTime,
+    allowed_algorithms: &[RegistrationCertificateCoseAlgorithm],
+) -> Result<RegistrationCertificateProof, RegistrationError> {
+    let signer = cose::presented_signer_certificate(cose_sign1)?;
+    authenticate_wrprc_cose_sign1(RegistrationCertificateCoseAuthenticationInput {
+        cose_sign1,
+        expected_signer_certificate_der: &signer,
+        evaluation_time,
+        allowed_algorithms,
+    })
 }
 
 fn validate_representation_and_certificate(

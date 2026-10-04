@@ -69,7 +69,7 @@ fn canonical_json_keys_are_sorted_with_insertion_ordered_maps() {
     assert_eq!(keys, ["a", "z"]);
 
     let cbor = json_to_cbor_value(&normalized).unwrap();
-    let entries = match cbor {
+    let entries = match &cbor {
         CborValue::Map(entries) => entries,
         _ => panic!("normalized object must project to a CBOR map"),
     };
@@ -95,10 +95,10 @@ fn sample_core() -> DidCore {
         services: vec![CanonicalService {
             id: "#svc".into(),
             service_type: "Messaging".into(),
-            service_endpoint: CborValue::Map(vec![(
+            service_endpoint: std::sync::Arc::new(CborValue::Map(vec![(
                 "uri".into(),
                 CborValue::String("https://example.com".into()),
-            )]),
+            )])),
         }],
         projection_hash: [0_u8; 32],
         update_policy: UpdatePolicy {

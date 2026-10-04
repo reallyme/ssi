@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-credential-status"
-version = "0.3.4"
+version = "0.4.0"
 description = "Credential status-list models and verification policy for ReallyMe identity."
 edition.workspace = true
 rust-version.workspace = true

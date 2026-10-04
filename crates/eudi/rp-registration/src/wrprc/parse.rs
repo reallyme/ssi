@@ -10,7 +10,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use super::{
     ParsedRegistrationCertificate, RegisteredCredentialFormat, RegistrationCertificatePolicy,
-    ETSI_TS_119_475_WRPRC_POLICY_OID,
+    SignedLocalizedText, ETSI_TS_119_475_WRPRC_POLICY_OID,
 };
 use crate::json::{canonical_json, deserialize_strict, StrictValue};
 use crate::{
@@ -19,6 +19,7 @@ use crate::{
 };
 
 const MAX_WRPRC_VALIDITY_SECONDS: u64 = 31_622_400;
+const MAX_REGISTERED_TEXTS: usize = 128;
 
 /// Parses strict TS 119 475 WRPRC JWT payload claims without authenticating
 /// them or evaluating them against a clock.
@@ -79,6 +80,14 @@ fn parse_raw_claims(
         let _ = BoundedText::try_new(value)?;
     }
     validate_collection_value(&raw.purpose)?;
+    let purpose = parse_localized_texts(&raw.purpose)?;
+    let service_description = parse_localized_texts(&raw.srv_description)?;
+    let privacy_policy_uris = parse_privacy_policy_uris(&raw.privacy_policy)?;
+    let intended_use_id = raw
+        .intended_use_id
+        .as_deref()
+        .map(BoundedText::try_new)
+        .transpose()?;
     if raw.credentials.is_empty() {
         return Err(RegistrationError::from_reason(
             RegistrationErrorReason::InvalidField,
@@ -105,6 +114,7 @@ fn parse_raw_claims(
         subject_given_name: raw.given_name.as_deref(),
         subject_family_name: raw.family_name.as_deref(),
         purpose: &raw.purpose,
+        intended_use_id: raw.intended_use_id.as_deref(),
         credentials: &raw.credentials,
         policy_id: &raw.policy_id,
         certificate_policy: &raw.certificate_policy,
@@ -160,7 +170,9 @@ fn parse_raw_claims(
         payload_digest: ArtifactDigest::of(payload),
         relying_party_id: BoundedText::try_new(&raw.sub)?,
         intermediary_id,
+        registry_uri: BoundedText::try_new(&registry_uri)?,
         registry_reference_digest: ArtifactDigest::of(registry_uri.as_bytes()),
+        status_list_uri: BoundedText::try_new(&status_uri)?,
         status_list_uri_digest: ArtifactDigest::of(status_uri.as_bytes()),
         status_list_index: raw.status.status_list.idx,
         issued_at: raw.iat,
@@ -168,6 +180,10 @@ fn parse_raw_claims(
         certificate_policy,
         certificate_policy_uri_digest: ArtifactDigest::of(certificate_policy_uri.as_bytes()),
         semantic_content_digest,
+        intended_use_id,
+        purpose,
+        service_description,
+        privacy_policy_uris,
         registered_credentials,
         registered_credential_formats,
     })
@@ -197,6 +213,7 @@ struct RawWrprc {
     exp: u64,
     status: RawStatus,
     purpose: StrictValue,
+    intended_use_id: Option<String>,
     credentials: Vec<RawWrprcCredential>,
     #[serde(default)]
     provides_attestations: Option<StrictValue>,
@@ -265,6 +282,7 @@ struct SemanticClaims<'a> {
     subject_given_name: Option<&'a str>,
     subject_family_name: Option<&'a str>,
     purpose: &'a StrictValue,
+    intended_use_id: Option<&'a str>,
     credentials: &'a [RawWrprcCredential],
     policy_id: &'a [String],
     certificate_policy: &'a str,
@@ -276,6 +294,57 @@ struct SemanticClaims<'a> {
     supervisory_authority: &'a StrictValue,
     provides_attestations: Option<&'a StrictValue>,
     intermediary: Option<&'a RawIntermediary>,
+}
+
+#[derive(Deserialize, Zeroize, ZeroizeOnDrop)]
+#[serde(deny_unknown_fields)]
+struct RawSignedLocalizedText {
+    lang: String,
+    content: String,
+}
+
+fn parse_localized_texts(
+    value: &StrictValue,
+) -> Result<Vec<SignedLocalizedText>, RegistrationError> {
+    let encoded = Zeroizing::new(serde_json::to_vec(value).map_err(|_error| {
+        RegistrationError::from_reason(RegistrationErrorReason::SerializationFailed)
+    })?);
+    let entries: Vec<RawSignedLocalizedText> = serde_json::from_slice(&encoded)
+        .map_err(|_error| RegistrationError::from_reason(RegistrationErrorReason::InvalidField))?;
+    if entries.is_empty() || entries.len() > MAX_REGISTERED_TEXTS {
+        return Err(RegistrationError::from_reason(
+            RegistrationErrorReason::ResourceLimitExceeded,
+        ));
+    }
+    entries
+        .into_iter()
+        .map(|entry| {
+            Ok(SignedLocalizedText::new(
+                BoundedText::try_new(&entry.lang)?,
+                BoundedText::try_new(&entry.content)?,
+            ))
+        })
+        .collect()
+}
+
+fn parse_privacy_policy_uris(value: &StrictValue) -> Result<Vec<BoundedText>, RegistrationError> {
+    let encoded = Zeroizing::new(serde_json::to_vec(value).map_err(|_error| {
+        RegistrationError::from_reason(RegistrationErrorReason::SerializationFailed)
+    })?);
+    let entries: Vec<String> = serde_json::from_slice(&encoded)
+        .map_err(|_error| RegistrationError::from_reason(RegistrationErrorReason::InvalidField))?;
+    if entries.is_empty() || entries.len() > MAX_REGISTERED_TEXTS {
+        return Err(RegistrationError::from_reason(
+            RegistrationErrorReason::ResourceLimitExceeded,
+        ));
+    }
+    entries
+        .into_iter()
+        .map(|entry| {
+            let canonical = canonical_uri(&entry)?;
+            BoundedText::try_new(&canonical)
+        })
+        .collect()
 }
 
 fn canonical_uri(value: &str) -> Result<Zeroizing<String>, RegistrationError> {

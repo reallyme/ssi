@@ -24,17 +24,22 @@ const EDDSA_COSE_ALGORITHM: i64 = -8;
 const ES256_SIGNATURE_BYTES: usize = 64;
 const ED25519_SIGNATURE_BYTES: usize = 64;
 
+pub(super) struct AuthenticatedCoseSign1<'a> {
+    pub(super) payload: &'a [u8],
+    pub(super) presented_certificate_chain_der: Vec<&'a [u8]>,
+}
+
 pub(super) fn authenticate_attached_cose_sign1<'a>(
     cose_sign1: &'a [u8],
     expected_signer_certificate_der: &[u8],
     allowed_algorithms: &[RegistrationCertificateCoseAlgorithm],
-) -> Result<&'a [u8], RegistrationError> {
+) -> Result<AuthenticatedCoseSign1<'a>, RegistrationError> {
     let certificate = reallyme_trust_x509::parse_cert_der(expected_signer_certificate_der)
         .map_err(|_error| invalid(RegistrationErrorReason::InvalidCertificate))?;
     let subject_public_key =
         reallyme_trust_x509::parse_subject_public_key_info_der(certificate.spki_der.as_slice())
             .map_err(|_error| invalid(RegistrationErrorReason::InvalidCertificate))?;
-    let parsed = parse_cose_sign1(cose_sign1, expected_signer_certificate_der)?;
+    let parsed = parse_cose_sign1(cose_sign1, Some(expected_signer_certificate_der))?;
 
     if !allowed_algorithms.contains(&parsed.algorithm) {
         return Err(invalid(RegistrationErrorReason::UnsupportedProfile));
@@ -75,7 +80,10 @@ pub(super) fn authenticate_attached_cose_sign1<'a>(
         }
         _ => return Err(invalid(RegistrationErrorReason::UnsupportedProfile)),
     }
-    Ok(parsed.payload)
+    Ok(AuthenticatedCoseSign1 {
+        payload: parsed.payload,
+        presented_certificate_chain_der: parsed.presented_certificate_chain_der,
+    })
 }
 
 struct ParsedCoseSign1<'a> {
@@ -83,11 +91,12 @@ struct ParsedCoseSign1<'a> {
     payload: &'a [u8],
     signature: &'a [u8],
     algorithm: RegistrationCertificateCoseAlgorithm,
+    presented_certificate_chain_der: Vec<&'a [u8]>,
 }
 
 fn parse_cose_sign1<'a>(
     input: &'a [u8],
-    expected_signer_certificate_der: &[u8],
+    expected_signer_certificate_der: Option<&[u8]>,
 ) -> Result<ParsedCoseSign1<'a>, RegistrationError> {
     let mut decoder = Decoder::new(input);
     if decoder.peek_major_type()? == Some(6) && decoder.read_tag()? != COSE_SIGN1_TAG {
@@ -102,16 +111,20 @@ fn parse_cose_sign1<'a>(
         return Err(invalid(RegistrationErrorReason::ResourceLimitExceeded));
     }
     let protected_facts = parse_protected_headers(protected, expected_signer_certificate_der)?;
-    let unprotected_has_x5chain =
+    let unprotected_chain =
         parse_unprotected_headers(&mut decoder, expected_signer_certificate_der)?;
-    if protected_facts.has_x5chain == unprotected_has_x5chain {
-        let reason = if protected_facts.has_x5chain {
+    if protected_facts.presented_certificate_chain_der.is_some() == unprotected_chain.is_some() {
+        let reason = if protected_facts.presented_certificate_chain_der.is_some() {
             RegistrationErrorReason::InvalidField
         } else {
             RegistrationErrorReason::MissingSignerCertificate
         };
         return Err(invalid(reason));
     }
+    let presented_certificate_chain_der = protected_facts
+        .presented_certificate_chain_der
+        .or(unprotected_chain)
+        .ok_or_else(|| invalid(RegistrationErrorReason::MissingSignerCertificate))?;
 
     let payload = decoder.read_byte_string()?;
     if payload.is_empty() || payload.len() > crate::json::MAX_JSON_BYTES {
@@ -127,18 +140,19 @@ fn parse_cose_sign1<'a>(
         payload,
         signature,
         algorithm: protected_facts.algorithm,
+        presented_certificate_chain_der,
     })
 }
 
-struct ProtectedHeaderFacts {
+struct ProtectedHeaderFacts<'a> {
     algorithm: RegistrationCertificateCoseAlgorithm,
-    has_x5chain: bool,
+    presented_certificate_chain_der: Option<Vec<&'a [u8]>>,
 }
 
-fn parse_protected_headers(
-    encoded: &[u8],
-    expected_signer_certificate_der: &[u8],
-) -> Result<ProtectedHeaderFacts, RegistrationError> {
+fn parse_protected_headers<'a>(
+    encoded: &'a [u8],
+    expected_signer_certificate_der: Option<&[u8]>,
+) -> Result<ProtectedHeaderFacts<'a>, RegistrationError> {
     let mut decoder = Decoder::new(encoded);
     let count = decoder.read_map_length()?;
     if count == 0 || count > MAX_HEADER_PARAMETERS {
@@ -147,7 +161,7 @@ fn parse_protected_headers(
     let mut previous_label = None;
     let mut algorithm = None;
     let mut saw_type = false;
-    let mut saw_x5chain = false;
+    let mut presented_certificate_chain_der = None;
 
     // ETSI TS 119 475 V1.2.1 GEN-5.2.3-01 and Table 6 require alg,
     // RFC 9596 typ = rc-wrp+cwt, and RFC 9360 x5chain. The explicit type
@@ -167,8 +181,10 @@ fn parse_protected_headers(
                 saw_type = true;
             }
             COSE_X5CHAIN_LABEL => {
-                validate_x5chain(&mut decoder, expected_signer_certificate_der)?;
-                saw_x5chain = true;
+                presented_certificate_chain_der = Some(validate_x5chain(
+                    &mut decoder,
+                    expected_signer_certificate_der,
+                )?);
             }
             _ => return Err(invalid(RegistrationErrorReason::InvalidField)),
         }
@@ -182,27 +198,26 @@ fn parse_protected_headers(
     }
     Ok(ProtectedHeaderFacts {
         algorithm,
-        has_x5chain: saw_x5chain,
+        presented_certificate_chain_der,
     })
 }
 
-fn parse_unprotected_headers(
-    decoder: &mut Decoder<'_>,
-    expected_signer_certificate_der: &[u8],
-) -> Result<bool, RegistrationError> {
+fn parse_unprotected_headers<'a>(
+    decoder: &mut Decoder<'a>,
+    expected_signer_certificate_der: Option<&[u8]>,
+) -> Result<Option<Vec<&'a [u8]>>, RegistrationError> {
     let count = decoder.read_map_length()?;
     if count > 1 {
         return Err(invalid(RegistrationErrorReason::InvalidField));
     }
     if count == 0 {
-        return Ok(false);
+        return Ok(None);
     }
     let label = decoder.read_unsigned()?;
     if label != COSE_X5CHAIN_LABEL {
         return Err(invalid(RegistrationErrorReason::InvalidField));
     }
-    validate_x5chain(decoder, expected_signer_certificate_der)?;
-    Ok(true)
+    validate_x5chain(decoder, expected_signer_certificate_der).map(Some)
 }
 
 fn validate_header_label_order(
@@ -225,29 +240,31 @@ fn parse_algorithm(
     }
 }
 
-fn validate_x5chain(
-    decoder: &mut Decoder<'_>,
-    expected_signer_certificate_der: &[u8],
-) -> Result<(), RegistrationError> {
+fn validate_x5chain<'a>(
+    decoder: &mut Decoder<'a>,
+    expected_signer_certificate_der: Option<&[u8]>,
+) -> Result<Vec<&'a [u8]>, RegistrationError> {
     match decoder.peek_major_type()? {
-        Some(2) => validate_certificate(
-            decoder.read_byte_string()?,
-            expected_signer_certificate_der,
-            true,
-        ),
+        Some(2) => {
+            let certificate = decoder.read_byte_string()?;
+            validate_certificate(certificate, expected_signer_certificate_der, true)?;
+            Ok(vec![certificate])
+        }
         Some(4) => {
             let count = decoder.read_array_length()?;
             if !(2..=MAX_CERTIFICATE_CHAIN_LENGTH).contains(&count) {
                 return Err(invalid(RegistrationErrorReason::ResourceLimitExceeded));
             }
+            let mut chain = Vec::new();
+            chain
+                .try_reserve_exact(count)
+                .map_err(|_error| invalid(RegistrationErrorReason::CapacityUnavailable))?;
             for index in 0..count {
-                validate_certificate(
-                    decoder.read_byte_string()?,
-                    expected_signer_certificate_der,
-                    index == 0,
-                )?;
+                let certificate = decoder.read_byte_string()?;
+                validate_certificate(certificate, expected_signer_certificate_der, index == 0)?;
+                chain.push(certificate);
             }
-            Ok(())
+            Ok(chain)
         }
         _ => Err(invalid(RegistrationErrorReason::InvalidCertificate)),
     }
@@ -255,7 +272,7 @@ fn validate_x5chain(
 
 fn validate_certificate(
     certificate_der: &[u8],
-    expected_signer_certificate_der: &[u8],
+    expected_signer_certificate_der: Option<&[u8]>,
     is_leaf: bool,
 ) -> Result<(), RegistrationError> {
     if certificate_der.is_empty()
@@ -265,12 +282,28 @@ fn validate_certificate(
     }
     reallyme_trust_x509::parse_cert_der(certificate_der)
         .map_err(|_error| invalid(RegistrationErrorReason::InvalidCertificate))?;
-    if is_leaf && certificate_der != expected_signer_certificate_der {
+    if is_leaf
+        && expected_signer_certificate_der.is_some_and(|expected| certificate_der != expected)
+    {
         return Err(invalid(
             RegistrationErrorReason::AuthenticationReceiptMismatch,
         ));
     }
     Ok(())
+}
+
+pub(super) fn presented_signer_certificate(
+    input: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, RegistrationError> {
+    if input.is_empty() || input.len() > super::super::MAX_REPRESENTATION_BYTES {
+        return Err(invalid(RegistrationErrorReason::InputTooLarge));
+    }
+    let parsed = parse_cose_sign1(input, None)?;
+    let leaf = parsed
+        .presented_certificate_chain_der
+        .first()
+        .ok_or_else(|| invalid(RegistrationErrorReason::MissingSignerCertificate))?;
+    Ok(Zeroizing::new(leaf.to_vec()))
 }
 
 fn build_signature_structure(

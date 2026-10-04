@@ -6,7 +6,7 @@
 
 [![Rust CI](https://github.com/reallyme/ssi/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/reallyme/ssi/actions/workflows/rust-ci.yml)
 [![Fuzz](https://github.com/reallyme/ssi/actions/workflows/fuzz.yml/badge.svg)](https://github.com/reallyme/ssi/actions/workflows/fuzz.yml)
-[![MSRV](https://img.shields.io/badge/MSRV-1.96-475569)](Cargo.toml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.99-475569)](Cargo.toml)
 [![Security Policy](https://img.shields.io/badge/security-policy-0f766e)](SECURITY.md)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 
@@ -211,12 +211,14 @@ pinned upstream conformance suites exercised by the complete repository gate.
 Published foundational crates—`reallyme-crypto`, `reallyme-codec`,
 `reallyme-jose`, and `reallyme-cose`—remain version-pinned dependencies.
 
-Run the repository gate and core workspace checks before submitting changes:
+Check out the `reallyme/release-readiness` package at the SHA pinned by
+`rust-ci.yml` into `.release-readiness`, then run the repository gate and core
+workspace checks before submitting changes:
 
 ```sh
 cargo fmt --check
 scripts/lint-protos.sh
-node scripts/check_release_readiness.mjs
+node .release-readiness/scripts/run-consumer-check.mjs
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 node scripts/run_bounded_nextest.mjs native
 cargo check --workspace --no-default-features --features wasm --target wasm32-unknown-unknown
@@ -251,7 +253,7 @@ crates.io; the `reallyme-ssi` facade remains a source-workspace composition
 crate. Public Rust API changes follow Cargo's pre-1.0 compatibility rules.
 Protobuf schemas additionally pass freshness and wire-compatibility gates
 because they form cross-language integration contracts. Public crates declare
-Rust 1.96 as their minimum supported Rust version.
+Rust 1.99 as their minimum supported Rust version.
 
 ## License
 

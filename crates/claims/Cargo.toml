@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-credential-claims"
-version = "0.3.4"
+version = "0.4.0"
 description = "Protocol-neutral credential claim values, registries, paths, and disclosure validation."
 edition.workspace = true
 rust-version.workspace = true
@@ -33,7 +33,7 @@ wasm = ["reallyme-cose/wasm", "reallyme-crypto/wasm"]
 
 [dependencies]
 buffa = { workspace = true, optional = true }
-reallyme-codec = { workspace = true, features = ["base64", "base64url"] }
+reallyme-codec = { workspace = true, features = ["base64", "base64url", "multikey"] }
 reallyme-cose = { workspace = true }
 reallyme-crypto = { workspace = true, features = ["jwk", "sha2"] }
 reallyme-ssi-proto = { workspace = true }
@@ -41,7 +41,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true, features = ["parsing"] }
-reallyme-trust-x509 = { path = "../trust/x509", version = "0.3.4", default-features = false }
+reallyme-trust-x509 = { path = "../trust/x509", version = "0.4.0", default-features = false }
 zeroize = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

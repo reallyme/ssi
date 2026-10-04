@@ -128,7 +128,7 @@ pub fn validate_attestation_policy(
             // the decoded multicodec identity and public-key bytes so alternate
             // textual encodings cannot make one key satisfy two policy slots.
             let parsed_key = match parse_multikey(&method.public_key_multibase) {
-                Ok(parsed) => (parsed.codec_name, parsed.public_key),
+                Ok(parsed) => (parsed.codec_name(), parsed.public_key().to_vec()),
                 Err(_) => {
                     errors.push(attestation_issue(index));
                     continue;
@@ -308,7 +308,7 @@ pub fn validate_attestations(
         // ----------------------------------------------------
         // 7. Verify signature
         // ----------------------------------------------------
-        let ok = verify(crypto_alg, &parsed.public_key, &signing_input, &sig_bytes).is_ok();
+        let ok = verify(crypto_alg, parsed.public_key(), &signing_input, &sig_bytes).is_ok();
 
         if !ok {
             errors.push(signature_issue(index));

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use identity_core_primitives::Algorithm;
+use std::sync::Arc;
 
 /// Canonical DID core object.
 ///
@@ -72,7 +73,7 @@ pub struct CanonicalService {
     pub service_type: String,
 
     /// Canonical CBOR service endpoint value.
-    pub service_endpoint: reallyme_codec::cbor::CborValue,
+    pub service_endpoint: Arc<reallyme_codec::cbor::CborValue>,
 }
 
 /// did:me update policy committed into canonical core state.

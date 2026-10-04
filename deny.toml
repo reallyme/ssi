@@ -48,12 +48,12 @@ skip = [
     { crate = "crypto-common@0.1.7", reason = "Cryptographic dependencies require incompatible crypto-common API lines; every other duplicate remains denied." },
     { crate = "digest@0.10.7", reason = "Digest dependencies require incompatible digest API lines; every other duplicate remains denied." },
     { crate = "generic-array@0.14.7", reason = "Cryptographic dependencies require incompatible generic-array API lines; every other duplicate remains denied." },
-    { crate = "getrandom@0.2.17", reason = "Native and WebAssembly dependencies require incompatible getrandom API lines; every other duplicate remains denied." },
     { crate = "hashbrown@0.15.5", reason = "Collection dependencies require incompatible hashbrown API lines; every other duplicate remains denied." },
     { crate = "keccak@0.1.6", reason = "SHA-3 dependencies require incompatible keccak API lines; every other duplicate remains denied." },
     { crate = "sha3@0.10.9", reason = "Cryptographic dependencies require incompatible sha3 API lines; every other duplicate remains denied." },
     { crate = "sha3@0.11.0", reason = "Cryptographic dependencies require incompatible sha3 API lines; every other duplicate remains denied." },
     { crate = "syn@2.0.119", reason = "Procedural-macro dependencies require incompatible syn API lines; every other duplicate remains denied." },
+    { crate = "synstructure@0.13.2", reason = "ASN.1 and multihash derives require synstructure 0.13, while ICU derives require 0.14; every other duplicate remains denied." },
 ]
 skip-tree = []
 

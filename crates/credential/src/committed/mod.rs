@@ -24,6 +24,10 @@ pub mod proof_binding;
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub mod issue;
 
+/// Issuance when an issuer has independently approved an external commitment.
+#[cfg(any(feature = "native", feature = "wasm"))]
+pub mod precomputed_commitment;
+
 /// Committed-credential verification.
 #[cfg(any(feature = "native", feature = "wasm"))]
 pub mod verify;

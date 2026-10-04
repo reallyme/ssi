@@ -23,7 +23,7 @@ fn decode_public_key_bytes(
             })
         }
         PublicKeyRepresentation::Multikey(value) => reallyme_codec::multikey::parse_multikey(value)
-            .map(|parsed| parsed.public_key)
+            .map(|parsed| parsed.public_key().to_vec())
             .map_err(|_| ClaimsError::InvalidInput(ClaimsInvalidReason::InvalidCommitmentMaterial)),
         PublicKeyRepresentation::SubjectPublicKeyInfoDer(value) => {
             parse_subject_public_key_info_der(value)
@@ -86,8 +86,8 @@ fn valid_public_key_representation(
             let Ok(parsed) = reallyme_codec::multikey::parse_multikey(value) else {
                 return false;
             };
-            multikey_algorithm_matches(algorithm, parsed.alg)
-                && public_key_shape_matches(algorithm, parsed.public_key.as_slice())
+            multikey_algorithm_matches(algorithm, parsed.algorithm_name())
+                && public_key_shape_matches(algorithm, parsed.public_key())
         }
         PublicKeyRepresentation::SubjectPublicKeyInfoDer(value) => {
             valid_subject_public_key_info(algorithm, value)

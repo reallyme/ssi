@@ -66,6 +66,7 @@ impl StrictValue {
         }
     }
 
+    #[cfg(any(feature = "native", feature = "wasm"))]
     pub(crate) fn take_object(&mut self) -> Option<BTreeMap<String, Self>> {
         match self {
             Self::Object(values) => Some(core::mem::take(values)),

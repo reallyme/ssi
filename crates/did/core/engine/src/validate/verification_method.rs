@@ -119,7 +119,7 @@ pub fn validate_verification_methods(doc: &DIDDocument) -> VerificationMethodVal
         }
 
         // ---- declared algorithm must match multikey-derived algorithm ----
-        if declared_alg != parsed.alg {
+        if declared_alg != parsed.algorithm_name() {
             errors.push(vm_issue(index));
         }
     }

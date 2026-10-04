@@ -725,16 +725,6 @@ fn receipt_verifier_rejects_stale_future_expired_and_malformed_time_claims() {
             ),
             SdJwtEnvelopeError::ReceiptExpired,
         ),
-        (
-            issue_receipt_credential(
-                &issuer,
-                holder_jwk,
-                Value::String("not-a-numeric-date".to_owned()),
-                None,
-                None,
-            ),
-            SdJwtEnvelopeError::InvalidReceiptTemporalClaim,
-        ),
     ];
     for (issued, expected) in cases {
         assert_eq!(
@@ -748,6 +738,23 @@ fn receipt_verifier_rejects_stale_future_expired_and_malformed_time_claims() {
             Some(expected)
         );
     }
+
+    let issued = issue_receipt_credential(&issuer, holder_jwk, json!(RECEIPT_NOW), None, None);
+    let (issuer_jwt, suffix) = issued.compact.split_once('~').expect("SD-JWT separator");
+    let mut malformed_payload = decode_jwt_payload(issuer_jwt);
+    malformed_payload["iat"] = Value::String("not-a-numeric-date".to_owned());
+    let malformed_jwt = sign_unvalidated_ed25519_jwt(&malformed_payload, &issuer, "dc+sd-jwt");
+    let malformed_compact = format!("{malformed_jwt}~{suffix}");
+    assert_eq!(
+        verify_sd_jwt_receipt(
+            &malformed_compact,
+            &issuer.jwk,
+            &issuer.public,
+            &receipt_policy(&holder, RECEIPT_NOW),
+        )
+        .err(),
+        Some(SdJwtEnvelopeError::InvalidReceiptTemporalClaim)
+    );
 }
 
 #[test]

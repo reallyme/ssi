@@ -12,6 +12,7 @@ use openssl::{
     x509::{extension::KeyUsage, X509Builder, X509NameBuilder},
 };
 use reallyme_eudi_rp_registration::{
+    authenticate_presented_wrprc_cose_sign1, authenticate_presented_wrprc_jades,
     authenticate_registration_certificate, authenticate_wrprc_cose_sign1, authenticate_wrprc_jades,
     ArtifactDigest, RegistrationCertificateBinding, RegistrationCertificateCoseAlgorithm,
     RegistrationCertificateCoseAuthenticationInput,
@@ -287,6 +288,24 @@ fn sign_wrprc_cose_profile(
     x5chain_placement: TestX5ChainPlacement,
     algorithm: TestCoseAlgorithm,
 ) -> Result<Zeroizing<Vec<u8>>, RegistrationError> {
+    sign_wrprc_cose_profile_with_chain(
+        payload,
+        private_key,
+        type_value,
+        x5chain_placement,
+        algorithm,
+        &[certificate_der],
+    )
+}
+
+fn sign_wrprc_cose_profile_with_chain(
+    payload: &[u8],
+    private_key: &[u8],
+    type_value: &str,
+    x5chain_placement: TestX5ChainPlacement,
+    algorithm: TestCoseAlgorithm,
+    presented_chain: &[&[u8]],
+) -> Result<Zeroizing<Vec<u8>>, RegistrationError> {
     let mut protected = Zeroizing::new(Vec::new());
     protected.push(if x5chain_placement == TestX5ChainPlacement::Protected {
         0xa3
@@ -304,7 +323,7 @@ fn sign_wrprc_cose_profile(
     append_cbor_text(&mut protected, type_value)?;
     if x5chain_placement == TestX5ChainPlacement::Protected {
         protected.extend_from_slice(&[0x18, 0x21]);
-        append_cbor_bytes(&mut protected, certificate_der)?;
+        append_test_x5chain(&mut protected, presented_chain)?;
     }
 
     let signing_input = cose_signature_structure(&protected, payload)?;
@@ -331,13 +350,35 @@ fn sign_wrprc_cose_profile(
     append_cbor_bytes(&mut cose, &protected)?;
     if x5chain_placement == TestX5ChainPlacement::Unprotected {
         cose.extend_from_slice(&[0xa1, 0x18, 0x21]);
-        append_cbor_bytes(&mut cose, certificate_der)?;
+        append_test_x5chain(&mut cose, presented_chain)?;
     } else {
         cose.push(0xa0);
     }
     append_cbor_bytes(&mut cose, payload)?;
     append_cbor_bytes(&mut cose, &signature)?;
     Ok(cose)
+}
+
+fn append_test_x5chain(
+    output: &mut Vec<u8>,
+    presented_chain: &[&[u8]],
+) -> Result<(), RegistrationError> {
+    if presented_chain.len() == 1 {
+        return append_cbor_bytes(output, presented_chain[0]);
+    }
+    let count = u8::try_from(presented_chain.len()).map_err(|_error| {
+        RegistrationError::Invalid(RegistrationErrorReason::ResourceLimitExceeded)
+    })?;
+    if !(2..=10).contains(&count) {
+        return Err(RegistrationError::Invalid(
+            RegistrationErrorReason::ResourceLimitExceeded,
+        ));
+    }
+    output.push(0x80 | count);
+    for certificate in presented_chain {
+        append_cbor_bytes(output, certificate)?;
+    }
+    Ok(())
 }
 
 fn cose_signature_structure(
@@ -629,6 +670,15 @@ fn wrprc_receipt_binds_authenticated_representation_and_local_issuance_state(
     let authenticated =
         authenticate_registration_certificate(vec![jades_proof, cose_proof], binding)?;
     assert_eq!(authenticated.representations().len(), 2);
+    assert_eq!(
+        authenticated.signer_certificate_der(),
+        Some(signer_certificate.as_slice())
+    );
+    assert_eq!(authenticated.presented_certificate_chain_der().len(), 1);
+    assert_eq!(
+        authenticated.signer_certificate_digest(),
+        ArtifactDigest::sha256(&signer_certificate)
+    );
     assert_eq!(authenticated.parsed().relying_party_id(), "NTRCH-123");
     assert_eq!(authenticated.binding().service_id(), "service-1");
     assert_eq!(authenticated.binding().intended_use_id(), "age-check");

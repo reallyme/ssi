@@ -14,7 +14,7 @@
 
 use codec_base64url::bytes_to_base64url;
 use crypto_core::Algorithm;
-use crypto_dispatch::generate_keypair;
+use crypto_dispatch::{generate_keypair, sign};
 use crypto_sha2_256::digest as sha2_256_digest;
 use envelopes_jwk::{Jwk, OkpJwk};
 use envelopes_jwt::jwt::{encode_signed_jwt_with_header_options, JwtHeaderEncodeOptions};
@@ -69,6 +69,28 @@ fn signed_artifact(issuer: &Issuer, payload: &Value, disclosures: Vec<String>) -
     SdJwtArtifact {
         issuer_signed_jwt,
         disclosures,
+        kb_jwt: None,
+        records: Vec::new(),
+    }
+}
+
+fn signed_malformed_artifact(issuer: &Issuer, payload: &Value) -> SdJwtArtifact {
+    // The validated JOSE signer rejects malformed registered claims before
+    // signing. Sign this test payload directly so verification must reject an
+    // authentic but malformed issuer credential.
+    let header =
+        bytes_to_base64url(br#"{"alg":"EdDSA","kid":"issuer-key-hardening","typ":"dc+sd-jwt"}"#);
+    let payload = bytes_to_base64url(&serde_json::to_vec(payload).expect("issuer payload json"));
+    let signing_input = format!("{header}.{payload}");
+    let signature = sign(
+        Algorithm::Ed25519,
+        &issuer.private,
+        signing_input.as_bytes(),
+    )
+    .expect("malformed issuer JWT signs");
+    SdJwtArtifact {
+        issuer_signed_jwt: format!("{signing_input}.{}", bytes_to_base64url(&signature)),
+        disclosures: Vec::new(),
         kb_jwt: None,
         records: Vec::new(),
     }
@@ -130,7 +152,7 @@ fn verifiers_enforce_credential_validity_window() {
         IetfSdJwtVcError::CredentialNotYetValid
     ));
 
-    let malformed = signed_artifact(&issuer, &json!({"exp": "soon"}), Vec::new());
+    let malformed = signed_malformed_artifact(&issuer, &json!({"exp": "soon"}));
     assert!(matches!(
         verify_error(&issuer, &malformed, NOW),
         IetfSdJwtVcError::InvalidTemporalClaim

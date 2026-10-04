@@ -56,7 +56,7 @@ pub fn verify_es256_jws_cid_2025(doc: &DIDDocument) -> Result<(), Es256JwsCid202
     let parsed = parse_multikey(&vm.public_key_multibase)
         .map_err(|_| Es256JwsCid2025Error::InvalidMultikey)?;
 
-    if parsed.alg != "P-256" {
+    if parsed.algorithm_name() != "P-256" {
         return Err(Es256JwsCid2025Error::WrongAlgorithm);
     }
 
@@ -99,7 +99,7 @@ pub fn verify_es256_jws_cid_2025(doc: &DIDDocument) -> Result<(), Es256JwsCid202
 
     dispatch_verify(
         CryptoAlgorithm::P256,
-        &parsed.public_key,
+        parsed.public_key(),
         signing_input.as_bytes(),
         &der_sig,
     )

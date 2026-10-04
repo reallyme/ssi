@@ -188,6 +188,14 @@ impl AuthenticatedJades {
         self.certificates.first()
     }
 
+    /// Borrows the leaf-first certificates presented with the authenticated
+    /// JAdES header. These are path candidates; authentication of the JWS
+    /// does not establish issuer trust or certificate status.
+    #[must_use]
+    pub fn presented_certificates(&self) -> &[X509Certificate] {
+        &self.certificates
+    }
+
     /// Returns the validated claimed signing time.
     #[must_use]
     pub const fn claimed_signing_time(&self) -> ClaimedSigningTime {

@@ -183,6 +183,10 @@ pub enum SdJwtEnvelopeError {
     /// Required credential-status evidence is absent, invalid, or non-valid.
     #[error("SD-JWT credential status was not verified")]
     CredentialStatusNotVerified,
+
+    /// A selected parent disclosure also exposes a claim outside the requested scope.
+    #[error("selected SD-JWT disclosure exceeds requested scope")]
+    RequestedScopeExceeded,
 }
 
 impl From<Base64UrlError> for SdJwtEnvelopeError {
@@ -280,6 +284,9 @@ impl From<SdJwtEnvelopeError> for IdentityCoreErrorReason {
             }
             SdJwtEnvelopeError::RequestedPathNotFound => {
                 Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_UNMATCHED_DISCLOSURE
+            }
+            SdJwtEnvelopeError::RequestedScopeExceeded => {
+                Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_INVALID_ISSUANCE_INPUT
             }
             SdJwtEnvelopeError::ConflictingDisclosureClaim => {
                 Self::IDENTITY_CORE_ERROR_REASON_SD_JWT_CONFLICTING_DISCLOSURE_CLAIM

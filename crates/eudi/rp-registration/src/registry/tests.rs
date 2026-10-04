@@ -11,7 +11,7 @@ use crate::{RegistrationError, RegistrationErrorReason};
 const ED25519_JWK: &[u8] = br#"{
     "kty":"OKP",
     "crv":"Ed25519",
-    "x":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+    "x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
     "alg":"EdDSA",
     "use":"sig",
     "kid":"mismatch-key"
@@ -24,6 +24,8 @@ const ED25519_CERTIFICATE_B64: &str = "MIIBTDCB/6ADAgECAhR8ihYYs45gphDNqlBWi1e/4
 
 #[test]
 fn rejects_jwk_certificate_public_key_mismatch() -> Result<(), RegistrationError> {
+    // The JWK must be a valid key so this test reaches the certificate binding
+    // check rather than failing earlier during key validation.
     let jwk = serde_json::from_slice(ED25519_JWK)
         .map_err(|_error| RegistrationError::from_reason(RegistrationErrorReason::InvalidField))?;
     let certificate_der = reallyme_codec::base64::base64_to_bytes(RSA_CERTIFICATE_B64.trim())

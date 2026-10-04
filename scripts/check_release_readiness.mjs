@@ -84,7 +84,7 @@ function assertFixtureCopies() {
 
 shared.assertReallyMeReleasePackagePolicy({
   scriptPath: "scripts/check_release_readiness.mjs",
-  version: "0.6.6",
+  version: "0.6.7",
 });
 shared.assertWorkflowActionsPinned();
 shared.assertWorkflowPolicy({
@@ -761,7 +761,7 @@ const parsePackageName = (manifestPath) => {
 
 const packageRoot = (manifestPath) => dirname(manifestPath);
 
-assertContains("Cargo.toml", 'rust-version = "1.96"');
+assertContains("Cargo.toml", 'rust-version = "1.99"');
 assertContains("Cargo.toml", 'panic = "abort"');
 assertContains("Cargo.toml", 'license = "MIT OR Apache-2.0"');
 
@@ -1141,10 +1141,10 @@ for (const needle of requiredBoundedNextestNeedles) {
   assertContains("scripts/run_bounded_nextest.mjs", needle);
 }
 const rustCiWorkflow = ".github/workflows/rust-ci.yml";
-assertContains(rustCiWorkflow, "toolchain: 1.96.0");
+assertContains(rustCiWorkflow, "toolchain: 1.99.0");
 assertContains(
   rustCiWorkflow,
-  "cargo +1.96.0 check --locked --workspace --no-default-features --features native",
+  "cargo +1.99.0 check --locked --workspace --no-default-features --features native",
 );
 assertContains(rustCiWorkflow, "cargo +nightly-2026-09-01 fuzz build");
 assertContains(rustCiWorkflow, "cargo-mutants@${{ env.CARGO_MUTANTS_VERSION }}");
@@ -1181,11 +1181,11 @@ assertContains(
 );
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "ref: bdedc88f3f25fcc14242730d4dec6ce6a0c75531",
+  "ref: 5c2da5e5d5795c2c895d0dca0819287ee7101207",
 );
 assertContains(
   ".github/workflows/crates-package-preflight.yml",
-  "ref: bdedc88f3f25fcc14242730d4dec6ce6a0c75531",
+  "ref: 5c2da5e5d5795c2c895d0dca0819287ee7101207",
 );
 assertExists(".github/workflows/crates-package-preflight.yml");
 assertExists(".github/workflows/crates-release.yml");
@@ -1226,7 +1226,7 @@ assertContains(packagePreflightWorkflow, "ref: ${{ github.sha }}");
 assertContains(packagePreflightWorkflow, "fetch-depth: 0");
 assertContains(packagePreflightWorkflow, "persist-credentials: false");
 assertContains(packagePreflightWorkflow, "node-version: '24'");
-assertContains(packagePreflightWorkflow, "toolchain: 1.98.1");
+assertContains(packagePreflightWorkflow, "toolchain: 1.99.0");
 assertContains(packagePreflightWorkflow, "node scripts/verify_release_source.mjs");
 assertContains(packagePreflightWorkflow, "node scripts/write_release_attestation.mjs");
 assertContains(packagePreflightWorkflow, "run: scripts/run_gitleaks.sh");
@@ -1275,7 +1275,7 @@ assertContains(releaseWorkflow, "verify-preflight:");
 assertContains(releaseWorkflow, "ref: ${{ github.sha }}");
 assertContains(releaseWorkflow, "persist-credentials: false");
 assertContains(releaseWorkflow, "node-version: '24'");
-assertContains(releaseWorkflow, "toolchain: 1.98.1");
+assertContains(releaseWorkflow, "toolchain: 1.99.0");
 assertContains(releaseWorkflow, "RELEASE_SOURCE_DERIVE_VERSION: '1'");
 assertContains(releaseWorkflow, "RELEASE_ATTESTATION_RESOLVE_ONLY: '1'");
 assertContains(releaseWorkflow, "uses: actions/download-artifact@");
@@ -1464,8 +1464,9 @@ assertContains(".github/workflows/rust-ci.yml", "CARGO_SEMVER_CHECKS_VERSION: 0.
 assertContains(".github/workflows/rust-ci.yml", "cargo-semver-checks@${{ env.CARGO_SEMVER_CHECKS_VERSION }}");
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "cargo semver-checks check-release --workspace",
+  "node scripts/check_release_semver.mjs",
 );
+assertExists("scripts/check_release_semver.mjs");
 assertExists("scripts/check_fixture_copies.mjs");
 assertExists("scripts/generate_conformance_reports.mjs");
 assertExists("scripts/run_upstream_conformance_tests.mjs");
@@ -1508,9 +1509,9 @@ assertContains("scripts/generate_conformance_reports.mjs", "Cargo.lock does not 
 assertContains("scripts/generate_conformance_reports.mjs", "reallyme.ssi.conformance.bundle.v1");
 assertContains(
   "conformance/dependencies.lock.json",
-  '"version": "0.3.9"',
+  '"version": "0.3.12"',
 );
-assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.3.4");
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.4.0");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
 assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
 assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");
@@ -1570,12 +1571,12 @@ assertContains("scripts/proto-workspace.sh", '"me-id/protos"');
 assertContains("scripts/check-proto-contract.sh", "reallyme.crypto.v1.CryptoAlgorithmIdentifier");
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity.common.v1");
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity_core.v1");
-assertContains("Cargo.toml", 'reallyme-codec = { version = "0.2.3"');
-assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.9"');
-assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.9"');
+assertContains("Cargo.toml", 'reallyme-codec = { version = "0.3.1"');
+assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.12"');
+assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.12"');
 assertContains("crates/proto/Cargo.toml", "reallyme-crypto-proto/generated");
-assertContains("Cargo.toml", 'reallyme-cose = { version = "0.2.5"');
-assertContains("Cargo.toml", 'reallyme-jose = { version = "0.4.0"');
+assertContains("Cargo.toml", 'reallyme-cose = { version = "0.2.7"');
+assertContains("Cargo.toml", 'reallyme-jose = { version = "0.4.4"');
 for (const dependency of [
   "reallyme-codec",
   "reallyme-cose",

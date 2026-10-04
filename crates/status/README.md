@@ -24,7 +24,7 @@ signature-verification boundaries.
 
 ```toml
 [dependencies]
-reallyme-credential-status = "0.3.4"
+reallyme-credential-status = "0.4.0"
 ```
 
 The default `native` feature enables the native cryptographic provider. Use

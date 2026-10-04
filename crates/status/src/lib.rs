@@ -37,6 +37,7 @@ pub use token_status_list::{
     verify_token_status_list_jwt_with_x5c,
 };
 pub use verify::{
-    validate_status_list, verify_status, verify_status_with_policy, StatusListFreshnessPolicy,
-    StatusListVerifier, DEFAULT_STATUS_LIST_MAX_AGE_SECS, MAX_STATUS_LIST_ENTRIES,
+    validate_status_list, verify_status, verify_status_list_authenticity_with_policy,
+    verify_status_with_policy, StatusListFreshnessPolicy, StatusListVerifier,
+    DEFAULT_STATUS_LIST_MAX_AGE_SECS, MAX_STATUS_LIST_ENTRIES,
 };

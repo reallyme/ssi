@@ -113,7 +113,7 @@ pub(super) struct RawPolicy {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawCredential {
+pub(super) struct RawCredential {
     format: String,
     meta: BTreeMap<String, StrictValue>,
     claims: Vec<RawClaim>,
@@ -372,7 +372,7 @@ fn validate_localized_text(
 }
 
 impl RawCredential {
-    fn validate(mut self) -> Result<CredentialRequest, RegistrationError> {
+    pub(super) fn validate(mut self) -> Result<CredentialRequest, RegistrationError> {
         CredentialRequest::try_new(
             core::mem::take(&mut self.format),
             core::mem::take(&mut self.meta),

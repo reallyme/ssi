@@ -13,6 +13,7 @@ mod document;
 mod error;
 mod json;
 mod model;
+#[cfg(any(feature = "native", feature = "wasm"))]
 mod registry;
 mod wrpac;
 mod wrprc;
@@ -26,6 +27,7 @@ pub use model::{
     RegistryPagination, RegistryPayload, RegistryPayloadShape, SupervisoryAuthority,
     WalletRelyingParty, WalletRelyingPartyService, WrpEntitlement,
 };
+#[cfg(any(feature = "native", feature = "wasm"))]
 pub use registry::{
     authenticate_registry_record, AuthenticatedRegistryRecord, RegistrarCertificateChain,
     RegistryAuthenticationInput, RegistryIntendedUseQuery, RegistryMetadata, ValidatedJwks,
@@ -34,15 +36,17 @@ pub use wrpac::{
     authenticate_access_certificate_association, AccessCertificateBinding,
     AuthenticatedAccessCertificateAssociation,
 };
+#[cfg(any(feature = "native", feature = "wasm"))]
+pub use wrprc::{
+    authenticate_presented_wrprc_cose_sign1, authenticate_presented_wrprc_jades,
+    authenticate_wrprc_cose_sign1, authenticate_wrprc_jades, RegistrationCertificateCoseAlgorithm,
+    RegistrationCertificateCoseAuthenticationInput,
+    RegistrationCertificateJadesAuthenticationInput, RegistrationCertificateJadesPolicy,
+};
 pub use wrprc::{
     authenticate_registration_certificate, parse_registration_certificate,
     AuthenticatedRegistrationCertificate, AuthenticatedRepresentation,
     ParsedRegistrationCertificate, RegisteredCredentialFormat, RegistrationCertificateBinding,
     RegistrationCertificateFormat, RegistrationCertificatePolicy, RegistrationCertificateProof,
-};
-#[cfg(any(feature = "native", feature = "wasm"))]
-pub use wrprc::{
-    authenticate_wrprc_cose_sign1, authenticate_wrprc_jades, RegistrationCertificateCoseAlgorithm,
-    RegistrationCertificateCoseAuthenticationInput,
-    RegistrationCertificateJadesAuthenticationInput, RegistrationCertificateJadesPolicy,
+    SignedLocalizedText,
 };

@@ -14,12 +14,12 @@ test("readiness assertions ignore shell controls preserved only in comments", ()
   const source = `
     gh attestation verify evidence.json # --deny-self-hosted-runners
     # cargo publish --no-verify
-    cargo check # cargo +1.96.0 check
+    cargo check # cargo +1.99.0 check
   `;
   const searchable = scrubCommentsForAssertion("release.sh", source);
   assert.doesNotMatch(searchable, /--deny-self-hosted-runners/u);
   assert.doesNotMatch(searchable, /--no-verify/u);
-  assert.doesNotMatch(searchable, /\+1\.96\.0/u);
+  assert.doesNotMatch(searchable, /\+1\.99\.0/u);
 });
 
 test("readiness assertions preserve comment markers inside quoted values", () => {
