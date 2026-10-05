@@ -7,6 +7,7 @@ use reallyme_ssi_proto::generated::proto::identity::trust::v1 as trust_pb;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 include!("dto/error.rs");
+mod evidence;
 
 const MAX_TRUST_DECISION_FAILURES: usize = 32;
 const MAX_TRUST_DECISION_PATH_CERTIFICATES: usize = 10;
@@ -20,7 +21,7 @@ pub struct TrustDecision {
     pub(crate) outcome: TrustDecisionOutcome,
     /// Fixed, non-secret failure reasons.
     pub(crate) failures: Vec<TrustDecisionFailure>,
-    /// Reproducible, non-secret trust evidence.
+    /// Reproducible trust evidence, including linkable certificate fingerprints.
     pub(crate) evidence: TrustDecisionEvidence,
 }
 
@@ -132,7 +133,7 @@ pub enum TrustPolicyId {
 }
 
 /// Identity of the trust source snapshot used for evaluation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct TrustSourceEvidence {
     /// Stable source identity.
     pub source_id: [u8; 32],
@@ -208,7 +209,7 @@ pub struct CertificateStatusEvidence {
 }
 
 /// Evidence retained by a public trust decision receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct TrustDecisionEvidence {
     /// Authorization purpose.
     pub purpose: TrustPurpose,

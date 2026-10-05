@@ -6,10 +6,43 @@
 
 use super::{
     trust_pb, AuthorizationPurpose, TrustDecision, TrustDecisionEvidence, TrustDecisionFailure,
-    TrustDecisionOutcome, TrustPolicyId, TrustProtoError, TrustPurpose,
+    TrustDecisionOutcome, TrustPolicyId, TrustProtoError, TrustPurpose, TrustSourceEvidence,
 };
 use buffa::{EnumValue, Enumeration};
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+#[test]
+fn facade_decision_evidence_redacts_and_clears_linkable_identifiers() {
+    fn assert_cleared_on_drop<T: ZeroizeOnDrop>() {}
+    assert_cleared_on_drop::<TrustDecision>();
+    assert_cleared_on_drop::<TrustDecisionEvidence>();
+
+    let mut evidence = TrustDecisionEvidence {
+        purpose: TrustPurpose::Generic,
+        policy_id: TrustPolicyId::GenericX509V1,
+        evaluated_at_unix: 0,
+        source: Some(TrustSourceEvidence {
+            source_id: [0xa5; 32],
+            snapshot_id: [0xb6; 32],
+        }),
+        trust_anchor: None,
+        certificate_status: Vec::new(),
+        selected_path_certificate_sha256: vec![[0x5a; 32]],
+    };
+
+    let debug = format!("{evidence:?}");
+    assert!(debug.contains("selected_path_certificate_count: 1"));
+    assert!(!debug.contains("165, 165"));
+    assert!(!debug.contains("90, 90"));
+    let source_debug = format!("{:?}", evidence.source);
+    assert!(source_debug.contains("<redacted>"));
+    assert!(!source_debug.contains("165, 165"));
+    evidence.zeroize();
+    assert_eq!(evidence.source.map(|source| source.source_id), Some([0; 32]));
+    assert_eq!(evidence.source.map(|source| source.snapshot_id), Some([0; 32]));
+    assert!(evidence.selected_path_certificate_sha256.is_empty());
+}
 
 #[test]
 fn facade_trust_decision_failure_round_trips_through_proto_enum() {

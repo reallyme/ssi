@@ -23,6 +23,9 @@ Typed decisions retain the selected path's leaf-to-anchor SHA-256 fingerprints,
 selected trust anchor, policy, time, per-certificate status, and fixed failure
 reasons. The `dto` module provides conversion to and from the trust protobuf
 contract, with validation of inbound decision receipts.
+Rust decision evidence clears linkable identifiers on drop and redacts them
+from debug output. Protobuf conversion creates a caller-owned copy of that
+evidence.
 
 EU trusted-list ingestion, QTSP operations, and proprietary trust services are
 separate capabilities. They are not enabled by this package's default feature.
