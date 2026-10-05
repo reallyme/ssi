@@ -17,7 +17,7 @@ use reallyme_credential::committed::{
         StatusPurpose,
     },
     precomputed_commitment::issue_credential_with_precomputed_commitment,
-    proof_binding::issue_credential_proof_binding,
+    proof_binding::{issue_credential_proof_binding, validate_credential_proof_binding_public},
     verify::verify_credential,
 };
 use reallyme_credential::DispatchCredentialIssuerSigner;
@@ -43,7 +43,7 @@ fn p256_key(reference: &str, public_key: &[u8]) -> PublicKeyRef {
 fn input(issuer_key: PublicKeyRef, holder_key: PublicKeyRef) -> IssueInput {
     IssueInput {
         kind: CredentialKind::Pid,
-        profile_id: "common-root-test".to_owned(),
+        profile_id: "reallyme.zk.common-root.v1".to_owned(),
         assurance: AssuranceLevel::Substantial,
         issuer_reference: PartyReference::Did("did:test:issuer".to_owned()),
         issuer_verification_key: issuer_key,
@@ -60,7 +60,7 @@ fn input(issuer_key: PublicKeyRef, holder_key: PublicKeyRef) -> IssueInput {
             subject_reference: PartyReference::Did("did:test:holder".to_owned()),
             holder_binding: HolderBinding::CryptographicKey(holder_key),
         },
-        claimset_id: "common-root-test".to_owned(),
+        claimset_id: "reallyme.zk.common-root.v1".to_owned(),
         domain_tags: DomainTags {
             clm: "CLM1".to_owned(),
             leaf: "LEAF1".to_owned(),
@@ -77,9 +77,9 @@ fn input(issuer_key: PublicKeyRef, holder_key: PublicKeyRef) -> IssueInput {
 fn commitment(root: [u8; 32]) -> ClaimsCommitment {
     ClaimsCommitment {
         merkle_root: root.to_vec(),
-        claimset_id: "common-root-test".to_owned(),
+        claimset_id: "reallyme.zk.common-root.v1".to_owned(),
         hash_alg: "sha-256".to_owned(),
-        value_encoding: "RM-ZK-RAW-V1".to_owned(),
+        value_encoding: "RM-CV-ZK-COMMON-ROOT-V1".to_owned(),
         domain_tags: DomainTags {
             clm: "CLM1".to_owned(),
             leaf: "LEAF1".to_owned(),
@@ -119,6 +119,44 @@ fn signs_the_precomputed_root_and_status_without_reissuing_the_general_ssi_tree(
         None,
     )
     .unwrap();
+    validate_credential_proof_binding_public(
+        &issued.envelope,
+        &issued.proof_binding,
+        &issuer_public,
+    )
+    .unwrap();
+    assert!(matches!(
+        validate_credential_proof_binding_public(
+            &issued.envelope,
+            &issued.proof_binding,
+            &holder_public,
+        ),
+        Err(VcError::ProofBindingTrustedIssuerMismatch)
+    ));
+
+    issued.envelope.subject.holder_binding =
+        HolderBinding::CryptographicKey(p256_key("did:test:holder#key-2", &issuer_public));
+    assert!(matches!(
+        validate_credential_proof_binding_public(
+            &issued.envelope,
+            &issued.proof_binding,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingMismatch)
+    ));
+    issued.envelope.subject.holder_binding =
+        HolderBinding::CryptographicKey(p256_key("did:test:holder#key-1", &holder_public));
+
+    issued.proof_binding.issuer_root_binding_signature[0] ^= 1;
+    assert!(matches!(
+        validate_credential_proof_binding_public(
+            &issued.envelope,
+            &issued.proof_binding,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingSignatureInvalid)
+    ));
+    issued.proof_binding.issuer_root_binding_signature[0] ^= 1;
 
     *issued
         .envelope
@@ -127,6 +165,14 @@ fn signs_the_precomputed_root_and_status_without_reissuing_the_general_ssi_tree(
         .first_mut()
         .expect("test commitment root is nonempty") ^= 1;
     assert!(issue_credential_proof_binding(&issued.envelope, &signer).is_err());
+    assert!(matches!(
+        validate_credential_proof_binding_public(
+            &issued.envelope,
+            &issued.proof_binding,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingMismatch)
+    ));
     *issued
         .envelope
         .claims_commitment
@@ -135,6 +181,25 @@ fn signs_the_precomputed_root_and_status_without_reissuing_the_general_ssi_tree(
         .expect("test commitment root is nonempty") ^= 1;
     issued.envelope.status.status_list_index += 1;
     assert!(issue_credential_proof_binding(&issued.envelope, &signer).is_err());
+    assert!(matches!(
+        validate_credential_proof_binding_public(
+            &issued.envelope,
+            &issued.proof_binding,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingMismatch)
+    ));
+
+    issued.envelope.status.status_list_index -= 1;
+    issued.envelope.claims_commitment.hash_alg = "poseidon2-bn254".to_owned();
+    assert!(matches!(
+        validate_credential_proof_binding_public(
+            &issued.envelope,
+            &issued.proof_binding,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingMismatch)
+    ));
 }
 
 #[test]
