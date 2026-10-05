@@ -218,6 +218,21 @@ pub fn validate_credential_proof_binding(
 ) -> Result<(), VcError> {
     crate::validate_credential_with_bundle(envelope, subject_bundle)
         .map_err(|_| VcError::InvalidCredential)?;
+    validate_credential_proof_binding_public(envelope, binding, trusted_issuer_public_key)
+}
+
+/// Validates the public issuer-signed binding without assuming an SSI claim tree.
+///
+/// External commitment profiles have their own private openings and transcript
+/// rules. Their profile owner must separately verify the root against approved
+/// claims; this operation authenticates the exact envelope, root, holder key,
+/// validity interval, and status pointer using a trusted issuer key.
+pub fn validate_credential_proof_binding_public(
+    envelope: &CredentialEnvelope,
+    binding: &CredentialProofBinding,
+    trusted_issuer_public_key: &[u8],
+) -> Result<(), VcError> {
+    crate::validate_credential_envelope(envelope).map_err(|_| VcError::InvalidCredential)?;
     if binding.version != CREDENTIAL_PROOF_BINDING_VERSION
         || envelope.issuer_signature.verification_key.alg != CredentialAlgorithm::P256
         || binding.issuer_envelope_signature.as_slice()
