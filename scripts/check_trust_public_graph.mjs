@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 const facadeManifest = fileURLToPath(
   new URL("../crates/trust/facade/Cargo.toml", import.meta.url),
 );
+const workspaceRoot = fileURLToPath(new URL("../", import.meta.url));
 const fail = (reason) => {
   console.error(`trust public graph check failed: ${reason}`);
   process.exit(1);
@@ -35,6 +36,27 @@ const facade = metadata.packages.find(
 if (facade === undefined) {
   fail("public facade is absent from the workspace graph");
 }
+const credential = metadata.packages.find(
+  (pkg) =>
+    pkg.name === "reallyme-credential" &&
+    pkg.manifest_path.startsWith(workspaceRoot) &&
+    pkg.publish === null,
+);
+if (credential === undefined) {
+  fail("public credential peer is absent from the workspace graph");
+}
+const peerVersion = credential.version;
+const sameRelease = facade.version === peerVersion;
+const publicPeerNames = new Set(
+  metadata.packages
+    .filter(
+      (pkg) =>
+        pkg.manifest_path.startsWith(workspaceRoot) &&
+        pkg.publish === null &&
+        pkg.name !== facade.name,
+    )
+    .map((pkg) => pkg.name),
+);
 
 const visited = new Set();
 const pending = [facade.id];
@@ -56,15 +78,33 @@ if (graph.some((pkg) => pkg === undefined)) {
   fail("resolved package metadata is missing");
 }
 for (const pkg of graph) {
-  if (pkg.id !== facade.id && !pkg.source?.startsWith("registry+")) {
-    fail(`${pkg.name} is not registry sourced`);
+  if (pkg.id === facade.id) continue;
+  if (publicPeerNames.has(pkg.name)) {
+    const expectedLocal = sameRelease;
+    const isLocal = pkg.manifest_path.startsWith(workspaceRoot) && pkg.source === null;
+    if (isLocal !== expectedLocal) {
+      fail(`${pkg.name} has the wrong source for the ${peerVersion} release graph`);
+    }
+  } else if (pkg.source === null && !pkg.manifest_path.startsWith(workspaceRoot)) {
+    fail(`${pkg.name} comes from an unexpected local path`);
   }
 }
-for (const name of ["reallyme-trust-core", "reallyme-trust-x509"]) {
+for (const name of [
+  "reallyme-trust-core",
+  "reallyme-trust-x509",
+  "reallyme-revocation",
+  "reallyme-ssi-proto",
+  "reallyme-credential-status",
+]) {
   const matches = graph.filter((pkg) => pkg.name === name);
-  if (matches.length !== 1 || matches[0].version !== "0.4.0") {
-    fail(`${name} does not resolve to one released 0.4.0 package`);
+  if (matches.length !== 1 || matches[0].version !== peerVersion) {
+    fail(`${name} does not resolve to one ${peerVersion} package`);
+  }
+}
+for (const pkg of graph) {
+  if (pkg.id !== facade.id && publicPeerNames.has(pkg.name) && pkg.version !== peerVersion) {
+    fail(`${pkg.name} resolves outside the released ${peerVersion} peer graph`);
   }
 }
 
-console.log("trust public graph contains one registry-sourced trust core and X.509 type");
+console.log(`trust public graph contains one ${peerVersion} trust type graph`);

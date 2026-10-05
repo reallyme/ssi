@@ -113,6 +113,11 @@ for (const name of approvedPublicPackages) {
   }
 }
 
+execFileSync("node", ["scripts/check_public_release_graph.mjs"], {
+  cwd: root,
+  stdio: "inherit",
+});
+
 execFileSync("node", ["scripts/check_trust_public_graph.mjs"], {
   cwd: root,
   stdio: "inherit",

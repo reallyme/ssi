@@ -245,6 +245,10 @@ jobs:
         with:
           workspaces: reallyme/ssi
 
+      - name: Check public release dependency graph
+        working-directory: reallyme/ssi
+        run: node scripts/check_public_release_graph.mjs
+
       - name: Install nextest
         uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
         with:
@@ -466,6 +470,10 @@ jobs:
         with:
           workspaces: reallyme/ssi
 
+      - name: Check public release dependency versions
+        working-directory: reallyme/ssi
+        run: node scripts/check_public_release_graph.mjs
+
       - name: Install nextest
         uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
         with:
@@ -513,6 +521,10 @@ jobs:
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: reallyme/ssi
+
+      - name: Check public release dependency versions
+        working-directory: reallyme/ssi
+        run: node scripts/check_public_release_graph.mjs
 
       - name: Inspect and test normalized crate archives
         working-directory: reallyme/ssi

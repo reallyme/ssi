@@ -91,6 +91,7 @@ function run(command, args, options = {}) {
     encoding: "utf8",
     env: options.env ?? process.env,
     stdio: options.capture ? "pipe" : "inherit",
+    maxBuffer: options.maxBuffer ?? 1024 * 1024,
   });
   if (result.error) {
     throw result.error;
@@ -435,6 +436,87 @@ if (mode === MODE_INSPECT) {
       process.exit(extractResult.status ?? 1);
     }
   }
+  inspectCombinedArchiveGraph();
+}
+
+function inspectCombinedArchiveGraph() {
+  const version = publishable.get("reallyme-credential")?.version;
+  if (version === undefined) {
+    console.error("credential is missing from the public archive set");
+    process.exit(1);
+  }
+  const consumerDirectory = path.join(packageDirectory, "release-graph-consumer");
+  fs.rmSync(consumerDirectory, { force: true, recursive: true });
+  fs.mkdirSync(path.join(consumerDirectory, "src"), { recursive: true });
+  fs.writeFileSync(path.join(consumerDirectory, "src", "main.rs"), "fn main() {}\n");
+  fs.writeFileSync(
+    path.join(consumerDirectory, "Cargo.toml"),
+    `[package]\nname = "ssi-release-graph-check"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nreallyme-trust = "=${version}"\nreallyme-credential = "=${version}"\n`,
+  );
+  const patchArgs = [];
+  for (const pkg of ordered) {
+    const archivePath = path.join(unpackDirectory, `${pkg.name}-${pkg.version}`);
+    patchArgs.push(
+      "--config",
+      `patch.crates-io.'${pkg.name}'.path=${JSON.stringify(archivePath)}`,
+    );
+  }
+  const result = run(
+    "cargo",
+    [
+      "metadata",
+      "--format-version",
+      "1",
+      "--manifest-path",
+      path.join(consumerDirectory, "Cargo.toml"),
+      ...patchArgs,
+    ],
+    { capture: true, maxBuffer: 32_000_000 },
+  );
+  if (result.status !== 0) {
+    process.stderr.write(result.stderr);
+    console.error("combined normalized facade and credential archives cannot resolve");
+    process.exit(result.status ?? 1);
+  }
+  const resolved = JSON.parse(result.stdout);
+  const publicNames = new Set(publishable.keys());
+  const seen = new Set();
+  for (const pkg of resolved.packages) {
+    if (!publicNames.has(pkg.name)) continue;
+    const expectedPath = path.join(unpackDirectory, `${pkg.name}-${version}`, "Cargo.toml");
+    if (
+      seen.has(pkg.name) ||
+      pkg.version !== version ||
+      pkg.source !== null ||
+      pkg.manifest_path !== expectedPath
+    ) {
+      console.error(`${pkg.name} resolves to a duplicate, stale, or unexpected public crate`);
+      process.exit(1);
+    }
+    seen.add(pkg.name);
+    for (const dependency of pkg.dependencies) {
+      if (!publicNames.has(dependency.name)) continue;
+      if (dependency.path != null || !dependency.source?.startsWith("registry+")) {
+        console.error(`${pkg.name} archive retains a local public dependency path`);
+        process.exit(1);
+      }
+    }
+  }
+  for (const name of [
+    "reallyme-trust",
+    "reallyme-credential",
+    "reallyme-trust-core",
+    "reallyme-trust-x509",
+    "reallyme-revocation",
+    "reallyme-credential-status",
+    "reallyme-ssi-proto",
+  ]) {
+    if (!seen.has(name)) {
+      console.error(`combined normalized graph omitted ${name}`);
+      process.exit(1);
+    }
+  }
+  console.log(`combined normalized facade and credential graph passed at ${version}`);
 }
 
 function unresolvedRegistryPackages(output) {
