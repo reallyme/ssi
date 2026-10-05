@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-method-jwk"
-version = "0.4.0"
+version = "0.4.1"
 description = "did:jwk deterministic identifier helpers."
 edition.workspace = true
 rust-version.workspace = true

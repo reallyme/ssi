@@ -1,0 +1,166 @@
+// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+//! OpenSSL-backed certificate signature verifier.
+//!
+//! The facade keeps this native backend opt-in so portable consumers do not
+//! depend on a platform library. Path selection and trust policy stay in the
+//! released trust core; this backend validates the exact selected chain.
+
+use envelopes_x509::X509Chain;
+use reallyme_trust_core::{SignatureVerifier, SignatureVerifyError};
+
+use openssl::stack::Stack;
+use openssl::x509::store::X509StoreBuilder;
+use openssl::x509::verify::{X509VerifyFlags, X509VerifyParam};
+use openssl::x509::{X509StoreContext, X509};
+
+use time::OffsetDateTime;
+
+/// Certificate signature verifier backed by OpenSSL.
+pub struct OpenSslSignatureVerifier;
+
+impl OpenSslSignatureVerifier {
+    /// Create an OpenSSL-backed signature verifier.
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for OpenSslSignatureVerifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SignatureVerifier for OpenSslSignatureVerifier {
+    fn verify_chain(
+        &self,
+        chain: &X509Chain,
+        now: OffsetDateTime,
+    ) -> Result<(), SignatureVerifyError> {
+        verify_chain_with_backend(chain, now)
+    }
+}
+
+fn verify_chain_with_backend(
+    chain: &X509Chain,
+    now: OffsetDateTime,
+) -> Result<(), SignatureVerifyError> {
+    if chain.certs.len() < 2 {
+        return Err(SignatureVerifyError::BackendFailure);
+    }
+
+    // leaf to intermediates to root.
+    let (leaf, remainder) = chain
+        .certs
+        .split_first()
+        .ok_or(SignatureVerifyError::BackendFailure)?;
+    let (root, intermediates) = remainder
+        .split_last()
+        .ok_or(SignatureVerifyError::BackendFailure)?;
+
+    // eIDAS/QTSP validation must not accept a chain with a broken issuer path.
+    let last = intermediates.last().unwrap_or(leaf);
+
+    // Exact DER Name equality; rendered display strings are lossy.
+    if last.issuer_der != root.subject_der {
+        return Err(SignatureVerifyError::InvalidSignature);
+    }
+
+    let leaf_x509 = X509::from_der(&leaf.der).map_err(|_| SignatureVerifyError::BackendFailure)?;
+
+    let root_x509 = X509::from_der(&root.der).map_err(|_| SignatureVerifyError::BackendFailure)?;
+
+    let mut intermediate_stack =
+        Stack::<X509>::new().map_err(|_| SignatureVerifyError::BackendFailure)?;
+
+    for c in intermediates {
+        intermediate_stack
+            .push(X509::from_der(&c.der).map_err(|_| SignatureVerifyError::BackendFailure)?)
+            .map_err(|_| SignatureVerifyError::BackendFailure)?;
+    }
+
+    let mut store_builder =
+        X509StoreBuilder::new().map_err(|_| SignatureVerifyError::BackendFailure)?;
+
+    let mut verification_parameters =
+        X509VerifyParam::new().map_err(|_| SignatureVerifyError::BackendFailure)?;
+    // `X509_V_FLAG_PARTIAL_CHAIN` is deliberately not set. The store below
+    // holds exactly one certificate: the terminal of the candidate path, which
+    // the trust-core evaluator has already matched by exact DER to a
+    // configured trust anchor. Without PARTIAL_CHAIN, OpenSSL additionally
+    // requires the path to end at a self-issued trusted certificate, so a
+    // verified path can only close at a root the relying party configured.
+    // A configured anchor that is not self-issued (for example an
+    // intermediate CA published as a trusted-list service) is therefore
+    // rejected by this lane rather than accepted on the strength of store
+    // membership alone. Enabling PARTIAL_CHAIN would be required to support
+    // such anchors and must be paired with explicit anchor policy.
+    verification_parameters
+        .set_flags(
+            X509VerifyFlags::X509_STRICT
+                | X509VerifyFlags::NO_ALT_CHAINS
+                | X509VerifyFlags::TRUSTED_FIRST,
+        )
+        .map_err(|_| SignatureVerifyError::BackendFailure)?;
+    // RFC 5280 §6.1.3 requires validity processing at the selected validation
+    // time. Supplying the caller's time here is essential for deterministic
+    // historical evaluation and avoids OpenSSL's ambient-clock default.
+    verification_parameters.set_time(now.unix_timestamp());
+    verification_parameters.set_auth_level(2);
+    store_builder
+        .set_param(&verification_parameters)
+        .map_err(|_| SignatureVerifyError::BackendFailure)?;
+
+    store_builder
+        .add_cert(root_x509)
+        .map_err(|_| SignatureVerifyError::BackendFailure)?;
+
+    let store = store_builder.build();
+
+    let mut ctx = X509StoreContext::new().map_err(|_| SignatureVerifyError::BackendFailure)?;
+
+    // `init` returns an ErrorStack only when OpenSSL cannot set up or run the
+    // verification context (allocation or internal failure). Ordinary path
+    // rejection is reported as `Ok(false)` below. A setup failure says nothing
+    // about the signature, so it must not be reported as a rejection.
+    let mut verified_chain_der = None;
+    let verified = ctx
+        .init(&store, &leaf_x509, &intermediate_stack, |context| {
+            let accepted = context.verify_cert()?;
+            if accepted {
+                let chain_der = context
+                    .chain()
+                    .ok_or_else(openssl::error::ErrorStack::get)?
+                    .iter()
+                    .map(|certificate| certificate.to_der())
+                    .collect::<Result<Vec<_>, _>>()?;
+                verified_chain_der = Some(chain_der);
+            }
+            Ok(accepted)
+        })
+        .map_err(|_| SignatureVerifyError::BackendFailure)?;
+
+    if !verified {
+        // OpenSSL reports ordinary path-validation rejection as `Ok(false)`;
+        // accepting that value would bypass time, signature, and constraint checks.
+        return Err(SignatureVerifyError::InvalidSignature);
+    }
+
+    // OpenSSL may build a different valid path from certificates in its
+    // context. Policy evaluation screened the caller-supplied path, so success
+    // is valid only when the cryptographic backend verified that exact path.
+    let verified_chain = verified_chain_der.ok_or(SignatureVerifyError::BackendFailure)?;
+    if verified_chain.len() != chain.certs.len() {
+        return Err(SignatureVerifyError::InvalidSignature);
+    }
+    for (verified_der, screened_certificate) in verified_chain.iter().zip(chain.certs.iter()) {
+        if *verified_der != screened_certificate.der {
+            return Err(SignatureVerifyError::InvalidSignature);
+        }
+    }
+
+    Ok(())
+}

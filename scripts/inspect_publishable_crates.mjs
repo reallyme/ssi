@@ -14,6 +14,7 @@ const approvedPublicPackages = new Set([
   "reallyme-mdoc",
   "reallyme-sd-jwt",
   "reallyme-trust-core",
+  "reallyme-trust",
   "reallyme-compression-brotli",
   "reallyme-credential-audit",
   "reallyme-credential-claims",
@@ -111,6 +112,11 @@ for (const name of approvedPublicPackages) {
     fail(`${name} is approved but not currently publishable`);
   }
 }
+
+execFileSync("node", ["scripts/check_trust_public_graph.mjs"], {
+  cwd: root,
+  stdio: "inherit",
+});
 
 for (const [name, contractPackage] of requiredContractPackages) {
   console.log(`checking contract package contents for ${name}`);

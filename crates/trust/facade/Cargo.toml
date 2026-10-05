@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "reallyme-trust"
+version = "0.4.1"
+description = "Public trust decisions and verification interfaces for ReallyMe services."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "trust", "x509", "credentials"]
+categories = ["authentication", "cryptography"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[features]
+default = ["native"]
+openssl = ["native", "dep:openssl"]
+native = [
+    "envelopes-x509/native",
+    "reallyme-trust-core/native",
+    "reallyme-revocation/native",
+    "reallyme-crypto/native",
+]
+wasm = [
+    "envelopes-x509/wasm",
+    "reallyme-trust-core/wasm",
+    "reallyme-revocation/wasm",
+    "reallyme-crypto/wasm",
+]
+
+[dependencies]
+buffa = { workspace = true }
+envelopes-x509 = { package = "reallyme-trust-x509", version = "=0.4.0", default-features = false }
+reallyme-trust-core = { version = "=0.4.0", default-features = false }
+reallyme-revocation = { version = "=0.4.0", default-features = false }
+reallyme-ssi-proto = { version = "=0.4.0", features = ["generated"] }
+reallyme-crypto = { version = "=0.3.12", default-features = false, features = ["sha2"] }
+thiserror = { workspace = true }
+time = { workspace = true }
+x509-parser = "0.18.1"
+zeroize = { workspace = true, features = ["derive"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+openssl = { version = "0.10.81", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+openssl = "0.10.81"
+
+[lints]
+workspace = true

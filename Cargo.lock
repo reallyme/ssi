@@ -970,25 +970,25 @@ dependencies = [
 
 [[package]]
 name = "envelopes-data-integrity"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
  "reallyme-did-types",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde_json",
  "thiserror",
 ]
 
 [[package]]
 name = "envelopes-jwt-vc"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
  "reallyme-jose",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -997,9 +997,9 @@ dependencies = [
 
 [[package]]
 name = "envelopes-profiles"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
 ]
 
@@ -1327,7 +1327,7 @@ dependencies = [
 
 [[package]]
 name = "identity-credential-trust-api"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "buffa",
  "identity-trust-openssl",
@@ -1338,10 +1338,10 @@ dependencies = [
  "reallyme-codec",
  "reallyme-codec-base64url",
  "reallyme-crypto",
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-core",
- "reallyme-trust-x509",
+ "reallyme-revocation 0.4.1",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-core 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "thiserror",
  "time",
  "zeroize",
@@ -1349,7 +1349,7 @@ dependencies = [
 
 [[package]]
 name = "identity-credential-vc-api"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-vc-ietf-sd-jwt",
  "identity-vc-jwt",
@@ -1363,7 +1363,7 @@ dependencies = [
  "reallyme-crypto-signer",
  "reallyme-jose",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde_json",
  "thiserror",
  "zeroize",
@@ -1371,22 +1371,22 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-contact-api"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-presentation-delivery-contact-core",
  "identity-presentation-delivery-contact-validator",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
  "zeroize",
 ]
 
 [[package]]
 name = "identity-presentation-delivery-contact-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "ciborium",
  "reallyme-crypto",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -1395,26 +1395,26 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-contact-validator"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-presentation-delivery-contact-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
  "zeroize",
 ]
 
 [[package]]
 name = "identity-presentation-delivery-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
  "zeroize",
 ]
 
 [[package]]
 name = "identity-presentation-delivery-siop-api"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-presentation-delivery-siop-core",
  "identity-presentation-delivery-siop-verifier",
@@ -1427,9 +1427,9 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-siop-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "thiserror",
  "zeroize",
@@ -1437,7 +1437,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-siop-verifier"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-presentation-delivery-siop-core",
  "reallyme-codec-base64url",
@@ -1446,7 +1446,7 @@ dependencies = [
  "reallyme-crypto-dispatch",
  "reallyme-crypto-jwk",
  "reallyme-jose",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -1455,7 +1455,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-web-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-presentation-delivery-core",
  "reallyme-codec-base64url",
@@ -1463,7 +1463,7 @@ dependencies = [
  "reallyme-crypto-dispatch",
  "reallyme-crypto-jwk",
  "reallyme-jose",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-delivery-web-validator"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-presentation-delivery-web-core",
  "identity-presentation-vp-policy",
@@ -1483,7 +1483,7 @@ dependencies = [
  "reallyme-credential",
  "reallyme-credential-audit",
  "reallyme-credential-claims",
- "reallyme-credential-status",
+ "reallyme-credential-status 0.4.1",
  "reallyme-crypto",
  "reallyme-crypto-core",
  "reallyme-crypto-dispatch",
@@ -1498,15 +1498,15 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-vp-policy"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-credential",
  "reallyme-credential-audit",
  "reallyme-credential-claims",
- "reallyme-credential-status",
+ "reallyme-credential-status 0.4.1",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "reallyme-vp-core",
  "serde_json",
  "thiserror",
@@ -1514,7 +1514,7 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-vp-sd-jwt"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-credential",
@@ -1524,7 +1524,7 @@ dependencies = [
  "reallyme-crypto-dispatch",
  "reallyme-crypto-jwk",
  "reallyme-jose",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "reallyme-vp-core",
  "serde",
  "serde_json",
@@ -1534,30 +1534,30 @@ dependencies = [
 
 [[package]]
 name = "identity-presentation-vp-validator"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-presentation-vp-policy",
  "identity-presentation-vp-sd-jwt",
  "reallyme-credential",
  "reallyme-credential-audit",
  "reallyme-credential-claims",
- "reallyme-credential-status",
+ "reallyme-credential-status 0.4.1",
  "reallyme-crypto-core",
  "reallyme-crypto-dispatch",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "reallyme-vp-core",
  "thiserror",
 ]
 
 [[package]]
 name = "identity-revocation-crl-openssl"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "openssl",
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-x509",
+ "reallyme-revocation 0.4.1",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "thiserror",
  "time",
  "x509-parser",
@@ -1565,12 +1565,12 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-ocsp-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-crypto",
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-x509",
+ "reallyme-revocation 0.4.1",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "serde",
  "thiserror",
  "time",
@@ -1578,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-ocsp-dispatch"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-revocation-ocsp-core",
  "identity-revocation-ocsp-openssl",
@@ -1586,8 +1586,8 @@ dependencies = [
  "openssl",
  "reallyme-codec-base64url",
  "reallyme-crypto",
- "reallyme-revocation",
- "reallyme-trust-x509",
+ "reallyme-revocation 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "serde_json",
  "time",
  "wasm-bindgen",
@@ -1596,13 +1596,13 @@ dependencies = [
 
 [[package]]
 name = "identity-revocation-ocsp-openssl"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-revocation-ocsp-core",
  "openssl",
  "reallyme-crypto",
- "reallyme-ssi-proto",
- "reallyme-trust-x509",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "subtle",
  "thiserror",
  "time",
@@ -1610,15 +1610,15 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-jades"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "openssl",
  "reallyme-codec",
  "reallyme-crypto",
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-core",
- "reallyme-trust-x509",
+ "reallyme-revocation 0.4.1",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-core 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -1628,23 +1628,23 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-openssl"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "openssl",
- "reallyme-trust-core",
- "reallyme-trust-x509",
+ "reallyme-trust-core 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "time",
 ]
 
 [[package]]
 name = "identity-trust-tsl-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "quick-xml",
  "reallyme-codec-base64",
  "reallyme-crypto",
- "reallyme-ssi-proto",
- "reallyme-trust-x509",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "serde",
  "thiserror",
  "time",
@@ -1654,17 +1654,17 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-openssl"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-trust-openssl",
  "identity-trust-tsl-core",
  "identity-trust-tsl-xmlsec",
  "openssl",
  "reallyme-crypto",
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-core",
- "reallyme-trust-x509",
+ "reallyme-revocation 0.4.1",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-core 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "thiserror",
  "time",
  "zeroize",
@@ -1672,14 +1672,14 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-xmlsec"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-trust-tsl-xmlsec-sys",
  "libc",
  "quick-xml",
  "reallyme-codec-base64",
  "reallyme-crypto",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
  "time",
  "zeroize",
@@ -1687,24 +1687,24 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-xmlsec-sys"
-version = "0.4.0"
+version = "0.4.1"
 
 [[package]]
 name = "identity-trust-wasm"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-trust-tsl-core",
  "openssl",
- "reallyme-ssi-proto",
- "reallyme-trust-core",
- "reallyme-trust-x509",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-core 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "thiserror",
  "time",
 ]
 
 [[package]]
 name = "identity-vc-ietf-sd-jwt"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-crypto",
@@ -1714,7 +1714,7 @@ dependencies = [
  "reallyme-crypto-sha2-256",
  "reallyme-crypto-signer",
  "reallyme-jose",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -1723,7 +1723,7 @@ dependencies = [
 
 [[package]]
 name = "identity-vc-jwt"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec-base64url",
  "reallyme-credential",
@@ -1732,7 +1732,7 @@ dependencies = [
  "reallyme-crypto-jwk",
  "reallyme-crypto-signer",
  "reallyme-jose",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -2571,7 +2571,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-compression-brotli"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "brotli",
  "thiserror",
@@ -2594,7 +2594,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -2604,14 +2604,14 @@ dependencies = [
  "reallyme-cose",
  "reallyme-credential-audit",
  "reallyme-credential-claims",
- "reallyme-credential-status",
+ "reallyme-credential-status 0.4.1",
  "reallyme-crypto",
  "reallyme-crypto-core",
  "reallyme-crypto-dispatch",
  "reallyme-crypto-signer",
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-x509",
+ "reallyme-revocation 0.4.1",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "serde_json",
  "thiserror",
  "time",
@@ -2620,24 +2620,24 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-audit"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-crypto",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
  "zeroize",
 ]
 
 [[package]]
 name = "reallyme-credential-claims"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "buffa",
  "reallyme-codec",
  "reallyme-cose",
  "reallyme-crypto",
- "reallyme-ssi-proto",
- "reallyme-trust-x509",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -2648,6 +2648,25 @@ dependencies = [
 [[package]]
 name = "reallyme-credential-status"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69d253466f5dfb8be1f05fb0d55b4d00039a67164afdfe172f90558fb8820023"
+dependencies = [
+ "flate2",
+ "reallyme-codec",
+ "reallyme-cose",
+ "reallyme-crypto",
+ "reallyme-jose",
+ "reallyme-ssi-proto 0.4.0",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "url",
+ "zeroize",
+]
+
+[[package]]
+name = "reallyme-credential-status"
+version = "0.4.1"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -2656,7 +2675,7 @@ dependencies = [
  "reallyme-cose",
  "reallyme-crypto",
  "reallyme-jose",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -3216,7 +3235,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-api"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-compression-brotli",
  "reallyme-cose",
@@ -3232,7 +3251,7 @@ dependencies = [
  "reallyme-did-types",
  "reallyme-keys",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "reallyme-ssi-proto-codec",
  "serde_json",
  "thiserror",
@@ -3242,14 +3261,14 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "envelopes-data-integrity",
  "reallyme-codec",
  "reallyme-crypto",
  "reallyme-did-types",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -3258,15 +3277,15 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-cheqd"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
 ]
 
 [[package]]
 name = "reallyme-did-method-conformance"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-did-method-cheqd",
  "reallyme-did-method-ebsi",
@@ -3281,12 +3300,12 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-ebsi"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec",
  "reallyme-did-method-jwk",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde_json",
  "thiserror",
  "time",
@@ -3296,12 +3315,12 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-ion"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde_json",
  "thiserror",
  "zeroize",
@@ -3309,49 +3328,49 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-method-jwk"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "curve25519-dalek",
  "reallyme-codec",
  "reallyme-crypto",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde_json",
  "thiserror",
 ]
 
 [[package]]
 name = "reallyme-did-method-key"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "curve25519-dalek",
  "reallyme-crypto",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
 ]
 
 [[package]]
 name = "reallyme-did-method-me"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
  "reallyme-did-core",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
 ]
 
 [[package]]
 name = "reallyme-did-method-web"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "percent-encoding",
  "reallyme-codec",
  "reallyme-did-method-jwk",
  "reallyme-did-method-key",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde_json",
  "thiserror",
  "url",
@@ -3360,7 +3379,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-did-types"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-ssi-core",
  "serde",
@@ -3370,11 +3389,11 @@ dependencies = [
 
 [[package]]
 name = "reallyme-disclosure-policy"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-credential-claims",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "reallyme-vp-core",
  "serde",
  "thiserror",
@@ -3382,7 +3401,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-etsi-eaa-conformance"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "email_address",
  "serde",
@@ -3394,14 +3413,14 @@ dependencies = [
 
 [[package]]
 name = "reallyme-eudi-rp-registration"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "identity-trust-jades",
  "openssl",
  "reallyme-codec",
  "reallyme-crypto",
  "reallyme-jose",
- "reallyme-trust-x509",
+ "reallyme-trust-x509 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -3427,11 +3446,11 @@ dependencies = [
 
 [[package]]
 name = "reallyme-keys"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "secrecy",
  "serde",
  "serde_json",
@@ -3441,16 +3460,16 @@ dependencies = [
 
 [[package]]
 name = "reallyme-mdoc"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "ciborium",
  "reallyme-codec",
  "reallyme-cose",
  "reallyme-credential-claims",
  "reallyme-crypto",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "reallyme-ssi-proto-codec",
- "reallyme-trust-x509",
+ "reallyme-trust-x509 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -3461,16 +3480,16 @@ dependencies = [
 
 [[package]]
 name = "reallyme-openid-oauth"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "buffa",
  "percent-encoding",
  "reallyme-codec",
  "reallyme-crypto",
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-core",
- "reallyme-trust-x509",
+ "reallyme-revocation 0.4.1",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-core 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "secrecy",
  "serde",
  "serde_json",
@@ -3482,7 +3501,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-openid4vc-profiles"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "serde",
 ]
@@ -3490,10 +3509,25 @@ dependencies = [
 [[package]]
 name = "reallyme-revocation"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6f166aa8a88bf13e622bc5a72753b7540f883c8e12adca3fb5b0e21be700ddc"
 dependencies = [
- "reallyme-credential-status",
- "reallyme-ssi-proto",
- "reallyme-trust-x509",
+ "reallyme-credential-status 0.4.0",
+ "reallyme-ssi-proto 0.4.0",
+ "reallyme-trust-x509 0.4.0",
+ "serde",
+ "thiserror",
+ "time",
+ "zeroize",
+]
+
+[[package]]
+name = "reallyme-revocation"
+version = "0.4.1"
+dependencies = [
+ "reallyme-credential-status 0.4.1",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "serde",
  "thiserror",
  "time",
@@ -3502,12 +3536,12 @@ dependencies = [
 
 [[package]]
 name = "reallyme-sd-jwt"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
  "reallyme-jose",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde_json",
  "thiserror",
  "zeroize",
@@ -3515,16 +3549,16 @@ dependencies = [
 
 [[package]]
 name = "reallyme-single-use"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "thiserror",
  "zeroize",
 ]
 
 [[package]]
 name = "reallyme-ssi"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "envelopes-data-integrity",
  "envelopes-jwt-vc",
@@ -3550,7 +3584,7 @@ dependencies = [
  "reallyme-credential",
  "reallyme-credential-audit",
  "reallyme-credential-claims",
- "reallyme-credential-status",
+ "reallyme-credential-status 0.4.1",
  "reallyme-crypto",
  "reallyme-did-api",
  "reallyme-did-core",
@@ -3570,14 +3604,14 @@ dependencies = [
  "reallyme-mdoc",
  "reallyme-openid-oauth",
  "reallyme-openid4vc-profiles",
- "reallyme-revocation",
+ "reallyme-revocation 0.4.1",
  "reallyme-sd-jwt",
  "reallyme-single-use",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "reallyme-ssi-proto-codec",
- "reallyme-trust-core",
- "reallyme-trust-x509",
+ "reallyme-trust-core 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "reallyme-vp-api",
  "reallyme-vp-core",
  "serde_json",
@@ -3585,9 +3619,9 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",
@@ -3597,6 +3631,19 @@ dependencies = [
 [[package]]
 name = "reallyme-ssi-proto"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c9c8efb496eb46e6648914514798fef453951042baec0205f9a5d9fac7eb6f7"
+dependencies = [
+ "buffa",
+ "buffa-types",
+ "reallyme-crypto-proto",
+ "serde",
+ "zeroize",
+]
+
+[[package]]
+name = "reallyme-ssi-proto"
+version = "0.4.1"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -3608,7 +3655,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-proto-codec"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -3616,7 +3663,7 @@ dependencies = [
  "reallyme-compression-brotli",
  "reallyme-did-types",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "reallyme-vp-core",
  "serde",
  "serde_json",
@@ -3625,12 +3672,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "reallyme-trust"
+version = "0.4.1"
+dependencies = [
+ "buffa",
+ "openssl",
+ "reallyme-crypto",
+ "reallyme-revocation 0.4.0",
+ "reallyme-ssi-proto 0.4.0",
+ "reallyme-trust-core 0.4.0",
+ "reallyme-trust-x509 0.4.0",
+ "thiserror",
+ "time",
+ "x509-parser",
+ "zeroize",
+]
+
+[[package]]
 name = "reallyme-trust-core"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0c652368820dd2b37f6190d0d7675afa6da09fa8d20f9336ddd69b7765f41d3"
 dependencies = [
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-x509",
+ "reallyme-revocation 0.4.0",
+ "reallyme-ssi-proto 0.4.0",
+ "reallyme-trust-x509 0.4.0",
+ "thiserror",
+ "time",
+]
+
+[[package]]
+name = "reallyme-trust-core"
+version = "0.4.1"
+dependencies = [
+ "reallyme-revocation 0.4.1",
+ "reallyme-ssi-proto 0.4.1",
+ "reallyme-trust-x509 0.4.1",
  "thiserror",
  "time",
 ]
@@ -3638,6 +3715,25 @@ dependencies = [
 [[package]]
 name = "reallyme-trust-x509"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04d933026b08ae7612efab66731c5fc9a1fcd2a347d5c89944d3928ee6b800c1"
+dependencies = [
+ "asn1-rs",
+ "oid-registry",
+ "pem",
+ "reallyme-codec",
+ "reallyme-crypto",
+ "reallyme-ssi-proto 0.4.0",
+ "sha1",
+ "thiserror",
+ "time",
+ "x509-parser",
+ "zeroize",
+]
+
+[[package]]
+name = "reallyme-trust-x509"
+version = "0.4.1"
 dependencies = [
  "asn1-rs",
  "oid-registry",
@@ -3645,7 +3741,7 @@ dependencies = [
  "pem",
  "reallyme-codec",
  "reallyme-crypto",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde_json",
  "sha1",
  "thiserror",
@@ -3656,7 +3752,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-vp-api"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "buffa",
  "identity-presentation-vp-policy",
@@ -3664,7 +3760,7 @@ dependencies = [
  "reallyme-crypto",
  "reallyme-disclosure-policy",
  "reallyme-ssi-core",
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "reallyme-vp-core",
  "serde",
  "thiserror",
@@ -3673,9 +3769,9 @@ dependencies = [
 
 [[package]]
 name = "reallyme-vp-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
- "reallyme-ssi-proto",
+ "reallyme-ssi-proto 0.4.1",
  "serde",
  "serde_json",
  "thiserror",

@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-method-key"
-version = "0.4.0"
+version = "0.4.1"
 description = "did:key multibase and multicodec identifier helpers."
 edition.workspace = true
 rust-version.workspace = true

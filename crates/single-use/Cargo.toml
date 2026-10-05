@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-single-use"
-version = "0.4.0"
+version = "0.4.1"
 description = "Single-use, expiring, server-issued value store for replay and nonce protection."
 edition.workspace = true
 rust-version.workspace = true
