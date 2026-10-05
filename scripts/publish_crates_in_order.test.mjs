@@ -30,6 +30,7 @@ const publishedPackages = [
   "reallyme-credential",
   "reallyme-mdoc",
   "reallyme-sd-jwt",
+  "reallyme-trust",
 ];
 
 function runFixture({ mode = "publish", scenario = "success", requirement = "^0.1.0", version = "0.1.0" } = {}) {
@@ -156,6 +157,15 @@ childProcess.spawnSync = (command, args) => {
         ] },
       { name: "reallyme-sd-jwt", version: ${JSON.stringify(version)}, publish: null,
         dependencies: [{ name: "reallyme-ssi-proto", source: null, path: "crates/proto", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "reallyme-trust", version: ${JSON.stringify(version)}, publish: null,
+        dependencies: [
+          // The facade consumes released trust crates from the registry, so
+          // these dependencies do not create workspace publication edges.
+          { name: "reallyme-trust-x509", source: "registry+https://github.com/rust-lang/crates.io-index", path: null, kind: null, req: "=0.4.0" },
+          { name: "reallyme-trust-core", source: "registry+https://github.com/rust-lang/crates.io-index", path: null, kind: null, req: "=0.4.0" },
+          { name: "reallyme-revocation", source: "registry+https://github.com/rust-lang/crates.io-index", path: null, kind: null, req: "=0.4.0" },
+          { name: "reallyme-ssi-proto", source: "registry+https://github.com/rust-lang/crates.io-index", path: null, kind: null, req: "=0.4.0" },
+        ] },
       { name: "reallyme-ssi", version: ${JSON.stringify(version)}, publish: [], dependencies: [] },
     ],
   }) };
