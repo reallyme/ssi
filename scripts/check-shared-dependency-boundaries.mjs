@@ -64,6 +64,9 @@ const narrowlyOwnedDependencies = new Map([
     new Set([
       "Cargo.toml",
       "crates/trust/x509/Cargo.toml",
+      // The portable trust backend measures significant RSA modulus bits from
+      // authenticated DER; the released X.509 projection rounds to octets.
+      "crates/trust/facade/Cargo.toml",
       "crates/revocation/crl/openssl/Cargo.toml",
     ]),
   ],
