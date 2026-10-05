@@ -6,6 +6,7 @@ use reallyme_trust_core::TrustError;
 use thiserror::Error;
 
 /// Typed facade failures. Rejected and indeterminate trust are decision values.
+#[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum TrustApiError {
     /// A certificate's parsed fields do not match its original DER encoding.

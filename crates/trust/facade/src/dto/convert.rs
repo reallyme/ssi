@@ -212,6 +212,7 @@ fn certificate_position_from_proto(
 }
 
 /// Authorization intent.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthorizationPurpose {
     /// Qualified electronic attestation issuer authorization.

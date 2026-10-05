@@ -52,6 +52,7 @@ impl TrustDecision {
 }
 
 /// Authoritative three-state trust outcome.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrustDecisionOutcome {
     /// Trust was conclusively established.
@@ -63,6 +64,7 @@ pub enum TrustDecisionOutcome {
 }
 
 /// Stable trust-purpose identifier retained in decision evidence.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrustPurpose {
     /// Generic X.509 validation.
@@ -98,6 +100,7 @@ pub enum TrustPurpose {
 }
 
 /// Stable trust-policy identifier retained in decision evidence.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrustPolicyId {
     /// Baseline caller-supplied X.509 policy.
@@ -142,6 +145,7 @@ pub struct TrustSourceEvidence {
 }
 
 /// Kind of configured trust entry that terminated evaluation.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrustAnchorKind {
     /// Configured root certificate.
@@ -160,6 +164,7 @@ pub struct TrustAnchorEvidence {
 }
 
 /// Certificate position in the selected path.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CertificatePosition {
     /// End-entity certificate.
@@ -171,6 +176,7 @@ pub enum CertificatePosition {
 }
 
 /// Typed certificate-status evidence.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CertificateStatus {
     /// Positive status evidence.
@@ -228,6 +234,7 @@ pub struct TrustDecisionEvidence {
 }
 
 /// Fixed trust-decision failure reason for JSON/API callers.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrustDecisionFailure {
     /// No valid path reached a configured trust root.

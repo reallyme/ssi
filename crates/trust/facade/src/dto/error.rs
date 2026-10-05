@@ -6,6 +6,7 @@ use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityC
 use thiserror::Error;
 
 /// Trust protobuf conversion failures.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, Error, Eq, PartialEq)]
 pub enum TrustProtoError {
     /// Protobuf trust decision failure value is unknown or unspecified.
