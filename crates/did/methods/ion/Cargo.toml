@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-did-method-ion"
-version = "0.4.1"
+version = "0.4.2"
 description = "did:ion identifiers with authenticated Sidetree initial-state commitments."
 edition.workspace = true
 rust-version.workspace = true

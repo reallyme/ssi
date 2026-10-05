@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-compression-brotli"
-version = "0.4.1"
+version = "0.4.2"
 description = "Bounded Brotli compression and decompression for untrusted byte payloads."
 edition.workspace = true
 rust-version.workspace = true

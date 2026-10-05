@@ -54,11 +54,6 @@ skip = [
     { crate = "sha3@0.11.0", reason = "Cryptographic dependencies require incompatible sha3 API lines; every other duplicate remains denied." },
     { crate = "syn@2.0.119", reason = "Procedural-macro dependencies require incompatible syn API lines; every other duplicate remains denied." },
     { crate = "synstructure@0.13.2", reason = "ASN.1 and multihash derives require synstructure 0.13, while ICU derives require 0.14; every other duplicate remains denied." },
-    { crate = "reallyme-credential-status@0.4.0", reason = "The public trust facade uses the released 0.4.0 registry graph while this workspace prepares 0.4.1; the facade graph is checked independently for one registry source." },
-    { crate = "reallyme-revocation@0.4.0", reason = "The public trust facade uses the released 0.4.0 registry graph while this workspace prepares 0.4.1; the facade graph is checked independently for one registry source." },
-    { crate = "reallyme-ssi-proto@0.4.0", reason = "The public trust facade uses the released 0.4.0 registry graph while this workspace prepares 0.4.1; the facade graph is checked independently for one registry source." },
-    { crate = "reallyme-trust-core@0.4.0", reason = "The public trust facade uses the released 0.4.0 registry graph while this workspace prepares 0.4.1; the facade graph is checked independently for one registry source." },
-    { crate = "reallyme-trust-x509@0.4.0", reason = "The public trust facade uses the released 0.4.0 registry graph while this workspace prepares 0.4.1; the facade graph is checked independently for one registry source." },
 ]
 skip-tree = []
 

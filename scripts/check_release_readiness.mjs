@@ -1498,6 +1498,7 @@ assertContains("scripts/run_gitleaks.sh", "gitleaks archive digest mismatch");
 assertContains("scripts/run_gitleaks.sh", 'git --redact --no-banner --verbose .');
 assertMissing(".github/workflows/release-preflight.yml");
 assertExists("scripts/inspect_publishable_crates.mjs");
+assertContains("scripts/inspect_publishable_crates.mjs", "scripts/check_public_release_graph.mjs");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-compression-brotli");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-ssi-proto");
 assertContains("scripts/inspect_publishable_crates.mjs", "reallyme-openid-oauth");
@@ -1516,6 +1517,7 @@ for (const target of requiredFuzzTargets) {
   assertContains("scripts/generate_conformance_reports.mjs", `id: "${target}"`);
 }
 assertContains(".github/workflows/rust-ci.yml", "node scripts/check_conformance_coverage.mjs");
+assertContains(".github/workflows/rust-ci.yml", "node scripts/check_public_release_graph.mjs");
 assertContains(".github/workflows/rust-ci.yml", "node scripts/check_fixture_copies.mjs");
 assertContains(".github/workflows/rust-ci.yml", "node scripts/check_public_api_evolution.mjs");
 assertContains(".github/workflows/rust-ci.yml", "node scripts/generate_conformance_reports.mjs");
@@ -1586,7 +1588,7 @@ assertContains(
   "conformance/dependencies.lock.json",
   '"version": "0.3.13"',
 );
-assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.4.1");
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.4.2");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
 assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
 assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");

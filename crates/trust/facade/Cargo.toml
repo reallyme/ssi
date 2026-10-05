@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-trust"
-version = "0.4.1"
+version = "0.4.2"
 description = "Public trust decisions and verification interfaces for ReallyMe services."
 edition.workspace = true
 rust-version.workspace = true
@@ -41,10 +41,10 @@ wasm = [
 
 [dependencies]
 buffa = { workspace = true }
-envelopes-x509 = { package = "reallyme-trust-x509", version = "=0.4.0", default-features = false }
-reallyme-trust-core = { version = "=0.4.0", default-features = false }
-reallyme-revocation = { version = "=0.4.0", default-features = false }
-reallyme-ssi-proto = { version = "=0.4.0", features = ["generated"] }
+envelopes-x509 = { package = "reallyme-trust-x509", path = "../x509", version = "=0.4.2", default-features = false }
+reallyme-trust-core = { path = "../core", version = "=0.4.2", default-features = false }
+reallyme-revocation = { path = "../../revocation", version = "=0.4.2", default-features = false }
+reallyme-ssi-proto = { path = "../../proto", version = "=0.4.2", features = ["generated"] }
 reallyme-crypto = { version = "=0.3.13", default-features = false, features = ["sha2"] }
 thiserror = { workspace = true }
 time = { workspace = true }
