@@ -21,9 +21,9 @@ identity-presentation-delivery-siop-verifier = { version = "0.4.1", path = "../v
 
 [dev-dependencies]
 codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.1" }
-crypto-core = { package = "reallyme-crypto-core", version = "0.3.12" }
-crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.12", features = ["native"] }
-envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.12", default-features = false }
+crypto-core = { package = "reallyme-crypto-core", version = "0.3.13" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.13", features = ["native"] }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.13", default-features = false }
 envelopes-jwt = { workspace = true, features = ["native"] }
 [lints]
 workspace = true

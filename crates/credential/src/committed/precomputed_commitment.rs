@@ -14,7 +14,9 @@ use crate::committed::{
     error::VcError,
     issue::IssueInput,
     model::{CredentialEnvelope, HolderBinding},
-    proof_binding::{issue_credential_proof_binding, CredentialProofBinding},
+    proof_binding::{
+        issue_credential_proof_binding, normalize_p256_zk_signature_low_s, CredentialProofBinding,
+    },
 };
 use crate::{
     sign_credential_envelope, validate_credential_unsigned_envelope, CredentialError,
@@ -92,7 +94,8 @@ pub fn issue_credential_with_precomputed_commitment(
 }
 
 /// SSI's generic signing boundary permits DER or raw ECDSA output. The proof
-/// transcript has one fixed raw-signature encoding, so normalize at this edge.
+/// transcript requires low-S raw signatures, so normalize before the envelope
+/// signature is stored and used by the proof binding.
 struct RawP256Signer<'a> {
     signer: &'a dyn CredentialIssuerSigner,
 }
@@ -104,11 +107,23 @@ impl CredentialIssuerSigner for RawP256Signer<'_> {
 
     fn sign_credential_payload(&self, payload: &[u8]) -> Result<Vec<u8>, CredentialError> {
         let signature = Zeroizing::new(self.signer.sign_credential_payload(payload)?);
-        if signature.len() == P256_SIGNATURE_BYTES {
-            return Ok(signature.to_vec());
-        }
-        p256_ecdsa_der_to_jose_signature(signature.as_slice())
-            .map(|raw| raw.to_vec())
-            .map_err(|_| CredentialError::Signature(CredentialSignatureReason::SigningFailed))
+        normalize_precomputed_p256_signature(signature.as_slice())
     }
 }
+
+fn normalize_precomputed_p256_signature(signature: &[u8]) -> Result<Vec<u8>, CredentialError> {
+    let raw = if signature.len() == P256_SIGNATURE_BYTES {
+        signature
+            .try_into()
+            .map_err(|_| CredentialError::Signature(CredentialSignatureReason::SigningFailed))
+    } else {
+        p256_ecdsa_der_to_jose_signature(signature)
+            .map_err(|_| CredentialError::Signature(CredentialSignatureReason::SigningFailed))
+    }?;
+    normalize_p256_zk_signature_low_s(raw)
+        .map(|normalized| normalized.to_vec())
+        .map_err(|_| CredentialError::Signature(CredentialSignatureReason::SigningFailed))
+}
+
+#[cfg(test)]
+mod tests;

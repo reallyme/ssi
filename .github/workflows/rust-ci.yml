@@ -17,6 +17,12 @@ on:
     paths-ignore:
       - "**/*.md"
 
+# A newer push or pull request revision supersedes older validation. Manual
+# release qualification keeps its own run ID so it cannot be displaced.
+concurrency:
+  group: rust-ci-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
 permissions:
   contents: read
 
@@ -43,6 +49,11 @@ jobs:
         with:
           toolchain: 1.99.0
 
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: reallyme/ssi
+
       - name: Check the native workspace at the declared MSRV
         working-directory: reallyme/ssi
         run: cargo +1.99.0 check --locked --workspace --no-default-features --features native
@@ -61,6 +72,11 @@ jobs:
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
           toolchain: nightly-2026-09-01
+
+      - name: Cache fuzz workspace
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: reallyme/ssi/fuzz
 
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --version 0.13.2 --locked
@@ -163,8 +179,8 @@ jobs:
         working-directory: reallyme/ssi
         run: node scripts/check_release_semver.mjs
 
-  rust:
-    name: fmt, lint, test, dependency policy
+  rust-checks:
+    name: Rust source, lint, and dependency policy
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout SSI
@@ -325,18 +341,6 @@ jobs:
         working-directory: reallyme/ssi
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
-      - name: Test native lane
-        working-directory: reallyme/ssi
-        run: node scripts/run_bounded_nextest.mjs native
-
-      - name: Test all features
-        working-directory: reallyme/ssi
-        run: node scripts/run_bounded_nextest.mjs all-features
-
-      - name: Test workspace default features
-        working-directory: reallyme/ssi
-        run: node scripts/run_bounded_nextest.mjs default
-
       - name: Test OpenSSL crates without workspace feature unification
         working-directory: reallyme/ssi
         run: |
@@ -411,10 +415,6 @@ jobs:
         working-directory: reallyme/ssi
         run: node .release-readiness/scripts/run-consumer-check.mjs
 
-      - name: Inspect and test normalized crate archives
-        working-directory: reallyme/ssi
-        run: node scripts/publish_crates_in_order.mjs inspect
-
       - name: Test repository scripts
         working-directory: reallyme/ssi
         run: node --test scripts/*.test.mjs
@@ -436,6 +436,105 @@ jobs:
       - name: Security advisory audit
         working-directory: reallyme/ssi
         run: scripts/audit_committed_lockfiles.sh
+
+  workspace-tests:
+    name: Workspace tests (${{ matrix.lane }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [native, all-features, default]
+    steps:
+      - name: Checkout SSI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: reallyme/ssi
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.99.0
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: reallyme/ssi
+
+      - name: Install nextest
+        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        with:
+          tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
+
+      - name: Install XMLSec build dependencies
+        if: matrix.lane == 'all-features'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential curl libssl-dev libtool libxml2-dev libxslt1-dev pkg-config
+
+      - name: Build pinned XMLSec OpenSSL backend
+        if: matrix.lane == 'all-features'
+        working-directory: reallyme/ssi
+        run: |
+          sh scripts/install-xmlsec-linux.sh "${RUNNER_TEMP}/xmlsec"
+          echo "PKG_CONFIG_PATH=${RUNNER_TEMP}/xmlsec/lib/pkgconfig" >> "${GITHUB_ENV}"
+          echo "LD_LIBRARY_PATH=${RUNNER_TEMP}/xmlsec/lib" >> "${GITHUB_ENV}"
+
+      - name: Test workspace feature lane
+        working-directory: reallyme/ssi
+        run: node scripts/run_bounded_nextest.mjs "${{ matrix.lane }}"
+
+  package-archives:
+    name: Inspect and test normalized crate archives
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout SSI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: reallyme/ssi
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
+        with:
+          toolchain: 1.99.0
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: reallyme/ssi
+
+      - name: Inspect and test normalized crate archives
+        working-directory: reallyme/ssi
+        run: node scripts/publish_crates_in_order.mjs inspect
+
+  rust:
+    name: fmt, lint, test, dependency policy
+    if: ${{ always() }}
+    needs: [rust-checks, workspace-tests, package-archives]
+    runs-on: ubuntu-24.04
+    steps:
+      # Keep the existing required check name while making every parallel lane
+      # mandatory for the release source and for protected branches.
+      - name: Require all Rust validation jobs
+        env:
+          SOURCE_RESULT: ${{ needs.rust-checks.result }}
+          TEST_RESULT: ${{ needs.workspace-tests.result }}
+          PACKAGE_RESULT: ${{ needs.package-archives.result }}
+        run: |
+          test "$SOURCE_RESULT" = success
+          test "$TEST_RESULT" = success
+          test "$PACKAGE_RESULT" = success
 
   platform-boundaries:
     name: OCSP mobile fail-closed lane (${{ matrix.name }})

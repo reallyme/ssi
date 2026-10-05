@@ -52,7 +52,7 @@ reallyme-credential-audit = { workspace = true }
 identity-core-primitives = { workspace = true }
 
 # Crypto layer
-crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.12", default-features = false }
-crypto-core = { package = "reallyme-crypto-core", version = "0.3.12" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.13", default-features = false }
+crypto-core = { package = "reallyme-crypto-core", version = "0.3.13" }
 [lints]
 workspace = true

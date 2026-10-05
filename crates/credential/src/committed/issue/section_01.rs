@@ -30,10 +30,14 @@ use crate::committed::{
     model::{
         AssuranceLevel, ClaimOpening, ClaimsCommitment, CommitmentLimits, CredentialAlgorithm,
         CredentialEnvelope, CredentialKind, CredentialStatus, CredentialSubject, DomainTags,
-        HolderBinding, MerkleTreeInfo, PartyReference, PublicKeyRef, Signature,
+        HolderBinding, MerkleTreeInfo, PartyReference, PublicKeyRef, PublicKeyRepresentation, Signature,
         SubjectPrivateBundle,
     },
-    proof_binding::{p256_coordinates, CredentialProofBinding, CREDENTIAL_PROOF_BINDING_VERSION},
+    proof_binding::{
+        normalize_p256_zk_signature_low_s, p256_coordinates, require_p256_zk_signature_low_s,
+        validate_credential_proof_binding_public, CredentialProofBinding,
+        CREDENTIAL_PROOF_BINDING_VERSION,
+    },
 };
 
 /// Input for issuing a credential (public envelope).
@@ -355,12 +359,12 @@ fn normalize_signature_to_raw(alg: CryptoAlg, sig: &[u8]) -> Result<Vec<u8>, VcE
         CryptoAlg::Ed25519 => Ok(sig.to_vec()),
 
         CryptoAlg::P256 => {
-            if sig.len() == 64 {
-                return Ok(sig.to_vec());
-            }
-            p256_ecdsa_der_to_jose_signature(sig)
-                .map(|signature| signature.to_vec())
-                .map_err(|_| VcError::InvalidCredential)
+            let signature = if sig.len() == 64 {
+                sig.try_into().map_err(|_| VcError::InvalidCredential)?
+            } else {
+                p256_ecdsa_der_to_jose_signature(sig).map_err(|_| VcError::InvalidCredential)?
+            };
+            normalize_p256_zk_signature_low_s(signature).map(|signature| signature.to_vec())
         }
 
         CryptoAlg::Secp256k1 => {
