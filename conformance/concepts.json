@@ -378,6 +378,7 @@
       "local_crates": [
         "crates/trust/api/Cargo.toml",
         "crates/trust/core/Cargo.toml",
+        "crates/trust/facade/Cargo.toml",
         "crates/trust/jades/Cargo.toml",
         "crates/trust/openssl/Cargo.toml",
         "crates/trust/tsl-core/Cargo.toml",
@@ -391,6 +392,7 @@
       "external_crates": [],
       "public_api": [
         "identity_trust_jades",
+        "reallyme_trust::certificate",
         "reallyme_trust_x509"
       ],
       "conformance_files": [
@@ -400,9 +402,9 @@
       "mapping_status": "section_by_section",
       "publishing": {
         "role": "core_support_published",
-        "package": "reallyme-trust-core + reallyme-trust-x509",
+        "package": "reallyme-trust + reallyme-trust-core + reallyme-trust-x509",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The trust core and X.509 policy crates are published independently; trust API, JAdES, TSL, OpenSSL, wasm, and xmlsec crates remain source-only."
+        "notes": "The certificate trust facade, trust core, and X.509 policy crates are published independently. The source-only compatibility API, JAdES, TSL, OpenSSL, wasm, and xmlsec adapters remain outside the facade's publishable dependency graph."
       },
       "release_blocker": false,
       "next_actions": []

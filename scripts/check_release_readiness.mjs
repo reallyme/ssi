@@ -276,6 +276,7 @@ shared.assertRepositoryShapePolicy({
     { path: "crates/status", role: "domain" },
     { path: "crates/trust/api", role: "adapter" },
     { path: "crates/trust/core", role: "domain" },
+    { path: "crates/trust/facade", role: "facade" },
     { path: "crates/trust/jades", role: "domain" },
     { path: "crates/trust/openssl", role: "provider" },
     { path: "crates/trust/tsl-core", role: "domain" },
@@ -372,6 +373,7 @@ const publicPackageManifests = [
   "crates/revocation/Cargo.toml",
   "crates/status/Cargo.toml",
   "crates/trust/core/Cargo.toml",
+  "crates/trust/facade/Cargo.toml",
   "crates/trust/x509/Cargo.toml",
 ];
 
@@ -403,6 +405,7 @@ const approvedPublicPackages = new Set([
   "reallyme-mdoc",
   "reallyme-sd-jwt",
   "reallyme-trust-core",
+  "reallyme-trust",
   "reallyme-compression-brotli",
   "reallyme-cose",
   "reallyme-credential-audit",
@@ -1354,7 +1357,7 @@ assertNotContains(
 );
 assertContains(releaseWorkflow, "reallyme-ssi-crate-archives-${{");
 assertContains(releaseWorkflow, "REVIEWED_CRATE_ARCHIVES_DIRECTORY: reviewed-crates");
-assertContains(releaseWorkflow, 'test "$archive_count" -eq 18');
+assertContains(releaseWorkflow, 'test "$archive_count" -eq 19');
 assertContains(
   releaseWorkflow,
   "node scripts/publish_crates_in_order.mjs publish",
@@ -1533,7 +1536,7 @@ assertContains(
   "conformance/dependencies.lock.json",
   '"version": "0.3.12"',
 );
-assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.4.0");
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.4.1");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
 assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
 assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");

@@ -25,6 +25,8 @@ const REQUIRED_PUBLISH_ORDER_EDGES = [
   ["reallyme-credential-status", "reallyme-revocation"],
   ["reallyme-trust-x509", "reallyme-revocation"],
   ["reallyme-revocation", "reallyme-trust-core"],
+  ["reallyme-trust-core", "reallyme-trust"],
+  ["reallyme-trust-x509", "reallyme-trust"],
   ["reallyme-trust-core", "reallyme-openid-oauth"],
   ["reallyme-credential-claims", "reallyme-disclosure-policy"],
   ["reallyme-credential-audit", "reallyme-credential"],

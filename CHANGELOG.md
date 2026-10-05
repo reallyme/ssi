@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.1
+
+This release introduces `reallyme-trust`, a public certificate trust facade
+over the released trust core, X.509, revocation, and protobuf packages.
+
+- Certificate path decisions retain the selected leaf-to-anchor SHA-256 path,
+  selected anchor, policy, evaluation time, status evidence, and fixed failure
+  reasons.
+- An explicit portable signature backend verifies supported certificate
+  signatures and fails closed when an algorithm, path constraint, or required
+  status capability is unavailable.
+- An opt-in OpenSSL backend retains native strict path validation and broader
+  certificate-signature algorithm support for existing consumers.
+- The facade's publication graph uses registry-sourced trust core and X.509
+  packages, with a single X.509 certificate type for callers and backends.
+
 ## 0.4.0
 
 This release raises the minimum supported Rust version to 1.99, updates the

@@ -13,7 +13,8 @@
     )
 )]
 
-//! High-level Trust API (credential layer).
+//! Source-only compatibility API for trust-list and credential adapters.
+//! Public certificate trust decisions are owned by `reallyme-trust`.
 //!
 //! Overview: typed orchestration over:
 //! - trust path evaluation
