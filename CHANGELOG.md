@@ -15,6 +15,8 @@ over the released trust core, X.509, revocation, and protobuf packages.
   certificate-signature algorithm support for existing consumers.
 - The facade's publication graph uses registry-sourced trust core and X.509
   packages, with a single X.509 certificate type for callers and backends.
+- Decision evidence redacts linkable identifiers from debug output and clears
+  them on drop.
 
 ## 0.4.0
 
