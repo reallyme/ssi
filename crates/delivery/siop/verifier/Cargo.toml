@@ -19,7 +19,7 @@ wasm   = ["envelopes-jwk/wasm", "envelopes-jwt/wasm"]
 identity-presentation-delivery-siop-core = { version = "0.4.1", path = "../core" }
 reallyme-ssi-proto = { workspace = true }
 envelopes-jwt = { workspace = true }
-envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.12", default-features = false }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.13", default-features = false }
 codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.1" }
 reallyme-crypto = { workspace = true, features = ["constant-time", "sha2"] }
 thiserror = { workspace = true }
@@ -28,7 +28,7 @@ serde = { version = "1.0", features = ["derive"] }
 zeroize = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-crypto-core = { package = "reallyme-crypto-core", version = "0.3.12" }
-crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.12", features = ["native"] }
+crypto-core = { package = "reallyme-crypto-core", version = "0.3.13" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.13", features = ["native"] }
 [lints]
 workspace = true

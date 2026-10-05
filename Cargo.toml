@@ -106,8 +106,8 @@ zeroize = "1.9"
 
 reallyme-codec = { version = "0.3.1", default-features = false }
 reallyme-cose = { version = "0.2.7", default-features = false }
-reallyme-crypto = { version = "0.3.12", default-features = false }
-reallyme-crypto-proto = { version = "0.3.12", default-features = false }
+reallyme-crypto = { version = "0.3.13", default-features = false }
+reallyme-crypto-proto = { version = "0.3.13", default-features = false }
 reallyme-jose = { version = "0.4.4", default-features = false }
 reallyme-compression-brotli = { path = "crates/compression/brotli", version = "0.4.1" }
 reallyme-credential-audit = { path = "crates/audit", version = "0.4.1", default-features = false }

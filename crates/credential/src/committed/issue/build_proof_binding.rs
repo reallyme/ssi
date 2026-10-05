@@ -30,6 +30,7 @@ fn build_credential_proof_binding(
     let issuer_envelope_signature =
         <[u8; 64]>::try_from(envelope.issuer_signature.raw_rs.as_slice())
             .map_err(|_| VcError::InvalidCredential)?;
+    require_p256_zk_signature_low_s(&issuer_envelope_signature)?;
 
     let root_payload = CredentialProofBinding::root_binding_payload(&envelope_hash, &claims_root)?;
     let issuer_root_binding_signature = normalize_signature_to_raw(
@@ -63,7 +64,7 @@ fn build_credential_proof_binding(
         &subject_public_key_y,
     )?;
 
-    Ok(Some(CredentialProofBinding {
+    let binding = CredentialProofBinding {
         version: CREDENTIAL_PROOF_BINDING_VERSION,
         envelope_hash,
         claims_root,
@@ -85,5 +86,16 @@ fn build_credential_proof_binding(
             .try_into()
             .map_err(|_| VcError::InvalidCredential)?,
         issuance_binding,
-    }))
+    };
+    // Normalization changes the signature bytes returned by an external
+    // signer. Authenticate every stored proof input before issuance succeeds.
+    let PublicKeyRepresentation::Raw {
+        bytes: issuer_public_key,
+        ..
+    } = &envelope.issuer_signature.verification_key.public_key
+    else {
+        return Err(VcError::InvalidCredential);
+    };
+    validate_credential_proof_binding_public(envelope, &binding, issuer_public_key)?;
+    Ok(Some(binding))
 }

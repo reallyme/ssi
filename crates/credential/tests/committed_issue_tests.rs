@@ -15,7 +15,9 @@ use std::collections::BTreeMap;
 
 use reallyme_credential::committed::canonical::canonical_credential_bytes;
 use reallyme_credential::committed::error::VcError;
-use reallyme_credential::committed::issue::{issue_credential, IssueInput, OsSaltRng};
+use reallyme_credential::committed::issue::{
+    issue_credential, issue_credential_with_payload_signer, IssueInput, OsSaltRng,
+};
 use reallyme_credential::committed::model::{
     AssuranceLevel, CommitmentLimits, CredentialAlgorithm, CredentialKind, CredentialStatus,
     CredentialSubject, DomainTags, HolderBinding, KeyAssurance, KeyReference, PartyReference,
@@ -29,6 +31,10 @@ use reallyme_credential::DispatchCredentialIssuerSigner;
 use crypto_core::Algorithm as CryptoAlgorithm;
 use crypto_dispatch::{generate_keypair, verify};
 use zeroize::Zeroize;
+
+#[path = "committed_issue_tests/p256_high_s.rs"]
+mod p256_high_s;
+use p256_high_s::{assert_low_s, high_s_twin, HighSP256IssuerSigner};
 
 fn base_input() -> IssueInput {
     IssueInput {
@@ -248,6 +254,186 @@ fn proof_binding_can_be_issued_for_an_existing_signed_envelope() {
         issue_credential_proof_binding(&result.envelope, &mismatched_private_key),
         Err(VcError::ProofBindingSignatureInvalid)
     );
+}
+
+#[test]
+fn proof_binding_canonicalizes_high_s_signer_output_and_rejects_high_s_artifacts() {
+    let (issuer_public, issuer_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let (holder_public, _holder_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let mut claims = BTreeMap::new();
+    claims.insert("age".into(), serde_json::json!(42));
+    let input = p256_input(issuer_public.clone(), holder_public);
+    let verification_key = input.issuer_verification_key.clone();
+    let signer = HighSP256IssuerSigner {
+        private_key: &issuer_private,
+        verification_key: &verification_key,
+    };
+    let result =
+        issue_credential_with_payload_signer(input, &claims, &signer, &mut OsSaltRng).unwrap();
+    let binding = issue_credential_proof_binding(&result.envelope, &signer).unwrap();
+    let envelope_signature: [u8; 64] = result
+        .envelope
+        .issuer_signature
+        .raw_rs
+        .as_slice()
+        .try_into()
+        .unwrap();
+
+    assert_low_s(&envelope_signature);
+    assert_low_s(
+        &result
+            .proof_binding
+            .as_ref()
+            .unwrap()
+            .issuer_envelope_signature,
+    );
+    assert_low_s(
+        &result
+            .proof_binding
+            .as_ref()
+            .unwrap()
+            .issuer_root_binding_signature,
+    );
+    assert_low_s(
+        &result
+            .proof_binding
+            .as_ref()
+            .unwrap()
+            .issuer_subject_binding_signature,
+    );
+    assert_low_s(
+        &result
+            .proof_binding
+            .as_ref()
+            .unwrap()
+            .issuer_validity_status_signature,
+    );
+    assert_low_s(&binding.issuer_envelope_signature);
+    assert_low_s(&binding.issuer_root_binding_signature);
+    assert_low_s(&binding.issuer_subject_binding_signature);
+    assert_low_s(&binding.issuer_validity_status_signature);
+    validate_credential_proof_binding(
+        &result.envelope,
+        &result.subject_bundle,
+        &binding,
+        &issuer_public,
+    )
+    .unwrap();
+
+    let mut high_s_root = binding.clone();
+    high_s_root.issuer_root_binding_signature = high_s_twin(binding.issuer_root_binding_signature);
+    assert_eq!(
+        validate_credential_proof_binding(
+            &result.envelope,
+            &result.subject_bundle,
+            &high_s_root,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingSignatureInvalid)
+    );
+
+    let mut high_s_subject = binding.clone();
+    high_s_subject.issuer_subject_binding_signature =
+        high_s_twin(binding.issuer_subject_binding_signature);
+    assert_eq!(
+        validate_credential_proof_binding(
+            &result.envelope,
+            &result.subject_bundle,
+            &high_s_subject,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingSignatureInvalid)
+    );
+
+    let mut high_s_validity_status = binding.clone();
+    high_s_validity_status.issuer_validity_status_signature =
+        high_s_twin(binding.issuer_validity_status_signature);
+    assert_eq!(
+        validate_credential_proof_binding(
+            &result.envelope,
+            &result.subject_bundle,
+            &high_s_validity_status,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingSignatureInvalid)
+    );
+
+    // The general committed-credential verifier follows interoperable ES256;
+    // only the proof-bound profile requires a unique low-S representation.
+    let canonical_hash = reallyme_credential::committed::verify::verify_credential(
+        &result.envelope,
+        CryptoAlgorithm::P256,
+        &issuer_public,
+        None,
+    )
+    .unwrap()
+    .envelope_hash;
+    let mut high_s_envelope = result.envelope;
+    high_s_envelope.issuer_signature.raw_rs = high_s_twin(envelope_signature).to_vec();
+    assert_eq!(
+        reallyme_credential::committed::verify::verify_credential(
+            &high_s_envelope,
+            CryptoAlgorithm::P256,
+            &issuer_public,
+            None,
+        )
+        .unwrap()
+        .envelope_hash,
+        canonical_hash
+    );
+    assert_eq!(
+        validate_credential_proof_binding(
+            &high_s_envelope,
+            &result.subject_bundle,
+            &binding,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingSignatureInvalid)
+    );
+
+    let mut high_s_binding = binding.clone();
+    high_s_binding.issuer_envelope_signature = high_s_twin(binding.issuer_envelope_signature);
+    high_s_binding.issuer_root_binding_signature =
+        high_s_twin(binding.issuer_root_binding_signature);
+    high_s_binding.issuer_subject_binding_signature =
+        high_s_twin(binding.issuer_subject_binding_signature);
+    high_s_binding.issuer_validity_status_signature =
+        high_s_twin(binding.issuer_validity_status_signature);
+    high_s_envelope.issuer_signature.raw_rs = high_s_binding.issuer_envelope_signature.to_vec();
+
+    assert_eq!(
+        issue_credential_proof_binding(&high_s_envelope, &signer),
+        Err(VcError::ProofBindingSignatureInvalid)
+    );
+    assert_eq!(
+        validate_credential_proof_binding(
+            &high_s_envelope,
+            &result.subject_bundle,
+            &high_s_binding,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingSignatureInvalid)
+    );
+}
+
+#[test]
+fn p256_issuance_rejects_signatures_from_a_different_key() {
+    let (issuer_public, _issuer_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let (_other_public, other_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let (holder_public, _holder_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let input = p256_input(issuer_public, holder_public);
+    let verification_key = input.issuer_verification_key.clone();
+    let signer = HighSP256IssuerSigner {
+        private_key: &other_private,
+        verification_key: &verification_key,
+    };
+    let mut claims = BTreeMap::new();
+    claims.insert("age".into(), serde_json::json!(42));
+
+    assert!(matches!(
+        issue_credential_with_payload_signer(input, &claims, &signer, &mut OsSaltRng),
+        Err(VcError::ProofBindingSignatureInvalid)
+    ));
 }
 
 #[test]

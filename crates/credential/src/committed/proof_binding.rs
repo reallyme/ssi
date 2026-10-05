@@ -8,15 +8,10 @@
 //! does not select a proof system, circuit, provider, or presentation format.
 
 use reallyme_crypto::{
-    p256::{
-        decompress_public_key, p256_ecdsa_der_to_jose_signature, p256_ecdsa_jose_signature_to_der,
-    },
+    p256::{decompress_public_key, p256_ecdsa_der_to_jose_signature},
     sha2::digest as sha2_256_digest,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
-
-use crypto_core::Algorithm as CryptoAlgorithm;
-use crypto_dispatch::verify as verify_signature;
 
 use crate::committed::{
     canonical::canonical_credential_bytes,
@@ -40,6 +35,13 @@ const P256_SEC1_UNCOMPRESSED_PREFIX: u8 = 0x04;
 const P256_X_START: usize = 1;
 const P256_X_END: usize = 33;
 const P256_Y_END: usize = 65;
+const P256_SIGNATURE_BYTES: usize = 64;
+
+mod p256_signature;
+use p256_signature::verify_p256_zk_signature;
+pub(crate) use p256_signature::{
+    normalize_p256_zk_signature_low_s, require_p256_zk_signature_low_s,
+};
 
 /// Current version of the SSI credential-proof binding contract.
 pub const CREDENTIAL_PROOF_BINDING_VERSION: u32 = 1;
@@ -216,6 +218,7 @@ pub fn validate_credential_proof_binding(
     binding: &CredentialProofBinding,
     trusted_issuer_public_key: &[u8],
 ) -> Result<(), VcError> {
+    require_canonical_p256_envelope_signature(envelope)?;
     crate::validate_credential_with_bundle(envelope, subject_bundle)
         .map_err(|_| VcError::InvalidCredential)?;
     validate_credential_proof_binding_public(envelope, binding, trusted_issuer_public_key)
@@ -232,17 +235,18 @@ pub fn validate_credential_proof_binding_public(
     binding: &CredentialProofBinding,
     trusted_issuer_public_key: &[u8],
 ) -> Result<(), VcError> {
+    let envelope_signature_raw = require_canonical_p256_envelope_signature(envelope)?;
     crate::validate_credential_envelope(envelope).map_err(|_| VcError::InvalidCredential)?;
     if binding.version != CREDENTIAL_PROOF_BINDING_VERSION
         || envelope.issuer_signature.verification_key.alg != CredentialAlgorithm::P256
-        || binding.issuer_envelope_signature.as_slice()
-            != envelope.issuer_signature.raw_rs.as_slice()
+        || binding.issuer_envelope_signature != envelope_signature_raw
     {
         return Err(VcError::ProofBindingMismatch);
     }
+    require_p256_zk_signature_low_s(&binding.issuer_envelope_signature)?;
 
-    let envelope_hash =
-        sha2_256_digest(canonical_credential_bytes(envelope)?.as_slice()).into_bytes();
+    let canonical = Zeroizing::new(canonical_credential_bytes(envelope)?);
+    let envelope_hash = sha2_256_digest(canonical.as_slice()).into_bytes();
     let claims_root = <[u8; 32]>::try_from(envelope.claims_commitment.merkle_root.as_slice())
         .map_err(|_| VcError::InvalidCredential)?;
     let (issuer_public_key_x, issuer_public_key_y) =
@@ -285,55 +289,53 @@ pub fn validate_credential_proof_binding_public(
         return Err(VcError::ProofBindingMismatch);
     }
 
-    let envelope_signature = p256_ecdsa_jose_signature_to_der(&binding.issuer_envelope_signature)
-        .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
-    verify_signature(
-        CryptoAlgorithm::P256,
+    verify_p256_zk_signature(
+        &binding.issuer_envelope_signature,
+        canonical.as_slice(),
         trusted_issuer_public_key,
-        canonical_credential_bytes(envelope)?.as_slice(),
-        envelope_signature.as_slice(),
-    )
-    .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
+    )?;
     let root_payload = CredentialProofBinding::root_binding_payload(&envelope_hash, &claims_root)?;
-    let root_signature = p256_ecdsa_jose_signature_to_der(&binding.issuer_root_binding_signature)
-        .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
-    verify_signature(
-        CryptoAlgorithm::P256,
-        trusted_issuer_public_key,
+    verify_p256_zk_signature(
+        &binding.issuer_root_binding_signature,
         root_payload.as_slice(),
-        root_signature.as_slice(),
-    )
-    .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
+        trusted_issuer_public_key,
+    )?;
     let subject_payload = CredentialProofBinding::subject_binding_payload(
         &envelope_hash,
         &subject_public_key_x,
         &subject_public_key_y,
     )?;
-    let subject_signature =
-        p256_ecdsa_jose_signature_to_der(&binding.issuer_subject_binding_signature)
-            .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
-    verify_signature(
-        CryptoAlgorithm::P256,
-        trusted_issuer_public_key,
+    verify_p256_zk_signature(
+        &binding.issuer_subject_binding_signature,
         subject_payload.as_slice(),
-        subject_signature.as_slice(),
-    )
-    .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
+        trusted_issuer_public_key,
+    )?;
     let validity_status_payload = CredentialProofBinding::validity_status_binding_payload(
         envelope,
         &envelope_hash,
         &claims_root,
     )?;
-    let validity_status_signature =
-        p256_ecdsa_jose_signature_to_der(&binding.issuer_validity_status_signature)
-            .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
-    verify_signature(
-        CryptoAlgorithm::P256,
-        trusted_issuer_public_key,
+    verify_p256_zk_signature(
+        &binding.issuer_validity_status_signature,
         validity_status_payload.as_slice(),
-        validity_status_signature.as_slice(),
+        trusted_issuer_public_key,
     )
-    .map_err(|_| VcError::ProofBindingSignatureInvalid)
+}
+
+fn require_canonical_p256_envelope_signature(
+    envelope: &CredentialEnvelope,
+) -> Result<[u8; P256_SIGNATURE_BYTES], VcError> {
+    if envelope.issuer_signature.verification_key.alg != CredentialAlgorithm::P256 {
+        return Err(VcError::ProofBindingMismatch);
+    }
+    let signature = envelope
+        .issuer_signature
+        .raw_rs
+        .as_slice()
+        .try_into()
+        .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
+    require_p256_zk_signature_low_s(&signature)?;
+    Ok(signature)
 }
 
 impl core::fmt::Debug for CredentialProofBinding {

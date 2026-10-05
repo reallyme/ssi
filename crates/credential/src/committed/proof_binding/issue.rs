@@ -9,12 +9,13 @@ pub fn issue_credential_proof_binding(
     envelope: &CredentialEnvelope,
     signer: &dyn CredentialIssuerSigner,
 ) -> Result<CredentialProofBinding, VcError> {
-    crate::validate_credential_envelope(envelope).map_err(|_| VcError::InvalidCredential)?;
     if envelope.issuer_signature.verification_key.alg != CredentialAlgorithm::P256
         || signer.verification_key() != &envelope.issuer_signature.verification_key
     {
         return Err(VcError::ProofBindingTrustedIssuerMismatch);
     }
+    let issuer_envelope_signature = require_canonical_p256_envelope_signature(envelope)?;
+    crate::validate_credential_envelope(envelope).map_err(|_| VcError::InvalidCredential)?;
     let subject_key = match &envelope.subject.holder_binding {
         HolderBinding::CryptographicKey(key) if key.alg == CredentialAlgorithm::P256 => key,
         HolderBinding::CryptographicKey(_)
@@ -32,12 +33,7 @@ pub fn issue_credential_proof_binding(
         .as_slice()
         .try_into()
         .map_err(|_| VcError::InvalidCredential)?;
-    let issuer_envelope_signature = envelope
-        .issuer_signature
-        .raw_rs
-        .as_slice()
-        .try_into()
-        .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
+    require_p256_zk_signature_low_s(&issuer_envelope_signature)?;
     let root_payload = Zeroizing::new(CredentialProofBinding::root_binding_payload(
         &envelope_hash,
         &claims_root,
@@ -103,15 +99,7 @@ pub fn issue_credential_proof_binding(
             binding.issuer_validity_status_signature,
         ),
     ] {
-        let der = p256_ecdsa_jose_signature_to_der(&signature)
-            .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
-        verify_signature(
-            CryptoAlgorithm::P256,
-            &issuer_public_key,
-            payload,
-            der.as_slice(),
-        )
-        .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
+        verify_p256_zk_signature(&signature, payload, &issuer_public_key)?;
     }
     Ok(binding)
 }
@@ -128,11 +116,13 @@ fn sign_p256_binding_payload(
             .map_err(|_| VcError::ProofBindingSignatureInvalid)?,
     );
     if signature.len() == 64 {
-        return signature
+        let signature = signature
             .as_slice()
             .try_into()
-            .map_err(|_| VcError::ProofBindingSignatureInvalid);
+            .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
+        return normalize_p256_zk_signature_low_s(signature);
     }
-    p256_ecdsa_der_to_jose_signature(signature.as_slice())
-        .map_err(|_| VcError::ProofBindingSignatureInvalid)
+    let signature = p256_ecdsa_der_to_jose_signature(signature.as_slice())
+        .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
+    normalize_p256_zk_signature_low_s(signature)
 }

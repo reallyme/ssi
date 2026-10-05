@@ -91,61 +91,71 @@ shared.assertReallyMeReleasePackagePolicy({
 shared.assertWorkflowActionsPinned();
 shared.assertWorkflowPolicy({
   path: ".github/workflows/rust-ci.yml",
-  jobs: { rust: { needs: [] } },
+  jobs: {
+    "rust-checks": { needs: [] },
+    "workspace-tests": { needs: [] },
+    "package-archives": { needs: [] },
+    rust: { needs: ["rust-checks", "workspace-tests", "package-archives"] },
+  },
   runSteps: [
     {
-      job: "rust",
+      job: "rust-checks",
       name: "Format",
       run: "cargo fmt --check",
       workingDirectory: "reallyme/ssi",
     },
     {
-      job: "rust",
+      job: "rust-checks",
       name: "Check conformance requirement coverage",
       run: "node scripts/check_conformance_coverage.mjs",
       workingDirectory: "reallyme/ssi",
     },
     {
-      job: "rust",
+      job: "rust-checks",
       name: "Execute pinned upstream conformance evidence",
       run: 'node scripts/run_upstream_conformance_tests.mjs --source reallyme-jose=../jose --source reallyme-cose=../cose --output "${RUNNER_TEMP}/upstream-conformance.json"',
       workingDirectory: "reallyme/ssi",
     },
     {
-      job: "rust",
+      job: "rust-checks",
       name: "Generate conformance evidence from the clean CI commit",
       run: 'node scripts/generate_conformance_reports.mjs --output-dir "${RUNNER_TEMP}/ssi-conformance" --upstream-results "${RUNNER_TEMP}/upstream-conformance.json"',
       workingDirectory: "reallyme/ssi",
     },
     {
-      job: "rust",
+      job: "rust-checks",
       name: "Check all features with warnings denied",
       run: "cargo check --locked --workspace --all-features",
       workingDirectory: "reallyme/ssi",
     },
     {
-      job: "rust",
+      job: "rust-checks",
       name: "Clippy",
       run: "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
       workingDirectory: "reallyme/ssi",
     },
     {
-      job: "rust",
-      name: "Test native lane",
-      run: "node scripts/run_bounded_nextest.mjs native",
+      job: "workspace-tests",
+      name: "Test workspace feature lane",
+      run: 'node scripts/run_bounded_nextest.mjs "${{ matrix.lane }}"',
       workingDirectory: "reallyme/ssi",
     },
     {
-      job: "rust",
+      job: "rust-checks",
       name: "Release readiness",
       run: "node .release-readiness/scripts/run-consumer-check.mjs",
       workingDirectory: "reallyme/ssi",
     },
     {
-      job: "rust",
+      job: "package-archives",
       name: "Inspect and test normalized crate archives",
       run: "node scripts/publish_crates_in_order.mjs inspect",
       workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "rust",
+      name: "Require all Rust validation jobs",
+      run: 'test "$SOURCE_RESULT" = success\ntest "$TEST_RESULT" = success\ntest "$PACKAGE_RESULT" = success',
     },
   ],
 });
@@ -447,9 +457,7 @@ const requiredCiNeedles = [
   "cargo fmt --check",
   "cargo check --locked --workspace --all-features",
   "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
-  "node scripts/run_bounded_nextest.mjs native",
-  "node scripts/run_bounded_nextest.mjs all-features",
-  "node scripts/run_bounded_nextest.mjs default",
+  'node scripts/run_bounded_nextest.mjs "${{ matrix.lane }}"',
   'cargo check --locked -p "${package}" --no-default-features --features wasm --target wasm32-unknown-unknown',
   "select(.features.wasm != null)",
   "cargo doc --locked --workspace --no-deps --all-features",
@@ -908,9 +916,51 @@ assertContains(
 );
 
 const ci = readText(".github/workflows/rust-ci.yml");
+const activeCi = readSearchableSource(".github/workflows/rust-ci.yml");
+const requiredConcurrency = [
+  "concurrency:",
+  "  group: rust-ci-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}",
+  "  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}",
+].join("\n");
+if (!activeCi.includes(requiredConcurrency)) {
+  fail("rust-ci.yml is missing revision-scoped concurrency control");
+}
 for (const needle of requiredCiNeedles) {
   if (!ci.includes(needle)) {
     fail(`rust-ci.yml does not contain ${needle}`);
+  }
+}
+const activeCiLines = activeCi.split("\n");
+const workflowJobSource = (jobName) => {
+  const start = activeCiLines.indexOf(`  ${jobName}:`);
+  if (start === -1) {
+    fail(`rust-ci.yml is missing ${jobName}`);
+  }
+  let end = start + 1;
+  while (end < activeCiLines.length && !/^  [A-Za-z0-9_-]+:\s*$/u.test(activeCiLines[end])) {
+    end += 1;
+  }
+  return activeCiLines.slice(start, end).join("\n");
+};
+const workspaceTestsJob = workflowJobSource("workspace-tests");
+const workspaceTestLaneCount =
+  workspaceTestsJob.match(/^ {8}lane: \[native, all-features, default\]\s*$/gmu)?.length ?? 0;
+if (
+  workspaceTestLaneCount !== 1 ||
+  !workspaceTestsJob.includes("    strategy:\n      fail-fast: false")
+) {
+  fail("rust-ci.yml must run each bounded workspace test lane exactly once");
+}
+const rustGateJob = workflowJobSource("rust");
+for (const needle of [
+  "    name: fmt, lint, test, dependency policy",
+  "    if: ${{ always() }}",
+  "SOURCE_RESULT: ${{ needs.rust-checks.result }}",
+  "TEST_RESULT: ${{ needs.workspace-tests.result }}",
+  "PACKAGE_RESULT: ${{ needs.package-archives.result }}",
+]) {
+  if (!rustGateJob.includes(needle)) {
+    fail(`rust-ci.yml required Rust gate is missing ${needle}`);
   }
 }
 const rustCiMarkdownIgnoreCount = ci.match(/- "\*\*\/\*\.md"/gu)?.length ?? 0;
@@ -1534,7 +1584,7 @@ assertContains("scripts/generate_conformance_reports.mjs", "Cargo.lock does not 
 assertContains("scripts/generate_conformance_reports.mjs", "reallyme.ssi.conformance.bundle.v1");
 assertContains(
   "conformance/dependencies.lock.json",
-  '"version": "0.3.12"',
+  '"version": "0.3.13"',
 );
 assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.4.1");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
@@ -1597,8 +1647,8 @@ assertContains("scripts/check-proto-contract.sh", "reallyme.crypto.v1.CryptoAlgo
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity.common.v1");
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity_core.v1");
 assertContains("Cargo.toml", 'reallyme-codec = { version = "0.3.1"');
-assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.12"');
-assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.12"');
+assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.13"');
+assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.13"');
 assertContains("crates/proto/Cargo.toml", "reallyme-crypto-proto/generated");
 assertContains("Cargo.toml", 'reallyme-cose = { version = "0.2.7"');
 assertContains("Cargo.toml", 'reallyme-jose = { version = "0.4.4"');

@@ -32,9 +32,9 @@ identity-credential-claims-core = { workspace = true }
 
 
 envelopes-jwt = { workspace = true }
-envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.12", default-features = false }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.13", default-features = false }
 
-crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.12", default-features = false }
-crypto-core = { package = "reallyme-crypto-core", version = "0.3.12" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.13", default-features = false }
+crypto-core = { package = "reallyme-crypto-core", version = "0.3.13" }
 [lints]
 workspace = true
