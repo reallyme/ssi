@@ -9,7 +9,7 @@
   "repository": "reallyme/ssi",
   "generated_by": {
     "command": "ruby scripts/generate_repository_conformance_ledger.rb",
-    "source_revision": "409f06cee84e45702595ad3d91c63c05bf13f0fb"
+    "source_revision": "03568e2acc13595bcabfadc5a402d45ed8a425a6"
   },
   "artifacts": [],
   "requirements": [
