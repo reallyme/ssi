@@ -5,11 +5,11 @@
     "minor": 1,
     "patch": 0
   },
-  "taxonomy_source_sha256": "8f447748f5b584ed2e4820970cf8a94a5e9c8e44f2e5e9863ecc354a6b55885d",
+  "taxonomy_source_sha256": "24ea207715b5ce9756717fb2f4fdd1c09fd272edb69465bb692ee6e325d6be62",
   "repository": "reallyme/ssi",
   "generated_by": {
     "command": "ruby scripts/generate_repository_conformance_ledger.rb",
-    "source_revision": "0e5c162f8e089c72ce24dd790764fa4c6d457efd"
+    "source_revision": "409f06cee84e45702595ad3d91c63c05bf13f0fb"
   },
   "artifacts": [],
   "requirements": [
@@ -3179,7 +3179,7 @@
     },
     {
       "requirement_id": "command:identity.did_ebsi.create_document",
-      "requirement_sha256": "0150dd4b8fd5cbd15281faf4fbd2f27c375ee63b705f6a29c16f1d91e5f9e425",
+      "requirement_sha256": "e837c01f95bdea95e11b213f34ab3d639e4f926b9f63bcdd87a1493c4ccce018",
       "status": "implemented",
       "reason_code": null,
       "evidence": [
@@ -3188,34 +3188,34 @@
           "path": "crates/did/methods/ebsi/src/registry.rs",
           "symbol": "create_did_ebsi_document",
           "artifact_id": null,
-          "source_sha256": "e8b61f355ffc83592e4c24447e10abc08f41c1420b1f8bca2773aa9bc028b1e1"
+          "source_sha256": "5477d0fd457f12669d84409f997099821a3a65b132dc5c081dc792e87e9eb109"
         },
         {
           "class": "behavior_test",
           "path": "crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs",
           "symbol": "document_profile_accepts_canonical_legal_entity_document",
           "artifact_id": null,
-          "source_sha256": "ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7"
+          "source_sha256": "d822369d05e94934defd18bb93e5e512c9db639fce482dd9f3f2e1e03b31c244"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs",
           "symbol": "document_profile_rejects_mismatch_private_dangling_and_limits",
           "artifact_id": null,
-          "source_sha256": "ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7"
+          "source_sha256": "d822369d05e94934defd18bb93e5e512c9db639fce482dd9f3f2e1e03b31c244"
         },
         {
           "class": "round_trip_test",
           "path": "crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs",
           "symbol": "document_profile_creation_preserves_canonical_bytes",
           "artifact_id": null,
-          "source_sha256": "ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7"
+          "source_sha256": "d822369d05e94934defd18bb93e5e512c9db639fce482dd9f3f2e1e03b31c244"
         }
       ]
     },
     {
       "requirement_id": "command:identity.did_ebsi.derive_identifier",
-      "requirement_sha256": "7c765edff9956d1db1a5bd1c20fb282762a9f7aed339c8b50a89f0ba61185914",
+      "requirement_sha256": "7c2df06b391def66a14eaa44834415ff870deb21cfe95f5214df7e733bef6371",
       "status": "implemented",
       "reason_code": null,
       "evidence": [
@@ -3224,34 +3224,34 @@
           "path": "crates/did/methods/ebsi/src/method.rs",
           "symbol": "generate_did_ebsi",
           "artifact_id": null,
-          "source_sha256": "626736072897f7392ab5a04092349174a1e5973926141adc4476143b9016110e"
+          "source_sha256": "2d5fd92a608ebcfad3151badcc4fbe510cc0c1945772ab8b1db2373b08745fbf"
         },
         {
           "class": "behavior_test",
           "path": "crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs",
           "symbol": "for published in [DID",
           "artifact_id": null,
-          "source_sha256": "ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7"
+          "source_sha256": "d822369d05e94934defd18bb93e5e512c9db639fce482dd9f3f2e1e03b31c244"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs",
           "symbol": "identifier_profile_rejects_noncanonical_personal_and_oversized_values",
           "artifact_id": null,
-          "source_sha256": "ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7"
+          "source_sha256": "d822369d05e94934defd18bb93e5e512c9db639fce482dd9f3f2e1e03b31c244"
         },
         {
           "class": "round_trip_test",
           "path": "crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs",
           "symbol": "identifier_profile_vectors_round_trip_byte_exact",
           "artifact_id": null,
-          "source_sha256": "ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7"
+          "source_sha256": "d822369d05e94934defd18bb93e5e512c9db639fce482dd9f3f2e1e03b31c244"
         }
       ]
     },
     {
       "requirement_id": "command:identity.did_ebsi.validate_document",
-      "requirement_sha256": "de50081cafa05f323d05e68563bf08c1da020c2d2b17d136ac03c7b4ad550757",
+      "requirement_sha256": "67a681bf62146e5bd2ca53564e9294a18476f980b7cb742886c2b7338bb50af5",
       "status": "implemented",
       "reason_code": null,
       "evidence": [
@@ -3260,28 +3260,28 @@
           "path": "crates/did/methods/ebsi/src/document.rs",
           "symbol": "parse_and_validate_did_ebsi_document",
           "artifact_id": null,
-          "source_sha256": "de8e03d9b07a3cd03c7f788e2d1fb3d3cf719019147a47e2eeb5fca0036f35b7"
+          "source_sha256": "37dc0e461c5a394d9941f35d087922db0d95787498ece7925a2dbf072de42e2f"
         },
         {
           "class": "behavior_test",
           "path": "crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs",
           "symbol": "document_profile_accepts_canonical_legal_entity_document",
           "artifact_id": null,
-          "source_sha256": "ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7"
+          "source_sha256": "d822369d05e94934defd18bb93e5e512c9db639fce482dd9f3f2e1e03b31c244"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs",
           "symbol": "document_profile_rejects_mismatch_private_dangling_and_limits",
           "artifact_id": null,
-          "source_sha256": "ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7"
+          "source_sha256": "d822369d05e94934defd18bb93e5e512c9db639fce482dd9f3f2e1e03b31c244"
         },
         {
           "class": "round_trip_test",
           "path": "crates/did/methods/ebsi/tests/did_ebsi_profile_tests.rs",
           "symbol": "document_profile_creation_preserves_canonical_bytes",
           "artifact_id": null,
-          "source_sha256": "ad2fc09381a81d020568ba11202d5fc1b71b169de47b7d35c4278c990463fbe7"
+          "source_sha256": "d822369d05e94934defd18bb93e5e512c9db639fce482dd9f3f2e1e03b31c244"
         }
       ]
     },
@@ -3378,7 +3378,7 @@
     },
     {
       "requirement_id": "command:identity.did_web.create_document",
-      "requirement_sha256": "7018db0047adcf67462fe873163debf0a73e5199290925667b7e5e748448ed86",
+      "requirement_sha256": "343c92041096e0a7c562c20a786c4a254a13c137777280ed0d97d01cb171a9ec",
       "status": "implemented",
       "reason_code": null,
       "evidence": [
@@ -3387,34 +3387,34 @@
           "path": "crates/did/methods/web/src/provider.rs",
           "symbol": "create_did_web_document",
           "artifact_id": null,
-          "source_sha256": "1b31cb2f2f72c58c73bc2bf3a1fc5abc15a78babed71406163ab132247fb42f9"
+          "source_sha256": "deb60b39854c55d001779fdd8d4f1525d460b2e61196ed7e3102f076c505fd0b"
         },
         {
           "class": "behavior_test",
-          "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
+          "path": "crates/did/methods/web/tests/did_web_profile_tests/provider_tests.rs",
           "symbol": "create_did_web_document(",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "d1ed788ff494061bb8d1fc6c93bea26734c87f3758bef7c44e5dfbe6ccf0a6fc"
         },
         {
           "class": "invalid_input_test",
-          "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
+          "path": "crates/did/methods/web/tests/did_web_profile_tests/provider_tests.rs",
           "symbol": "hosting_fails_closed_without_authenticated_provider",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "d1ed788ff494061bb8d1fc6c93bea26734c87f3758bef7c44e5dfbe6ccf0a6fc"
         },
         {
           "class": "round_trip_test",
-          "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
+          "path": "crates/did/methods/web/tests/did_web_profile_tests/provider_tests.rs",
           "symbol": "resolved.document.id(), created.document.id()",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "d1ed788ff494061bb8d1fc6c93bea26734c87f3758bef7c44e5dfbe6ccf0a6fc"
         }
       ]
     },
     {
       "requirement_id": "command:identity.did_web.deactivate_document",
-      "requirement_sha256": "a976f2cd6d9f3a1bd196d04d337ed062443978b3343de02aa178a9eaf89d521e",
+      "requirement_sha256": "ae8fa665a63df16e0623d06072780c3ff128c5e9a8f3474346d41b01fe58abd2",
       "status": "implemented",
       "reason_code": null,
       "evidence": [
@@ -3423,34 +3423,34 @@
           "path": "crates/did/methods/web/src/provider.rs",
           "symbol": "deactivate_did_web_document",
           "artifact_id": null,
-          "source_sha256": "1b31cb2f2f72c58c73bc2bf3a1fc5abc15a78babed71406163ab132247fb42f9"
+          "source_sha256": "deb60b39854c55d001779fdd8d4f1525d460b2e61196ed7e3102f076c505fd0b"
         },
         {
           "class": "behavior_test",
-          "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
+          "path": "crates/did/methods/web/tests/did_web_profile_tests/provider_tests.rs",
           "symbol": "deactivate_did_web_document(",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "d1ed788ff494061bb8d1fc6c93bea26734c87f3758bef7c44e5dfbe6ccf0a6fc"
         },
         {
           "class": "invalid_input_test",
-          "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
+          "path": "crates/did/methods/web/tests/did_web_profile_tests/provider_tests.rs",
           "symbol": "hosting_fails_closed_without_authenticated_provider",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "d1ed788ff494061bb8d1fc6c93bea26734c87f3758bef7c44e5dfbe6ccf0a6fc"
         },
         {
           "class": "round_trip_test",
-          "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
+          "path": "crates/did/methods/web/tests/did_web_profile_tests/provider_tests.rs",
           "symbol": "provider.calls.get(), 3",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "d1ed788ff494061bb8d1fc6c93bea26734c87f3758bef7c44e5dfbe6ccf0a6fc"
         }
       ]
     },
     {
       "requirement_id": "command:identity.did_web.derive_resolution_url",
-      "requirement_sha256": "cbddf4a4efb6d25d80494f37bd29da515a10056bb42fef5a1734d3e59eca1354",
+      "requirement_sha256": "463e9df170f96557cd18223ce58dc7344e20ac0ee12124460841524b0a2d7cd8",
       "status": "implemented",
       "reason_code": null,
       "evidence": [
@@ -3459,34 +3459,34 @@
           "path": "crates/did/methods/web/src/method.rs",
           "symbol": "did_web_document_url",
           "artifact_id": null,
-          "source_sha256": "97b42b3000de218069c47628f72f07d9e01f371a97dbc7960f7e9a2b56ef5199"
+          "source_sha256": "89b4312ba641cf947936ed0081bafd88dc73ff111db6aaad4d4d9db0147cfeb2"
         },
         {
           "class": "behavior_test",
           "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
           "symbol": "did_web_document_url(",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "b80771c77a2319b13202eff381bb4ae9e7f967a45bb30ee7b3bf4bc3a2e67bea"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
           "symbol": "DidWebErrorReason::InvalidPercentEncoding",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "b80771c77a2319b13202eff381bb4ae9e7f967a45bb30ee7b3bf4bc3a2e67bea"
         },
         {
           "class": "round_trip_test",
           "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
           "symbol": "canonicalize_did_web(",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "b80771c77a2319b13202eff381bb4ae9e7f967a45bb30ee7b3bf4bc3a2e67bea"
         }
       ]
     },
     {
       "requirement_id": "command:identity.did_web.resolve_document",
-      "requirement_sha256": "8c5db8ad1c6c42484b63a817bafe97aca50a26af43304719405808cf13e9dec2",
+      "requirement_sha256": "4d58742b47d3230ce0277349de3799073e78c46aec4b243147a8ea3dc3950d00",
       "status": "implemented",
       "reason_code": null,
       "evidence": [
@@ -3495,34 +3495,34 @@
           "path": "crates/did/methods/web/src/resolution.rs",
           "symbol": "resolve_did_web_document",
           "artifact_id": null,
-          "source_sha256": "ede1290a0e8f9edee04f828c1df81dcfe38a7a607c43e243d0c138228592daff"
+          "source_sha256": "07eddd809d714cd116e4aca28675789b1f925a51199b6cbec48bb5f6bca19379"
         },
         {
           "class": "behavior_test",
           "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
           "symbol": "resolver_pins_dns_and_validates_document_and_media_type",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "b80771c77a2319b13202eff381bb4ae9e7f967a45bb30ee7b3bf4bc3a2e67bea"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
           "symbol": "resolver_rejects_private_dns_rebinding_media_size_and_cancellation",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "b80771c77a2319b13202eff381bb4ae9e7f967a45bb30ee7b3bf4bc3a2e67bea"
         },
         {
           "class": "round_trip_test",
           "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
           "symbol": "resolver_rechecks_redirect_dns_and_rejects_http_redirects",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "b80771c77a2319b13202eff381bb4ae9e7f967a45bb30ee7b3bf4bc3a2e67bea"
         }
       ]
     },
     {
       "requirement_id": "command:identity.did_web.update_document",
-      "requirement_sha256": "f25e1aa9debe5fdcff4425bc1294f0d0c58a735c42d9797ad069c3af89741d89",
+      "requirement_sha256": "4b75214c86f5fb359455b09afc339c8ef8dc94108683db5f26556b78fa0a6390",
       "status": "implemented",
       "reason_code": null,
       "evidence": [
@@ -3531,34 +3531,34 @@
           "path": "crates/did/methods/web/src/provider.rs",
           "symbol": "update_did_web_document",
           "artifact_id": null,
-          "source_sha256": "1b31cb2f2f72c58c73bc2bf3a1fc5abc15a78babed71406163ab132247fb42f9"
+          "source_sha256": "deb60b39854c55d001779fdd8d4f1525d460b2e61196ed7e3102f076c505fd0b"
         },
         {
           "class": "behavior_test",
-          "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
+          "path": "crates/did/methods/web/tests/did_web_profile_tests/provider_tests.rs",
           "symbol": "update_did_web_document(",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "d1ed788ff494061bb8d1fc6c93bea26734c87f3758bef7c44e5dfbe6ccf0a6fc"
         },
         {
           "class": "invalid_input_test",
-          "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
+          "path": "crates/did/methods/web/tests/did_web_profile_tests/provider_tests.rs",
           "symbol": "hosting_fails_closed_without_authenticated_provider",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "d1ed788ff494061bb8d1fc6c93bea26734c87f3758bef7c44e5dfbe6ccf0a6fc"
         },
         {
           "class": "round_trip_test",
-          "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
+          "path": "crates/did/methods/web/tests/did_web_profile_tests/provider_tests.rs",
           "symbol": "DidWebHostingOperation::Update",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "d1ed788ff494061bb8d1fc6c93bea26734c87f3758bef7c44e5dfbe6ccf0a6fc"
         }
       ]
     },
     {
       "requirement_id": "command:identity.did_web.validate_document",
-      "requirement_sha256": "7144a537c069e267abd9838c803c84031038b0846ff55662b78396ab37502f59",
+      "requirement_sha256": "f457ecd4438e7ea84bf1058b7fde0f2d7e25e1af609c2299422addbbf14b9a4e",
       "status": "implemented",
       "reason_code": null,
       "evidence": [
@@ -3567,28 +3567,28 @@
           "path": "crates/did/methods/web/src/document.rs",
           "symbol": "parse_and_validate_did_web_document",
           "artifact_id": null,
-          "source_sha256": "7aba20282e0b8ee6041d9a6fb0e8c9bd2595a80394d1b3eb5b5dc9291620846b"
+          "source_sha256": "86b6920c97713349c3d8f0a47877d9eb7342b6aa446c39bac5733b4ab2a7e597"
         },
         {
           "class": "behavior_test",
           "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
           "symbol": "document_validation_accepts_absolute_canonical_relationships",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "b80771c77a2319b13202eff381bb4ae9e7f967a45bb30ee7b3bf4bc3a2e67bea"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
           "symbol": "document_validation_rejects_mismatch_relative_urls_and_dangling_relationships",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "b80771c77a2319b13202eff381bb4ae9e7f967a45bb30ee7b3bf4bc3a2e67bea"
         },
         {
           "class": "round_trip_test",
           "path": "crates/did/methods/web/tests/did_web_profile_tests.rs",
           "symbol": "did_url_dereferencing_selects_document_and_absolute_fragment",
           "artifact_id": null,
-          "source_sha256": "3bb61c589756c411e673433affc582278ce6b252c00154a7946b1dbaca629400"
+          "source_sha256": "b80771c77a2319b13202eff381bb4ae9e7f967a45bb30ee7b3bf4bc3a2e67bea"
         }
       ]
     },
@@ -3888,84 +3888,84 @@
     },
     {
       "requirement_id": "command:identity.mdoc.create_device_mac",
-      "requirement_sha256": "b170f3dcd8a12513dc1fdf34354af59c2bace3bf021a8049fa2f4f231bb5354a",
+      "requirement_sha256": "1ad6360073fbaf41e1f31842a5749580381fee476db8c30aad9fe14cff6044b2",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.create_device_response",
-      "requirement_sha256": "0bde6e55b853cc672b1a52568b723c5139df42c107aceb044430cccfde72bbb3",
+      "requirement_sha256": "7417ca8e2fb4d47a6cceab4a619da9bfea729d84600b68149405b9b859b02693",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.create_device_signature",
-      "requirement_sha256": "5476c72698c3302137d42e6cd961299e663336b308d28b931b0f58d3715961b0",
+      "requirement_sha256": "8709326dd3f684dce738a07a9e073ca4933c32a7223f5353a9b56eb03626bbfb",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.create_session_transcript",
-      "requirement_sha256": "e7bb2fd226df3d2fe30fb93ab4e12988cc1b9d9627ddef6114d1d57a9954d32a",
+      "requirement_sha256": "e5b42f2b1cbb91c9093b266da8b89d50c7032fd0a80f9dd04fc1bd0a2affa485",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.issue",
-      "requirement_sha256": "2c7748656951854fdc9bfaa9d8ab09abd7f2a0ba7fd1df01af7803dfb8eb85ea",
+      "requirement_sha256": "17835897953ba3c074c41bce7648cef70921a623ca54e7a4df4226ad4ea785b7",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.parse",
-      "requirement_sha256": "7bafb7c8c4a65ba63a29a67047219585b8917605b76d6198114aebd15639b280",
+      "requirement_sha256": "e925f48da4b3ef4e0ded7c6b085e40168402c55441c4569d5cadcc99068e0bea",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.select_data_elements",
-      "requirement_sha256": "961ce43ab314f183b31e2d4dd1bdbb23507476d3e964d40b5e45e254b71b83a2",
+      "requirement_sha256": "0f552237a08479374d38216951bd392cb36960b5ccb9cfd71b48889a9b157bb1",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.select_namespaces",
-      "requirement_sha256": "da7e397f47bb5c840825e4e14b57ca52cf855e6238e37d6fde379b66eb840a90",
+      "requirement_sha256": "7d4681a9f9aea554ce198b9c8a990053ae17e057c7d59df233de12c91c7d939b",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.verify",
-      "requirement_sha256": "59e83dd42b87bb563b1fc104248da260f2d9b2aa708a17fe2ff96ebd82f50d56",
+      "requirement_sha256": "dce9857090c04d2b150fdf390b004e8074cc2cc47f55e91cfcea2a6db42f796b",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.verify_device_mac",
-      "requirement_sha256": "daadcacfbd2a0bcdddf4e0152c05612f235ed5ec0bc36fc3222342d061a8ad1a",
+      "requirement_sha256": "7205dad78eb279ece0f1a8aadc8e0099352e353fbaba84e049896f37c552e9d3",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.verify_device_response",
-      "requirement_sha256": "8379612a0163fe10a608fcffb5c352190c1deaebc0e402bc25689b628aba527b",
+      "requirement_sha256": "b0945e5f75009d6cf1b7e7d9a01190e2f18c98028bc71a9412c20633e6f4d46b",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "command:identity.mdoc.verify_device_signature",
-      "requirement_sha256": "6f4427a0231f147b7ac91d0f60a99f8204b49ea18b4c9eeea7a76215c0c74243",
+      "requirement_sha256": "2f14d5437c7a8279170012cce5ec98b7239fceaf5e507dbc3aeb44c0466bb22a",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
@@ -4730,21 +4730,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub document: Option<DIDDocument>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "complete_resolution_metadata_crosses_the_validation_boundary",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/parse_dereference_resolve_tests.rs",
           "symbol": "validate_resolution_result_rejects_absent_with_document",
           "artifact_id": null,
-          "source_sha256": "eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f"
+          "source_sha256": "7474a40ef802486c231c10787be2deafc4755e5cd657bf00373f7163285c911b"
         }
       ]
     },
@@ -4759,21 +4759,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub created: Option<String>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "created: Some(CREATED.into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": ".created = Some(\"not-a-timestamp\".into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -4788,21 +4788,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub deactivated: bool",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/parse_dereference_resolve_tests.rs",
           "symbol": "validate_resolution_result_accepts_deactivation_document",
           "artifact_id": null,
-          "source_sha256": "eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f"
+          "source_sha256": "7474a40ef802486c231c10787be2deafc4755e5cd657bf00373f7163285c911b"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": ".deactivated = true",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -4817,21 +4817,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub next_version_id: Option<String>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "next_version_id: Some(\"next-version\".into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": ".next_version_id = Some(String::new())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -4846,21 +4846,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub updated: Option<String>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "updated: Some(UPDATED.into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": ".updated = Some(\"not-a-timestamp\".into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -4875,21 +4875,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub version_id: Option<String>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "version_id: Some(doc.current_core.clone())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": ".version_id = Some(String::new())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -4904,21 +4904,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub assurance_achieved: Option<DidResolutionAssurance>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "assurance_achieved: Some(DidResolutionAssurance::ChainVerified)",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "Some(DidResolutionAssurance::AttestationVerified)",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -4933,21 +4933,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub content_type: Option<String>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "content_type: Some(\"application/did+json\".into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "content_type = Some(\"text/plain\".into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -4962,21 +4962,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub deactivation_status: DidDeactivationStatus",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/parse_dereference_resolve_tests.rs",
           "symbol": "validate_resolution_result_accepts_deactivation_document",
           "artifact_id": null,
-          "source_sha256": "eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f"
+          "source_sha256": "7474a40ef802486c231c10787be2deafc4755e5cd657bf00373f7163285c911b"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/parse_dereference_resolve_tests.rs",
           "symbol": "validate_resolution_result_rejects_absent_with_document",
           "artifact_id": null,
-          "source_sha256": "eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f"
+          "source_sha256": "7474a40ef802486c231c10787be2deafc4755e5cd657bf00373f7163285c911b"
         }
       ]
     },
@@ -4991,21 +4991,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub error: Option<DidResolutionErrorCode>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/parse_dereference_resolve_tests.rs",
           "symbol": "validate_resolution_result_requires_typed_not_found_for_absent_result",
           "artifact_id": null,
-          "source_sha256": "eef980843bf4c2d947e0c4175239e1e2247af70e641bb74116f401ffea2de80f"
+          "source_sha256": "7474a40ef802486c231c10787be2deafc4755e5cd657bf00373f7163285c911b"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "error = Some(DidResolutionErrorCode::ResolverFailure)",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -5020,21 +5020,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub resolver: Option<String>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "resolver: Some(\"did-me-history\".into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "resolver = Some(String::new())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -5049,21 +5049,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub retrieved_at: Option<String>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "retrieved_at: Some(RETRIEVED.into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "retrieved_at = Some(\"not-a-timestamp\".into())",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -5078,21 +5078,21 @@
           "path": "crates/did/core/api/src/resolve/section_01.rs",
           "symbol": "pub sequence: Option<u64>",
           "artifact_id": null,
-          "source_sha256": "5d80d2fd7de55a4de8c21c032a767670c527dbfc5049da506ed5e2ba8872e704"
+          "source_sha256": "808a73c6093027ac222f5347d25863a5b3ca4c0fddd24a9a15ab6e519f1b55a0"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "sequence: Some(doc.sequence)",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/did/core/api/tests/resolution_metadata_tests.rs",
           "symbol": "checked_add(1)",
           "artifact_id": null,
-          "source_sha256": "b66119f36ecd76d8fab5b80af9425918f136c4291272ca5f5ecddcf2ea8fb687"
+          "source_sha256": "e0a3daa7f2936ffe484413d27b4510021b516ecfd90ce52b8ba635d34981f02e"
         }
       ]
     },
@@ -5755,6 +5755,13 @@
       "evidence": []
     },
     {
+      "requirement_id": "type-rule:types.TrustDecision.ssi_contract.purpose_policy_enforcement",
+      "requirement_sha256": "0bdcbdab344f1a8a746bec1816df6b2caf26745b6f2733cd7647054548f328ee",
+      "status": "planned",
+      "reason_code": "implementation_planned",
+      "evidence": []
+    },
+    {
       "requirement_id": "type-rule:types.TrustDecision.ssi_contract.required_input",
       "requirement_sha256": "a79d1e039ab9566696880382278e7de0bf48307cd0239f0dbe555281263df828",
       "status": "planned",
@@ -5777,14 +5784,14 @@
     },
     {
       "requirement_id": "type-rule:types.TrustDecision.ssi_contract.trusted_list_pointer_policy",
-      "requirement_sha256": "de03d6b00f94ce6f49ec3c75656a9ed5ee0ef7fb1969dd94e553838fd7dd62d6",
+      "requirement_sha256": "078ec303f69115bcee6fd67b44be419d14f1992b85a3d5fd468b0277fdbd7b35",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
     },
     {
       "requirement_id": "type-rule:types.TrustDecision.ssi_contract.wire_error_policy.distinct",
-      "requirement_sha256": "98e34e4e4c9e707b51e8ad810943f5a738747ea8bfd1cd170976c54ff7260776",
+      "requirement_sha256": "00b5cb4ba10047b29b638884563d77c7834198aca89722991ed3032a211d2e2c",
       "status": "planned",
       "reason_code": "implementation_planned",
       "evidence": []
@@ -6220,21 +6227,21 @@
           "path": "crates/audit/src/provenance.rs",
           "symbol": "versions.did_web",
           "artifact_id": null,
-          "source_sha256": "cb86da26c193d86b02d95dd457dca9eee2bc1b367b12651f5b4d84d85f8ff650"
+          "source_sha256": "3c817947629a05e380c28271f846d07c2c0778c38854c8105869af68c05f6649"
         },
         {
           "class": "boundary_validation_test",
           "path": "crates/audit/tests/verification_provenance_tests.rs",
           "symbol": "did_web_standard_version_is_required_at_the_provenance_boundary",
           "artifact_id": null,
-          "source_sha256": "bdfcabe50c1191257f9f2368ddf1b7434958bd1561e962e7154a09a16553f5bf"
+          "source_sha256": "0310e5799f1958597cce0afcc79571d7643c60aa44308436f69e7b33e271d878"
         },
         {
           "class": "invalid_input_test",
           "path": "crates/audit/tests/verification_provenance_tests.rs",
           "symbol": "did_web_standard_version_rejects_oversized_untrusted_input",
           "artifact_id": null,
-          "source_sha256": "bdfcabe50c1191257f9f2368ddf1b7434958bd1561e962e7154a09a16553f5bf"
+          "source_sha256": "0310e5799f1958597cce0afcc79571d7643c60aa44308436f69e7b33e271d878"
         }
       ]
     },
