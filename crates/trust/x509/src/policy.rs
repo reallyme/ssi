@@ -48,6 +48,12 @@ pub struct X509Policy {
     /// Reject a self-issued leaf where the profile requires CA issuance.
     pub require_leaf_not_self_issued: bool,
 
+    /// Require a strictly positive RFC 5280 certificate serial number.
+    pub require_positive_leaf_serial: bool,
+
+    /// Apply a profile-wide rule to every extension present on the leaf.
+    pub leaf_extension_criticality_requirement: LeafExtensionCriticalityRequirement,
+
     /// Certificate-policy identifiers of which the leaf must contain at least one.
     pub required_policy_any_of: Vec<CertificatePolicyId>,
 
@@ -138,6 +144,17 @@ pub enum ExtensionCriticality {
     Critical,
     /// The extension must be non-critical.
     NonCritical,
+}
+
+/// Profile-wide criticality rule for extensions present on an end entity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LeafExtensionCriticalityRequirement {
+    /// Apply only the individual requirements in `required_leaf_extensions`.
+    None,
+    /// EUDI end-entity rule: `basicConstraints` and `keyUsage` may use either
+    /// criticality; every other extension present must be non-critical.
+    EudiEndEntity,
 }
 
 /// Required extension identity and criticality.
@@ -293,6 +310,8 @@ impl Default for X509Policy {
             leaf_subject_name_requirement: DistinguishedNameRequirement::None,
             leaf_issuer_name_requirement: DistinguishedNameRequirement::None,
             require_leaf_not_self_issued: false,
+            require_positive_leaf_serial: false,
+            leaf_extension_criticality_requirement: LeafExtensionCriticalityRequirement::None,
 
             required_policy_any_of: Vec::new(),
             required_qc_statement_ids: Vec::new(),

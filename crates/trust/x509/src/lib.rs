@@ -62,9 +62,10 @@ pub use parse::{parse_cert_der, parse_cert_pem, parse_chain_pem};
 pub use policy::{
     screen_chain_policy_only_no_path_validation, AuthorityInformationAccessRequirement,
     DistinguishedNameRequirement, EtsiAlgorithmPolicy, ExtensionCriticality,
-    KnownCertificateExtension, LeafKeyIdentifierRequirement, LeafKeyUsageRequirement,
-    LeafNameRequirement, QscdStatementRequirement, RequiredCertificateExtension,
-    RevocationPointerRequirement, TrustAnchorRequirement, WrpacProfileRequirement, X509Policy,
+    KnownCertificateExtension, LeafExtensionCriticalityRequirement, LeafKeyIdentifierRequirement,
+    LeafKeyUsageRequirement, LeafNameRequirement, QscdStatementRequirement,
+    RequiredCertificateExtension, RevocationPointerRequirement, TrustAnchorRequirement,
+    WrpacProfileRequirement, X509Policy,
 };
 pub use presets::{
     eu_policy, eudi_policy, tsl_signer_policy, EuPreset, EudiCertificateProfile,

@@ -43,7 +43,7 @@
     "feature": "wrpac_profile_and_standardized_holder_association_projection",
     "implementation": ["crates/eudi/rp-registration/src/wrpac.rs", "crates/trust/x509/src/presets.rs"],
     "positive_tests": ["wrpac_preset_binds_natural_and_legal_policy_families_to_subject_and_qc", "wrpac_association_projects_standard_holder_and_exact_local_bindings"],
-    "negative_tests": ["wrpac_preset_rejects_ambiguous_policy_subject_qc_and_no_rev_avail", "wrpac_association_rejects_substituted_holder"],
+    "negative_tests": ["wrpac_preset_rejects_missing_policy_qc_and_forbidden_extensions", "wrpac_association_rejects_substituted_holder"],
     "applicable": true,
     "exclusion_reason": null
   },

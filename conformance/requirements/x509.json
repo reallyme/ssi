@@ -187,7 +187,7 @@
     "feature": "wallet_relying_party_access_certificate_policy_v1_1_1",
     "implementation": ["crates/trust/x509/src/policy.rs", "crates/trust/x509/src/presets.rs"],
     "positive_tests": ["wrpac_preset_binds_natural_and_legal_policy_families_to_subject_and_qc"],
-    "negative_tests": ["wrpac_preset_rejects_ambiguous_policy_subject_qc_and_no_rev_avail", "ca_issuers_aia_alone_does_not_satisfy_revocation_pointer_policy"],
+    "negative_tests": ["wrpac_preset_rejects_missing_policy_qc_and_forbidden_extensions", "ca_issuers_aia_alone_does_not_satisfy_revocation_pointer_policy"],
     "applicable": true,
     "exclusion_reason": null
   }

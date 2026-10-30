@@ -114,6 +114,17 @@ fn legal_person_name() -> DistinguishedName {
     ])
 }
 
+fn natural_and_legal_person_name() -> DistinguishedName {
+    name(&[
+        (NameAttributeKind::CountryName, "MT"),
+        (NameAttributeKind::GivenName, "A"),
+        (NameAttributeKind::Surname, "B"),
+        (NameAttributeKind::OrganizationName, "Example"),
+        (NameAttributeKind::OrganizationIdentifier, "VATMT-1"),
+        (NameAttributeKind::CommonName, "A B Example"),
+    ])
+}
+
 fn issuing_authority_name() -> DistinguishedName {
     name(&[
         (NameAttributeKind::CountryName, "MT"),
@@ -185,12 +196,11 @@ fn wrpac_leaf(policy: CertificatePolicyId) -> X509Certificate {
         policy,
         CertificatePolicyId::WrpacQcpNatural | CertificatePolicyId::WrpacQcpLegal
     ) {
-        leaf.profile.qc_statement_ids = vec![QcStatementId::Compliance, QcStatementId::Type];
-        leaf.profile.qc_types = vec![if policy == CertificatePolicyId::WrpacQcpNatural {
-            QcType::ElectronicSignature
-        } else {
-            QcType::ElectronicSeal
-        }];
+        leaf.profile.qc_statement_ids = vec![QcStatementId::Compliance, QcStatementId::QcSscd];
+        if policy == CertificatePolicyId::WrpacQcpLegal {
+            leaf.profile.qc_statement_ids.push(QcStatementId::Type);
+            leaf.profile.qc_types = vec![QcType::ElectronicSeal];
+        }
     }
     leaf
 }
@@ -727,74 +737,6 @@ fn wrpac_preset_binds_natural_and_legal_policy_families_to_subject_and_qc() {
     }
 }
 
-#[test]
-fn wrpac_preset_rejects_ambiguous_policy_subject_qc_and_no_rev_avail() {
-    let now = OffsetDateTime::UNIX_EPOCH + time::Duration::days(10);
-    let policy = eudi_policy(EudiCertificateProfile::WrpacLeafV1);
-
-    let mut ambiguous = wrpac_leaf(CertificatePolicyId::WrpacNcpNatural);
-    ambiguous
-        .profile
-        .certificate_policies
-        .push(CertificatePolicyId::WrpacNcpLegal);
-    assert_eq!(
-        screen_chain_policy_only_no_path_validation(
-            &X509Chain {
-                certs: vec![ambiguous, provider_anchor()]
-            },
-            now,
-            &policy,
-        ),
-        Err(X509Error::PolicyFailed(
-            X509PolicyFailure::WrpacPolicyAmbiguous
-        ))
-    );
-
-    let mut wrong_subject = wrpac_leaf(CertificatePolicyId::WrpacNcpNatural);
-    wrong_subject.profile.subject = legal_person_name();
-    assert_eq!(
-        screen_chain_policy_only_no_path_validation(
-            &X509Chain {
-                certs: vec![wrong_subject, provider_anchor()]
-            },
-            now,
-            &policy,
-        ),
-        Err(X509Error::PolicyFailed(
-            X509PolicyFailure::LeafSubjectNameProfile
-        ))
-    );
-
-    let mut wrong_qc = wrpac_leaf(CertificatePolicyId::WrpacQcpLegal);
-    wrong_qc.profile.qc_types = vec![QcType::ElectronicSignature];
-    assert_eq!(
-        screen_chain_policy_only_no_path_validation(
-            &X509Chain {
-                certs: vec![wrong_qc, provider_anchor()]
-            },
-            now,
-            &policy,
-        ),
-        Err(X509Error::PolicyFailed(
-            X509PolicyFailure::WrpacQcStatements
-        ))
-    );
-
-    let mut no_rev_avail = wrpac_leaf(CertificatePolicyId::WrpacNcpLegal);
-    no_rev_avail.profile.no_rev_avail = true;
-    assert_eq!(
-        screen_chain_policy_only_no_path_validation(
-            &X509Chain {
-                certs: vec![no_rev_avail, provider_anchor()]
-            },
-            now,
-            &policy,
-        ),
-        Err(X509Error::PolicyFailed(
-            X509PolicyFailure::LeafForbiddenNoRevAvail
-        ))
-    );
-}
-
+include!("policy_eval/eudi_profile_tests.rs");
 include!("policy_eval/anchor_tests.rs");
 include!("policy_eval/algorithm_tests.rs");
