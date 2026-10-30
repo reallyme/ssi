@@ -64,6 +64,7 @@ pub struct SdJwtVcPresentation {
 /// must authenticate the proof package and bind its verified profile to this
 /// variant before using any disclosures or status facts.
 #[derive(PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ZkPresentation {
     /// Claim from one issuer credential.
     Credential(ZkCredentialPresentation),
@@ -75,6 +76,7 @@ pub enum ZkPresentation {
 
 /// Whether persona ownership is kept private or intentionally exposed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ZkPersonaMode {
     /// Persona ownership remains hidden in the proof.
     Private,
@@ -85,6 +87,7 @@ pub enum ZkPersonaMode {
 /// Whether a presentation proof is bound directly to the active request or
 /// prepared earlier and authenticated with a fresh holder signature.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ZkPresentationProofMode {
     /// Circuit proof directly binds the active verifier request.
     RequestBoundProof,
@@ -155,6 +158,7 @@ pub struct ZkPersonaPresentation {
 
 /// Mutually exclusive proof and freshness mechanisms for one persona claim.
 #[derive(PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ZkPersonaEvidence {
     /// Opaque proof package whose public inputs bind the active request.
     RequestBound {
