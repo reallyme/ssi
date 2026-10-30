@@ -63,3 +63,58 @@ fn rejects_malformed_qcstatements_der() {
 
     assert_eq!(err, reallyme_trust_x509::X509Error::ParseError);
 }
+
+#[test]
+fn rejects_non_oid_statement_identifier() {
+    let der = [0x30, 0x05, 0x30, 0x03, 0x02, 0x01, 0x01];
+    assert_eq!(
+        parse_qc_statements(&der),
+        Err(reallyme_trust_x509::X509Error::ParseError)
+    );
+}
+
+#[test]
+fn rejects_qctype_without_exactly_one_inner_oid() {
+    const QC_TYPE_OID_CONTENT: &[u8] = &[0x04, 0x00, 0x8e, 0x46, 0x01, 0x06];
+    const QC_TYPE_WEB_OID_CONTENT: &[u8] = &[0x04, 0x00, 0x8e, 0x46, 0x01, 0x06, 0x03];
+
+    let web_oid = der_oid(QC_TYPE_WEB_OID_CONTENT);
+    let mut two_web_oids = web_oid.clone();
+    two_web_oids.extend_from_slice(&web_oid);
+    let mut oid_with_trailing_null = web_oid;
+    oid_with_trailing_null.extend_from_slice(&[0x05, 0x00]);
+
+    for malformed_info in [
+        None,
+        Some(Vec::new()),
+        Some(two_web_oids),
+        Some(oid_with_trailing_null),
+        Some(vec![0x02, 0x01, 0x01]),
+    ] {
+        let statement = qc_type_statement(QC_TYPE_OID_CONTENT, malformed_info.as_deref());
+        assert_eq!(
+            parse_qc_statements(&statement),
+            Err(reallyme_trust_x509::X509Error::ParseError)
+        );
+    }
+}
+
+fn qc_type_statement(statement_oid: &[u8], statement_info: Option<&[u8]>) -> Vec<u8> {
+    let mut content = der_oid(statement_oid);
+    if let Some(statement_info) = statement_info {
+        content.extend_from_slice(&der_sequence(statement_info));
+    }
+    der_sequence(&der_sequence(&content))
+}
+
+fn der_oid(content: &[u8]) -> Vec<u8> {
+    let mut encoded = vec![0x06, u8::try_from(content.len()).unwrap()];
+    encoded.extend_from_slice(content);
+    encoded
+}
+
+fn der_sequence(content: &[u8]) -> Vec<u8> {
+    let mut encoded = vec![0x30, u8::try_from(content.len()).unwrap()];
+    encoded.extend_from_slice(content);
+    encoded
+}

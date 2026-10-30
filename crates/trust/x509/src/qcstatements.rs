@@ -4,7 +4,7 @@
 
 use crate::{model::QcStatements, X509Error};
 
-use asn1_rs::{Any, FromDer, Sequence};
+use asn1_rs::{Any, Class, FromDer, Sequence, Tag};
 use oid_registry::Oid;
 
 /// X.509 extension identifier for ETSI QCStatements.
@@ -46,27 +46,37 @@ pub fn parse_qc_statements(der: &[u8]) -> Result<QcStatements, X509Error> {
         // statementId
         let (r2, oid_any) = Any::from_der(inner).map_err(|_| X509Error::ParseError)?;
         inner = r2;
+        if oid_any.class() != Class::Universal || oid_any.tag() != Tag::Oid {
+            return Err(X509Error::ParseError);
+        }
 
         let oid: Oid = oid_any.try_into().map_err(|_| X509Error::ParseError)?;
         let oid_str = oid.to_string();
         statement_ids.push(oid_str.clone());
 
-        // statementInfo (only qcType has structured info)
-        if oid_str == OID_ETSI_QCS_QC_TYPE && !inner.is_empty() {
+        // QcType is defined as one non-empty SEQUENCE containing exactly one
+        // object identifier. Accepting a partial or multi-valued projection
+        // would let malformed certificate input acquire usable policy facts.
+        if oid_str == OID_ETSI_QCS_QC_TYPE {
+            if inner.is_empty() {
+                return Err(X509Error::ParseError);
+            }
             let (statement_remaining, info_seq) =
                 Sequence::from_der(inner).map_err(|_| X509Error::ParseError)?;
             if !statement_remaining.is_empty() {
                 return Err(X509Error::ParseError);
             }
 
-            let mut type_remaining = info_seq.content.as_ref();
-            while !type_remaining.is_empty() {
-                let (remaining, qct_any) =
-                    Any::from_der(type_remaining).map_err(|_| X509Error::ParseError)?;
-                let qct_oid: Oid = qct_any.try_into().map_err(|_| X509Error::ParseError)?;
-                qc_types.push(qct_oid.to_string());
-                type_remaining = remaining;
+            let (type_remaining, qct_any) =
+                Any::from_der(info_seq.content.as_ref()).map_err(|_| X509Error::ParseError)?;
+            if !type_remaining.is_empty() {
+                return Err(X509Error::ParseError);
             }
+            if qct_any.class() != Class::Universal || qct_any.tag() != Tag::Oid {
+                return Err(X509Error::ParseError);
+            }
+            let qct_oid: Oid = qct_any.try_into().map_err(|_| X509Error::ParseError)?;
+            qc_types.push(qct_oid.to_string());
         } else if !inner.is_empty() {
             // Preserve the statement identifier while requiring its optional
             // statementInfo to be one complete DER value.

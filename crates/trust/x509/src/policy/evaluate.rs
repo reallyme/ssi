@@ -27,6 +27,7 @@ pub fn screen_chain_policy_only_no_path_validation(
     if policy.require_v3 && leaf.profile.version != CertificateVersion::V3 {
         return Err(X509Error::PolicyFailed(X509PolicyFailure::LeafMustBeV3));
     }
+    validate_leaf_serial_and_criticality(leaf, policy)?;
     if policy.reject_unknown_critical_extensions
         && chain.certs.iter().any(|certificate| {
             certificate.profile.extensions.iter().any(|extension| {
@@ -59,7 +60,6 @@ pub fn screen_chain_policy_only_no_path_validation(
             ));
         }
     }
-
     // ------------------------------------------------------------
     // Time validity (all certs in presented chain)
     // ------------------------------------------------------------

@@ -2,6 +2,33 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+fn validate_leaf_serial_and_criticality(
+    leaf: &crate::X509Certificate,
+    policy: &X509Policy,
+) -> Result<(), X509Error> {
+    if policy.require_positive_leaf_serial
+        && (leaf.serial.is_empty() || leaf.serial.iter().all(|byte| *byte == 0))
+    {
+        return Err(X509Error::InvalidSerialNumber);
+    }
+    if policy.leaf_extension_criticality_requirement
+        == LeafExtensionCriticalityRequirement::EudiEndEntity
+        && leaf.profile.extensions.iter().any(|extension| {
+            extension.critical
+                && !matches!(
+                    &extension.kind,
+                    CertificateExtensionKind::BasicConstraints
+                        | CertificateExtensionKind::KeyUsage
+                )
+        })
+    {
+        return Err(X509Error::PolicyFailed(
+            X509PolicyFailure::ExtensionCriticality,
+        ));
+    }
+    Ok(())
+}
+
 fn absolute_uri_syntax(value: &str) -> bool {
     let Some((scheme, remainder)) = value.split_once(':') else {
         return false;
@@ -197,60 +224,61 @@ fn legal_person_issuer_name_matches(name: &DistinguishedName) -> bool {
 }
 
 fn validate_wrpac_profile(leaf: &crate::X509Certificate) -> Result<(), X509Error> {
-    let wrpac_policies = leaf
-        .profile
-        .certificate_policies
-        .iter()
-        .filter(|policy| {
-            matches!(
-                policy,
-                CertificatePolicyId::WrpacNcpNatural
-                    | CertificatePolicyId::WrpacNcpLegal
-                    | CertificatePolicyId::WrpacQcpNatural
-                    | CertificatePolicyId::WrpacQcpLegal
-            )
-        })
-        .collect::<Vec<_>>();
-    let [wrpac_policy] = wrpac_policies.as_slice() else {
+    const OID_ETSI_VALIDITY_ASSURED_SHORT_TERM: &str = "0.4.0.194121.2.1";
+
+    if leaf.profile.extensions.iter().any(|extension| {
+        matches!(
+            &extension.kind,
+            CertificateExtensionKind::Other(oid)
+                if oid.as_str() == OID_ETSI_VALIDITY_ASSURED_SHORT_TERM
+        )
+    }) {
+        return Err(X509Error::PolicyFailed(
+            X509PolicyFailure::WrpacValidityAssuredShortTerm,
+        ));
+    }
+
+    let has_policy = |expected: &CertificatePolicyId| {
+        leaf.profile
+            .certificate_policies
+            .iter()
+            .any(|policy| policy == expected)
+    };
+    let has_ncp_natural = has_policy(&CertificatePolicyId::WrpacNcpNatural);
+    let has_ncp_legal = has_policy(&CertificatePolicyId::WrpacNcpLegal);
+    let has_qcp_natural = has_policy(&CertificatePolicyId::WrpacQcpNatural);
+    let has_qcp_legal = has_policy(&CertificatePolicyId::WrpacQcpLegal);
+    if !(has_ncp_natural || has_ncp_legal || has_qcp_natural || has_qcp_legal) {
         return Err(X509Error::PolicyFailed(
             X509PolicyFailure::WrpacPolicyAmbiguous,
         ));
-    };
+    }
 
-    let subject_matches = match wrpac_policy {
-        CertificatePolicyId::WrpacNcpNatural | CertificatePolicyId::WrpacQcpNatural => {
-            natural_person_name_matches(&leaf.profile.subject, false)
-        }
-        CertificatePolicyId::WrpacNcpLegal | CertificatePolicyId::WrpacQcpLegal => {
-            legal_person_name_matches(&leaf.profile.subject)
-        }
-        _ => false,
-    };
-    if !subject_matches {
+    let requires_natural_subject = has_ncp_natural || has_qcp_natural;
+    let requires_legal_subject = has_ncp_legal || has_qcp_legal;
+    if (requires_natural_subject && !natural_person_name_matches(&leaf.profile.subject, false))
+        || (requires_legal_subject && !legal_person_name_matches(&leaf.profile.subject))
+    {
         return Err(X509Error::PolicyFailed(
             X509PolicyFailure::LeafSubjectNameProfile,
         ));
     }
 
-    let qc_matches = match wrpac_policy {
-        CertificatePolicyId::WrpacNcpNatural | CertificatePolicyId::WrpacNcpLegal => true,
-        CertificatePolicyId::WrpacQcpNatural => {
-            leaf.profile
-                .qc_statement_ids
-                .contains(&QcStatementId::Compliance)
-                && leaf.profile.qc_statement_ids.contains(&QcStatementId::Type)
-                && leaf.profile.qc_types.contains(&QcType::ElectronicSignature)
-        }
-        CertificatePolicyId::WrpacQcpLegal => {
-            leaf.profile
-                .qc_statement_ids
-                .contains(&QcStatementId::Compliance)
-                && leaf.profile.qc_statement_ids.contains(&QcStatementId::Type)
-                && leaf.profile.qc_types.contains(&QcType::ElectronicSeal)
-        }
-        _ => false,
+    let has_qc_statement = |expected: &QcStatementId| {
+        leaf.profile
+            .qc_statement_ids
+            .iter()
+            .any(|statement| statement == expected)
     };
-    if !qc_matches {
+    let has_compliance = has_qc_statement(&QcStatementId::Compliance);
+    let has_qc_sscd = has_qc_statement(&QcStatementId::QcSscd);
+    let qcp_natural_matches = !has_qcp_natural || (has_compliance && has_qc_sscd);
+    let qcp_legal_matches = !has_qcp_legal
+        || (has_compliance
+            && has_qc_sscd
+            && has_qc_statement(&QcStatementId::Type)
+            && leaf.profile.qc_types.contains(&QcType::ElectronicSeal));
+    if !qcp_natural_matches || !qcp_legal_matches {
         return Err(X509Error::PolicyFailed(
             X509PolicyFailure::WrpacQcStatements,
         ));

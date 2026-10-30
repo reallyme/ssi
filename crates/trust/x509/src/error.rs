@@ -176,6 +176,9 @@ pub enum X509PolicyFailure {
     /// WRPAC qualified-certificate statements do not match its policy family.
     #[error("WRPAC qualified-certificate statements do not match its policy family")]
     WrpacQcStatements,
+    /// WRPAC carries the ETSI validity-assured short-term extension.
+    #[error("WRPAC must not be a validity-assured short-term certificate")]
+    WrpacValidityAssuredShortTerm,
     /// Trust anchor is missing basic constraints.
     #[error("trust anchor is missing basic constraints")]
     TrustAnchorMissingBasicConstraints,

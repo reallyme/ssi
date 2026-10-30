@@ -131,6 +131,9 @@ impl From<X509PolicyFailure> for IdentityCoreErrorReason {
             X509PolicyFailure::WrpacQcStatements => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_WRPAC_QC_STATEMENTS
             }
+            X509PolicyFailure::WrpacValidityAssuredShortTerm => {
+                IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_WRPAC_VALIDITY_ASSURED_SHORT_TERM
+            }
             X509PolicyFailure::TrustAnchorMissingBasicConstraints => {
                 IdentityCoreErrorReason::IDENTITY_CORE_ERROR_REASON_X509_POLICY_TRUST_ANCHOR_MISSING_BASIC_CONSTRAINTS
             }

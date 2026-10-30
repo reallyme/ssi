@@ -5,10 +5,10 @@
 use crate::{
     AuthorityInformationAccessRequirement, CertificatePolicyId, DistinguishedNameRequirement,
     EtsiAlgorithmPolicy, ExtendedKeyUsagePurpose, ExtensionCriticality, KnownCertificateExtension,
-    LeafKeyIdentifierRequirement, LeafKeyUsageRequirement, LeafNameRequirement, PublicKeyAlgorithm,
-    QcStatementId, QcType, QscdStatementRequirement, RequiredCertificateExtension,
-    RevocationPointerRequirement, SignatureAlgorithm, TrustAnchorRequirement,
-    WrpacProfileRequirement, X509Policy,
+    LeafExtensionCriticalityRequirement, LeafKeyIdentifierRequirement, LeafKeyUsageRequirement,
+    LeafNameRequirement, PublicKeyAlgorithm, QcStatementId, QcType, QscdStatementRequirement,
+    RequiredCertificateExtension, RevocationPointerRequirement, SignatureAlgorithm,
+    TrustAnchorRequirement, WrpacProfileRequirement, X509Policy,
 };
 
 /// ETSI EN 319 411-2 QCP-n policy identifier.
@@ -195,11 +195,11 @@ pub fn eudi_policy(profile: EudiCertificateProfile) -> X509Policy {
                 ),
                 required_extension(
                     KnownCertificateExtension::CertificatePolicies,
-                    ExtensionCriticality::Either,
+                    ExtensionCriticality::NonCritical,
                 ),
                 required_extension(
                     KnownCertificateExtension::SubjectAlternativeName,
-                    ExtensionCriticality::Either,
+                    ExtensionCriticality::NonCritical,
                 ),
                 required_extension(
                     KnownCertificateExtension::AuthorityInformationAccess,
@@ -207,6 +207,9 @@ pub fn eudi_policy(profile: EudiCertificateProfile) -> X509Policy {
                 ),
             ],
             leaf_key_usage_requirement: LeafKeyUsageRequirement::WrpacTypeAbf,
+            require_positive_leaf_serial: true,
+            leaf_extension_criticality_requirement:
+                LeafExtensionCriticalityRequirement::EudiEndEntity,
             leaf_issuer_name_requirement: DistinguishedNameRequirement::IssuingAuthority,
             require_leaf_not_self_issued: true,
             allowed_public_key_algorithms: approved_public_key_algorithms(),
@@ -255,7 +258,7 @@ fn pid_or_wallet_policy(required_qc_type: QcType) -> X509Policy {
             ),
             required_extension(
                 KnownCertificateExtension::CertificatePolicies,
-                ExtensionCriticality::Either,
+                ExtensionCriticality::NonCritical,
             ),
             required_extension(
                 KnownCertificateExtension::QcStatements,
@@ -263,6 +266,8 @@ fn pid_or_wallet_policy(required_qc_type: QcType) -> X509Policy {
             ),
         ],
         leaf_key_usage_requirement: LeafKeyUsageRequirement::PidOrWalletTypeAbcf,
+        require_positive_leaf_serial: true,
+        leaf_extension_criticality_requirement: LeafExtensionCriticalityRequirement::EudiEndEntity,
         leaf_subject_name_requirement: DistinguishedNameRequirement::NaturalOrLegalPerson,
         leaf_issuer_name_requirement: DistinguishedNameRequirement::IssuingAuthorityOrSelfIssued,
         required_qc_statement_ids: vec![QcStatementId::Type],
