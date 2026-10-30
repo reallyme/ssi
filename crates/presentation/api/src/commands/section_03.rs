@@ -35,20 +35,47 @@ fn validate_presentation_shape(
 ) -> Result<(), VpApiError> {
     match presentation {
         Presentation::Zk(zk) => {
-            if is_zero_32(&zk.freshness.challenge)
-                || is_zero_32(&zk.freshness.audience_hash)
-                || zk.freshness.expiry_unix <= now_unix
-                || zk.credential.issuer_did.trim().is_empty()
-                || zk.zk_proof.circuit_id.trim().is_empty()
-                || zk.zk_proof.circuit_version.trim().is_empty()
-                || zk.zk_proof.vk_id.trim().is_empty()
-                || zk.zk_proof.proof_bytes.is_empty()
+            if is_zero_32(&zk.freshness().challenge)
+                || is_zero_32(&zk.freshness().audience_hash)
+                || zk.freshness().expiry_unix <= now_unix
             {
                 return Err(VpApiError::InvalidCommand(
                     PresentationCommandReason::InvalidPresentation,
                 ));
             }
-            validate_core_disclosures(zk.disclosures.as_slice())
+            match zk.as_ref() {
+                reallyme_vp_core::ZkPresentation::Credential(value)
+                    if value.credential.issuer_did.trim().is_empty()
+                        || value.zk_proof.circuit_id.trim().is_empty()
+                        || value.zk_proof.circuit_version.trim().is_empty()
+                        || value.zk_proof.vk_id.trim().is_empty()
+                        || value.zk_proof.proof_bytes.is_empty() => {
+                    return Err(VpApiError::InvalidCommand(PresentationCommandReason::InvalidPresentation));
+                }
+                reallyme_vp_core::ZkPresentation::Persona(value) => match &value.evidence {
+                    reallyme_vp_core::ZkPersonaEvidence::RequestBound { proof_package }
+                        if proof_package.is_empty() =>
+                    {
+                        return Err(VpApiError::InvalidCommand(PresentationCommandReason::InvalidPresentation));
+                    }
+                    reallyme_vp_core::ZkPersonaEvidence::Prepared(prepared)
+                        if prepared.prepared_evidence_package.is_empty()
+                            || prepared.current_state_package.is_empty()
+                            || prepared.verifier_request.is_empty()
+                            || prepared.holder_authentication.is_empty()
+                            || prepared.holder_public_key.iter().all(|byte| *byte == 0)
+                            || prepared.holder_signature.iter().all(|byte| *byte == 0) =>
+                    {
+                        return Err(VpApiError::InvalidCommand(PresentationCommandReason::InvalidPresentation));
+                    }
+                    _ => {}
+                },
+                reallyme_vp_core::ZkPresentation::CommonRoot(value) if value.proof_package.is_empty() => {
+                    return Err(VpApiError::InvalidCommand(PresentationCommandReason::InvalidPresentation));
+                }
+                _ => {}
+            }
+            validate_core_disclosures(zk.disclosures())
         }
         Presentation::SdJwtVc(sd_jwt) => {
             if sd_jwt.sd_jwt.trim().is_empty() || sd_jwt.disclosures.is_empty() {
@@ -242,7 +269,7 @@ fn expected_nonce_check(
                 reallyme_crypto::operations::constant_time::equal_fixed(&actual, &expected)
                     && reallyme_crypto::operations::constant_time::equal_fixed(
                         &actual,
-                        &zk.freshness.challenge,
+                        &zk.freshness().challenge,
                     )
             }) => pass(PresentationCheckName::Nonce, true),
         Presentation::Zk(_) => fail(
@@ -279,7 +306,7 @@ fn expected_audience_check(
                 reallyme_crypto::operations::constant_time::equal_fixed(&actual, &expected)
                     && reallyme_crypto::operations::constant_time::equal_fixed(
                         &actual,
-                        &zk.freshness.audience_hash,
+                        &zk.freshness().audience_hash,
                     )
             }) => pass(PresentationCheckName::Audience, true),
         Presentation::Zk(_) => fail(

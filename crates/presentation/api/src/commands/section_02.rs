@@ -328,9 +328,9 @@ pub fn evaluate_presentation_policy(
     let binding_is_fresh = match &request.presentation {
         Presentation::Zk(zk) => {
             verification_time_valid
-                && !is_zero_32(&zk.freshness.challenge)
-                && !is_zero_32(&zk.freshness.audience_hash)
-                && zk.freshness.expiry_unix > request.verification_context.evaluation_time_unix
+                && !is_zero_32(&zk.freshness().challenge)
+                && !is_zero_32(&zk.freshness().audience_hash)
+                && zk.freshness().expiry_unix > request.verification_context.evaluation_time_unix
         }
         Presentation::SdJwtVc(_) | Presentation::Mdoc(_) => verification_time_valid,
         _ => false,

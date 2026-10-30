@@ -14,10 +14,11 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// Buffa messages must implement `Clone` and their generated ProtoJSON
 /// deserializers are incompatible with adding `Drop` directly to each message.
 /// Public decode operations return this wrapper, which recursively zeroizes all
-/// schema-known presentation material. The generated message is deliberately
-/// not exposed outside this crate: a borrowed generated value implements
-/// `Clone` and ProtoJSON serialization, either of which could create an
-/// unmanaged plaintext copy.
+/// schema-known presentation material. It does not expose the decoded message:
+/// a borrowed generated value implements `Clone` and ProtoJSON serialization,
+/// either of which could create an unmanaged plaintext copy. The separate
+/// public model-conversion API returns raw generated values and requires its
+/// caller to clear them explicitly.
 pub struct SensitivePresentationProto {
     inner: pb::Presentation,
 }
@@ -111,30 +112,83 @@ fn zeroize_sd_jwt_presentation(presentation: &mut pb::SdJwtVcPresentation) {
 }
 
 fn zeroize_zk_presentation(presentation: &mut pb::ZkPresentation) {
+    if let Some(mut kind) = presentation.additional_profile.take() {
+        match &mut kind {
+            pb::__buffa::oneof::zk_presentation::AdditionalProfile::Persona(value) => {
+                zeroize_zk_persona_presentation(value);
+            }
+            pb::__buffa::oneof::zk_presentation::AdditionalProfile::CommonRoot(value) => {
+                zeroize_zk_common_root_presentation(value);
+            }
+        }
+    }
+    // Clear the original credential fields even when the input illegally mixed
+    // them with a new profile; decoded messages are untrusted until validated.
     if let Some(freshness) = presentation.freshness.as_option_mut() {
         zeroize_freshness(freshness);
     }
     presentation.freshness = Default::default();
-
     if let Some(credential) = presentation.credential.as_option_mut() {
         zeroize_credential_reference(credential);
     }
     presentation.credential = Default::default();
-
     for disclosure in &mut presentation.disclosures {
         zeroize_claim_disclosure(disclosure);
     }
     presentation.disclosures.clear();
-
     if let Some(proof) = presentation.zk_proof.as_option_mut() {
         zeroize_zk_proof(proof);
     }
     presentation.zk_proof = Default::default();
-
     if let Some(qeaa) = presentation.qeaa.as_option_mut() {
         zeroize_qeaa_hints(qeaa);
     }
     presentation.qeaa = Default::default();
+    presentation.__buffa_unknown_fields.clear();
+}
+
+fn zeroize_zk_persona_presentation(presentation: &mut pb::ZkPersonaPresentation) {
+    if let Some(freshness) = presentation.freshness.as_option_mut() {
+        zeroize_freshness(freshness);
+    }
+    presentation.freshness = Default::default();
+    for disclosure in &mut presentation.disclosures {
+        zeroize_claim_disclosure(disclosure);
+    }
+    presentation.disclosures.clear();
+    if let Some(mut evidence) = presentation.evidence.take() {
+        match &mut evidence {
+            pb::__buffa::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                proof_package,
+            ) => proof_package.zeroize(),
+            pb::__buffa::oneof::zk_persona_presentation::Evidence::Prepared(value) => {
+                zeroize_zk_prepared_persona_evidence(value);
+            }
+        }
+    }
+    presentation.__buffa_unknown_fields.clear();
+}
+
+fn zeroize_zk_prepared_persona_evidence(presentation: &mut pb::ZkPreparedPersonaEvidence) {
+    presentation.prepared_evidence_package.zeroize();
+    presentation.current_state_package.zeroize();
+    presentation.verifier_request.zeroize();
+    presentation.holder_authentication.zeroize();
+    presentation.holder_public_key.zeroize();
+    presentation.holder_signature.zeroize();
+    presentation.__buffa_unknown_fields.clear();
+}
+
+fn zeroize_zk_common_root_presentation(presentation: &mut pb::ZkCommonRootPresentation) {
+    if let Some(freshness) = presentation.freshness.as_option_mut() {
+        zeroize_freshness(freshness);
+    }
+    presentation.freshness = Default::default();
+    for disclosure in &mut presentation.disclosures {
+        zeroize_claim_disclosure(disclosure);
+    }
+    presentation.disclosures.clear();
+    presentation.proof_package.zeroize();
     presentation.__buffa_unknown_fields.clear();
 }
 

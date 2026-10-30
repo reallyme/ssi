@@ -19,7 +19,8 @@ use reallyme_ssi_proto_codec::presentation::{
 use reallyme_vp_core::{
     ClaimDisclosure, CredentialReference, CredentialStatusRef, DisclosureMode, MdocPresentation,
     Presentation, PresentationFreshness, QeaaVerifierHints, Range, SdJwtVcPresentation,
-    StatusPurpose, ValueSet, ZkPresentation, ZkProof,
+    StatusPurpose, ValueSet, ZkCommonRootPresentation, ZkCredentialPresentation, ZkPersonaEvidence,
+    ZkPersonaMode, ZkPersonaPresentation, ZkPreparedPersonaEvidence, ZkPresentation, ZkProof,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -39,65 +40,67 @@ fn zk_presentation() -> Presentation {
     let mut public_inputs = BTreeMap::new();
     public_inputs.insert("age_over_18".to_owned(), vec![1]);
 
-    Presentation::Zk(Box::new(ZkPresentation {
-        freshness: PresentationFreshness {
-            challenge: [1u8; 32],
-            audience_hash: [2u8; 32],
-            expiry_unix: 1_700_000_000,
+    Presentation::Zk(Box::new(ZkPresentation::Credential(
+        ZkCredentialPresentation {
+            freshness: PresentationFreshness {
+                challenge: [1u8; 32],
+                audience_hash: [2u8; 32],
+                expiry_unix: 1_700_000_000,
+            },
+            credential: CredentialReference {
+                envelope_hash: [3u8; 32],
+                issuer_did: "did:me:test".to_owned(),
+                status: CredentialStatusRef {
+                    status_list_url: "https://issuer.example/status/1".to_owned(),
+                    status_list_id: [4u8; 32],
+                    status_list_index: 42,
+                    purpose: StatusPurpose::Revocation,
+                },
+            },
+            disclosures: vec![
+                ClaimDisclosure {
+                    claim_path: "/age".to_owned(),
+                    mode: DisclosureMode::Gte,
+                    revealed_value: None,
+                    threshold: Some(18),
+                    range: None,
+                    set: None,
+                },
+                ClaimDisclosure {
+                    claim_path: "/country".to_owned(),
+                    mode: DisclosureMode::MemberOfSet,
+                    revealed_value: None,
+                    threshold: None,
+                    range: None,
+                    set: Some(ValueSet {
+                        values: vec![b"MT".to_vec(), b"DE".to_vec()],
+                    }),
+                },
+                ClaimDisclosure {
+                    claim_path: "/income".to_owned(),
+                    mode: DisclosureMode::Range,
+                    revealed_value: None,
+                    threshold: None,
+                    range: Some(Range { min: 100, max: 200 }),
+                    set: None,
+                },
+            ],
+            zk_proof: ZkProof {
+                circuit_id: "pid-age".to_owned(),
+                circuit_version: "1".to_owned(),
+                vk_id: "vk-1".to_owned(),
+                proof_bytes: vec![9, 8, 7],
+                public_inputs,
+                proof_suite: reallyme_vp_core::ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
+                artifact_manifest_sha256: [9_u8; 32],
+            },
+            qeaa: Some(QeaaVerifierHints {
+                required: true,
+                audit_report_hash: Some([8u8; 32]),
+                max_status_age_seconds: 3_600,
+            }),
         },
-        credential: CredentialReference {
-            envelope_hash: [3u8; 32],
-            issuer_did: "did:me:test".to_owned(),
-            status: CredentialStatusRef {
-                status_list_url: "https://issuer.example/status/1".to_owned(),
-                status_list_id: [4u8; 32],
-                status_list_index: 42,
-                purpose: StatusPurpose::Revocation,
-            },
-        },
-        disclosures: vec![
-            ClaimDisclosure {
-                claim_path: "/age".to_owned(),
-                mode: DisclosureMode::Gte,
-                revealed_value: None,
-                threshold: Some(18),
-                range: None,
-                set: None,
-            },
-            ClaimDisclosure {
-                claim_path: "/country".to_owned(),
-                mode: DisclosureMode::MemberOfSet,
-                revealed_value: None,
-                threshold: None,
-                range: None,
-                set: Some(ValueSet {
-                    values: vec![b"MT".to_vec(), b"DE".to_vec()],
-                }),
-            },
-            ClaimDisclosure {
-                claim_path: "/income".to_owned(),
-                mode: DisclosureMode::Range,
-                revealed_value: None,
-                threshold: None,
-                range: Some(Range { min: 100, max: 200 }),
-                set: None,
-            },
-        ],
-        zk_proof: ZkProof {
-            circuit_id: "pid-age".to_owned(),
-            circuit_version: "1".to_owned(),
-            vk_id: "vk-1".to_owned(),
-            proof_bytes: vec![9, 8, 7],
-            public_inputs,
-            proof_suite: reallyme_vp_core::ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
-            artifact_manifest_sha256: [9_u8; 32],
-        },
-        qeaa: Some(QeaaVerifierHints {
-            required: true,
-            audit_report_hash: Some([8u8; 32]),
-            max_status_age_seconds: 3_600,
-        }),
-    }))
+    )))
 }
 
 #[test]
@@ -123,6 +126,205 @@ fn zk_presentation_round_trips_through_proto_json_and_brotli() -> Result<(), VpP
     let decompressed = decode_presentation_proto_brotli(&compressed)?;
     assert_eq!(decompressed, presentation);
     Ok(())
+}
+
+#[test]
+fn credential_keeps_v1_wire_shape_and_rejects_mixed_profiles() -> Result<(), VpProtoError> {
+    use reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::{
+        presentation, zk_presentation,
+    };
+
+    let original = zk_presentation();
+    let mut proto = presentation_to_proto(&original)?;
+    {
+        let Some(presentation::Kind::Zk(zk)) = proto.kind.as_mut() else {
+            return Err(VpProtoError::MissingField);
+        };
+        assert!(zk.additional_profile.is_none());
+        assert!(zk.freshness.as_option().is_some());
+        assert!(zk.credential.as_option().is_some());
+        assert!(zk.zk_proof.as_option().is_some());
+    }
+    assert_eq!(decode_presentation_proto(&encode_proto(&proto)?)?, original);
+
+    let Some(presentation::Kind::Zk(zk)) = proto.kind.as_mut() else {
+        return Err(VpProtoError::MissingField);
+    };
+    zk.additional_profile = Some(zk_presentation::AdditionalProfile::Persona(Box::default()));
+    assert_eq!(
+        proto_to_presentation(&proto),
+        Err(VpProtoError::InvalidEnumValue)
+    );
+    assert_eq!(
+        decode_presentation_proto(&encode_proto(&proto)?),
+        Err(VpProtoError::InvalidEnumValue)
+    );
+    Ok(())
+}
+
+#[test]
+fn persona_and_common_root_are_distinct_proto_variants() -> Result<(), VpProtoError> {
+    let persona = Presentation::Zk(Box::new(ZkPresentation::Persona(ZkPersonaPresentation {
+        freshness: PresentationFreshness {
+            challenge: [1; 32],
+            audience_hash: [2; 32],
+            expiry_unix: 1_700_000_000,
+        },
+        mode: ZkPersonaMode::Private,
+        disclosures: Vec::new(),
+        evidence: ZkPersonaEvidence::RequestBound {
+            proof_package: vec![1, 2, 3],
+        },
+    })));
+    let common_root = Presentation::Zk(Box::new(ZkPresentation::CommonRoot(
+        ZkCommonRootPresentation {
+            freshness: PresentationFreshness {
+                challenge: [3; 32],
+                audience_hash: [4; 32],
+                expiry_unix: 1_700_000_000,
+            },
+            mode: ZkPersonaMode::Public,
+            disclosures: Vec::new(),
+            proof_package: vec![4, 5, 6],
+        },
+    )));
+    for presentation in [persona, common_root] {
+        let bytes = encode_presentation_proto(&presentation)?;
+        assert_eq!(decode_presentation_proto(&bytes)?, presentation);
+        let json = presentation_to_proto_json(&presentation)?;
+        assert_eq!(proto_json_to_presentation(&json)?, presentation);
+        assert!(!json.contains("statusListIndex"));
+    }
+    Ok(())
+}
+
+#[test]
+fn prepared_persona_roundtrip_preserves_independent_authentication_parts(
+) -> Result<(), VpProtoError> {
+    let prepared = Presentation::Zk(Box::new(ZkPresentation::Persona(ZkPersonaPresentation {
+        freshness: PresentationFreshness {
+            challenge: [1; 32],
+            audience_hash: [2; 32],
+            expiry_unix: 1_700_000_000,
+        },
+        mode: ZkPersonaMode::Private,
+        disclosures: Vec::new(),
+        evidence: ZkPersonaEvidence::Prepared(ZkPreparedPersonaEvidence {
+            prepared_evidence_package: vec![3; 8],
+            current_state_package: vec![4; 8],
+            verifier_request: vec![5; 8],
+            holder_authentication: vec![6; 8],
+            holder_public_key: [7; 64],
+            holder_signature: [8; 64],
+        }),
+    })));
+    let bytes = encode_presentation_proto(&prepared)?;
+    assert_eq!(decode_presentation_proto(&bytes)?, prepared);
+    let json = presentation_to_proto_json(&prepared)?;
+    assert_eq!(proto_json_to_presentation(&json)?, prepared);
+    let mut protobuf = presentation_to_proto(&prepared)?;
+    use reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::{
+        presentation, zk_persona_presentation, zk_presentation,
+    };
+    {
+        let Some(presentation::Kind::Zk(zk)) = protobuf.kind.as_mut() else {
+            return Err(VpProtoError::MissingField);
+        };
+        let Some(zk_presentation::AdditionalProfile::Persona(persona)) =
+            zk.additional_profile.as_mut()
+        else {
+            return Err(VpProtoError::MissingField);
+        };
+        let Some(zk_persona_presentation::Evidence::Prepared(value)) = persona.evidence.as_mut()
+        else {
+            return Err(VpProtoError::MissingField);
+        };
+        value.holder_public_key.pop();
+    }
+    assert_eq!(
+        proto_to_presentation(&protobuf),
+        Err(VpProtoError::InvalidBytesLen)
+    );
+    let Some(presentation::Kind::Zk(zk)) = protobuf.kind.as_mut() else {
+        return Err(VpProtoError::MissingField);
+    };
+    let Some(zk_presentation::AdditionalProfile::Persona(persona)) = zk.additional_profile.as_mut()
+    else {
+        return Err(VpProtoError::MissingField);
+    };
+    let Some(zk_persona_presentation::Evidence::Prepared(value)) = persona.evidence.as_mut() else {
+        return Err(VpProtoError::MissingField);
+    };
+    value.holder_public_key.push(7);
+    value.current_state_package.clear();
+    assert_eq!(
+        proto_to_presentation(&protobuf),
+        Err(VpProtoError::MissingField)
+    );
+    Ok(())
+}
+
+#[test]
+fn persona_mode_and_proof_package_fail_closed() -> Result<(), VpProtoError> {
+    use reallyme_ssi_proto::generated::proto::identity::presentation::v1::__buffa::oneof::{
+        presentation, zk_persona_presentation, zk_presentation,
+    };
+    let presentation = Presentation::Zk(Box::new(ZkPresentation::Persona(ZkPersonaPresentation {
+        freshness: PresentationFreshness {
+            challenge: [1; 32],
+            audience_hash: [2; 32],
+            expiry_unix: 1_700_000_000,
+        },
+        mode: ZkPersonaMode::Private,
+        disclosures: Vec::new(),
+        evidence: ZkPersonaEvidence::RequestBound {
+            proof_package: vec![1],
+        },
+    })));
+    let mut proto = presentation_to_proto(&presentation)?;
+    {
+        let Some(presentation::Kind::Zk(zk)) = proto.kind.as_mut() else {
+            return Err(VpProtoError::MissingField);
+        };
+        let Some(zk_presentation::AdditionalProfile::Persona(persona)) =
+            zk.additional_profile.as_mut()
+        else {
+            return Err(VpProtoError::MissingField);
+        };
+        persona.mode = Default::default();
+    }
+    assert_eq!(
+        proto_to_presentation(&proto),
+        Err(VpProtoError::InvalidEnumValue)
+    );
+    let Some(presentation::Kind::Zk(zk)) = proto.kind.as_mut() else {
+        return Err(VpProtoError::MissingField);
+    };
+    let Some(zk_presentation::AdditionalProfile::Persona(persona)) = zk.additional_profile.as_mut()
+    else {
+        return Err(VpProtoError::MissingField);
+    };
+    persona.mode = buffa::EnumValue::from(
+        reallyme_ssi_proto::generated::proto::identity::presentation::v1::ZkPersonaMode::Private,
+    );
+    let Some(zk_persona_presentation::Evidence::RequestBoundProofPackage(proof_package)) =
+        persona.evidence.as_mut()
+    else {
+        return Err(VpProtoError::MissingField);
+    };
+    proof_package.clear();
+    assert_eq!(
+        proto_to_presentation(&proto),
+        Err(VpProtoError::MissingField)
+    );
+    Ok(())
+}
+
+#[test]
+fn incomplete_legacy_credential_wire_shape_is_rejected() {
+    // Preserving field numbers must not make a missing credential or proof valid.
+    let old_wire = [0x0a, 0x02, 0x0a, 0x00];
+    assert!(decode_presentation_proto(&old_wire).is_err());
 }
 
 #[test]
@@ -386,6 +588,9 @@ fn inconsistent_disclosure_model_is_rejected_before_encoding() {
     let Presentation::Zk(model) = &mut presentation else {
         return;
     };
+    let ZkPresentation::Credential(model) = model.as_mut() else {
+        panic!("the test constructs a credential presentation");
+    };
     if let Some(disclosure) = model.disclosures.first_mut() {
         disclosure.revealed_value = Some(vec![1]);
     }
@@ -439,6 +644,9 @@ fn unspecified_status_purpose_model_is_rejected_before_encoding() {
     let mut presentation = zk_presentation();
     let Presentation::Zk(model) = &mut presentation else {
         return;
+    };
+    let ZkPresentation::Credential(model) = model.as_mut() else {
+        panic!("the test constructs a credential presentation");
     };
     model.credential.status.purpose = StatusPurpose::Unspecified;
 

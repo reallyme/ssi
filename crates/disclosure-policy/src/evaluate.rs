@@ -102,7 +102,7 @@ pub fn evaluate(policy: &VpPolicy, ctx: &EvaluationContext<'_>) -> PolicyDecisio
         errors.push(VpPolicyError::InvalidBinding);
     }
     if let Presentation::Zk(presentation) = ctx.presentation {
-        if ctx.now_unix >= presentation.freshness.expiry_unix {
+        if ctx.now_unix >= presentation.freshness().expiry_unix {
             errors.push(VpPolicyError::Expired);
         }
     }

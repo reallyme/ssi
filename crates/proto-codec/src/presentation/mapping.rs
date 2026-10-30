@@ -16,10 +16,18 @@ use crate::presentation::{VpProtoError, MAX_MDOC_DEVICE_RESPONSE_BYTES};
 
 #[path = "validate_disclosure.rs"]
 mod validate_disclosure;
+#[path = "mapping_zk.rs"]
+mod zk;
 
 use validate_disclosure::{validate_disclosure_model, validate_disclosure_value};
+use zk::{zk_from_proto, zk_to_proto};
 
 /// Convert the Rust VP model to the generated protobuf model.
+///
+/// The returned generated value owns copies of presentation material and does
+/// not zeroize on drop. Callers retaining it must clear it with
+/// [`super::zeroize_presentation_proto`]; the bounded encode helpers own and
+/// clear their temporary generated values automatically.
 pub fn presentation_to_proto(
     presentation_model: &vp::Presentation,
 ) -> Result<pb::Presentation, VpProtoError> {
@@ -48,6 +56,9 @@ pub fn presentation_to_proto(
 }
 
 /// Convert a generated protobuf model to the Rust VP model.
+///
+/// The input remains owned by the caller and may contain sensitive bytes after
+/// this conversion. Use [`super::decode_proto`] for an owned, zeroizing decode.
 pub fn proto_to_presentation(
     presentation_model: &pb::Presentation,
 ) -> Result<vp::Presentation, VpProtoError> {
@@ -101,13 +112,35 @@ pub(crate) fn validate_presentation_semantics(
     let vp::Presentation::Zk(model) = presentation_model else {
         return Ok(());
     };
-    if matches!(
-        model.credential.status.purpose,
-        vp::StatusPurpose::Unspecified
-    ) {
-        return Err(VpProtoError::InvalidEnumValue);
+    match model.as_ref() {
+        vp::ZkPresentation::Credential(value) => {
+            if matches!(
+                value.credential.status.purpose,
+                vp::StatusPurpose::Unspecified
+            ) {
+                return Err(VpProtoError::InvalidEnumValue);
+            }
+        }
+        vp::ZkPresentation::Persona(value) => match &value.evidence {
+            vp::ZkPersonaEvidence::RequestBound { proof_package } if proof_package.is_empty() => {
+                return Err(VpProtoError::MissingField);
+            }
+            vp::ZkPersonaEvidence::Prepared(prepared)
+                if prepared.prepared_evidence_package.is_empty()
+                    || prepared.current_state_package.is_empty()
+                    || prepared.verifier_request.is_empty()
+                    || prepared.holder_authentication.is_empty() =>
+            {
+                return Err(VpProtoError::MissingField);
+            }
+            _ => {}
+        },
+        vp::ZkPresentation::CommonRoot(value) if value.proof_package.is_empty() => {
+            return Err(VpProtoError::MissingField);
+        }
+        _ => {}
     }
-    for disclosure in &model.disclosures {
+    for disclosure in model.disclosures() {
         validate_disclosure_model(disclosure)?;
     }
     Ok(())
@@ -180,53 +213,6 @@ fn sd_jwt_take_from_proto(
         kb_jwt: model.kb_jwt.take(),
         vct: model.vct.take(),
         envelope_hash,
-    })
-}
-
-fn zk_to_proto(model: &vp::ZkPresentation) -> Result<pb::ZkPresentation, VpProtoError> {
-    Ok(pb::ZkPresentation {
-        freshness: MessageField::some(freshness_to_proto(&model.freshness)),
-        credential: MessageField::some(credential_to_proto(&model.credential)?),
-        disclosures: model
-            .disclosures
-            .iter()
-            .map(disclosure_to_proto)
-            .collect::<Result<_, _>>()?,
-        zk_proof: MessageField::some(zk_proof_to_proto(&model.zk_proof)?),
-        qeaa: model
-            .qeaa
-            .as_ref()
-            .map(qeaa_to_proto)
-            .map(MessageField::some)
-            .unwrap_or_else(MessageField::none),
-        ..pb::ZkPresentation::default()
-    })
-}
-
-fn zk_from_proto(model: &pb::ZkPresentation) -> Result<vp::ZkPresentation, VpProtoError> {
-    let freshness = model
-        .freshness
-        .as_option()
-        .ok_or(VpProtoError::MissingField)?;
-    let credential = model
-        .credential
-        .as_option()
-        .ok_or(VpProtoError::MissingField)?;
-    let zk_proof = model
-        .zk_proof
-        .as_option()
-        .ok_or(VpProtoError::MissingField)?;
-
-    Ok(vp::ZkPresentation {
-        freshness: freshness_from_proto(freshness)?,
-        credential: credential_from_proto(credential)?,
-        disclosures: model
-            .disclosures
-            .iter()
-            .map(disclosure_from_proto)
-            .collect::<Result<Vec<_>, _>>()?,
-        zk_proof: zk_proof_from_proto(zk_proof)?,
-        qeaa: model.qeaa.as_option().map(qeaa_from_proto).transpose()?,
     })
 }
 

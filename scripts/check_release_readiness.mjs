@@ -1586,9 +1586,9 @@ assertContains("scripts/generate_conformance_reports.mjs", "Cargo.lock does not 
 assertContains("scripts/generate_conformance_reports.mjs", "reallyme.ssi.conformance.bundle.v1");
 assertContains(
   "conformance/dependencies.lock.json",
-  '"version": "0.3.13"',
+  '"version": "0.3.15"',
 );
-assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.4.2");
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.5.0");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
 assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
 assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");
@@ -1649,8 +1649,8 @@ assertContains("scripts/check-proto-contract.sh", "reallyme.crypto.v1.CryptoAlgo
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity.common.v1");
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity_core.v1");
 assertContains("Cargo.toml", 'reallyme-codec = { version = "0.3.1"');
-assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.13"');
-assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.13"');
+assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.15"');
+assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.15"');
 assertContains("crates/proto/Cargo.toml", "reallyme-crypto-proto/generated");
 assertContains("Cargo.toml", 'reallyme-cose = { version = "0.2.7"');
 assertContains("Cargo.toml", 'reallyme-jose = { version = "0.4.4"');

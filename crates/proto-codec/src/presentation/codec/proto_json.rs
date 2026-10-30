@@ -7,6 +7,10 @@ use serde::Deserialize;
 use std::io::Write;
 use zeroize::Zeroizing;
 
+#[path = "proto_json_zk.rs"]
+mod zk;
+use zk::validate_zk_json;
+
 use super::{
     encode_proto, presentation_to_proto, take_proto_into_presentation,
     validate_presentation_resource_limits, validate_proto_resource_limits, PbPresentation,
@@ -79,9 +83,10 @@ pub fn json_to_proto(json: &str) -> Result<SensitivePresentationProto, VpProtoEr
     validate_proto_json_shape(&value)?;
     let presentation: PbPresentation =
         serde_json::from_value(value).map_err(|_| VpProtoError::JsonDeserialize)?;
-    let encoded = encode_proto(&presentation)?;
+    let sensitive = SensitivePresentationProto::new(presentation);
+    let encoded = encode_proto(sensitive.as_proto())?;
     drop(encoded);
-    Ok(SensitivePresentationProto::new(presentation))
+    Ok(sensitive)
 }
 
 fn validate_proto_json_shape(value: &serde_json::Value) -> Result<(), VpProtoError> {
@@ -117,124 +122,6 @@ fn validate_proto_json_shape(value: &serde_json::Value) -> Result<(), VpProtoErr
                 "envelope_hash",
                 "docType",
                 "doc_type",
-            ],
-        )?;
-    }
-    Ok(())
-}
-
-fn validate_zk_json(value: &serde_json::Value) -> Result<(), VpProtoError> {
-    let zk = json_object_with_keys(
-        value,
-        &[
-            "freshness",
-            "credential",
-            "disclosures",
-            "zkProof",
-            "zk_proof",
-            "qeaa",
-        ],
-    )?;
-    if let Some(value) = zk.get("freshness") {
-        json_object_with_keys(
-            value,
-            &[
-                "challenge",
-                "audienceHash",
-                "audience_hash",
-                "expiryUnix",
-                "expiry_unix",
-            ],
-        )?;
-    }
-    if let Some(value) = zk.get("credential") {
-        let credential = json_object_with_keys(
-            value,
-            &[
-                "envelopeHash",
-                "envelope_hash",
-                "issuerDid",
-                "issuer_did",
-                "status",
-            ],
-        )?;
-        if let Some(status) = credential.get("status") {
-            json_object_with_keys(
-                status,
-                &[
-                    "statusListUrl",
-                    "status_list_url",
-                    "statusListId",
-                    "status_list_id",
-                    "statusListIndex",
-                    "status_list_index",
-                    "purpose",
-                ],
-            )?;
-        }
-    }
-    if let Some(serde_json::Value::Array(disclosures)) = zk.get("disclosures") {
-        for disclosure in disclosures {
-            let disclosure = json_object_with_keys(
-                disclosure,
-                &[
-                    "claimPath",
-                    "claim_path",
-                    "mode",
-                    "revealedValue",
-                    "revealed_value",
-                    "threshold",
-                    "range",
-                    "set",
-                ],
-            )?;
-            if let Some(range) = disclosure.get("range") {
-                json_object_with_keys(range, &["min", "max"])?;
-            }
-            if let Some(set) = disclosure.get("set") {
-                json_object_with_keys(set, &["values"])?;
-            }
-        }
-    } else if zk.contains_key("disclosures") {
-        return Err(VpProtoError::JsonDeserialize);
-    }
-    if let Some(value) = zk.get("zkProof").or_else(|| zk.get("zk_proof")) {
-        let proof = json_object_with_keys(
-            value,
-            &[
-                "circuitId",
-                "circuit_id",
-                "circuitVersion",
-                "circuit_version",
-                "vkId",
-                "vk_id",
-                "proofBytes",
-                "proof_bytes",
-                "publicInputs",
-                "public_inputs",
-                "proofSuite",
-                "proof_suite",
-                "artifactManifestSha256",
-                "artifact_manifest_sha256",
-            ],
-        )?;
-        if proof
-            .get("publicInputs")
-            .or_else(|| proof.get("public_inputs"))
-            .is_some_and(|inputs| !inputs.is_object())
-        {
-            return Err(VpProtoError::JsonDeserialize);
-        }
-    }
-    if let Some(value) = zk.get("qeaa").filter(|value| !value.is_null()) {
-        json_object_with_keys(
-            value,
-            &[
-                "required",
-                "auditReportHash",
-                "audit_report_hash",
-                "maxStatusAgeSeconds",
-                "max_status_age_seconds",
             ],
         )?;
     }
@@ -379,8 +266,8 @@ pub fn presentation_to_proto_json(
     presentation: &Presentation,
 ) -> Result<Zeroizing<String>, VpProtoError> {
     validate_presentation_resource_limits(presentation)?;
-    let proto = presentation_to_proto(presentation)?;
-    proto_to_json(&proto)
+    let proto = SensitivePresentationProto::new(presentation_to_proto(presentation)?);
+    proto_to_json(proto.as_proto())
 }
 
 /// Deserialize Buffa protobuf JSON into the Rust VP model.

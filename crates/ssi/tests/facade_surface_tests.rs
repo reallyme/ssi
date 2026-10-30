@@ -76,9 +76,20 @@ fn ssi_facade_exposes_composable_identity_surfaces() {
 
     assert_type_is_reachable::<reallyme_ssi::presentation::api::VpVerificationReport>();
     assert_type_is_reachable::<reallyme_ssi::presentation::core::Presentation>();
+    assert_type_is_reachable::<reallyme_ssi::presentation::core::ZkPresentation>();
+    assert_type_is_reachable::<reallyme_ssi::presentation::core::ZkCredentialPresentation>();
+    assert_type_is_reachable::<reallyme_ssi::presentation::core::ZkPersonaPresentation>();
+    assert_type_is_reachable::<reallyme_ssi::presentation::core::ZkPersonaEvidence>();
+    assert_type_is_reachable::<reallyme_ssi::presentation::core::ZkPreparedPersonaEvidence>();
+    assert_type_is_reachable::<reallyme_ssi::presentation::core::ZkPresentationProofMode>();
+    assert_type_is_reachable::<reallyme_ssi::presentation::core::ZkCommonRootPresentation>();
+    assert_type_is_reachable::<reallyme_ssi::presentation::core::ZkPersonaMode>();
     assert_type_is_reachable::<reallyme_ssi::presentation::policy::VpPolicy>();
     assert_type_is_reachable::<
         reallyme_ssi::presentation::generated_proto::generated::proto::identity::presentation::v1::Presentation,
+    >();
+    assert_type_is_reachable::<
+        reallyme_ssi::presentation::generated_proto::generated::proto::identity::presentation::v1::ZkCommonRootPresentation,
     >();
     assert_type_is_reachable::<reallyme_ssi::presentation::sd_jwt::VerifiedDisclosure>();
     assert_type_is_reachable::<reallyme_ssi::presentation::validator::VpValidationInput<'static>>();

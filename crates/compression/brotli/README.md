@@ -12,7 +12,7 @@ default to avoid decompression-bomb memory exhaustion on untrusted payloads.
 
 ```toml
 [dependencies]
-reallyme-compression-brotli = "0.4.0"
+reallyme-compression-brotli = "0.5.0"
 ```
 
 ## Security contract

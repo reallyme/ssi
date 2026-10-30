@@ -141,8 +141,8 @@ pub fn encode_presentation_proto(
     presentation: &Presentation,
 ) -> Result<Zeroizing<Vec<u8>>, VpProtoError> {
     validate_presentation_resource_limits(presentation)?;
-    let proto = presentation_to_proto(presentation)?;
-    encode_proto(&proto)
+    let proto = SensitivePresentationProto::new(presentation_to_proto(presentation)?);
+    encode_proto(proto.as_proto())
 }
 
 /// Decode generated protobuf bytes into the Rust VP model.

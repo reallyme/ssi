@@ -24,5 +24,7 @@ pub use error::VpError;
 pub use model::{
     ClaimDisclosure, CredentialReference, CredentialStatusRef, DisclosureMode, MdocPresentation,
     Presentation, PresentationFreshness, QeaaVerifierHints, Range, SdJwtVcPresentation,
-    StatusPurpose, ValueSet, ZkPresentation, ZkProof, ZkProofSuite,
+    StatusPurpose, ValueSet, ZkCommonRootPresentation, ZkCredentialPresentation, ZkPersonaEvidence,
+    ZkPersonaMode, ZkPersonaPresentation, ZkPreparedPersonaEvidence, ZkPresentation,
+    ZkPresentationProofMode, ZkProof, ZkProofSuite,
 };

@@ -34,6 +34,7 @@ const ONEOF_VARIANT_FIELDS = new Set([
   "claims_based",
   "cose_key",
   "certificate_sha256",
+  "common_root",
   "did",
   "did_verification_method",
   "jwk_json",
@@ -46,9 +47,12 @@ const ONEOF_VARIANT_FIELDS = new Set([
   "multikey",
   "opaque_identifier",
   "public_key",
+  "persona",
+  "prepared",
   "range",
   "raw",
   "revealed_value",
+  "request_bound_proof_package",
   "sd_jwt",
   "sd_jwt_jpeg_data_url",
   "sd_jwt_vc",
@@ -101,7 +105,8 @@ function annotatedFields(source) {
 }
 
 function fieldHasCleanup(field, cleanupSource) {
-  if (cleanupSource.includes(`.${field}`)) {
+  const fieldAccess = new RegExp(`\\.${field}(?![A-Za-z0-9_])`, "u");
+  if (fieldAccess.test(cleanupSource)) {
     return true;
   }
   return (

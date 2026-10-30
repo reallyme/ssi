@@ -610,6 +610,158 @@ impl ::buffa::Enumeration for VpFailureClass {
         ]
     }
 }
+/// Whether a persona's key is hidden or intentionally public in the proof.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum ZkPersonaMode {
+    ZK_PERSONA_MODE_UNSPECIFIED = 0i32,
+    ZK_PERSONA_MODE_PRIVATE = 1i32,
+    ZK_PERSONA_MODE_PUBLIC = 2i32,
+}
+impl ZkPersonaMode {
+    ///Idiomatic alias for [`Self::ZK_PERSONA_MODE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::ZK_PERSONA_MODE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::ZK_PERSONA_MODE_PRIVATE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Private: Self = Self::ZK_PERSONA_MODE_PRIVATE;
+    ///Idiomatic alias for [`Self::ZK_PERSONA_MODE_PUBLIC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Public: Self = Self::ZK_PERSONA_MODE_PUBLIC;
+}
+impl ::core::default::Default for ZkPersonaMode {
+    fn default() -> Self {
+        Self::ZK_PERSONA_MODE_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for ZkPersonaMode {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ZkPersonaMode {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = ZkPersonaMode;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(ZkPersonaMode)),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<ZkPersonaMode, E> {
+                <ZkPersonaMode as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<ZkPersonaMode, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <ZkPersonaMode as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<ZkPersonaMode, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <ZkPersonaMode as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<ZkPersonaMode, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ZkPersonaMode {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for ZkPersonaMode {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::ZK_PERSONA_MODE_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::ZK_PERSONA_MODE_PRIVATE),
+            2i32 => ::core::option::Option::Some(Self::ZK_PERSONA_MODE_PUBLIC),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::ZK_PERSONA_MODE_UNSPECIFIED => "ZK_PERSONA_MODE_UNSPECIFIED",
+            Self::ZK_PERSONA_MODE_PRIVATE => "ZK_PERSONA_MODE_PRIVATE",
+            Self::ZK_PERSONA_MODE_PUBLIC => "ZK_PERSONA_MODE_PUBLIC",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "ZK_PERSONA_MODE_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::ZK_PERSONA_MODE_UNSPECIFIED)
+            }
+            "ZK_PERSONA_MODE_PRIVATE" => {
+                ::core::option::Option::Some(Self::ZK_PERSONA_MODE_PRIVATE)
+            }
+            "ZK_PERSONA_MODE_PUBLIC" => {
+                ::core::option::Option::Some(Self::ZK_PERSONA_MODE_PUBLIC)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::ZK_PERSONA_MODE_UNSPECIFIED,
+            Self::ZK_PERSONA_MODE_PRIVATE,
+            Self::ZK_PERSONA_MODE_PUBLIC,
+        ]
+    }
+}
 /// ZkProofSuite binds proof bytes to the exact audited backend flavor. Only the
 /// production suite is representable; unspecified non-ZK values fail closed.
 #[allow(non_camel_case_types)]
@@ -1765,9 +1917,12 @@ pub const __SD_JWT_VC_PRESENTATION_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
     from_json: ::buffa::type_registry::any_from_json::<SdJwtVcPresentation>,
     is_wkt: false,
 };
-/// ZkPresentation carries semantic disclosure facts and proof bytes.
+/// The original credential fields retain their v1 wire numbers so deployed
+/// credential presentations remain readable. New proof profiles use distinct
+/// fields; a decoder must reject messages that combine profile shapes.
+/// Proof packages are owned and interpreted by ReallyMe ZK.
 #[derive(Clone, PartialEq, Default)]
-#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[derive(::serde::Serialize)]
 #[serde(default)]
 pub struct ZkPresentation {
     /// Field 1: `freshness`
@@ -1811,6 +1966,10 @@ pub struct ZkPresentation {
         QeaaVerifierHints,
         ::buffa::Inline<QeaaVerifierHints>,
     >,
+    #[serde(flatten)]
+    pub additional_profile: ::core::option::Option<
+        __buffa::oneof::zk_presentation::AdditionalProfile,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1823,6 +1982,7 @@ impl ::core::fmt::Debug for ZkPresentation {
             .field("disclosures", &::core::format_args!("[REDACTED]"))
             .field("zk_proof", &::core::format_args!("[REDACTED]"))
             .field("qeaa", &::core::format_args!("[REDACTED]"))
+            .field("additional_profile", &self.additional_profile)
             .finish()
     }
 }
@@ -1893,6 +2053,26 @@ impl ::buffa::Message for ZkPresentation {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let ::core::option::Option::Some(ref v) = self.additional_profile {
+            match v {
+                __buffa::oneof::zk_presentation::AdditionalProfile::Persona(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::zk_presentation::AdditionalProfile::CommonRoot(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1942,6 +2122,26 @@ impl ::buffa::Message for ZkPresentation {
                 buf,
             );
             self.qeaa.write_to(__cache, buf);
+        }
+        if let ::core::option::Option::Some(ref v) = self.additional_profile {
+            match v {
+                __buffa::oneof::zk_presentation::AdditionalProfile::Persona(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::zk_presentation::AdditionalProfile::CommonRoot(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2012,6 +2212,50 @@ impl ::buffa::Message for ZkPresentation {
                     ctx,
                 )?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::zk_presentation::AdditionalProfile::Persona(
+                        ref mut existing,
+                    ),
+                ) = self.additional_profile
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.additional_profile = ::core::option::Option::Some(
+                        __buffa::oneof::zk_presentation::AdditionalProfile::Persona(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                        ref mut existing,
+                    ),
+                ) = self.additional_profile
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.additional_profile = ::core::option::Option::Some(
+                        __buffa::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2025,6 +2269,7 @@ impl ::buffa::Message for ZkPresentation {
         self.disclosures.clear();
         self.zk_proof = ::buffa::MessageField::none();
         self.qeaa = ::buffa::MessageField::none();
+        self.additional_profile = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2035,6 +2280,188 @@ impl ::buffa::ExtensionSet for ZkPresentation {
     }
     fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
         &mut self.__buffa_unknown_fields
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ZkPresentation {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl<'de> ::serde::de::Visitor<'de> for _V {
+            type Value = ZkPresentation;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str("struct ZkPresentation")
+            }
+            #[allow(clippy::field_reassign_with_default)]
+            fn visit_map<A: ::serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> ::core::result::Result<ZkPresentation, A::Error> {
+                let mut __f_freshness: ::core::option::Option<
+                    ::buffa::MessageField<
+                        PresentationFreshness,
+                        ::buffa::Inline<PresentationFreshness>,
+                    >,
+                > = None;
+                let mut __f_credential: ::core::option::Option<
+                    ::buffa::MessageField<
+                        CredentialReference,
+                        ::buffa::Inline<CredentialReference>,
+                    >,
+                > = None;
+                let mut __f_disclosures: ::core::option::Option<
+                    ::buffa::alloc::vec::Vec<ClaimDisclosure>,
+                > = None;
+                let mut __f_zk_proof: ::core::option::Option<
+                    ::buffa::MessageField<ZkProof, ::buffa::Inline<ZkProof>>,
+                > = None;
+                let mut __f_qeaa: ::core::option::Option<
+                    ::buffa::MessageField<
+                        QeaaVerifierHints,
+                        ::buffa::Inline<QeaaVerifierHints>,
+                    >,
+                > = None;
+                let mut __oneof_additional_profile: ::core::option::Option<
+                    __buffa::oneof::zk_presentation::AdditionalProfile,
+                > = None;
+                while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
+                    match key.as_str() {
+                        "freshness" => {
+                            __f_freshness = Some(
+                                map
+                                    .next_value::<
+                                        ::buffa::MessageField<
+                                            PresentationFreshness,
+                                            ::buffa::Inline<PresentationFreshness>,
+                                        >,
+                                    >()?,
+                            );
+                        }
+                        "credential" => {
+                            __f_credential = Some(
+                                map
+                                    .next_value::<
+                                        ::buffa::MessageField<
+                                            CredentialReference,
+                                            ::buffa::Inline<CredentialReference>,
+                                        >,
+                                    >()?,
+                            );
+                        }
+                        "disclosures" => {
+                            __f_disclosures = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::buffa::alloc::vec::Vec<ClaimDisclosure>;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::buffa::alloc::vec::Vec<ClaimDisclosure>,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::null_as_default(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "zkProof" | "zk_proof" => {
+                            __f_zk_proof = Some(
+                                map
+                                    .next_value::<
+                                        ::buffa::MessageField<ZkProof, ::buffa::Inline<ZkProof>>,
+                                    >()?,
+                            );
+                        }
+                        "qeaa" => {
+                            __f_qeaa = Some(
+                                map
+                                    .next_value::<
+                                        ::buffa::MessageField<
+                                            QeaaVerifierHints,
+                                            ::buffa::Inline<QeaaVerifierHints>,
+                                        >,
+                                    >()?,
+                            );
+                        }
+                        "persona" => {
+                            let v: ::core::option::Option<ZkPersonaPresentation> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ZkPersonaPresentation,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_additional_profile.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'additional_profile'",
+                                        ),
+                                    );
+                                }
+                                __oneof_additional_profile = Some(
+                                    __buffa::oneof::zk_presentation::AdditionalProfile::Persona(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "commonRoot" | "common_root" => {
+                            let v: ::core::option::Option<ZkCommonRootPresentation> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ZkCommonRootPresentation,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_additional_profile.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'additional_profile'",
+                                        ),
+                                    );
+                                }
+                                __oneof_additional_profile = Some(
+                                    __buffa::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        _ => {
+                            map.next_value::<::serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                let mut __r = <ZkPresentation as ::core::default::Default>::default();
+                if let ::core::option::Option::Some(v) = __f_freshness {
+                    __r.freshness = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_credential {
+                    __r.credential = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_disclosures {
+                    __r.disclosures = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_zk_proof {
+                    __r.zk_proof = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_qeaa {
+                    __r.qeaa = v;
+                }
+                __r.additional_profile = __oneof_additional_profile;
+                Ok(__r)
+            }
+        }
+        d.deserialize_map(_V)
     }
 }
 impl ::buffa::json_helpers::ProtoElemJson for ZkPresentation {
@@ -2055,6 +2482,976 @@ pub const __ZK_PRESENTATION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
     type_url: "type.googleapis.com/identity.presentation.v1.ZkPresentation",
     to_json: ::buffa::type_registry::any_to_json::<ZkPresentation>,
     from_json: ::buffa::type_registry::any_from_json::<ZkPresentation>,
+    is_wkt: false,
+};
+pub mod zk_presentation {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::zk_presentation::AdditionalProfile;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::zk_presentation::AdditionalProfile as AdditionalProfileView;
+}
+/// One issuer credential claim authorized through a persona.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize)]
+#[serde(default)]
+pub struct ZkPersonaPresentation {
+    /// Field 1: `freshness`
+    #[serde(
+        rename = "freshness",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub freshness: ::buffa::MessageField<
+        PresentationFreshness,
+        ::buffa::Inline<PresentationFreshness>,
+    >,
+    /// Field 2: `mode`
+    #[serde(
+        rename = "mode",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub mode: ::buffa::EnumValue<ZkPersonaMode>,
+    /// Field 3: `disclosures`
+    #[serde(
+        rename = "disclosures",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub disclosures: ::buffa::alloc::vec::Vec<ClaimDisclosure>,
+    #[serde(flatten)]
+    pub evidence: ::core::option::Option<
+        __buffa::oneof::zk_persona_presentation::Evidence,
+    >,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ZkPersonaPresentation {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ZkPersonaPresentation")
+            .field("freshness", &::core::format_args!("[REDACTED]"))
+            .field("mode", &self.mode)
+            .field("disclosures", &::core::format_args!("[REDACTED]"))
+            .field("evidence", &self.evidence)
+            .finish()
+    }
+}
+impl ZkPersonaPresentation {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/identity.presentation.v1.ZkPersonaPresentation";
+}
+::buffa::impl_default_instance!(ZkPersonaPresentation);
+impl ::buffa::MessageName for ZkPersonaPresentation {
+    const PACKAGE: &'static str = "identity.presentation.v1";
+    const NAME: &'static str = "ZkPersonaPresentation";
+    const FULL_NAME: &'static str = "identity.presentation.v1.ZkPersonaPresentation";
+    const TYPE_URL: &'static str = "type.googleapis.com/identity.presentation.v1.ZkPersonaPresentation";
+}
+impl ::buffa::Message for ZkPersonaPresentation {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.freshness.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.freshness.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.mode.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        for v in &self.disclosures {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let ::core::option::Option::Some(ref v) = self.evidence {
+            match v {
+                __buffa::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                    x,
+                ) => {
+                    size += 1u64 + ::buffa::types::bytes_encoded_len(x) as u64;
+                }
+                __buffa::oneof::zk_persona_presentation::Evidence::Prepared(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.freshness.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.freshness.write_to(__cache, buf);
+        }
+        {
+            let val = self.mode.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
+            }
+        }
+        for v in &self.disclosures {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if let ::core::option::Option::Some(ref v) = self.evidence {
+            match v {
+                __buffa::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                    x,
+                ) => {
+                    ::buffa::types::put_shared_bytes_field(4u32, x, buf);
+                }
+                __buffa::oneof::zk_persona_presentation::Evidence::Prepared(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.freshness.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.mode = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.disclosures.push(elem);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                self.evidence = ::core::option::Option::Some(
+                    __buffa::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                        ::buffa::types::decode_bytes(buf)?,
+                    ),
+                );
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::zk_persona_presentation::Evidence::Prepared(
+                        ref mut existing,
+                    ),
+                ) = self.evidence
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.evidence = ::core::option::Option::Some(
+                        __buffa::oneof::zk_persona_presentation::Evidence::Prepared(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.freshness = ::buffa::MessageField::none();
+        self.mode = ::buffa::EnumValue::from(0);
+        self.disclosures.clear();
+        self.evidence = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ZkPersonaPresentation {
+    const PROTO_FQN: &'static str = "identity.presentation.v1.ZkPersonaPresentation";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ZkPersonaPresentation {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl<'de> ::serde::de::Visitor<'de> for _V {
+            type Value = ZkPersonaPresentation;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str("struct ZkPersonaPresentation")
+            }
+            #[allow(clippy::field_reassign_with_default)]
+            fn visit_map<A: ::serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> ::core::result::Result<ZkPersonaPresentation, A::Error> {
+                let mut __f_freshness: ::core::option::Option<
+                    ::buffa::MessageField<
+                        PresentationFreshness,
+                        ::buffa::Inline<PresentationFreshness>,
+                    >,
+                > = None;
+                let mut __f_mode: ::core::option::Option<
+                    ::buffa::EnumValue<ZkPersonaMode>,
+                > = None;
+                let mut __f_disclosures: ::core::option::Option<
+                    ::buffa::alloc::vec::Vec<ClaimDisclosure>,
+                > = None;
+                let mut __oneof_evidence: ::core::option::Option<
+                    __buffa::oneof::zk_persona_presentation::Evidence,
+                > = None;
+                while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
+                    match key.as_str() {
+                        "freshness" => {
+                            __f_freshness = Some(
+                                map
+                                    .next_value::<
+                                        ::buffa::MessageField<
+                                            PresentationFreshness,
+                                            ::buffa::Inline<PresentationFreshness>,
+                                        >,
+                                    >()?,
+                            );
+                        }
+                        "mode" => {
+                            __f_mode = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::buffa::EnumValue<ZkPersonaMode>;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::buffa::EnumValue<ZkPersonaMode>,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::proto_enum::deserialize(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "disclosures" => {
+                            __f_disclosures = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::buffa::alloc::vec::Vec<ClaimDisclosure>;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::buffa::alloc::vec::Vec<ClaimDisclosure>,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::null_as_default(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "requestBoundProofPackage" | "request_bound_proof_package" => {
+                            struct _DeserSeed;
+                            impl<'de> ::serde::de::DeserializeSeed<'de> for _DeserSeed {
+                                type Value = ::buffa::alloc::vec::Vec<u8>;
+                                fn deserialize<D: ::serde::Deserializer<'de>>(
+                                    self,
+                                    d: D,
+                                ) -> ::core::result::Result<
+                                    ::buffa::alloc::vec::Vec<u8>,
+                                    D::Error,
+                                > {
+                                    ::buffa::json_helpers::bytes::deserialize(d)
+                                }
+                            }
+                            let v: ::core::option::Option<
+                                ::buffa::alloc::vec::Vec<u8>,
+                            > = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(_DeserSeed),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_evidence.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'evidence'",
+                                        ),
+                                    );
+                                }
+                                __oneof_evidence = Some(
+                                    __buffa::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                                        v,
+                                    ),
+                                );
+                            }
+                        }
+                        "prepared" => {
+                            let v: ::core::option::Option<ZkPreparedPersonaEvidence> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ZkPreparedPersonaEvidence,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_evidence.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'evidence'",
+                                        ),
+                                    );
+                                }
+                                __oneof_evidence = Some(
+                                    __buffa::oneof::zk_persona_presentation::Evidence::Prepared(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        _ => {
+                            map.next_value::<::serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                let mut __r = <ZkPersonaPresentation as ::core::default::Default>::default();
+                if let ::core::option::Option::Some(v) = __f_freshness {
+                    __r.freshness = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_mode {
+                    __r.mode = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_disclosures {
+                    __r.disclosures = v;
+                }
+                __r.evidence = __oneof_evidence;
+                Ok(__r)
+            }
+        }
+        d.deserialize_map(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ZkPersonaPresentation {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __ZK_PERSONA_PRESENTATION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/identity.presentation.v1.ZkPersonaPresentation",
+    to_json: ::buffa::type_registry::any_to_json::<ZkPersonaPresentation>,
+    from_json: ::buffa::type_registry::any_from_json::<ZkPersonaPresentation>,
+    is_wkt: false,
+};
+pub mod zk_persona_presentation {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::zk_persona_presentation::Evidence;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::zk_persona_presentation::Evidence as EvidenceView;
+}
+/// Four precomputed credential proofs are separately authenticated for a fresh
+/// request. prepared_evidence_package is the canonical
+/// reallyme.zk.v1.ZkPreparedCredentialEvidenceV1 message; current_state_package
+/// is the canonical reallyme.zk.v1.ZkPreparedRawProofPackage for current status.
+/// The selected-claim proof establishes the public persona or one-time key.
+/// The holder signature covers a canonical ReallyMe ZK authentication transcript
+/// joining both exact packages to the verified request. All four checks remain
+/// the responsibility of the injected ZK verifier; this is only a transport type.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ZkPreparedPersonaEvidence {
+    /// Field 1: `prepared_evidence_package`
+    #[serde(
+        rename = "preparedEvidencePackage",
+        alias = "prepared_evidence_package",
+        with = "::buffa::json_helpers::bytes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+    )]
+    pub prepared_evidence_package: ::buffa::alloc::vec::Vec<u8>,
+    /// Field 2: `current_state_package`
+    #[serde(
+        rename = "currentStatePackage",
+        alias = "current_state_package",
+        with = "::buffa::json_helpers::bytes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+    )]
+    pub current_state_package: ::buffa::alloc::vec::Vec<u8>,
+    /// Field 3: `verifier_request`
+    #[serde(
+        rename = "verifierRequest",
+        alias = "verifier_request",
+        with = "::buffa::json_helpers::bytes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+    )]
+    pub verifier_request: ::buffa::alloc::vec::Vec<u8>,
+    /// Field 4: `holder_authentication`
+    #[serde(
+        rename = "holderAuthentication",
+        alias = "holder_authentication",
+        with = "::buffa::json_helpers::bytes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+    )]
+    pub holder_authentication: ::buffa::alloc::vec::Vec<u8>,
+    /// Field 5: `holder_public_key`
+    #[serde(
+        rename = "holderPublicKey",
+        alias = "holder_public_key",
+        with = "::buffa::json_helpers::bytes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+    )]
+    pub holder_public_key: ::buffa::alloc::vec::Vec<u8>,
+    /// Field 6: `holder_signature`
+    #[serde(
+        rename = "holderSignature",
+        alias = "holder_signature",
+        with = "::buffa::json_helpers::bytes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+    )]
+    pub holder_signature: ::buffa::alloc::vec::Vec<u8>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ZkPreparedPersonaEvidence {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ZkPreparedPersonaEvidence")
+            .field("prepared_evidence_package", &::core::format_args!("[REDACTED]"))
+            .field("current_state_package", &::core::format_args!("[REDACTED]"))
+            .field("verifier_request", &::core::format_args!("[REDACTED]"))
+            .field("holder_authentication", &::core::format_args!("[REDACTED]"))
+            .field("holder_public_key", &::core::format_args!("[REDACTED]"))
+            .field("holder_signature", &::core::format_args!("[REDACTED]"))
+            .finish()
+    }
+}
+impl ZkPreparedPersonaEvidence {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/identity.presentation.v1.ZkPreparedPersonaEvidence";
+}
+::buffa::impl_default_instance!(ZkPreparedPersonaEvidence);
+impl ::buffa::MessageName for ZkPreparedPersonaEvidence {
+    const PACKAGE: &'static str = "identity.presentation.v1";
+    const NAME: &'static str = "ZkPreparedPersonaEvidence";
+    const FULL_NAME: &'static str = "identity.presentation.v1.ZkPreparedPersonaEvidence";
+    const TYPE_URL: &'static str = "type.googleapis.com/identity.presentation.v1.ZkPreparedPersonaEvidence";
+}
+impl ::buffa::Message for ZkPreparedPersonaEvidence {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.prepared_evidence_package.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.prepared_evidence_package)
+                        as u64;
+        }
+        if !self.current_state_package.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.current_state_package)
+                        as u64;
+        }
+        if !self.verifier_request.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.verifier_request) as u64;
+        }
+        if !self.holder_authentication.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.holder_authentication)
+                        as u64;
+        }
+        if !self.holder_public_key.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.holder_public_key) as u64;
+        }
+        if !self.holder_signature.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.holder_signature) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.prepared_evidence_package.is_empty() {
+            ::buffa::types::put_shared_bytes_field(
+                1u32,
+                &self.prepared_evidence_package,
+                buf,
+            );
+        }
+        if !self.current_state_package.is_empty() {
+            ::buffa::types::put_shared_bytes_field(
+                2u32,
+                &self.current_state_package,
+                buf,
+            );
+        }
+        if !self.verifier_request.is_empty() {
+            ::buffa::types::put_shared_bytes_field(3u32, &self.verifier_request, buf);
+        }
+        if !self.holder_authentication.is_empty() {
+            ::buffa::types::put_shared_bytes_field(
+                4u32,
+                &self.holder_authentication,
+                buf,
+            );
+        }
+        if !self.holder_public_key.is_empty() {
+            ::buffa::types::put_shared_bytes_field(5u32, &self.holder_public_key, buf);
+        }
+        if !self.holder_signature.is_empty() {
+            ::buffa::types::put_shared_bytes_field(6u32, &self.holder_signature, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.prepared_evidence_package, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.current_state_package, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.verifier_request, buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.holder_authentication, buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.holder_public_key, buf)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.holder_signature, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.prepared_evidence_package.clear();
+        self.current_state_package.clear();
+        self.verifier_request.clear();
+        self.holder_authentication.clear();
+        self.holder_public_key.clear();
+        self.holder_signature.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ZkPreparedPersonaEvidence {
+    const PROTO_FQN: &'static str = "identity.presentation.v1.ZkPreparedPersonaEvidence";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ZkPreparedPersonaEvidence {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __ZK_PREPARED_PERSONA_EVIDENCE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/identity.presentation.v1.ZkPreparedPersonaEvidence",
+    to_json: ::buffa::type_registry::any_to_json::<ZkPreparedPersonaEvidence>,
+    from_json: ::buffa::type_registry::any_from_json::<ZkPreparedPersonaEvidence>,
+    is_wkt: false,
+};
+/// Two issuer credential claims joined to the same assured private root.
+/// Status pointers and original subject identifiers are private witness inputs;
+/// only their proof commitments and public inputs appear in the package.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ZkCommonRootPresentation {
+    /// Field 1: `freshness`
+    #[serde(
+        rename = "freshness",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub freshness: ::buffa::MessageField<
+        PresentationFreshness,
+        ::buffa::Inline<PresentationFreshness>,
+    >,
+    /// Field 2: `mode`
+    #[serde(
+        rename = "mode",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub mode: ::buffa::EnumValue<ZkPersonaMode>,
+    /// Field 3: `disclosures`
+    #[serde(
+        rename = "disclosures",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub disclosures: ::buffa::alloc::vec::Vec<ClaimDisclosure>,
+    /// Field 4: `proof_package`
+    #[serde(
+        rename = "proofPackage",
+        alias = "proof_package",
+        with = "::buffa::json_helpers::bytes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_bytes"
+    )]
+    pub proof_package: ::buffa::alloc::vec::Vec<u8>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ZkCommonRootPresentation {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ZkCommonRootPresentation")
+            .field("freshness", &::core::format_args!("[REDACTED]"))
+            .field("mode", &self.mode)
+            .field("disclosures", &::core::format_args!("[REDACTED]"))
+            .field("proof_package", &::core::format_args!("[REDACTED]"))
+            .finish()
+    }
+}
+impl ZkCommonRootPresentation {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/identity.presentation.v1.ZkCommonRootPresentation";
+}
+::buffa::impl_default_instance!(ZkCommonRootPresentation);
+impl ::buffa::MessageName for ZkCommonRootPresentation {
+    const PACKAGE: &'static str = "identity.presentation.v1";
+    const NAME: &'static str = "ZkCommonRootPresentation";
+    const FULL_NAME: &'static str = "identity.presentation.v1.ZkCommonRootPresentation";
+    const TYPE_URL: &'static str = "type.googleapis.com/identity.presentation.v1.ZkCommonRootPresentation";
+}
+impl ::buffa::Message for ZkCommonRootPresentation {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.freshness.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.freshness.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.mode.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        for v in &self.disclosures {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.proof_package.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.proof_package) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.freshness.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.freshness.write_to(__cache, buf);
+        }
+        {
+            let val = self.mode.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
+            }
+        }
+        for v in &self.disclosures {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if !self.proof_package.is_empty() {
+            ::buffa::types::put_shared_bytes_field(4u32, &self.proof_package, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.freshness.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.mode = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.disclosures.push(elem);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(&mut self.proof_package, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.freshness = ::buffa::MessageField::none();
+        self.mode = ::buffa::EnumValue::from(0);
+        self.disclosures.clear();
+        self.proof_package.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ZkCommonRootPresentation {
+    const PROTO_FQN: &'static str = "identity.presentation.v1.ZkCommonRootPresentation";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ZkCommonRootPresentation {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __ZK_COMMON_ROOT_PRESENTATION_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/identity.presentation.v1.ZkCommonRootPresentation",
+    to_json: ::buffa::type_registry::any_to_json::<ZkCommonRootPresentation>,
+    from_json: ::buffa::type_registry::any_from_json::<ZkCommonRootPresentation>,
     is_wkt: false,
 };
 /// PresentationFreshness binds a presentation to verifier challenge, audience,

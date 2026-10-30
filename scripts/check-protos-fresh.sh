@@ -6,7 +6,13 @@
 set -eu
 
 SSI_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+GENERATED_DIR="${SSI_ROOT}/crates/proto/src/generated/buffa"
+SNAPSHOT_DIR="$(mktemp -d)"
+trap 'rm -rf "${SNAPSHOT_DIR}"' EXIT HUP INT TERM
 
+# Compare the generated working tree with its own pre-run bytes. A Git diff
+# against HEAD would reject valid, uncommitted schema and binding changes.
+cp -R "${GENERATED_DIR}" "${SNAPSHOT_DIR}/buffa"
 "${SSI_ROOT}/scripts/generate-protos.sh"
 
 cargo fmt -p reallyme-ssi-proto
@@ -17,8 +23,10 @@ if git -C "${SSI_ROOT}" check-ignore -q \
   exit 1
 fi
 
-git -C "${SSI_ROOT}" diff --exit-code -- \
-  crates/proto/src/generated/buffa
+if ! diff -qr "${SNAPSHOT_DIR}/buffa" "${GENERATED_DIR}"; then
+  echo "generated protobuf bindings differ from the pre-run working tree" >&2
+  exit 1
+fi
 
 GENERATED_STATUS="$(git -C "${SSI_ROOT}" status --porcelain --untracked-files=all -- \
   crates/proto/src/generated/buffa)"

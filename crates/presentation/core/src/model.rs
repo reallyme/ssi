@@ -58,9 +58,71 @@ pub struct SdJwtVcPresentation {
     pub envelope_hash: Option<[u8; 32]>,
 }
 
-/// Semantic zero-knowledge presentation.
+/// The semantic statement carried by a zero-knowledge presentation.
+///
+/// The variant is a routing hint, not evidence of proof validity. A verifier
+/// must authenticate the proof package and bind its verified profile to this
+/// variant before using any disclosures or status facts.
 #[derive(PartialEq, Eq)]
-pub struct ZkPresentation {
+pub enum ZkPresentation {
+    /// Claim from one issuer credential.
+    Credential(ZkCredentialPresentation),
+    /// Claim authorized through one persona.
+    Persona(ZkPersonaPresentation),
+    /// Claims from two credentials joined by an assured private root.
+    CommonRoot(ZkCommonRootPresentation),
+}
+
+/// Whether persona ownership is kept private or intentionally exposed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ZkPersonaMode {
+    /// Persona ownership remains hidden in the proof.
+    Private,
+    /// Persona ownership is publicly bound by the proof.
+    Public,
+}
+
+/// Whether a presentation proof is bound directly to the active request or
+/// prepared earlier and authenticated with a fresh holder signature.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ZkPresentationProofMode {
+    /// Circuit proof directly binds the active verifier request.
+    RequestBoundProof,
+    /// Prepared circuit proof is joined to current state and live key control.
+    PreparedProof,
+}
+
+impl ZkPresentation {
+    /// Freshness values that the verified proof must bind.
+    pub fn freshness(&self) -> &PresentationFreshness {
+        match self {
+            Self::Credential(value) => &value.freshness,
+            Self::Persona(value) => &value.freshness,
+            Self::CommonRoot(value) => &value.freshness,
+        }
+    }
+
+    /// Claimed disclosures, usable only after the proof has been verified.
+    pub fn disclosures(&self) -> &[ClaimDisclosure] {
+        match self {
+            Self::Credential(value) => &value.disclosures,
+            Self::Persona(value) => &value.disclosures,
+            Self::CommonRoot(value) => &value.disclosures,
+        }
+    }
+
+    /// Return the binding mode required by the selected proof statement.
+    pub fn proof_mode(&self) -> ZkPresentationProofMode {
+        match self {
+            Self::Credential(_) | Self::CommonRoot(_) => ZkPresentationProofMode::RequestBoundProof,
+            Self::Persona(value) => value.evidence.proof_mode(),
+        }
+    }
+}
+
+/// Single-credential ZK presentation with an explicit credential reference.
+#[derive(PartialEq, Eq)]
+pub struct ZkCredentialPresentation {
     /// Freshness and audience binding.
     pub freshness: PresentationFreshness,
 
@@ -75,6 +137,79 @@ pub struct ZkPresentation {
 
     /// Optional QEAA verifier hints.
     pub qeaa: Option<QeaaVerifierHints>,
+}
+
+/// Persona-authorized presentation. Subject and status openings are private
+/// witness inputs; the public package carries only proof and public inputs.
+#[derive(PartialEq, Eq)]
+pub struct ZkPersonaPresentation {
+    /// Freshness and audience binding.
+    pub freshness: PresentationFreshness,
+    /// Private or public persona ownership statement.
+    pub mode: ZkPersonaMode,
+    /// Claim disclosures authenticated by the verified proof.
+    pub disclosures: Vec<ClaimDisclosure>,
+    /// Exactly one request-bound or prepared evidence form.
+    pub evidence: ZkPersonaEvidence,
+}
+
+/// Mutually exclusive proof and freshness mechanisms for one persona claim.
+#[derive(PartialEq, Eq)]
+pub enum ZkPersonaEvidence {
+    /// Opaque proof package whose public inputs bind the active request.
+    RequestBound {
+        /// Canonical proof package with the active request as public input.
+        proof_package: Vec<u8>,
+    },
+    /// Prepared proof joined to signed status and live holder authentication.
+    Prepared(ZkPreparedPersonaEvidence),
+}
+
+impl ZkPersonaEvidence {
+    /// Return the proof's required presentation binding mode.
+    pub fn proof_mode(&self) -> ZkPresentationProofMode {
+        match self {
+            Self::RequestBound { .. } => ZkPresentationProofMode::RequestBoundProof,
+            Self::Prepared(_) => ZkPresentationProofMode::PreparedProof,
+        }
+    }
+}
+
+/// Prepared persona evidence bound to a current status snapshot and verified
+/// request by a holder signature. The holder key is a stable persona key in
+/// public mode and a reserved one-time key in private mode. These bytes are
+/// transport data only; a consumer must verify the exact ZK profile, issuer
+/// credential, status, signature, and request before accepting a disclosure.
+#[derive(PartialEq, Eq)]
+pub struct ZkPreparedPersonaEvidence {
+    /// Canonical four-proof ZkPreparedCredentialEvidenceV1 package. Each proof
+    /// is verified under its own pinned source artifact and joined to the same
+    /// credential and selected holder key.
+    pub prepared_evidence_package: Vec<u8>,
+    /// Canonical ZkPreparedRawProofPackage for current issuer status.
+    pub current_state_package: Vec<u8>,
+    /// Canonical authenticated request constructed by the protocol adapter.
+    pub verifier_request: Vec<u8>,
+    /// Canonical presentation-authentication transcript.
+    pub holder_authentication: Vec<u8>,
+    /// P-256 holder key exposed by the verified proof.
+    pub holder_public_key: [u8; 64],
+    /// Signature by the exposed holder key over the transcript digest.
+    pub holder_signature: [u8; 64],
+}
+
+/// Two credentials linked through the same assured private root. The package
+/// carries proof data, never the private credential or root openings.
+#[derive(PartialEq, Eq)]
+pub struct ZkCommonRootPresentation {
+    /// Freshness and audience binding.
+    pub freshness: PresentationFreshness,
+    /// Private or public presenting persona ownership statement.
+    pub mode: ZkPersonaMode,
+    /// Claim disclosures authenticated by the verified proof.
+    pub disclosures: Vec<ClaimDisclosure>,
+    /// Opaque, versioned ZK proof package bytes.
+    pub proof_package: Vec<u8>,
 }
 
 /// Freshness and audience-binding inputs for a presentation.
