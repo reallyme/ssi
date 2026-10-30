@@ -22,7 +22,8 @@ use identity_presentation_delivery_web_validator::{
 };
 use identity_presentation_vp_core::model::{
     CredentialReference, CredentialStatusRef, Presentation, PresentationFreshness,
-    SdJwtVcPresentation, StatusPurpose as VpStatusPurpose, ZkPresentation, ZkProof,
+    SdJwtVcPresentation, StatusPurpose as VpStatusPurpose, ZkCredentialPresentation,
+    ZkPresentation, ZkProof,
 };
 use identity_presentation_vp_policy::StatusContext;
 use identity_presentation_vp_policy::VpPolicyError;
@@ -276,7 +277,7 @@ fn dummy_zk_presentation(circuit_id: &str) -> Presentation {
         1_700_000_000u64.to_be_bytes().to_vec(),
     );
 
-    Presentation::Zk(Box::new(ZkPresentation {
+    Presentation::Zk(Box::new(ZkPresentation::Credential(ZkCredentialPresentation {
         freshness: PresentationFreshness {
             challenge: [2u8; 32],
             audience_hash: [1u8; 32],
@@ -303,7 +304,7 @@ fn dummy_zk_presentation(circuit_id: &str) -> Presentation {
             artifact_manifest_sha256: [9_u8; 32],
         },
         qeaa: None,
-    }))
+    })))
 }
 fn valid_qeaa() -> QeaaCompliance {
     QeaaCompliance {

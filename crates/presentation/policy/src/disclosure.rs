@@ -17,7 +17,7 @@ pub(crate) fn validate_presentation_freshness(
     errors: &mut Vec<VpPolicyError>,
 ) {
     if let Presentation::Zk(presentation) = presentation {
-        if now_unix >= presentation.freshness.expiry_unix {
+        if now_unix >= presentation.freshness().expiry_unix {
             errors.push(VpPolicyError::Expired);
         }
     }
@@ -47,12 +47,12 @@ pub fn extract_disclosed_claims(pres: &Presentation) -> Result<Vec<DisclosedClai
             extract_sd_jwt_disclosed_claims(sd).map_err(|_| VpPolicyError::ProofInvalid)
         }
 
-        Presentation::Zk(zk) if zk.disclosures.len() > MAX_POLICY_DISCLOSURES => {
+        Presentation::Zk(zk) if zk.disclosures().len() > MAX_POLICY_DISCLOSURES => {
             Err(VpPolicyError::ProofInvalid)
         }
 
         Presentation::Zk(zk) => zk
-            .disclosures
+            .disclosures()
             .iter()
             .map(|item| {
                 Ok(DisclosedClaim {

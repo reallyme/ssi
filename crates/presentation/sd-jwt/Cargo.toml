@@ -4,7 +4,7 @@
 
 [package]
 name = "identity-presentation-vp-sd-jwt"
-version = "0.4.2"
+version = "0.5.0"
 description = "Legacy ReallyMe Merkle-envelope presentation compatibility; not RFC 9901 SD-JWT VC"
 edition = "2021"
 publish = false
@@ -32,9 +32,9 @@ identity-credential-claims-core = { workspace = true }
 
 
 envelopes-jwt = { workspace = true }
-envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.13", default-features = false }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.15", default-features = false }
 
-crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.13", default-features = false }
-crypto-core = { package = "reallyme-crypto-core", version = "0.3.13" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.15", default-features = false }
+crypto-core = { package = "reallyme-crypto-core", version = "0.3.15" }
 [lints]
 workspace = true

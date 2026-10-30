@@ -21,8 +21,9 @@ use identity_core_primitives::Algorithm;
 use identity_credential_claims_core::ClaimsRegistry;
 use identity_presentation_vp_core::model::{
     CredentialReference, CredentialStatusRef, Presentation, PresentationFreshness,
-    SdJwtVcPresentation, StatusPurpose as PresentationStatusPurpose, ZkPresentation, ZkProof,
-    ZkProofSuite,
+    SdJwtVcPresentation, StatusPurpose as PresentationStatusPurpose, ZkCommonRootPresentation,
+    ZkCredentialPresentation, ZkPersonaEvidence, ZkPersonaMode, ZkPersonaPresentation,
+    ZkPresentation, ZkProof, ZkProofSuite,
 };
 use reallyme_credential_audit::{IdentityProofingLevel, QeaaCompliance};
 
@@ -45,34 +46,36 @@ fn empty_registry(claimset_id: &str) -> ClaimsRegistry {
 }
 
 fn dummy_presentation() -> Presentation {
-    Presentation::Zk(Box::new(ZkPresentation {
-        freshness: PresentationFreshness {
-            challenge: [1; 32],
-            audience_hash: [2; 32],
-            expiry_unix: 1_800_000_000,
-        },
-        credential: CredentialReference {
-            envelope_hash: [3; 32],
-            issuer_did: "did:test:issuer".to_owned(),
-            status: CredentialStatusRef {
-                status_list_url: "https://example.test/status".to_owned(),
-                status_list_id: [7; 32],
-                status_list_index: 0,
-                purpose: PresentationStatusPurpose::Revocation,
+    Presentation::Zk(Box::new(ZkPresentation::Credential(
+        ZkCredentialPresentation {
+            freshness: PresentationFreshness {
+                challenge: [1; 32],
+                audience_hash: [2; 32],
+                expiry_unix: 1_800_000_000,
             },
+            credential: CredentialReference {
+                envelope_hash: [3; 32],
+                issuer_did: "did:test:issuer".to_owned(),
+                status: CredentialStatusRef {
+                    status_list_url: "https://example.test/status".to_owned(),
+                    status_list_id: [7; 32],
+                    status_list_index: 0,
+                    purpose: PresentationStatusPurpose::Revocation,
+                },
+            },
+            disclosures: Vec::new(),
+            zk_proof: ZkProof {
+                circuit_id: "test-circuit".to_owned(),
+                circuit_version: "1".to_owned(),
+                vk_id: "test-vk".to_owned(),
+                proof_bytes: vec![1],
+                public_inputs: BTreeMap::new(),
+                proof_suite: ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
+                artifact_manifest_sha256: [4; 32],
+            },
+            qeaa: None,
         },
-        disclosures: Vec::new(),
-        zk_proof: ZkProof {
-            circuit_id: "test-circuit".to_owned(),
-            circuit_version: "1".to_owned(),
-            vk_id: "test-vk".to_owned(),
-            proof_bytes: vec![1],
-            public_inputs: BTreeMap::new(),
-            proof_suite: ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
-            artifact_manifest_sha256: [4; 32],
-        },
-        qeaa: None,
-    }))
+    )))
 }
 
 #[test]
@@ -296,6 +299,61 @@ fn status_evaluation_binds_to_the_presentations_authenticated_reference() {
         decision,
         PolicyDecision::Reject(vec![VpPolicyError::StatusCheckFailed])
     );
+}
+
+#[test]
+fn private_zk_profiles_cannot_borrow_a_credential_status_list() {
+    let policy = eu_pid_policy();
+    let qeaa = valid_qeaa();
+    let status_list = status_list_issued_at(1_700_000_000);
+    let verifier = AcceptAllStatusVerifier;
+    let freshness = || PresentationFreshness {
+        challenge: [1; 32],
+        audience_hash: [2; 32],
+        expiry_unix: 1_800_000_000,
+    };
+    let presentations = [
+        Presentation::Zk(Box::new(ZkPresentation::Persona(ZkPersonaPresentation {
+            freshness: freshness(),
+            mode: ZkPersonaMode::Private,
+            disclosures: Vec::new(),
+            evidence: ZkPersonaEvidence::RequestBound {
+                proof_package: vec![1],
+            },
+        }))),
+        Presentation::Zk(Box::new(ZkPresentation::CommonRoot(
+            ZkCommonRootPresentation {
+                freshness: freshness(),
+                mode: ZkPersonaMode::Private,
+                disclosures: Vec::new(),
+                proof_package: vec![1],
+            },
+        ))),
+    ];
+    for presentation in &presentations {
+        let decision = evaluate(
+            &policy,
+            &EvaluationContext {
+                binding_ok: true,
+                now_unix: 1_700_000_000,
+                presentation,
+                issuer_algorithm: Algorithm::Ed25519,
+                holder_algorithm: Algorithm::Ed25519,
+                claims_registry: &empty_registry("eu.pid.v1"),
+                claimset_id: "eu.pid.v1",
+                status: Some(StatusContext {
+                    list: &status_list,
+                    verifier: &verifier,
+                }),
+                qeaa: Some(&qeaa),
+                qeaa_audit_ok: Some(&qeaa),
+            },
+        );
+        assert_eq!(
+            decision,
+            PolicyDecision::Reject(vec![VpPolicyError::StatusCheckFailed])
+        );
+    }
 }
 
 #[test]

@@ -18,8 +18,8 @@ use reallyme_vp_api::{
 };
 use reallyme_vp_core::{
     ClaimDisclosure, CredentialReference, CredentialStatusRef, DisclosureMode, Presentation,
-    PresentationBinding, PresentationFreshness, SdJwtVcPresentation, StatusPurpose, ZkPresentation,
-    ZkProof, ZkProofSuite,
+    PresentationBinding, PresentationFreshness, SdJwtVcPresentation, StatusPurpose,
+    ZkCredentialPresentation, ZkPresentation, ZkProof, ZkProofSuite,
 };
 use std::collections::BTreeMap;
 use zeroize::Zeroize;
@@ -43,47 +43,53 @@ fn presentation() -> Presentation {
 }
 
 fn expired_zk_presentation() -> Presentation {
-    Presentation::Zk(Box::new(ZkPresentation {
-        freshness: PresentationFreshness {
-            challenge: [1_u8; 32],
-            audience_hash: [2_u8; 32],
-            expiry_unix: 1_699_999_999,
-        },
-        credential: CredentialReference {
-            envelope_hash: [3_u8; 32],
-            issuer_did: "did:example:issuer".to_owned(),
-            status: CredentialStatusRef {
-                status_list_url: "https://issuer.example/status".to_owned(),
-                status_list_id: [4_u8; 32],
-                status_list_index: 1,
-                purpose: StatusPurpose::Revocation,
+    Presentation::Zk(Box::new(ZkPresentation::Credential(
+        ZkCredentialPresentation {
+            freshness: PresentationFreshness {
+                challenge: [1_u8; 32],
+                audience_hash: [2_u8; 32],
+                expiry_unix: 1_699_999_999,
             },
+            credential: CredentialReference {
+                envelope_hash: [3_u8; 32],
+                issuer_did: "did:example:issuer".to_owned(),
+                status: CredentialStatusRef {
+                    status_list_url: "https://issuer.example/status".to_owned(),
+                    status_list_id: [4_u8; 32],
+                    status_list_index: 1,
+                    purpose: StatusPurpose::Revocation,
+                },
+            },
+            disclosures: vec![ClaimDisclosure {
+                claim_path: "/given_name".to_owned(),
+                mode: DisclosureMode::Reveal,
+                revealed_value: Some(b"Alice".to_vec()),
+                threshold: None,
+                range: None,
+                set: None,
+            }],
+            zk_proof: ZkProof {
+                circuit_id: "eu.pid".to_owned(),
+                circuit_version: "1".to_owned(),
+                vk_id: "vk-1".to_owned(),
+                proof_bytes: vec![1_u8],
+                public_inputs: BTreeMap::new(),
+                proof_suite: ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
+                artifact_manifest_sha256: [5_u8; 32],
+            },
+            qeaa: None,
         },
-        disclosures: vec![ClaimDisclosure {
-            claim_path: "/given_name".to_owned(),
-            mode: DisclosureMode::Reveal,
-            revealed_value: Some(b"Alice".to_vec()),
-            threshold: None,
-            range: None,
-            set: None,
-        }],
-        zk_proof: ZkProof {
-            circuit_id: "eu.pid".to_owned(),
-            circuit_version: "1".to_owned(),
-            vk_id: "vk-1".to_owned(),
-            proof_bytes: vec![1_u8],
-            public_inputs: BTreeMap::new(),
-            proof_suite: ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
-            artifact_manifest_sha256: [5_u8; 32],
-        },
-        qeaa: None,
-    }))
+    )))
 }
 
+#[allow(clippy::panic)]
 fn valid_zk_presentation() -> Presentation {
     let mut presentation = expired_zk_presentation();
     if let Presentation::Zk(zk) = &mut presentation {
-        zk.freshness.expiry_unix = 1_700_000_001;
+        let ZkPresentation::Credential(value) = zk.as_mut() else {
+            panic!("the test constructs a credential presentation");
+        };
+        value.freshness.expiry_unix = 1_700_000_001;
     }
     presentation
 }

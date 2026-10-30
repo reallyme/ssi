@@ -85,6 +85,134 @@ pub mod presentation {
         }
     }
 }
+pub mod zk_presentation {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq)]
+    pub enum AdditionalProfile {
+        Persona(::buffa::alloc::boxed::Box<super::super::super::ZkPersonaPresentation>),
+        CommonRoot(
+            ::buffa::alloc::boxed::Box<super::super::super::ZkCommonRootPresentation>,
+        ),
+    }
+    impl ::core::fmt::Debug for AdditionalProfile {
+        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            match self {
+                Self::Persona(_) => {
+                    f.debug_tuple("Persona")
+                        .field(&::core::format_args!("[REDACTED]"))
+                        .finish()
+                }
+                Self::CommonRoot(_) => {
+                    f.debug_tuple("CommonRoot")
+                        .field(&::core::format_args!("[REDACTED]"))
+                        .finish()
+                }
+            }
+        }
+    }
+    impl ::buffa::Oneof for AdditionalProfile {}
+    impl From<super::super::super::ZkPersonaPresentation> for AdditionalProfile {
+        fn from(v: super::super::super::ZkPersonaPresentation) -> Self {
+            Self::Persona(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ZkPersonaPresentation>
+    for ::core::option::Option<AdditionalProfile> {
+        fn from(v: super::super::super::ZkPersonaPresentation) -> Self {
+            Self::Some(AdditionalProfile::from(v))
+        }
+    }
+    impl From<super::super::super::ZkCommonRootPresentation> for AdditionalProfile {
+        fn from(v: super::super::super::ZkCommonRootPresentation) -> Self {
+            Self::CommonRoot(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ZkCommonRootPresentation>
+    for ::core::option::Option<AdditionalProfile> {
+        fn from(v: super::super::super::ZkCommonRootPresentation) -> Self {
+            Self::Some(AdditionalProfile::from(v))
+        }
+    }
+    impl ::serde::Serialize for AdditionalProfile {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use ::serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Persona(v) => {
+                    map.serialize_entry("persona", &**v)?;
+                }
+                Self::CommonRoot(v) => {
+                    map.serialize_entry("commonRoot", &**v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
+pub mod zk_persona_presentation {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq)]
+    pub enum Evidence {
+        RequestBoundProofPackage(::buffa::alloc::vec::Vec<u8>),
+        Prepared(
+            ::buffa::alloc::boxed::Box<super::super::super::ZkPreparedPersonaEvidence>,
+        ),
+    }
+    impl ::core::fmt::Debug for Evidence {
+        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            match self {
+                Self::RequestBoundProofPackage(_) => {
+                    f.debug_tuple("RequestBoundProofPackage")
+                        .field(&::core::format_args!("[REDACTED]"))
+                        .finish()
+                }
+                Self::Prepared(_) => {
+                    f.debug_tuple("Prepared")
+                        .field(&::core::format_args!("[REDACTED]"))
+                        .finish()
+                }
+            }
+        }
+    }
+    impl ::buffa::Oneof for Evidence {}
+    impl From<super::super::super::ZkPreparedPersonaEvidence> for Evidence {
+        fn from(v: super::super::super::ZkPreparedPersonaEvidence) -> Self {
+            Self::Prepared(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ZkPreparedPersonaEvidence>
+    for ::core::option::Option<Evidence> {
+        fn from(v: super::super::super::ZkPreparedPersonaEvidence) -> Self {
+            Self::Some(Evidence::from(v))
+        }
+    }
+    impl ::serde::Serialize for Evidence {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use ::serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::RequestBoundProofPackage(v) => {
+                    map.serialize_entry(
+                        "requestBoundProofPackage",
+                        &::buffa::json_helpers::ProtoJson(v),
+                    )?;
+                }
+                Self::Prepared(v) => {
+                    map.serialize_entry("prepared", &**v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
 pub mod claim_disclosure {
     #[allow(unused_imports)]
     use super::*;

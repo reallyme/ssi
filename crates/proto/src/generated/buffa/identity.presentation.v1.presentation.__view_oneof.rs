@@ -44,6 +44,72 @@ pub mod presentation {
         }
     }
 }
+pub mod zk_presentation {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone)]
+    pub enum AdditionalProfile<'a> {
+        Persona(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ZkPersonaPresentationView<'a>,
+            >,
+        ),
+        CommonRoot(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ZkCommonRootPresentationView<
+                    'a,
+                >,
+            >,
+        ),
+    }
+    impl<'a> ::core::fmt::Debug for AdditionalProfile<'a> {
+        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            match self {
+                Self::Persona(_) => {
+                    f.debug_tuple("Persona")
+                        .field(&::core::format_args!("[REDACTED]"))
+                        .finish()
+                }
+                Self::CommonRoot(_) => {
+                    f.debug_tuple("CommonRoot")
+                        .field(&::core::format_args!("[REDACTED]"))
+                        .finish()
+                }
+            }
+        }
+    }
+}
+pub mod zk_persona_presentation {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone)]
+    pub enum Evidence<'a> {
+        RequestBoundProofPackage(&'a [u8]),
+        Prepared(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ZkPreparedPersonaEvidenceView<
+                    'a,
+                >,
+            >,
+        ),
+    }
+    impl<'a> ::core::fmt::Debug for Evidence<'a> {
+        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            match self {
+                Self::RequestBoundProofPackage(_) => {
+                    f.debug_tuple("RequestBoundProofPackage")
+                        .field(&::core::format_args!("[REDACTED]"))
+                        .finish()
+                }
+                Self::Prepared(_) => {
+                    f.debug_tuple("Prepared")
+                        .field(&::core::format_args!("[REDACTED]"))
+                        .finish()
+                }
+            }
+        }
+    }
+}
 pub mod claim_disclosure {
     #[allow(unused_imports)]
     use super::*;

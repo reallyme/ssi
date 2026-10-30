@@ -1455,7 +1455,10 @@ impl ::serde::Serialize for SdJwtVcPresentationOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// ZkPresentation carries semantic disclosure facts and proof bytes.
+/// The original credential fields retain their v1 wire numbers so deployed
+/// credential presentations remain readable. New proof profiles use distinct
+/// fields; a decoder must reject messages that combine profile shapes.
+/// Proof packages are owned and interpreted by ReallyMe ZK.
 #[derive(Clone, Default)]
 pub struct ZkPresentationView<'a> {
     /// Field 1: `freshness`
@@ -1479,6 +1482,9 @@ pub struct ZkPresentationView<'a> {
     pub qeaa: ::buffa::MessageFieldView<
         super::super::__buffa::view::QeaaVerifierHintsView<'a>,
     >,
+    pub additional_profile: ::core::option::Option<
+        super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::core::fmt::Debug for ZkPresentationView<'a> {
@@ -1489,6 +1495,7 @@ impl<'a> ::core::fmt::Debug for ZkPresentationView<'a> {
             .field("disclosures", &::core::format_args!("[REDACTED]"))
             .field("zk_proof", &::core::format_args!("[REDACTED]"))
             .field("qeaa", &::core::format_args!("[REDACTED]"))
+            .field("additional_profile", &self.additional_profile)
             .finish()
     }
 }
@@ -1626,6 +1633,68 @@ impl<'a> ::buffa::MessageView<'a> for ZkPresentationView<'a> {
                         )?,
                     );
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::Persona(
+                        ref mut existing,
+                    ),
+                ) = view.additional_profile
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.additional_profile = Some(
+                        super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::Persona(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::ZkPersonaPresentationView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                        ref mut existing,
+                    ),
+                ) = view.additional_profile
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.additional_profile = Some(
+                        super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::ZkCommonRootPresentationView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1689,6 +1758,33 @@ impl<'a> ::buffa::MessageView<'a> for ZkPresentationView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            additional_profile: match self.additional_profile.as_ref() {
+                ::core::option::Option::Some(v) => {
+                    ::core::option::Option::Some(
+                        match v {
+                            super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::Persona(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::zk_presentation::AdditionalProfile::Persona(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                }
+                ::core::option::Option::None => ::core::option::Option::None,
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1739,6 +1835,30 @@ impl<'a> ::buffa::ViewEncode<'a> for ZkPresentationView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if let ::core::option::Option::Some(ref v) = self.additional_profile {
+            match v {
+                super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::Persona(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -1791,6 +1911,30 @@ impl<'a> ::buffa::ViewEncode<'a> for ZkPresentationView<'a> {
             );
             self.qeaa.write_to(__cache, buf);
         }
+        if let ::core::option::Option::Some(ref v) = self.additional_profile {
+            match v {
+                super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::Persona(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -1833,6 +1977,20 @@ impl<'__a> ::serde::Serialize for ZkPresentationView<'__a> {
         {
             if let ::core::option::Option::Some(__v) = self.qeaa.as_option() {
                 __map.serialize_entry("qeaa", __v)?;
+            }
+        }
+        if let ::core::option::Option::Some(ref __ov) = self.additional_profile {
+            match __ov {
+                super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::Persona(
+                    v,
+                ) => {
+                    __map.serialize_entry("persona", v)?;
+                }
+                super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile::CommonRoot(
+                    v,
+                ) => {
+                    __map.serialize_entry("commonRoot", v)?;
+                }
             }
         }
         __map.end()
@@ -1972,6 +2130,15 @@ impl ZkPresentationOwnedView {
     > {
         &self.0.reborrow().qeaa
     }
+    /// Oneof `additional_profile`.
+    #[must_use]
+    pub fn additional_profile(
+        &self,
+    ) -> ::core::option::Option<
+        &super::super::__buffa::view::oneof::zk_presentation::AdditionalProfile<'_>,
+    > {
+        self.0.reborrow().additional_profile.as_ref()
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<ZkPresentationView<'static>>>
 for ZkPresentationOwnedView {
@@ -1996,6 +2163,1413 @@ impl ::buffa::HasMessageView for super::super::ZkPresentation {
     type ViewHandle = ZkPresentationOwnedView;
 }
 impl ::serde::Serialize for ZkPresentationOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// One issuer credential claim authorized through a persona.
+#[derive(Clone, Default)]
+pub struct ZkPersonaPresentationView<'a> {
+    /// Field 1: `freshness`
+    pub freshness: ::buffa::MessageFieldView<
+        super::super::__buffa::view::PresentationFreshnessView<'a>,
+    >,
+    /// Field 2: `mode`
+    pub mode: ::buffa::EnumValue<super::super::ZkPersonaMode>,
+    /// Field 3: `disclosures`
+    pub disclosures: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::ClaimDisclosureView<'a>,
+    >,
+    pub evidence: ::core::option::Option<
+        super::super::__buffa::view::oneof::zk_persona_presentation::Evidence<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::core::fmt::Debug for ZkPersonaPresentationView<'a> {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ZkPersonaPresentationView")
+            .field("freshness", &::core::format_args!("[REDACTED]"))
+            .field("mode", &self.mode)
+            .field("disclosures", &::core::format_args!("[REDACTED]"))
+            .field("evidence", &self.evidence)
+            .finish()
+    }
+}
+impl<'a> ::buffa::MessageView<'a> for ZkPersonaPresentationView<'a> {
+    type Owned = super::super::ZkPersonaPresentation;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.freshness.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.freshness = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::PresentationFreshnessView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.mode = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::ClaimDisclosureView,
+                    >(),
+                )?;
+                view.disclosures
+                    .push(
+                        <super::super::__buffa::view::ClaimDisclosureView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.evidence = Some(
+                    super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                        ::buffa::types::borrow_bytes(&mut cur)?,
+                    ),
+                );
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::Prepared(
+                        ref mut existing,
+                    ),
+                ) = view.evidence
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.evidence = Some(
+                        super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::Prepared(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::ZkPreparedPersonaEvidenceView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ZkPersonaPresentation,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ZkPersonaPresentation,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ZkPersonaPresentation {
+            freshness: match self.freshness.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::PresentationFreshness,
+                        ::buffa::Inline<super::super::PresentationFreshness>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            mode: self.mode,
+            disclosures: self
+                .disclosures
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            evidence: match self.evidence.as_ref() {
+                ::core::option::Option::Some(v) => {
+                    ::core::option::Option::Some(
+                        match v {
+                            super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                                    (v).to_vec(),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::Prepared(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::zk_persona_presentation::Evidence::Prepared(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                }
+                ::core::option::Option::None => ::core::option::Option::None,
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ZkPersonaPresentationView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.freshness.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.freshness.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.mode.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        for v in &self.disclosures {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let ::core::option::Option::Some(ref v) = self.evidence {
+            match v {
+                super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                    x,
+                ) => {
+                    size += 1u64 + ::buffa::types::bytes_encoded_len(x) as u64;
+                }
+                super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::Prepared(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.freshness.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.freshness.write_to(__cache, buf);
+        }
+        {
+            let val = self.mode.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
+            }
+        }
+        for v in &self.disclosures {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if let ::core::option::Option::Some(ref v) = self.evidence {
+            match v {
+                super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                    x,
+                ) => {
+                    ::buffa::types::put_shared_bytes_field(4u32, x, buf);
+                }
+                super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::Prepared(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ZkPersonaPresentationView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.freshness.as_option() {
+                __map.serialize_entry("freshness", __v)?;
+            }
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.mode) {
+            __map.serialize_entry("mode", &self.mode)?;
+        }
+        if !self.disclosures.is_empty() {
+            __map.serialize_entry("disclosures", &*self.disclosures)?;
+        }
+        if let ::core::option::Option::Some(ref __ov) = self.evidence {
+            match __ov {
+                super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::RequestBoundProofPackage(
+                    v,
+                ) => {
+                    __map
+                        .serialize_entry(
+                            "requestBoundProofPackage",
+                            &::buffa::json_helpers::BytesJson(v),
+                        )?;
+                }
+                super::super::__buffa::view::oneof::zk_persona_presentation::Evidence::Prepared(
+                    v,
+                ) => {
+                    __map.serialize_entry("prepared", v)?;
+                }
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ZkPersonaPresentationView<'a> {
+    const PACKAGE: &'static str = "identity.presentation.v1";
+    const NAME: &'static str = "ZkPersonaPresentation";
+    const FULL_NAME: &'static str = "identity.presentation.v1.ZkPersonaPresentation";
+    const TYPE_URL: &'static str = "type.googleapis.com/identity.presentation.v1.ZkPersonaPresentation";
+}
+::buffa::impl_default_view_instance!(ZkPersonaPresentationView);
+::buffa::impl_view_reborrow!(ZkPersonaPresentationView);
+/** Self-contained, `'static` owned view of a `ZkPersonaPresentation` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ZkPersonaPresentationView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ZkPersonaPresentationView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ZkPersonaPresentationOwnedView(
+    ::buffa::OwnedView<ZkPersonaPresentationView<'static>>,
+);
+impl ZkPersonaPresentationOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ZkPersonaPresentationOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ZkPersonaPresentationOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ZkPersonaPresentation,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ZkPersonaPresentationOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ZkPersonaPresentationView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ZkPersonaPresentationView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ZkPersonaPresentation {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `freshness`
+    #[must_use]
+    pub fn freshness(
+        &self,
+    ) -> &::buffa::MessageFieldView<
+        super::super::__buffa::view::PresentationFreshnessView<'_>,
+    > {
+        &self.0.reborrow().freshness
+    }
+    /// Field 2: `mode`
+    #[must_use]
+    pub fn mode(&self) -> ::buffa::EnumValue<super::super::ZkPersonaMode> {
+        self.0.reborrow().mode
+    }
+    /// Field 3: `disclosures`
+    #[must_use]
+    pub fn disclosures(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::ClaimDisclosureView<'_>,
+    > {
+        &self.0.reborrow().disclosures
+    }
+    /// Oneof `evidence`.
+    #[must_use]
+    pub fn evidence(
+        &self,
+    ) -> ::core::option::Option<
+        &super::super::__buffa::view::oneof::zk_persona_presentation::Evidence<'_>,
+    > {
+        self.0.reborrow().evidence.as_ref()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ZkPersonaPresentationView<'static>>>
+for ZkPersonaPresentationOwnedView {
+    fn from(inner: ::buffa::OwnedView<ZkPersonaPresentationView<'static>>) -> Self {
+        ZkPersonaPresentationOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ZkPersonaPresentationOwnedView>
+for ::buffa::OwnedView<ZkPersonaPresentationView<'static>> {
+    fn from(wrapper: ZkPersonaPresentationOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ZkPersonaPresentationView<'static>>>
+for ZkPersonaPresentationOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ZkPersonaPresentationView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ZkPersonaPresentation {
+    type View<'a> = ZkPersonaPresentationView<'a>;
+    type ViewHandle = ZkPersonaPresentationOwnedView;
+}
+impl ::serde::Serialize for ZkPersonaPresentationOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// Four precomputed credential proofs are separately authenticated for a fresh
+/// request. prepared_evidence_package is the canonical
+/// reallyme.zk.v1.ZkPreparedCredentialEvidenceV1 message; current_state_package
+/// is the canonical reallyme.zk.v1.ZkPreparedRawProofPackage for current status.
+/// The selected-claim proof establishes the public persona or one-time key.
+/// The holder signature covers a canonical ReallyMe ZK authentication transcript
+/// joining both exact packages to the verified request. All four checks remain
+/// the responsibility of the injected ZK verifier; this is only a transport type.
+#[derive(Clone, Default)]
+pub struct ZkPreparedPersonaEvidenceView<'a> {
+    /// Field 1: `prepared_evidence_package`
+    pub prepared_evidence_package: &'a [u8],
+    /// Field 2: `current_state_package`
+    pub current_state_package: &'a [u8],
+    /// Field 3: `verifier_request`
+    pub verifier_request: &'a [u8],
+    /// Field 4: `holder_authentication`
+    pub holder_authentication: &'a [u8],
+    /// Field 5: `holder_public_key`
+    pub holder_public_key: &'a [u8],
+    /// Field 6: `holder_signature`
+    pub holder_signature: &'a [u8],
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::core::fmt::Debug for ZkPreparedPersonaEvidenceView<'a> {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ZkPreparedPersonaEvidenceView")
+            .field("prepared_evidence_package", &::core::format_args!("[REDACTED]"))
+            .field("current_state_package", &::core::format_args!("[REDACTED]"))
+            .field("verifier_request", &::core::format_args!("[REDACTED]"))
+            .field("holder_authentication", &::core::format_args!("[REDACTED]"))
+            .field("holder_public_key", &::core::format_args!("[REDACTED]"))
+            .field("holder_signature", &::core::format_args!("[REDACTED]"))
+            .finish()
+    }
+}
+impl<'a> ::buffa::MessageView<'a> for ZkPreparedPersonaEvidenceView<'a> {
+    type Owned = super::super::ZkPreparedPersonaEvidence;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.prepared_evidence_package = ::buffa::types::borrow_bytes(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.current_state_package = ::buffa::types::borrow_bytes(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.verifier_request = ::buffa::types::borrow_bytes(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.holder_authentication = ::buffa::types::borrow_bytes(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.holder_public_key = ::buffa::types::borrow_bytes(&mut cur)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.holder_signature = ::buffa::types::borrow_bytes(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ZkPreparedPersonaEvidence,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ZkPreparedPersonaEvidence,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ZkPreparedPersonaEvidence {
+            prepared_evidence_package: (self.prepared_evidence_package).to_vec(),
+            current_state_package: (self.current_state_package).to_vec(),
+            verifier_request: (self.verifier_request).to_vec(),
+            holder_authentication: (self.holder_authentication).to_vec(),
+            holder_public_key: (self.holder_public_key).to_vec(),
+            holder_signature: (self.holder_signature).to_vec(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ZkPreparedPersonaEvidenceView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.prepared_evidence_package.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.prepared_evidence_package)
+                        as u64;
+        }
+        if !self.current_state_package.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.current_state_package)
+                        as u64;
+        }
+        if !self.verifier_request.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.verifier_request) as u64;
+        }
+        if !self.holder_authentication.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.holder_authentication)
+                        as u64;
+        }
+        if !self.holder_public_key.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.holder_public_key) as u64;
+        }
+        if !self.holder_signature.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::bytes_encoded_len(&self.holder_signature) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.prepared_evidence_package.is_empty() {
+            ::buffa::types::put_shared_bytes_field(
+                1u32,
+                &self.prepared_evidence_package,
+                buf,
+            );
+        }
+        if !self.current_state_package.is_empty() {
+            ::buffa::types::put_shared_bytes_field(
+                2u32,
+                &self.current_state_package,
+                buf,
+            );
+        }
+        if !self.verifier_request.is_empty() {
+            ::buffa::types::put_shared_bytes_field(3u32, &self.verifier_request, buf);
+        }
+        if !self.holder_authentication.is_empty() {
+            ::buffa::types::put_shared_bytes_field(
+                4u32,
+                &self.holder_authentication,
+                buf,
+            );
+        }
+        if !self.holder_public_key.is_empty() {
+            ::buffa::types::put_shared_bytes_field(5u32, &self.holder_public_key, buf);
+        }
+        if !self.holder_signature.is_empty() {
+            ::buffa::types::put_shared_bytes_field(6u32, &self.holder_signature, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ZkPreparedPersonaEvidenceView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_bytes(
+            self.prepared_evidence_package,
+        ) {
+            __map
+                .serialize_entry(
+                    "preparedEvidencePackage",
+                    &::buffa::json_helpers::BytesJson(self.prepared_evidence_package),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_bytes(self.current_state_package) {
+            __map
+                .serialize_entry(
+                    "currentStatePackage",
+                    &::buffa::json_helpers::BytesJson(self.current_state_package),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_bytes(self.verifier_request) {
+            __map
+                .serialize_entry(
+                    "verifierRequest",
+                    &::buffa::json_helpers::BytesJson(self.verifier_request),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_bytes(self.holder_authentication) {
+            __map
+                .serialize_entry(
+                    "holderAuthentication",
+                    &::buffa::json_helpers::BytesJson(self.holder_authentication),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_bytes(self.holder_public_key) {
+            __map
+                .serialize_entry(
+                    "holderPublicKey",
+                    &::buffa::json_helpers::BytesJson(self.holder_public_key),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_bytes(self.holder_signature) {
+            __map
+                .serialize_entry(
+                    "holderSignature",
+                    &::buffa::json_helpers::BytesJson(self.holder_signature),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ZkPreparedPersonaEvidenceView<'a> {
+    const PACKAGE: &'static str = "identity.presentation.v1";
+    const NAME: &'static str = "ZkPreparedPersonaEvidence";
+    const FULL_NAME: &'static str = "identity.presentation.v1.ZkPreparedPersonaEvidence";
+    const TYPE_URL: &'static str = "type.googleapis.com/identity.presentation.v1.ZkPreparedPersonaEvidence";
+}
+::buffa::impl_default_view_instance!(ZkPreparedPersonaEvidenceView);
+::buffa::impl_view_reborrow!(ZkPreparedPersonaEvidenceView);
+/** Self-contained, `'static` owned view of a `ZkPreparedPersonaEvidence` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ZkPreparedPersonaEvidenceView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ZkPreparedPersonaEvidenceView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ZkPreparedPersonaEvidenceOwnedView(
+    ::buffa::OwnedView<ZkPreparedPersonaEvidenceView<'static>>,
+);
+impl ZkPreparedPersonaEvidenceOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ZkPreparedPersonaEvidenceOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ZkPreparedPersonaEvidenceOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ZkPreparedPersonaEvidence,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ZkPreparedPersonaEvidenceOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ZkPreparedPersonaEvidenceView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ZkPreparedPersonaEvidenceView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ZkPreparedPersonaEvidence {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `prepared_evidence_package`
+    #[must_use]
+    pub fn prepared_evidence_package(&self) -> &'_ [u8] {
+        self.0.reborrow().prepared_evidence_package
+    }
+    /// Field 2: `current_state_package`
+    #[must_use]
+    pub fn current_state_package(&self) -> &'_ [u8] {
+        self.0.reborrow().current_state_package
+    }
+    /// Field 3: `verifier_request`
+    #[must_use]
+    pub fn verifier_request(&self) -> &'_ [u8] {
+        self.0.reborrow().verifier_request
+    }
+    /// Field 4: `holder_authentication`
+    #[must_use]
+    pub fn holder_authentication(&self) -> &'_ [u8] {
+        self.0.reborrow().holder_authentication
+    }
+    /// Field 5: `holder_public_key`
+    #[must_use]
+    pub fn holder_public_key(&self) -> &'_ [u8] {
+        self.0.reborrow().holder_public_key
+    }
+    /// Field 6: `holder_signature`
+    #[must_use]
+    pub fn holder_signature(&self) -> &'_ [u8] {
+        self.0.reborrow().holder_signature
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ZkPreparedPersonaEvidenceView<'static>>>
+for ZkPreparedPersonaEvidenceOwnedView {
+    fn from(inner: ::buffa::OwnedView<ZkPreparedPersonaEvidenceView<'static>>) -> Self {
+        ZkPreparedPersonaEvidenceOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ZkPreparedPersonaEvidenceOwnedView>
+for ::buffa::OwnedView<ZkPreparedPersonaEvidenceView<'static>> {
+    fn from(wrapper: ZkPreparedPersonaEvidenceOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ZkPreparedPersonaEvidenceView<'static>>>
+for ZkPreparedPersonaEvidenceOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ZkPreparedPersonaEvidenceView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ZkPreparedPersonaEvidence {
+    type View<'a> = ZkPreparedPersonaEvidenceView<'a>;
+    type ViewHandle = ZkPreparedPersonaEvidenceOwnedView;
+}
+impl ::serde::Serialize for ZkPreparedPersonaEvidenceOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// Two issuer credential claims joined to the same assured private root.
+/// Status pointers and original subject identifiers are private witness inputs;
+/// only their proof commitments and public inputs appear in the package.
+#[derive(Clone, Default)]
+pub struct ZkCommonRootPresentationView<'a> {
+    /// Field 1: `freshness`
+    pub freshness: ::buffa::MessageFieldView<
+        super::super::__buffa::view::PresentationFreshnessView<'a>,
+    >,
+    /// Field 2: `mode`
+    pub mode: ::buffa::EnumValue<super::super::ZkPersonaMode>,
+    /// Field 3: `disclosures`
+    pub disclosures: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::ClaimDisclosureView<'a>,
+    >,
+    /// Field 4: `proof_package`
+    pub proof_package: &'a [u8],
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::core::fmt::Debug for ZkCommonRootPresentationView<'a> {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ZkCommonRootPresentationView")
+            .field("freshness", &::core::format_args!("[REDACTED]"))
+            .field("mode", &self.mode)
+            .field("disclosures", &::core::format_args!("[REDACTED]"))
+            .field("proof_package", &::core::format_args!("[REDACTED]"))
+            .finish()
+    }
+}
+impl<'a> ::buffa::MessageView<'a> for ZkCommonRootPresentationView<'a> {
+    type Owned = super::super::ZkCommonRootPresentation;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.freshness.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.freshness = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::PresentationFreshnessView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.mode = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.proof_package = ::buffa::types::borrow_bytes(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::ClaimDisclosureView,
+                    >(),
+                )?;
+                view.disclosures
+                    .push(
+                        <super::super::__buffa::view::ClaimDisclosureView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ZkCommonRootPresentation,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ZkCommonRootPresentation,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ZkCommonRootPresentation {
+            freshness: match self.freshness.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::PresentationFreshness,
+                        ::buffa::Inline<super::super::PresentationFreshness>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            mode: self.mode,
+            disclosures: self
+                .disclosures
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            proof_package: (self.proof_package).to_vec(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ZkCommonRootPresentationView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.freshness.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.freshness.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        {
+            let val = self.mode.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        for v in &self.disclosures {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.proof_package.is_empty() {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(&self.proof_package) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.freshness.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.freshness.write_to(__cache, buf);
+        }
+        {
+            let val = self.mode.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
+            }
+        }
+        for v in &self.disclosures {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if !self.proof_package.is_empty() {
+            ::buffa::types::put_shared_bytes_field(4u32, &self.proof_package, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ZkCommonRootPresentationView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.freshness.as_option() {
+                __map.serialize_entry("freshness", __v)?;
+            }
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.mode) {
+            __map.serialize_entry("mode", &self.mode)?;
+        }
+        if !self.disclosures.is_empty() {
+            __map.serialize_entry("disclosures", &*self.disclosures)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_bytes(self.proof_package) {
+            __map
+                .serialize_entry(
+                    "proofPackage",
+                    &::buffa::json_helpers::BytesJson(self.proof_package),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ZkCommonRootPresentationView<'a> {
+    const PACKAGE: &'static str = "identity.presentation.v1";
+    const NAME: &'static str = "ZkCommonRootPresentation";
+    const FULL_NAME: &'static str = "identity.presentation.v1.ZkCommonRootPresentation";
+    const TYPE_URL: &'static str = "type.googleapis.com/identity.presentation.v1.ZkCommonRootPresentation";
+}
+::buffa::impl_default_view_instance!(ZkCommonRootPresentationView);
+::buffa::impl_view_reborrow!(ZkCommonRootPresentationView);
+/** Self-contained, `'static` owned view of a `ZkCommonRootPresentation` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ZkCommonRootPresentationView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ZkCommonRootPresentationView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ZkCommonRootPresentationOwnedView(
+    ::buffa::OwnedView<ZkCommonRootPresentationView<'static>>,
+);
+impl ZkCommonRootPresentationOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ZkCommonRootPresentationOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ZkCommonRootPresentationOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ZkCommonRootPresentation,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ZkCommonRootPresentationOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ZkCommonRootPresentationView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ZkCommonRootPresentationView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ZkCommonRootPresentation {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `freshness`
+    #[must_use]
+    pub fn freshness(
+        &self,
+    ) -> &::buffa::MessageFieldView<
+        super::super::__buffa::view::PresentationFreshnessView<'_>,
+    > {
+        &self.0.reborrow().freshness
+    }
+    /// Field 2: `mode`
+    #[must_use]
+    pub fn mode(&self) -> ::buffa::EnumValue<super::super::ZkPersonaMode> {
+        self.0.reborrow().mode
+    }
+    /// Field 3: `disclosures`
+    #[must_use]
+    pub fn disclosures(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::ClaimDisclosureView<'_>,
+    > {
+        &self.0.reborrow().disclosures
+    }
+    /// Field 4: `proof_package`
+    #[must_use]
+    pub fn proof_package(&self) -> &'_ [u8] {
+        self.0.reborrow().proof_package
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ZkCommonRootPresentationView<'static>>>
+for ZkCommonRootPresentationOwnedView {
+    fn from(inner: ::buffa::OwnedView<ZkCommonRootPresentationView<'static>>) -> Self {
+        ZkCommonRootPresentationOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ZkCommonRootPresentationOwnedView>
+for ::buffa::OwnedView<ZkCommonRootPresentationView<'static>> {
+    fn from(wrapper: ZkCommonRootPresentationOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ZkCommonRootPresentationView<'static>>>
+for ZkCommonRootPresentationOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ZkCommonRootPresentationView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ZkCommonRootPresentation {
+    type View<'a> = ZkCommonRootPresentationView<'a>;
+    type ViewHandle = ZkCommonRootPresentationOwnedView;
+}
+impl ::serde::Serialize for ZkCommonRootPresentationOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

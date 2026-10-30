@@ -8,7 +8,9 @@
 
 use reallyme_vp_core::model::{
     ClaimDisclosure, CredentialReference, CredentialStatusRef, DisclosureMode, Presentation,
-    PresentationFreshness, SdJwtVcPresentation, StatusPurpose, ZkPresentation, ZkProof,
+    PresentationFreshness, SdJwtVcPresentation, StatusPurpose, ZkCommonRootPresentation,
+    ZkCredentialPresentation, ZkPersonaEvidence, ZkPersonaMode, ZkPersonaPresentation,
+    ZkPreparedPersonaEvidence, ZkPresentation, ZkPresentationProofMode, ZkProof,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -66,7 +68,7 @@ fn zk_presentation_is_redacted_and_zeroizes() {
     assert_zeroize_on_drop::<ZkPresentation>();
     assert_zeroize_on_drop::<ZkProof>();
 
-    let mut zk = ZkPresentation {
+    let mut zk = ZkPresentation::Credential(ZkCredentialPresentation {
         freshness: PresentationFreshness {
             challenge: [9u8; 32],
             audience_hash: [7u8; 32],
@@ -100,17 +102,106 @@ fn zk_presentation_is_redacted_and_zeroizes() {
             artifact_manifest_sha256: [9_u8; 32],
         },
         qeaa: None,
-    };
+    });
 
     let debug = format!("{zk:?}");
     assert!(debug.contains("<redacted>"));
     assert!(!debug.contains("/claims/age"));
 
     zk.zeroize();
-    assert_eq!(zk.freshness.challenge, [0_u8; 32]);
-    assert!(zk.credential.issuer_did.is_empty());
-    assert!(zk.disclosures.is_empty());
-    assert!(zk.zk_proof.proof_bytes.is_empty());
+    let ZkPresentation::Credential(value) = &zk else {
+        panic!("the test constructs a credential presentation");
+    };
+    assert_eq!(value.freshness.challenge, [0_u8; 32]);
+    assert!(value.credential.issuer_did.is_empty());
+    assert!(value.disclosures.is_empty());
+    assert!(value.zk_proof.proof_bytes.is_empty());
+}
+
+#[test]
+fn persona_and_common_root_packages_are_redacted_and_zeroize() {
+    assert_zeroize_on_drop::<ZkPersonaPresentation>();
+    assert_zeroize_on_drop::<ZkCommonRootPresentation>();
+    let freshness = || PresentationFreshness {
+        challenge: [1; 32],
+        audience_hash: [2; 32],
+        expiry_unix: 1_700_000_000,
+    };
+    let mut persona = ZkPresentation::Persona(ZkPersonaPresentation {
+        freshness: freshness(),
+        mode: ZkPersonaMode::Private,
+        disclosures: Vec::new(),
+        evidence: ZkPersonaEvidence::RequestBound {
+            proof_package: vec![1, 2, 3],
+        },
+    });
+    let mut root = ZkPresentation::CommonRoot(ZkCommonRootPresentation {
+        freshness: freshness(),
+        mode: ZkPersonaMode::Public,
+        disclosures: Vec::new(),
+        proof_package: vec![4, 5, 6],
+    });
+    assert_eq!(format!("{persona:?}"), "ZkPresentation(<redacted>)");
+    assert_eq!(
+        persona.proof_mode(),
+        ZkPresentationProofMode::RequestBoundProof
+    );
+    assert_eq!(format!("{root:?}"), "ZkPresentation(<redacted>)");
+    persona.zeroize();
+    root.zeroize();
+    if let ZkPresentation::Persona(value) = &persona {
+        assert!(matches!(
+            &value.evidence,
+            ZkPersonaEvidence::RequestBound { proof_package } if proof_package.is_empty()
+        ));
+    } else {
+        panic!("the test constructs a persona presentation");
+    }
+    if let ZkPresentation::CommonRoot(value) = &root {
+        assert!(value.proof_package.is_empty());
+    } else {
+        panic!("the test constructs a common-root presentation");
+    }
+}
+
+#[test]
+fn prepared_persona_has_distinct_proof_mode_and_zeroizes_all_packages() {
+    assert_zeroize_on_drop::<ZkPersonaEvidence>();
+    assert_zeroize_on_drop::<ZkPreparedPersonaEvidence>();
+    let mut presentation = ZkPresentation::Persona(ZkPersonaPresentation {
+        freshness: PresentationFreshness {
+            challenge: [1; 32],
+            audience_hash: [2; 32],
+            expiry_unix: 1_700_000_000,
+        },
+        mode: ZkPersonaMode::Private,
+        disclosures: Vec::new(),
+        evidence: ZkPersonaEvidence::Prepared(ZkPreparedPersonaEvidence {
+            prepared_evidence_package: vec![1; 8],
+            current_state_package: vec![2; 8],
+            verifier_request: vec![3; 8],
+            holder_authentication: vec![4; 8],
+            holder_public_key: [5; 64],
+            holder_signature: [6; 64],
+        }),
+    });
+    assert_eq!(
+        presentation.proof_mode(),
+        ZkPresentationProofMode::PreparedProof
+    );
+    presentation.zeroize();
+    let ZkPresentation::Persona(persona) = &presentation else {
+        panic!("the test constructs a persona presentation");
+    };
+    let ZkPersonaEvidence::Prepared(prepared) = &persona.evidence else {
+        panic!("the test constructs prepared evidence");
+    };
+    assert!(prepared.prepared_evidence_package.is_empty());
+    assert!(prepared.current_state_package.is_empty());
+    assert!(prepared.verifier_request.is_empty());
+    assert!(prepared.holder_authentication.is_empty());
+    assert_eq!(prepared.holder_public_key, [0; 64]);
+    assert_eq!(prepared.holder_signature, [0; 64]);
 }
 
 #[test]

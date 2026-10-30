@@ -11,7 +11,8 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use crate::model::{
     ClaimDisclosure, CredentialReference, CredentialStatusRef, DisclosureMode, MdocPresentation,
     Presentation, PresentationFreshness, QeaaVerifierHints, Range, SdJwtVcPresentation,
-    StatusPurpose, ValueSet, ZkPresentation, ZkProof,
+    StatusPurpose, ValueSet, ZkCommonRootPresentation, ZkCredentialPresentation, ZkPersonaEvidence,
+    ZkPersonaPresentation, ZkPreparedPersonaEvidence, ZkPresentation, ZkProof,
 };
 
 macro_rules! impl_redacted_debug {
@@ -31,6 +32,11 @@ impl_redacted_debug!(
     MdocPresentation => "MdocPresentation",
     SdJwtVcPresentation => "SdJwtVcPresentation",
     ZkPresentation => "ZkPresentation",
+    ZkCredentialPresentation => "ZkCredentialPresentation",
+    ZkPersonaPresentation => "ZkPersonaPresentation",
+    ZkPersonaEvidence => "ZkPersonaEvidence",
+    ZkPreparedPersonaEvidence => "ZkPreparedPersonaEvidence",
+    ZkCommonRootPresentation => "ZkCommonRootPresentation",
     PresentationFreshness => "PresentationFreshness",
     CredentialReference => "CredentialReference",
     CredentialStatusRef => "CredentialStatusRef",
@@ -71,11 +77,57 @@ impl Zeroize for SdJwtVcPresentation {
 
 impl Zeroize for ZkPresentation {
     fn zeroize(&mut self) {
+        match self {
+            Self::Credential(value) => value.zeroize(),
+            Self::Persona(value) => value.zeroize(),
+            Self::CommonRoot(value) => value.zeroize(),
+        }
+    }
+}
+
+impl Zeroize for ZkCredentialPresentation {
+    fn zeroize(&mut self) {
         self.freshness.zeroize();
         self.credential.zeroize();
         self.disclosures.zeroize();
         self.zk_proof.zeroize();
         self.qeaa.zeroize();
+    }
+}
+
+impl Zeroize for ZkPersonaPresentation {
+    fn zeroize(&mut self) {
+        self.freshness.zeroize();
+        self.disclosures.zeroize();
+        self.evidence.zeroize();
+    }
+}
+
+impl Zeroize for ZkPersonaEvidence {
+    fn zeroize(&mut self) {
+        match self {
+            Self::RequestBound { proof_package } => proof_package.zeroize(),
+            Self::Prepared(value) => value.zeroize(),
+        }
+    }
+}
+
+impl Zeroize for ZkPreparedPersonaEvidence {
+    fn zeroize(&mut self) {
+        self.prepared_evidence_package.zeroize();
+        self.current_state_package.zeroize();
+        self.verifier_request.zeroize();
+        self.holder_authentication.zeroize();
+        self.holder_public_key.zeroize();
+        self.holder_signature.zeroize();
+    }
+}
+
+impl Zeroize for ZkCommonRootPresentation {
+    fn zeroize(&mut self) {
+        self.freshness.zeroize();
+        self.disclosures.zeroize();
+        self.proof_package.zeroize();
     }
 }
 
@@ -173,6 +225,11 @@ impl_zeroize_on_drop!(
     MdocPresentation,
     SdJwtVcPresentation,
     ZkPresentation,
+    ZkCredentialPresentation,
+    ZkPersonaPresentation,
+    ZkPersonaEvidence,
+    ZkPreparedPersonaEvidence,
+    ZkCommonRootPresentation,
     PresentationFreshness,
     CredentialReference,
     CredentialStatusRef,

@@ -37,6 +37,9 @@ pub mod __buffa {
         reg.register_json_any(super::__MDOC_PRESENTATION_JSON_ANY);
         reg.register_json_any(super::__SD_JWT_VC_PRESENTATION_JSON_ANY);
         reg.register_json_any(super::__ZK_PRESENTATION_JSON_ANY);
+        reg.register_json_any(super::__ZK_PERSONA_PRESENTATION_JSON_ANY);
+        reg.register_json_any(super::__ZK_PREPARED_PERSONA_EVIDENCE_JSON_ANY);
+        reg.register_json_any(super::__ZK_COMMON_ROOT_PRESENTATION_JSON_ANY);
         reg.register_json_any(super::__PRESENTATION_FRESHNESS_JSON_ANY);
         reg.register_json_any(super::__CREDENTIAL_REFERENCE_JSON_ANY);
         reg.register_json_any(super::__CREDENTIAL_STATUS_REF_JSON_ANY);
@@ -67,6 +70,18 @@ pub use self::__buffa::view::SdJwtVcPresentationOwnedView;
 pub use self::__buffa::view::ZkPresentationView;
 #[doc(inline)]
 pub use self::__buffa::view::ZkPresentationOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ZkPersonaPresentationView;
+#[doc(inline)]
+pub use self::__buffa::view::ZkPersonaPresentationOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ZkPreparedPersonaEvidenceView;
+#[doc(inline)]
+pub use self::__buffa::view::ZkPreparedPersonaEvidenceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ZkCommonRootPresentationView;
+#[doc(inline)]
+pub use self::__buffa::view::ZkCommonRootPresentationOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::PresentationFreshnessView;
 #[doc(inline)]

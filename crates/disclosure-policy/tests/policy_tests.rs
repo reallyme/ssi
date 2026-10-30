@@ -21,7 +21,8 @@ use reallyme_disclosure_policy::{
 };
 use reallyme_vp_core::{
     CredentialReference, CredentialStatusRef, DisclosureMode, Presentation, PresentationFreshness,
-    SdJwtVcPresentation, StatusPurpose, ZkPresentation, ZkProof, ZkProofSuite,
+    SdJwtVcPresentation, StatusPurpose, ZkCredentialPresentation, ZkPresentation, ZkProof,
+    ZkProofSuite,
 };
 use std::collections::BTreeMap;
 
@@ -43,34 +44,36 @@ fn sd_jwt_presentation() -> Presentation {
 }
 
 fn zk_presentation(expiry_unix: u64) -> Presentation {
-    Presentation::Zk(Box::new(ZkPresentation {
-        freshness: PresentationFreshness {
-            challenge: [1_u8; 32],
-            audience_hash: [2_u8; 32],
-            expiry_unix,
-        },
-        credential: CredentialReference {
-            envelope_hash: [3_u8; 32],
-            issuer_did: "did:example:issuer".to_string(),
-            status: CredentialStatusRef {
-                status_list_url: "https://example.com/status".to_string(),
-                status_list_id: [4_u8; 32],
-                status_list_index: 0,
-                purpose: StatusPurpose::Revocation,
+    Presentation::Zk(Box::new(ZkPresentation::Credential(
+        ZkCredentialPresentation {
+            freshness: PresentationFreshness {
+                challenge: [1_u8; 32],
+                audience_hash: [2_u8; 32],
+                expiry_unix,
             },
+            credential: CredentialReference {
+                envelope_hash: [3_u8; 32],
+                issuer_did: "did:example:issuer".to_string(),
+                status: CredentialStatusRef {
+                    status_list_url: "https://example.com/status".to_string(),
+                    status_list_id: [4_u8; 32],
+                    status_list_index: 0,
+                    purpose: StatusPurpose::Revocation,
+                },
+            },
+            disclosures: Vec::new(),
+            zk_proof: ZkProof {
+                circuit_id: "circuit".to_string(),
+                circuit_version: "1".to_string(),
+                vk_id: "vk".to_string(),
+                proof_bytes: vec![1],
+                public_inputs: BTreeMap::new(),
+                proof_suite: ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
+                artifact_manifest_sha256: [5_u8; 32],
+            },
+            qeaa: None,
         },
-        disclosures: Vec::new(),
-        zk_proof: ZkProof {
-            circuit_id: "circuit".to_string(),
-            circuit_version: "1".to_string(),
-            vk_id: "vk".to_string(),
-            proof_bytes: vec![1],
-            public_inputs: BTreeMap::new(),
-            proof_suite: ZkProofSuite::BarretenbergUltraHonkKeccakZkNoIpa,
-            artifact_manifest_sha256: [5_u8; 32],
-        },
-        qeaa: None,
-    }))
+    )))
 }
 
 #[test]

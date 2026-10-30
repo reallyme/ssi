@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0
+
+This release gives ZK presentations a typed, protobuf-first shape: direct
+credential, persona, and common-root presentations are separate variants.
+Persona presentations identify private or public ownership, and common-root
+proof packages keep credential status pointers inside the verified ZK data.
+The released v1 credential wire fields retain their field numbers and
+ProtoJSON shape; new persona and common-root profiles use distinct fields.
+The Rust `ZkPresentation` struct becomes a tagged enum, so source consumers
+must select a variant. SSI routes and evaluates presentation facts; the ZK
+verifier remains responsible for authenticating proof packages, their profile,
+issuer credentials, and status.
+
+All workspace crates advance together to 0.5.0.
+
 ## 0.4.1
 
 This release introduces `reallyme-trust`, a public certificate trust facade

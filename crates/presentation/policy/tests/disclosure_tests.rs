@@ -17,8 +17,8 @@ use identity_presentation_vp_policy::extract_disclosed_claims;
 
 use identity_presentation_vp_core::model::{
     ClaimDisclosure, CredentialReference, CredentialStatusRef, DisclosureMode as ZkMode,
-    Presentation, PresentationFreshness, SdJwtVcPresentation, StatusPurpose, ZkPresentation,
-    ZkProof,
+    Presentation, PresentationFreshness, SdJwtVcPresentation, StatusPurpose,
+    ZkCredentialPresentation, ZkPresentation, ZkProof,
 };
 
 use std::collections::BTreeMap;
@@ -46,7 +46,7 @@ fn extracts_from_sd_jwt_presentation() {
 
 #[test]
 fn extracts_from_zk_presentation() {
-    let zk = ZkPresentation {
+    let zk = ZkPresentation::Credential(ZkCredentialPresentation {
         freshness: PresentationFreshness {
             challenge: [1u8; 32],
             audience_hash: [2u8; 32],
@@ -80,7 +80,7 @@ fn extracts_from_zk_presentation() {
             artifact_manifest_sha256: [9_u8; 32],
         },
         qeaa: None,
-    };
+    });
 
     let pres = Presentation::Zk(Box::new(zk));
 

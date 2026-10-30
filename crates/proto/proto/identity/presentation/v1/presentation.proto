@@ -83,13 +83,65 @@ message SdJwtVcPresentation {
   optional bytes envelope_hash = 5 [debug_redact = true];
 }
 
-// ZkPresentation carries semantic disclosure facts and proof bytes.
+// The original credential fields retain their v1 wire numbers so deployed
+// credential presentations remain readable. New proof profiles use distinct
+// fields; a decoder must reject messages that combine profile shapes.
+// Proof packages are owned and interpreted by ReallyMe ZK.
 message ZkPresentation {
   PresentationFreshness freshness = 1 [debug_redact = true];
   CredentialReference credential = 2 [debug_redact = true];
   repeated ClaimDisclosure disclosures = 3 [debug_redact = true];
   ZkProof zk_proof = 4 [debug_redact = true];
   optional QeaaVerifierHints qeaa = 5 [debug_redact = true];
+  oneof additional_profile {
+    ZkPersonaPresentation persona = 6 [debug_redact = true];
+    ZkCommonRootPresentation common_root = 7 [debug_redact = true];
+  }
+}
+
+// Whether a persona's key is hidden or intentionally public in the proof.
+enum ZkPersonaMode {
+  ZK_PERSONA_MODE_UNSPECIFIED = 0;
+  ZK_PERSONA_MODE_PRIVATE = 1;
+  ZK_PERSONA_MODE_PUBLIC = 2;
+}
+
+// One issuer credential claim authorized through a persona.
+message ZkPersonaPresentation {
+  PresentationFreshness freshness = 1 [debug_redact = true];
+  ZkPersonaMode mode = 2;
+  repeated ClaimDisclosure disclosures = 3 [debug_redact = true];
+  oneof evidence {
+    bytes request_bound_proof_package = 4 [debug_redact = true];
+    ZkPreparedPersonaEvidence prepared = 5 [debug_redact = true];
+  }
+}
+
+// Four precomputed credential proofs are separately authenticated for a fresh
+// request. prepared_evidence_package is the canonical
+// reallyme.zk.v1.ZkPreparedCredentialEvidenceV1 message; current_state_package
+// is the canonical reallyme.zk.v1.ZkPreparedRawProofPackage for current status.
+// The selected-claim proof establishes the public persona or one-time key.
+// The holder signature covers a canonical ReallyMe ZK authentication transcript
+// joining both exact packages to the verified request. All four checks remain
+// the responsibility of the injected ZK verifier; this is only a transport type.
+message ZkPreparedPersonaEvidence {
+  bytes prepared_evidence_package = 1 [debug_redact = true];
+  bytes current_state_package = 2 [debug_redact = true];
+  bytes verifier_request = 3 [debug_redact = true];
+  bytes holder_authentication = 4 [debug_redact = true];
+  bytes holder_public_key = 5 [debug_redact = true];
+  bytes holder_signature = 6 [debug_redact = true];
+}
+
+// Two issuer credential claims joined to the same assured private root.
+// Status pointers and original subject identifiers are private witness inputs;
+// only their proof commitments and public inputs appear in the package.
+message ZkCommonRootPresentation {
+  PresentationFreshness freshness = 1 [debug_redact = true];
+  ZkPersonaMode mode = 2;
+  repeated ClaimDisclosure disclosures = 3 [debug_redact = true];
+  bytes proof_package = 4 [debug_redact = true];
 }
 
 // PresentationFreshness binds a presentation to verifier challenge, audience,
