@@ -56,12 +56,14 @@ pub(super) fn zk_to_proto(model: &vp::ZkPresentation) -> Result<pb::ZkPresentati
                         },
                     ))
                 }
+                // New evidence forms need an explicit wire mapping.
+                _ => return Err(VpProtoError::InvalidEnumValue),
             };
             Ok(pb::ZkPresentation {
                 additional_profile: Some(zk_presentation::AdditionalProfile::Persona(Box::new(
                     pb::ZkPersonaPresentation {
                         freshness: MessageField::some(freshness_to_proto(&value.freshness)),
-                        mode: EnumValue::from(persona_mode_to_proto(value.mode)),
+                        mode: EnumValue::from(persona_mode_to_proto(value.mode)?),
                         disclosures: value
                             .disclosures
                             .iter()
@@ -78,7 +80,7 @@ pub(super) fn zk_to_proto(model: &vp::ZkPresentation) -> Result<pb::ZkPresentati
             additional_profile: Some(zk_presentation::AdditionalProfile::CommonRoot(Box::new(
                 pb::ZkCommonRootPresentation {
                     freshness: MessageField::some(freshness_to_proto(&value.freshness)),
-                    mode: EnumValue::from(persona_mode_to_proto(value.mode)),
+                    mode: EnumValue::from(persona_mode_to_proto(value.mode)?),
                     disclosures: value
                         .disclosures
                         .iter()
@@ -90,6 +92,8 @@ pub(super) fn zk_to_proto(model: &vp::ZkPresentation) -> Result<pb::ZkPresentati
             ))),
             ..pb::ZkPresentation::default()
         }),
+        // New proof statements need an explicit wire mapping.
+        _ => Err(VpProtoError::InvalidEnumValue),
     }
 }
 
@@ -215,10 +219,11 @@ fn reject_mixed_profile(model: &pb::ZkPresentation) -> Result<(), VpProtoError> 
     }
     Ok(())
 }
-fn persona_mode_to_proto(mode: vp::ZkPersonaMode) -> pb::ZkPersonaMode {
+fn persona_mode_to_proto(mode: vp::ZkPersonaMode) -> Result<pb::ZkPersonaMode, VpProtoError> {
     match mode {
-        vp::ZkPersonaMode::Private => pb::ZkPersonaMode::Private,
-        vp::ZkPersonaMode::Public => pb::ZkPersonaMode::Public,
+        vp::ZkPersonaMode::Private => Ok(pb::ZkPersonaMode::Private),
+        vp::ZkPersonaMode::Public => Ok(pb::ZkPersonaMode::Public),
+        _ => Err(VpProtoError::InvalidEnumValue),
     }
 }
 
