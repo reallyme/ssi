@@ -71,7 +71,7 @@ fn extracts_from_zk_presentation() {
             set: None,
         }],
         zk_proof: ZkProof {
-            circuit_id: "rm-zk-vc-base-v1".into(),
+            circuit_id: "rm-zk-credential-subject-claim-v1".into(),
             circuit_version: "1.0.0".into(),
             vk_id: "vk".into(),
             proof_bytes: vec![1, 2, 3],
