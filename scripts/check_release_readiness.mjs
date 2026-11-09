@@ -86,7 +86,7 @@ function assertFixtureCopies() {
 
 shared.assertReallyMeReleasePackagePolicy({
   scriptPath: "scripts/check_release_readiness.mjs",
-  version: "0.6.9",
+  version: "0.7.0",
 });
 shared.assertWorkflowActionsPinned();
 shared.assertWorkflowPolicy({
@@ -220,7 +220,7 @@ shared.assertWorkflowPolicy({
     },
   ],
 });
-shared.assertNodeWorkflowJobsPinNode({ nodeVersion: "24" });
+shared.assertNodeWorkflowJobsPinNode({ nodeVersion: "26" });
 shared.assertCargoWorkspacePolicy();
 assertProtoZeroizeCoverage();
 assertFixtureCopies();
@@ -1242,11 +1242,11 @@ assertContains(
 );
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "ref: 9cf40c7da1def8a8d809af51789284097c572dd5",
+  "ref: 18a6d91d99837e80f92e41fe04effb0b043d754e",
 );
 assertContains(
   ".github/workflows/crates-package-preflight.yml",
-  "ref: 9cf40c7da1def8a8d809af51789284097c572dd5",
+  "ref: 18a6d91d99837e80f92e41fe04effb0b043d754e",
 );
 assertExists(".github/workflows/crates-package-preflight.yml");
 assertExists(".github/workflows/crates-release.yml");
@@ -1286,7 +1286,7 @@ assertNotContains(packagePreflightWorkflow, "runs-on: ubuntu-latest");
 assertContains(packagePreflightWorkflow, "ref: ${{ github.sha }}");
 assertContains(packagePreflightWorkflow, "fetch-depth: 0");
 assertContains(packagePreflightWorkflow, "persist-credentials: false");
-assertContains(packagePreflightWorkflow, "node-version: '24'");
+assertContains(packagePreflightWorkflow, "node-version: '26'");
 assertContains(packagePreflightWorkflow, "toolchain: 1.99.0");
 assertContains(packagePreflightWorkflow, "node scripts/verify_release_source.mjs");
 assertContains(packagePreflightWorkflow, "node scripts/write_release_attestation.mjs");
@@ -1335,7 +1335,7 @@ assertContains(releaseWorkflow, "environment: crates-io");
 assertContains(releaseWorkflow, "verify-preflight:");
 assertContains(releaseWorkflow, "ref: ${{ github.sha }}");
 assertContains(releaseWorkflow, "persist-credentials: false");
-assertContains(releaseWorkflow, "node-version: '24'");
+assertContains(releaseWorkflow, "node-version: '26'");
 assertContains(releaseWorkflow, "toolchain: 1.99.0");
 assertContains(releaseWorkflow, "RELEASE_SOURCE_DERIVE_VERSION: '1'");
 assertContains(releaseWorkflow, "RELEASE_ATTESTATION_RESOLVE_ONLY: '1'");
