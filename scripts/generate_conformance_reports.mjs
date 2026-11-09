@@ -424,11 +424,11 @@ const buildReport = (definition) => {
       },
       "reallyme-jose": {
         source: "crates.io",
-        version: "0.4.4",
+        version: "0.4.6",
       },
       "reallyme-cose": {
         source: "crates.io",
-        version: "0.2.7",
+        version: "0.2.9",
       },
     },
     specification_sources: sources.map((source) => source.id),
