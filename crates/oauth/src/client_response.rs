@@ -34,6 +34,7 @@ impl AttestationChallenge {
 
 /// Endpoint class that supplied a DPoP nonce.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum DpopNonceEndpoint {
     /// OAuth Authorization Server endpoint such as PAR or token.
     AuthorizationServer,
@@ -52,6 +53,7 @@ pub struct DpopNonceDecision<'a> {
 
 /// Local policy for RFC 9207 when metadata does not advertise `iss` support.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum AuthorizationResponseIssuerPolicy {
     /// Follow metadata strictly: require advertised `iss` and reject an unadvertised one.
     MetadataDrivenStrict,

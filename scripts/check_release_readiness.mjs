@@ -84,6 +84,16 @@ function assertFixtureCopies() {
   }
 }
 
+function assertPublicApiEvolution() {
+  const result = spawnSync(process.execPath, ["scripts/check_public_api_evolution.mjs"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    fail(result.stderr?.trim() || "public API evolution validation failed");
+  }
+}
+
 shared.assertReallyMeReleasePackagePolicy({
   scriptPath: "scripts/check_release_readiness.mjs",
   version: "0.7.0",
@@ -224,6 +234,7 @@ shared.assertNodeWorkflowJobsPinNode({ nodeVersion: "26" });
 shared.assertCargoWorkspacePolicy();
 assertProtoZeroizeCoverage();
 assertFixtureCopies();
+assertPublicApiEvolution();
 shared.assertRepositoryShapePolicy({
   archetype: "protocol-engine",
   requiredLanes: ["crates", "contracts", "conformance", "docs", "scripts", ".github"],
