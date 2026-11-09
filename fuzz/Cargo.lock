@@ -1157,7 +1157,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-jades"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-core"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "quick-xml",
  "reallyme-codec-base64",
@@ -1189,7 +1189,7 @@ dependencies = [
 
 [[package]]
 name = "identity-trust-tsl-xmlsec"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "quick-xml",
  "reallyme-codec-base64",
@@ -1970,9 +1970,9 @@ dependencies = [
 
 [[package]]
 name = "reallyme-cose"
-version = "0.2.9"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bceaf3f700ef8bc8ceef35dca5fd3010f0bfc92d1362743713a02199a353fd8"
+checksum = "8d83f86810206de6656aa2028e05d87144ba1520e8e3fbd42ae5600fee6161da"
 dependencies = [
  "ciborium",
  "coset",
@@ -1984,7 +1984,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-claims"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "reallyme-codec",
  "reallyme-cose",
@@ -2000,7 +2000,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-credential-status"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "flate2",
  "reallyme-codec",
@@ -2571,7 +2571,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-mdoc"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "ciborium",
  "reallyme-codec",
@@ -2588,7 +2588,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-revocation"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "reallyme-credential-status",
  "reallyme-ssi-proto",
@@ -2601,7 +2601,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-sd-jwt"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "reallyme-codec",
  "reallyme-crypto",
@@ -2614,7 +2614,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-fuzz"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "identity-trust-jades",
  "identity-trust-tsl-core",
@@ -2634,7 +2634,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-ssi-proto"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "buffa",
  "buffa-types",
@@ -2645,7 +2645,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-trust-core"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "reallyme-revocation",
  "reallyme-ssi-proto",
@@ -2656,7 +2656,7 @@ dependencies = [
 
 [[package]]
 name = "reallyme-trust-x509"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "asn1-rs",
  "oid-registry",

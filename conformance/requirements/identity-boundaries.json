@@ -19,7 +19,7 @@
     "feature": "shared_oauth_substrate_without_endpoint_state",
     "implementation": ["crates/oauth"],
     "positive_tests": ["pkce_uses_s256_only", "metadata_accepts_par_dpop_and_s256"],
-    "negative_tests": ["par_rejects_request_uri_parameter"],
+    "negative_tests": ["par_extensions_reject_managed_and_malformed_parameters"],
     "applicable": true,
     "exclusion_reason": null
   },

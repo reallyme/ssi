@@ -4,20 +4,48 @@
 
 use super::{
     common_pid, evaluate_wallet_disclosure_policy, natural_pid, sd_jwt_pid, validate_eu_issuance,
-    validate_issuance, validate_natural_person_pid, validate_relying_party_pseudonym,
-    validate_wallet_attestation_profile, validate_wallet_attestation_revocation,
-    validate_wallet_cryptographic_capabilities, validate_wallet_format_capabilities,
-    validate_wallet_transaction_log, AttestationFormat, ConformanceError, CredentialFormatSet,
-    CredentialProofFacts, EmbeddedDisclosurePolicy, FormatFacts, IssuanceFacts, IssuanceFlow,
+    validate_issuance, validate_issuer_information, validate_natural_person_pid,
+    validate_relying_party_pseudonym, validate_wallet_attestation_profile,
+    validate_wallet_attestation_revocation, validate_wallet_cryptographic_capabilities,
+    validate_wallet_format_capabilities, validate_wallet_transaction_log, AttestationFormat,
+    ConformanceError, CredentialFormatSet, CredentialProofFacts, EmbeddedDisclosurePolicy,
+    FormatFacts, IssuanceFacts, IssuanceFlow, IssuerInformationEntry, IssuerInformationSummary,
     IssuerMetadataFacts, KeyAttestationIndexPolicy, KeyAttestationProof, NaturalPersonPidFacts,
     NotificationEvent, NotificationRequest, PerIssuerIndexReuse, RelyingPartyPseudonymBinding,
-    ReuseMethod, ReuseMethodSet, ReusePolicy, ReusePolicyDecision, StatusPeriodSelection,
-    TransactionFailureReason, TransactionOutcome, WalletAttestationAlgorithm,
-    WalletAttestationProfile, WalletAttestationRevocationEvent, WalletAttestationRevocationReason,
-    WalletCryptographicCapabilities, WalletDisclosurePolicy, WalletOperation, WalletOperationGate,
-    WalletRelyingPartyLogData, WalletTransactionKind, WalletTransactionLogControls,
-    WalletTransactionLogEntry, WiaStatusIndexPolicy, EU_PID_SD_JWT_VCT,
+    ReuseMethod, ReuseMethodSet, ReusePolicy, ReusePolicyDecision, ReusePolicyOption,
+    StatusPeriodSelection, TransactionFailureReason, TransactionOutcome,
+    WalletAttestationAlgorithm, WalletAttestationProfile, WalletAttestationRevocationEvent,
+    WalletAttestationRevocationReason, WalletCryptographicCapabilities, WalletDisclosurePolicy,
+    WalletOperation, WalletOperationGate, WalletRelyingPartyLogData, WalletTransactionKind,
+    WalletTransactionLogControls, WalletTransactionLogEntry, WiaStatusIndexPolicy,
+    EU_PID_SD_JWT_VCT,
 };
+use serde_json::json;
+
+#[allow(clippy::expect_used)]
+fn valid_issuer_information(registration_certificate: bool) -> IssuerInformationSummary {
+    let dataset = json!({
+        "identifier": {
+            "type": "http://data.europa.eu/eudi/id/LEI",
+            "identifier": "registered-provider-identifier"
+        },
+        "srvDescription": [{"lang": "en", "content": "Attestation issuance"}],
+        "registryURI": "https://registrar.example/providers/registered-provider-identifier",
+        "providesAttestations": []
+    });
+    let certificate = json!("opaque-profile-defined-registration-certificate");
+    let mut entries = vec![IssuerInformationEntry {
+        format: "registrar_dataset",
+        data: &dataset,
+    }];
+    if registration_certificate {
+        entries.push(IssuerInformationEntry {
+            format: "registration_cert",
+            data: &certificate,
+        });
+    }
+    validate_issuer_information(&entries).expect("valid issuer information fixture")
+}
 
 fn valid_issuance() -> IssuanceFacts<'static> {
     IssuanceFacts {
@@ -28,10 +56,7 @@ fn valid_issuance() -> IssuanceFacts<'static> {
             formats: CredentialFormatSet::new(
                 CredentialFormatSet::SD_JWT_VC | CredentialFormatSet::MSO_MDOC,
             ),
-            issuer_info_valid: true,
-            issuer_information_entries_valid: true,
-            registered_attestation_types_valid: true,
-            registration_certificate_present: true,
+            issuer_information: valid_issuer_information(true),
             batch_metadata_precedence_valid: true,
             reuse_policy: ReusePolicy::OmittedUnrestricted,
             disclosure_policy: Some(EmbeddedDisclosurePolicy::NoPolicy),
@@ -158,10 +183,12 @@ fn rejects_unknown_pid_disclosure_bits() {
 fn arf_once_only_reuse_requires_a_real_batch_and_reissue_threshold() {
     let mut facts = valid_issuance();
     facts.metadata.reuse_policy = ReusePolicy::ArfAnnexIi {
-        details: &[ReuseMethod::OnceOnly],
-        batch_size: Some(1),
-        reissue_trigger_unused: Some(0),
-        reissue_trigger_lifetime_left_seconds: None,
+        options: &[ReusePolicyOption {
+            details: &[ReuseMethod::OnceOnly],
+            batch_size: Some(1),
+            reissue_trigger_unused: Some(0),
+            reissue_trigger_lifetime_left_seconds: None,
+        }],
     };
 
     assert_eq!(
@@ -171,29 +198,31 @@ fn arf_once_only_reuse_requires_a_real_batch_and_reissue_threshold() {
 }
 
 #[test]
-fn arf_per_relying_party_reuse_requires_unused_reissue_threshold() {
+fn arf_per_relying_party_does_not_require_non_normative_unused_threshold() {
     let mut facts = valid_issuance();
     facts.metadata.reuse_policy = ReusePolicy::ArfAnnexIi {
-        details: &[ReuseMethod::LimitedTime, ReuseMethod::PerRelyingParty],
-        batch_size: Some(2),
-        reissue_trigger_unused: None,
-        reissue_trigger_lifetime_left_seconds: Some(86_400),
+        options: &[ReusePolicyOption {
+            details: &[ReuseMethod::LimitedTime, ReuseMethod::PerRelyingParty],
+            batch_size: Some(2),
+            reissue_trigger_unused: None,
+            reissue_trigger_lifetime_left_seconds: Some(86_400),
+        }],
     };
+    facts.reuse_decision.selected_method = Some(ReuseMethod::LimitedTime);
 
-    assert_eq!(
-        validate_issuance(&facts),
-        Err(ConformanceError::InvalidReusePolicy)
-    );
+    assert_eq!(validate_issuance(&facts), Ok(()));
 }
 
 #[test]
 fn accepts_actual_arf_per_relying_party_reuse_values() {
     let mut facts = valid_issuance();
     facts.metadata.reuse_policy = ReusePolicy::ArfAnnexIi {
-        details: &[ReuseMethod::LimitedTime, ReuseMethod::PerRelyingParty],
-        batch_size: Some(10),
-        reissue_trigger_unused: Some(2),
-        reissue_trigger_lifetime_left_seconds: Some(86_400),
+        options: &[ReusePolicyOption {
+            details: &[ReuseMethod::LimitedTime, ReuseMethod::PerRelyingParty],
+            batch_size: Some(10),
+            reissue_trigger_unused: Some(2),
+            reissue_trigger_lifetime_left_seconds: Some(86_400),
+        }],
     };
     facts.reuse_decision.selected_method = Some(ReuseMethod::LimitedTime);
 
@@ -215,17 +244,28 @@ fn omitted_reuse_policy_is_unrestricted_and_selects_no_method() {
 fn reuse_policy_selects_the_first_wallet_supported_preference() {
     let mut facts = valid_issuance();
     facts.metadata.reuse_policy = ReusePolicy::ArfAnnexIi {
-        details: &[ReuseMethod::LimitedTime, ReuseMethod::PerRelyingParty],
-        batch_size: Some(10),
-        reissue_trigger_unused: Some(2),
-        reissue_trigger_lifetime_left_seconds: Some(86_400),
+        options: &[
+            ReusePolicyOption {
+                details: &[ReuseMethod::LimitedTime],
+                batch_size: None,
+                reissue_trigger_unused: None,
+                reissue_trigger_lifetime_left_seconds: Some(86_400),
+            },
+            ReusePolicyOption {
+                details: &[ReuseMethod::RotatingBatch, ReuseMethod::PerRelyingParty],
+                batch_size: Some(10),
+                reissue_trigger_unused: None,
+                reissue_trigger_lifetime_left_seconds: Some(86_400),
+            },
+        ],
     };
-    facts.reuse_decision.supported_methods = ReuseMethodSet::new(ReuseMethodSet::PER_RELYING_PARTY);
-    facts.reuse_decision.selected_method = Some(ReuseMethod::PerRelyingParty);
+    facts.reuse_decision.supported_methods =
+        ReuseMethodSet::new(ReuseMethodSet::ROTATING_BATCH | ReuseMethodSet::PER_RELYING_PARTY);
+    facts.reuse_decision.selected_method = Some(ReuseMethod::RotatingBatch);
 
     assert_eq!(validate_issuance(&facts), Ok(()));
 
-    facts.reuse_decision.selected_method = Some(ReuseMethod::LimitedTime);
+    facts.reuse_decision.selected_method = Some(ReuseMethod::PerRelyingParty);
     assert_eq!(
         validate_issuance(&facts),
         Err(ConformanceError::InvalidReusePolicy)
@@ -246,7 +286,7 @@ fn reuse_policy_rejects_unknown_wallet_capability_bits() {
 #[test]
 fn eu_issuance_requires_registration_certificate() {
     let mut facts = valid_issuance();
-    facts.metadata.registration_certificate_present = false;
+    facts.metadata.issuer_information = valid_issuer_information(false);
 
     assert_eq!(validate_issuance(&facts), Ok(()));
     assert_eq!(

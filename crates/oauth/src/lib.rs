@@ -13,6 +13,7 @@
 pub mod attestation_client_auth;
 mod attestation_trust_receipt;
 mod bind_attested_client_key;
+mod client_response;
 pub mod dpop;
 pub mod error;
 pub mod jwt;
@@ -34,6 +35,11 @@ pub use attestation_client_auth::{
     WalletAttestationTrustEvidence, MAX_ATTESTATION_TRUST_EVIDENCE_AGE_SECONDS,
     OAUTH_CLIENT_ATTESTATION_HEADER, OAUTH_CLIENT_ATTESTATION_POP_HEADER,
 };
+pub use client_response::{
+    evaluate_dpop_nonce_response, parse_attestation_challenge_header,
+    parse_attestation_challenge_response, validate_authorization_response_issuer,
+    AttestationChallenge, AuthorizationResponseIssuerPolicy, DpopNonceDecision, DpopNonceEndpoint,
+};
 pub use dpop::{
     jwk_thumbprint, DpopClaims, DpopHeader, DpopProof, DpopProofRequest, DpopValidationContext,
     DpopVerifier,
@@ -46,5 +52,5 @@ pub use metadata::{
     MetadataFetchRequest, MetadataFetchResponse, MetadataFetcher,
 };
 pub use metadata_url::authorization_server_metadata_url;
-pub use par::{GrantType, ParRequest, ParResponse};
+pub use par::{AdditionalAuthorizationParameters, GrantType, ParRequest, ParResponse};
 pub use pkce::{CodeChallengeMethod, PkceChallenge, PkceVerifier};

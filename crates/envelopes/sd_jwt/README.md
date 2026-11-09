@@ -24,7 +24,7 @@ and key-binding JWT validation.
 
 ```toml
 [dependencies]
-reallyme-sd-jwt = "0.5.1"
+reallyme-sd-jwt = "0.6.0"
 ```
 
 The default `native` feature enables the native cryptographic provider. Use

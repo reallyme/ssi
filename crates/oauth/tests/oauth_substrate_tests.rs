@@ -8,6 +8,7 @@
 //! OAuth substrate tests for PAR, DPoP, PKCE, metadata, and attestation auth.
 
 include!("oauth_substrate_tests/section_01.rs");
+include!("oauth_substrate_tests/par_extensions.rs");
 include!("oauth_substrate_tests/dpop_thumbprints.rs");
 include!("oauth_substrate_tests/validate_attestation_trust_receipts.rs");
 include!("oauth_substrate_tests/section_02.rs");

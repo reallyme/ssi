@@ -3,14 +3,14 @@
   "sources": [
     {
       "source": "RFC9052/RFC9053",
-      "path": "crates.io:reallyme-cose@0.2.9/tests/cose_suite",
+      "path": "crates.io:reallyme-cose@0.2.10/tests/cose_suite",
       "execution": {
-        "id": "reallyme-cose-0.2.9",
+        "id": "reallyme-cose-0.2.10",
         "repository": "https://github.com/reallyme/cose",
-        "source_commit": "1227d94b3ad77abd4b1c62c526143f3b63b27ac4",
+        "source_commit": "0e552a396745f1c3bb90831a81228e43b03a6612",
         "package": "reallyme-cose",
-        "version": "0.2.9",
-        "cargo_checksum": "7bceaf3f700ef8bc8ceef35dca5fd3010f0bfc92d1362743713a02199a353fd8",
+        "version": "0.2.10",
+        "cargo_checksum": "8d83f86810206de6656aa2028e05d87144ba1520e8e3fbd42ae5600fee6161da",
         "crate_path": "crates/cose",
         "test_binaries": ["cose"],
         "command": ["cargo", "test", "--locked", "-p", "reallyme-cose", "--test", "cose"]
