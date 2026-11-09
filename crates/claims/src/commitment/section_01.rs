@@ -47,8 +47,13 @@ pub const MAX_CLAIM_OPENINGS_PER_BUNDLE: usize = MAX_CLAIMS_PER_REGISTRY;
 /// Maximum Merkle authentication path depth accepted for one opening.
 pub const MAX_CLAIM_OPENING_MERKLE_DEPTH: usize = 64;
 
-/// Maximum UTF-8 bytes for hash and encoding labels.
+/// Maximum UTF-8 bytes for commitment hash labels.
 pub const MAX_COMMITMENT_LABEL_BYTES: usize = 32;
+
+// The ZK common-credential-root transcript names its value encoding with 34
+// bytes. Keep this bound separate from hash labels so the public envelope can
+// carry that exact protocol identifier without widening unrelated labels.
+const MAX_COMMITMENT_VALUE_ENCODING_BYTES: usize = 64;
 
 /// Maximum UTF-8 bytes for commitment domain separation tags.
 pub const MAX_COMMITMENT_DOMAIN_TAG_BYTES: usize = 16;

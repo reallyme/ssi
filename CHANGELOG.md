@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.1
+
+This patch accepts the 34-byte common-credential-root value encoding published
+by `reallyme-zk-api` 0.2.0 in public SSI commitments. Precomputed issuance
+signs the approved root and binds both its SHA-256 and Poseidon2 hash labels.
+Generic SSI claim-opening verification still requires its own JCS transcript;
+it does not reinterpret ZK openings as generic SSI openings.
+
+All workspace crates advance together to 0.5.1.
+
 ## 0.5.0
 
 This release gives ZK presentations a typed, protobuf-first shape: direct

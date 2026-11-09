@@ -9,12 +9,12 @@ use std::collections::BTreeMap;
 
 use reallyme_credential_claims::{
     build_claims_commitment, default_commitment_domain_tags, default_commitment_limits,
-    verify_claim_opening, verify_subject_private_bundle, ClaimCommitmentBuildInput,
-    ClaimDefinition, ClaimDisclosurePolicy, ClaimOpening, ClaimSaltSource, ClaimType, ClaimValue,
-    ClaimsError, ClaimsInvalidReason, ClaimsRegistry, CredentialAlgorithm, DisclosureMode,
-    KeyAssurance, KeyReference, MerkleTreeInfo, PublicKeyRef, PublicKeyRepresentation,
-    RawPublicKeySerialization, Signature, CLAIM_COMMITMENT_HASH_ALG_SHA256,
-    CLAIM_COMMITMENT_VALUE_ENCODING, ENCODING_JCS_UTF8,
+    validate_claims_commitment, verify_claim_opening, verify_subject_private_bundle,
+    ClaimCommitmentBuildInput, ClaimDefinition, ClaimDisclosurePolicy, ClaimOpening,
+    ClaimSaltSource, ClaimType, ClaimValue, ClaimsError, ClaimsInvalidReason, ClaimsRegistry,
+    CredentialAlgorithm, DisclosureMode, KeyAssurance, KeyReference, MerkleTreeInfo, PublicKeyRef,
+    PublicKeyRepresentation, RawPublicKeySerialization, Signature,
+    CLAIM_COMMITMENT_HASH_ALG_SHA256, CLAIM_COMMITMENT_VALUE_ENCODING, ENCODING_JCS_UTF8,
 };
 
 struct DeterministicSaltSource {
@@ -323,6 +323,35 @@ fn unsupported_commitment_encoding_is_rejected_by_verifier() {
         verify_subject_private_bundle(&built.commitment, &built.bundle),
         Err(ClaimsError::InvalidInput(
             ClaimsInvalidReason::UnsupportedCommitmentEncoding
+        ))
+    );
+}
+
+#[test]
+fn zk_encoding_is_valid_public_metadata_but_not_a_generic_claim_opening() {
+    let registry = simple_registry();
+    let payload = simple_payload();
+    let mut salt_source = DeterministicSaltSource { next: 30 };
+    let mut built =
+        build_claims_commitment(build_input(&registry, &payload), &mut salt_source).unwrap();
+
+    // The exact 34-byte identifier published by reallyme-zk-api 0.2.0 must
+    // survive public envelope validation. Generic SSI openings use another
+    // transcript and must continue to reject it.
+    built.commitment.value_encoding = "RM-CV-ZK-COMMON-CREDENTIAL-ROOT-V1".to_owned();
+    assert_eq!(validate_claims_commitment(&built.commitment), Ok(()));
+    assert_eq!(
+        verify_subject_private_bundle(&built.commitment, &built.bundle),
+        Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::UnsupportedCommitmentEncoding
+        ))
+    );
+
+    built.commitment.value_encoding = "x".repeat(65);
+    assert_eq!(
+        validate_claims_commitment(&built.commitment),
+        Err(ClaimsError::InvalidInput(
+            ClaimsInvalidReason::InvalidCommitmentMaterial
         ))
     );
 }

@@ -79,7 +79,7 @@ fn commitment(root: [u8; 32]) -> ClaimsCommitment {
         merkle_root: root.to_vec(),
         claimset_id: "reallyme.zk.common-root.v1".to_owned(),
         hash_alg: "sha-256".to_owned(),
-        value_encoding: "RM-CV-ZK-COMMON-ROOT-V1".to_owned(),
+        value_encoding: "RM-CV-ZK-COMMON-CREDENTIAL-ROOT-V1".to_owned(),
         domain_tags: DomainTags {
             clm: "CLM1".to_owned(),
             leaf: "LEAF1".to_owned(),
@@ -192,6 +192,58 @@ fn signs_the_precomputed_root_and_status_without_reissuing_the_general_ssi_tree(
 
     issued.envelope.status.status_list_index -= 1;
     issued.envelope.claims_commitment.hash_alg = "poseidon2-bn254".to_owned();
+    assert!(matches!(
+        validate_credential_proof_binding_public(
+            &issued.envelope,
+            &issued.proof_binding,
+            &issuer_public,
+        ),
+        Err(VcError::ProofBindingMismatch)
+    ));
+}
+
+#[test]
+fn signs_and_verifies_binding_for_poseidon2_labeled_root() {
+    let (issuer_public, issuer_private) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let (holder_public, _) = generate_keypair(CryptoAlgorithm::P256).unwrap();
+    let issuer_key = p256_key("did:test:issuer#key-1", &issuer_public);
+    let holder_key = p256_key("did:test:holder#key-1", &holder_public);
+    let signer = DispatchCredentialIssuerSigner {
+        private_key: &issuer_private,
+        verification_key: &issuer_key,
+    };
+    let mut selected_commitment = commitment([0x47_u8; 32]);
+    selected_commitment.hash_alg = "poseidon2-bn254".to_owned();
+
+    let mut issued = issue_credential_with_precomputed_commitment(
+        input(issuer_key.clone(), holder_key),
+        selected_commitment,
+        &signer,
+    )
+    .unwrap();
+    assert_eq!(
+        issued.envelope.claims_commitment.value_encoding,
+        "RM-CV-ZK-COMMON-CREDENTIAL-ROOT-V1"
+    );
+    assert_eq!(
+        issued.envelope.claims_commitment.hash_alg,
+        "poseidon2-bn254"
+    );
+    verify_credential(
+        &issued.envelope,
+        CryptoAlgorithm::P256,
+        &issuer_public,
+        None,
+    )
+    .unwrap();
+    validate_credential_proof_binding_public(
+        &issued.envelope,
+        &issued.proof_binding,
+        &issuer_public,
+    )
+    .unwrap();
+
+    issued.envelope.claims_commitment.value_encoding = "RM-CV-JCS-V1".to_owned();
     assert!(matches!(
         validate_credential_proof_binding_public(
             &issued.envelope,
