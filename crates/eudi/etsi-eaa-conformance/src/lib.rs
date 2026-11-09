@@ -12,6 +12,7 @@ mod country;
 mod error;
 mod eu_status;
 mod issuance;
+mod issuer_information;
 mod model;
 mod pid;
 mod pid_claims;
@@ -37,6 +38,11 @@ pub use issuance::{
     validate_issuance as evaluate_issuance_conformance, CredentialFormatSet, CredentialProofFacts,
     EmbeddedDisclosurePolicy, IssuanceFacts, IssuanceFlow, IssuerMetadataFacts, NotificationEvent,
     NotificationRequest, ReuseMethod, ReuseMethodSet, ReusePolicy, ReusePolicyDecision,
+    ReusePolicyOption,
+};
+pub use issuer_information::{
+    validate_issuer_information, IssuerInformationEntry, IssuerInformationError,
+    IssuerInformationErrorReason, IssuerInformationSummary,
 };
 pub use model::{
     AttestationCategory, AttestationCategorySignal, AttestationFormat, AttestationIdentifier,

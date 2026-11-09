@@ -34,10 +34,20 @@ pub enum Reason {
     InvalidDpopProof,
     /// DPoP proof replay was detected.
     DpopReplay,
+    /// A server-provided DPoP nonce response was malformed or ambiguous.
+    InvalidDpopNonceResponse,
+    /// The one permitted DPoP nonce retry was already consumed.
+    DpopNonceRetryExhausted,
     /// Authorization Server metadata validation failed.
     InvalidMetadata,
     /// Authorization Server metadata did not name the issuer that was requested.
     AuthorizationServerIssuerMismatch,
+    /// RFC 9207 requires an issuer parameter for this authorization response.
+    AuthorizationResponseIssuerRequired,
+    /// An unadvertised RFC 9207 issuer parameter was rejected by local policy.
+    AuthorizationResponseIssuerUnexpected,
+    /// An attestation challenge response violated the negotiated HTTP contract.
+    InvalidAttestationChallengeResponse,
     /// Attestation-based client authentication validation failed.
     InvalidClientAttestation,
     /// Request client identifier did not match the authenticated attestation subject.
@@ -88,8 +98,15 @@ impl Display for Reason {
             Self::InvalidParRequest => "invalid_par_request",
             Self::InvalidDpopProof => "invalid_dpop_proof",
             Self::DpopReplay => "dpop_replay",
+            Self::InvalidDpopNonceResponse => "invalid_dpop_nonce_response",
+            Self::DpopNonceRetryExhausted => "dpop_nonce_retry_exhausted",
             Self::InvalidMetadata => "invalid_metadata",
             Self::AuthorizationServerIssuerMismatch => "authorization_server_issuer_mismatch",
+            Self::AuthorizationResponseIssuerRequired => "authorization_response_issuer_required",
+            Self::AuthorizationResponseIssuerUnexpected => {
+                "authorization_response_issuer_unexpected"
+            }
+            Self::InvalidAttestationChallengeResponse => "invalid_attestation_challenge_response",
             Self::MetadataTransportPolicyUnsupported => "metadata_transport_policy_unsupported",
             Self::MetadataConnectionBindingFailed => "metadata_connection_binding_failed",
             Self::MetadataTlsFailure => "metadata_tls_failure",
@@ -164,7 +181,9 @@ impl From<Reason> for IdentityCoreErrorReason {
                 Self::IDENTITY_CORE_ERROR_REASON_OAUTH_ATTESTATION_KEY_BINDING_FAILED
             }
             Reason::AttestationReplay => Self::IDENTITY_CORE_ERROR_REASON_OAUTH_ATTESTATION_REPLAY,
-            Reason::AuthorizationServerIssuerMismatch => {
+            Reason::AuthorizationServerIssuerMismatch
+            | Reason::AuthorizationResponseIssuerRequired
+            | Reason::AuthorizationResponseIssuerUnexpected => {
                 Self::IDENTITY_CORE_ERROR_REASON_OAUTH_AUTHORIZATION_SERVER_ISSUER_MISMATCH
             }
             _ => Self::IDENTITY_CORE_ERROR_REASON_OAUTH_INVALID_SUBSTRATE,

@@ -428,7 +428,7 @@ const buildReport = (definition) => {
       },
       "reallyme-cose": {
         source: "crates.io",
-        version: "0.2.9",
+        version: "0.2.10",
       },
     },
     specification_sources: sources.map((source) => source.id),

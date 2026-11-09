@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::Cell;
-use std::collections::BTreeMap;
 
 use envelopes_x509::{
     BasicConstraints, CertificateProfile, KeyUsage, PublicKeyProfile, SignatureAlgorithm,
@@ -12,13 +11,14 @@ use envelopes_x509::{
 use identity_revocation_core::{StatusCheckError, StatusChecker};
 use reallyme_codec::base64url::bytes_to_base64url;
 use reallyme_openid_oauth::jwt::{decode_compact_jwt, sign_compact_jwt};
+use reallyme_openid_oauth::validation::MAX_TOKEN_BYTES;
 use reallyme_openid_oauth::{
     jwk_thumbprint, validate_attestation_client_authentication, AttestationClientAuthentication,
     AttestationClientAuthenticationValidationContext, AttestationClientAuthenticationVerifier,
     AttestationPopRequest, AttestedClientKey, AuthorizationServerMetadata, CodeChallengeMethod,
     CompactJwt, DpopHeader, DpopProof, DpopProofRequest, DpopValidationContext, DpopVerifier,
-    GrantType, JwtSigner, JwtVerifier, OauthError, ParRequest, PkceVerifier, Reason,
-    VerifiedAttestationClientAuthentication, VerifiedClientAttestation,
+    AdditionalAuthorizationParameters, GrantType, JwtSigner, JwtVerifier, OauthError, ParRequest,
+    PkceVerifier, Reason, VerifiedAttestationClientAuthentication, VerifiedClientAttestation,
     WalletAttestationTrustEvidence, MAX_ATTESTATION_TRUST_EVIDENCE_AGE_SECONDS,
     OAUTH_CLIENT_ATTESTATION_HEADER, OAUTH_CLIENT_ATTESTATION_POP_HEADER,
 };
@@ -643,27 +643,6 @@ fn par_accepts_valid_authorization_code_request() -> Result<(), OauthError> {
     assert!(body.contains("response_type=code"));
     assert!(body.contains("code_challenge_method=S256"));
     Ok(())
-}
-
-#[test]
-fn par_rejects_request_uri_parameter() {
-    let mut additional_parameters = BTreeMap::new();
-    additional_parameters.insert("request_uri".to_owned(), "urn:bad".to_owned());
-    let request = ParRequest {
-        client_id: "client".to_owned(),
-        response_type: "code".to_owned(),
-        redirect_uri: Some("https://wallet.example/cb".to_owned()),
-        scope: None,
-        state: None,
-        pkce: None,
-        dpop_jkt: None,
-        attestation_client_authentication: None,
-        additional_parameters,
-    };
-    assert_eq!(
-        request.validate().err().map(|error| error.reason()),
-        Some(Reason::InvalidParRequest)
-    );
 }
 
 #[test]

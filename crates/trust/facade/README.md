@@ -34,5 +34,5 @@ dependency closure before it is exposed here.
 
 ```toml
 [dependencies]
-reallyme-trust = "0.5.1"
+reallyme-trust = "0.6.0"
 ```

@@ -8,7 +8,7 @@ use crate::MdocEnvelopeError;
 use reallyme_cose::{
     cose_sign1, cose_sign1_with_signature_algorithm_and_external_aad, cose_verify1,
     cose_verify1_with_x5chain, Algorithm, CosePolicy, CoseSign1EncodeOptions,
-    CoseSignatureAlgorithm,
+    CoseSignatureAlgorithm, X5ChainHeaderPlacement,
 };
 use zeroize::Zeroizing;
 
@@ -63,7 +63,11 @@ impl IssuerAuthSigner for CoseX5ChainIssuerAuthSigner<'_> {
         if self.x5chain_der.is_empty() {
             return Err(MdocEnvelopeError::Signing);
         }
-        let options = CoseSign1EncodeOptions::new().with_x5chain_der(self.x5chain_der.to_vec());
+        // ISO/IEC 18013-5 fixes issuerAuth x5chain in the unprotected bucket,
+        // even though RFC 9360 permits application profiles to choose either.
+        let options = CoseSign1EncodeOptions::new()
+            .with_x5chain_der(self.x5chain_der.to_vec())
+            .with_x5chain_header_placement(X5ChainHeaderPlacement::Unprotected);
         cose_sign1_with_signature_algorithm_and_external_aad(
             self.algorithm,
             mso_cbor,

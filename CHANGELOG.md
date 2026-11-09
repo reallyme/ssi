@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.6.0
+
+This release updates the OAuth and EUDI issuance boundaries and uses
+ReallyMe COSE 0.2.10 to emit mdoc issuerAuth certificate chains in the
+unprotected header required by ISO/IEC 18013-5.
+
+- PAR requests expose managed OpenID4VCI and Request Object fields. Extensions
+  use `AdditionalAuthorizationParameters::try_insert` to reject duplicate
+  protocol-owned parameters. Rejected and temporary authorization values
+  are cleared from their owned allocations.
+- OAuth clients can validate attestation-challenge responses, classify bounded
+  DPoP nonce retries, and enforce an explicit authorization-response issuer policy
+  with stable typed failure reasons.
+- EUDI conformance uses structurally validated issuer-information summaries and
+  ordered credential-reuse policy options. Certificate authentication and
+  registered-attestation authorization remain the composing verifier's responsibility.
+
+Rust consumers must update `ParRequest` construction and its extension map.
+Source consumers of the private ETSI conformance crate must also update
+`IssuerMetadataFacts` and `ReusePolicy::ArfAnnexIi` construction. Existing
+protobuf field numbers and ProtoJSON field names are unchanged. All workspace
+crates advance together to 0.6.0.
+
 ## 0.5.1
 
 This patch accepts the 34-byte common-credential-root value encoding published

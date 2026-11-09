@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{ConformanceError, Result};
+use crate::{ConformanceError, IssuerInformationSummary, Result};
 use url::Url;
 
 const MAX_NOTIFICATION_ID_BYTES: usize = 128;
@@ -74,17 +74,26 @@ pub enum ReuseMethod {
 pub enum ReusePolicy<'a> {
     /// Parameter omitted; ETSI defines this as unrestricted reuse.
     OmittedUnrestricted,
-    /// ARF Annex II policy represented by its actual metadata values.
+    /// A policy identifier that this implementation does not support.
+    Unsupported,
+    /// ARF Annex II policy represented by its ordered metadata options.
     ArfAnnexIi {
-        /// Ordered `details` array from the policy object.
-        details: &'a [ReuseMethod],
-        /// Batch size, when batching is used.
-        batch_size: Option<u32>,
-        /// Lower bound for unused credential instances before reissuance.
-        reissue_trigger_unused: Option<u32>,
-        /// Seconds before credential expiry that trigger reissuance.
-        reissue_trigger_lifetime_left_seconds: Option<u64>,
+        /// Ordered `options` array from the policy object.
+        options: &'a [ReusePolicyOption<'a>],
     },
+}
+
+/// One ordered ARF Annex II reuse-policy option.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReusePolicyOption<'a> {
+    /// Ordered `details` array from this option.
+    pub details: &'a [ReuseMethod],
+    /// Batch size, when batching is used.
+    pub batch_size: Option<u32>,
+    /// Lower bound for unused credential instances before reissuance.
+    pub reissue_trigger_unused: Option<u32>,
+    /// Seconds before credential expiry that trigger reissuance.
+    pub reissue_trigger_lifetime_left_seconds: Option<u64>,
 }
 
 /// Reuse methods implemented by a wallet.
@@ -162,14 +171,8 @@ pub struct IssuerMetadataFacts<'a> {
     pub protected_x5c_valid: bool,
     /// At least one ETSI credential format is advertised.
     pub formats: CredentialFormatSet,
-    /// `issuer_info` is top-level and structurally valid.
-    pub issuer_info_valid: bool,
-    /// Access-certificate and registrar data entries use their required format labels.
-    pub issuer_information_entries_valid: bool,
-    /// Registration-certificate `providesAttestations` data is valid.
-    pub registered_attestation_types_valid: bool,
-    /// At least one `issuer_info` entry contains the issuer registration certificate.
-    pub registration_certificate_present: bool,
+    /// Structurally validated registrar data derived from authenticated `issuer_info`.
+    pub issuer_information: IssuerInformationSummary,
     /// OpenID4VCI batch metadata is ignored when an ETSI reuse policy is present.
     pub batch_metadata_precedence_valid: bool,
     /// Credential reuse policy.
@@ -286,7 +289,10 @@ pub fn validate_issuance(facts: &IssuanceFacts<'_>) -> Result<()> {
 /// advertised through this legal profile.
 pub fn validate_eu_issuance(facts: &IssuanceFacts<'_>) -> Result<()> {
     validate_issuance(facts)?;
-    if !facts.metadata.registration_certificate_present
+    if !facts
+        .metadata
+        .issuer_information
+        .registration_certificate_present()
         || facts
             .metadata
             .formats
@@ -302,9 +308,6 @@ fn validate_metadata(metadata: &IssuerMetadataFacts<'_>) -> Result<()> {
         || !metadata.access_certificate_signer
         || !metadata.protected_x5c_valid
         || metadata.formats.is_empty()
-        || !metadata.issuer_info_valid
-        || !metadata.issuer_information_entries_valid
-        || !metadata.registered_attestation_types_valid
         || !metadata.batch_metadata_precedence_valid
         || !metadata.formats.is_valid()
     {
@@ -325,57 +328,49 @@ fn validate_reuse_policy(policy: ReusePolicy<'_>, decision: ReusePolicyDecision)
     match policy {
         ReusePolicy::OmittedUnrestricted if decision.selected_method.is_none() => Ok(()),
         ReusePolicy::OmittedUnrestricted => Err(ConformanceError::InvalidReusePolicy),
-        ReusePolicy::ArfAnnexIi {
-            details,
-            batch_size,
-            reissue_trigger_unused,
-            reissue_trigger_lifetime_left_seconds,
-        } => {
-            let details_valid = !details.is_empty()
-                && details.len() <= 4
-                && details.iter().enumerate().all(|(position, method)| {
-                    !details.iter().take(position).any(|prior| prior == method)
-                });
-            let once_only = details.contains(&ReuseMethod::OnceOnly);
-            let limited_time = details.contains(&ReuseMethod::LimitedTime);
-            let rotating_batch = details.contains(&ReuseMethod::RotatingBatch);
-            let per_relying_party = details.contains(&ReuseMethod::PerRelyingParty);
-            let base_mode_valid = once_only ^ limited_time;
-            let batch_required = once_only || rotating_batch || per_relying_party;
-            let batching_valid = if batch_required {
-                batch_size.is_some_and(|size| size >= 2)
-            } else {
-                batch_size.is_none()
-            };
-            let unused_threshold_valid = if once_only || per_relying_party {
-                matches!(
-                    (reissue_trigger_unused, batch_size),
-                    (Some(threshold), Some(size)) if threshold < size
-                )
-            } else {
-                reissue_trigger_unused.is_none()
-            };
-            let lifetime_required = limited_time || rotating_batch || per_relying_party;
-            let timing_valid = lifetime_required == reissue_trigger_lifetime_left_seconds.is_some();
-            let first_supported = details
+        ReusePolicy::Unsupported => Err(ConformanceError::InvalidReusePolicy),
+        ReusePolicy::ArfAnnexIi { options } => {
+            let options_valid = !options.is_empty() && options.iter().all(validate_reuse_option);
+            let once_only = options
                 .iter()
-                .copied()
+                .any(|option| option.details.contains(&ReuseMethod::OnceOnly));
+            let limited_time = options
+                .iter()
+                .any(|option| option.details.contains(&ReuseMethod::LimitedTime));
+            let base_mode_valid = once_only ^ limited_time;
+            let first_supported = options
+                .iter()
+                .flat_map(|option| option.details.iter().copied())
                 .find(|method| decision.supported_methods.contains(*method));
             let selection_valid =
                 first_supported.is_some() && decision.selected_method == first_supported;
-            if details_valid
-                && base_mode_valid
-                && batching_valid
-                && unused_threshold_valid
-                && timing_valid
-                && selection_valid
-            {
+            if options_valid && base_mode_valid && selection_valid {
                 Ok(())
             } else {
                 Err(ConformanceError::InvalidReusePolicy)
             }
         }
     }
+}
+
+fn validate_reuse_option(option: &ReusePolicyOption<'_>) -> bool {
+    if option.details.is_empty() {
+        return false;
+    }
+    let once_only = option.details.contains(&ReuseMethod::OnceOnly);
+    let limited_time = option.details.contains(&ReuseMethod::LimitedTime);
+    let rotating_batch = option.details.contains(&ReuseMethod::RotatingBatch);
+    let per_relying_party = option.details.contains(&ReuseMethod::PerRelyingParty);
+    let batch_required = once_only || rotating_batch || per_relying_party;
+    let batching_valid = !batch_required || option.batch_size.is_some_and(|size| size >= 2);
+    let unused_threshold_valid = !once_only
+        || matches!(
+            (option.reissue_trigger_unused, option.batch_size),
+            (Some(threshold), Some(size)) if threshold < size
+        );
+    let lifetime_required = limited_time || rotating_batch || per_relying_party;
+    let timing_valid = !lifetime_required || option.reissue_trigger_lifetime_left_seconds.is_some();
+    batching_valid && unused_threshold_valid && timing_valid
 }
 
 fn validate_disclosure_policy(policy: EmbeddedDisclosurePolicy) -> Result<()> {

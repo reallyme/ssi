@@ -1588,7 +1588,7 @@ assertContains(
   "conformance/dependencies.lock.json",
   '"version": "0.3.17"',
 );
-assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.5.1");
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.6.0");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
 assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
 assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");
@@ -1652,7 +1652,7 @@ assertContains("Cargo.toml", 'reallyme-codec = { version = "0.3.2"');
 assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.17"');
 assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.17"');
 assertContains("crates/proto/Cargo.toml", "reallyme-crypto-proto/generated");
-assertContains("Cargo.toml", 'reallyme-cose = { version = "0.2.9"');
+assertContains("Cargo.toml", 'reallyme-cose = { version = "0.2.10"');
 assertContains("Cargo.toml", 'reallyme-jose = { version = "0.4.6"');
 for (const dependency of [
   "reallyme-codec",

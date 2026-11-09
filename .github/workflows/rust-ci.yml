@@ -215,7 +215,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: reallyme/cose
-          ref: 1227d94b3ad77abd4b1c62c526143f3b63b27ac4
+          ref: 0e552a396745f1c3bb90831a81228e43b03a6612
           path: reallyme/cose
           persist-credentials: false
 
