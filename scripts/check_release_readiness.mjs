@@ -1588,7 +1588,7 @@ assertContains(
   "conformance/dependencies.lock.json",
   '"version": "0.3.17"',
 );
-assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.5.0");
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.5.1");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
 assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
 assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");

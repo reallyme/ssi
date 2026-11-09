@@ -267,7 +267,7 @@ pub fn validate_claims_commitment(commitment: &ClaimsCommitment) -> Result<(), C
     validate_required_label(commitment.hash_alg.as_str(), MAX_COMMITMENT_LABEL_BYTES)?;
     validate_required_label(
         commitment.value_encoding.as_str(),
-        MAX_COMMITMENT_LABEL_BYTES,
+        MAX_COMMITMENT_VALUE_ENCODING_BYTES,
     )?;
     validate_domain_tags(&commitment.domain_tags)?;
     validate_commitment_limits(commitment.limits)
