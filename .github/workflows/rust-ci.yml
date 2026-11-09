@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -207,7 +207,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: reallyme/jose
-          ref: 1e421cffb9daabf445affe19cc9e7872c376b845
+          ref: 2d1c8706575f3d4c06dfed62ca6feddf517243cf
           path: reallyme/jose
           persist-credentials: false
 
@@ -215,7 +215,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: reallyme/cose
-          ref: 107cb2a76145c0466db4dac4a524c44d671d1dbb
+          ref: 1227d94b3ad77abd4b1c62c526143f3b63b27ac4
           path: reallyme/cose
           persist-credentials: false
 
@@ -231,7 +231,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: reallyme/release-readiness
-          ref: 5c2da5e5d5795c2c895d0dca0819287ee7101207
+          ref: 9cf40c7da1def8a8d809af51789284097c572dd5
           path: reallyme/ssi/.release-readiness
           persist-credentials: false
 
@@ -401,7 +401,7 @@ jobs:
           fi
 
       - name: Install Wasm test runner
-        run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+        run: cargo install wasm-bindgen-cli --version 0.2.130 --locked
 
       - name: Test fail-closed Wasm provider boundaries
         working-directory: reallyme/ssi

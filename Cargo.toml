@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -104,11 +104,11 @@ time = "0.3"
 x509-parser = "0.18.1"
 zeroize = "1.9"
 
-reallyme-codec = { version = "0.3.1", default-features = false }
-reallyme-cose = { version = "0.2.7", default-features = false }
-reallyme-crypto = { version = "0.3.15", default-features = false }
-reallyme-crypto-proto = { version = "0.3.15", default-features = false }
-reallyme-jose = { version = "0.4.4", default-features = false }
+reallyme-codec = { version = "0.3.2", default-features = false }
+reallyme-cose = { version = "0.2.9", default-features = false }
+reallyme-crypto = { version = "0.3.17", default-features = false }
+reallyme-crypto-proto = { version = "0.3.17", default-features = false }
+reallyme-jose = { version = "0.4.6", default-features = false }
 reallyme-compression-brotli = { path = "crates/compression/brotli", version = "0.5.0" }
 reallyme-credential-audit = { path = "crates/audit", version = "0.5.0", default-features = false }
 reallyme-credential = { path = "crates/credential", version = "0.5.0", default-features = false }
@@ -126,7 +126,7 @@ identity-trust-jades = { path = "crates/trust/jades", version = "0.5.0", default
 reallyme-eudi-rp-registration = { path = "crates/eudi/rp-registration", version = "0.5.0", default-features = false }
 identity-presentation-vp-core = { package = "reallyme-vp-core", path = "crates/presentation/core", version = "0.5.0", default-features = false }
 envelopes-x509 = { package = "reallyme-trust-x509", path = "crates/trust/x509", version = "0.5.0" }
-envelopes-jwt = { package = "reallyme-jose", version = "0.4.4", default-features = false }
+envelopes-jwt = { package = "reallyme-jose", version = "0.4.6", default-features = false }
 
 [profile.release]
 lto = true

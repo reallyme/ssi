@@ -1,5 +1,5 @@
 {
-  "$comment": "SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved\nSPDX-License-Identifier: MIT OR Apache-2.0",
+  "$comment": "SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved\nSPDX-License-Identifier: MIT OR Apache-2.0",
   "schema": "reallyme.identity.taxonomy_source_lock.v1",
   "repository": "reallyme/identity-taxonomy",
   "revision": "515b2a1a5d0b079ea200672ae88ea800ca544de2",

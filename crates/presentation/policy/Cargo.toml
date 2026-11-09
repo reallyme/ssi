@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -27,7 +27,7 @@ reallyme-credential = { workspace = true }
 # VP models (SD-JWT, ZK)
 identity-presentation-vp-core = { workspace = true }
 
-codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.1" }
+codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.2" }
 
 serde_json = "1.0"
 

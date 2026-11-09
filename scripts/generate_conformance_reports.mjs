@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -424,11 +424,11 @@ const buildReport = (definition) => {
       },
       "reallyme-jose": {
         source: "crates.io",
-        version: "0.4.4",
+        version: "0.4.6",
       },
       "reallyme-cose": {
         source: "crates.io",
-        version: "0.2.7",
+        version: "0.2.9",
       },
     },
     specification_sources: sources.map((source) => source.id),

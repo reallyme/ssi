@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 // SPDX-FileCopyrightText: Copyright (c) 2024 DSR Corporation, Denver, Colorado.
 // https://www.dsr-corporation.com
 //

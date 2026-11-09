@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -47,11 +47,11 @@ skip = [
     { crate = "cpufeatures@0.2.17", reason = "Cryptographic dependencies require incompatible cpufeatures API lines; every other duplicate remains denied." },
     { crate = "crypto-common@0.1.7", reason = "Cryptographic dependencies require incompatible crypto-common API lines; every other duplicate remains denied." },
     { crate = "digest@0.10.7", reason = "Digest dependencies require incompatible digest API lines; every other duplicate remains denied." },
+    { crate = "foldhash@0.1.5", reason = "Buffa requires foldhash 0.1 while hashbrown 0.17 requires foldhash 0.2; every other duplicate remains denied." },
     { crate = "generic-array@0.14.7", reason = "Cryptographic dependencies require incompatible generic-array API lines; every other duplicate remains denied." },
     { crate = "hashbrown@0.15.5", reason = "Collection dependencies require incompatible hashbrown API lines; every other duplicate remains denied." },
     { crate = "keccak@0.1.6", reason = "SHA-3 dependencies require incompatible keccak API lines; every other duplicate remains denied." },
     { crate = "sha3@0.10.9", reason = "Cryptographic dependencies require incompatible sha3 API lines; every other duplicate remains denied." },
-    { crate = "sha3@0.11.0", reason = "Cryptographic dependencies require incompatible sha3 API lines; every other duplicate remains denied." },
     { crate = "syn@2.0.119", reason = "Procedural-macro dependencies require incompatible syn API lines; every other duplicate remains denied." },
     { crate = "synstructure@0.13.2", reason = "ASN.1 and multihash derives require synstructure 0.13, while ICU derives require 0.14; every other duplicate remains denied." },
 ]

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -22,9 +22,9 @@ members = ["."]
 [dependencies]
 identity-trust-tsl-xmlsec = { path = "../crates/trust/tsl-xmlsec", default-features = false }
 identity-trust-jades = { path = "../crates/trust/jades", default-features = false, features = ["native"] }
-reallyme-codec = { version = "0.3.1", default-features = false, features = ["base64url", "multikey"] }
-reallyme-crypto = { version = "0.3.15", default-features = false, features = ["native", "jwk"] }
-reallyme-cose = { version = "0.2.7", default-features = false, features = ["native"] }
+reallyme-codec = { version = "0.3.2", default-features = false, features = ["base64url", "multikey"] }
+reallyme-crypto = { version = "0.3.17", default-features = false, features = ["native", "jwk"] }
+reallyme-cose = { version = "0.2.9", default-features = false, features = ["native"] }
 time = "0.3"
 reallyme-mdoc = { path = "../crates/envelopes/mdoc", default-features = false }
 identity-trust-tsl-core = { path = "../crates/trust/tsl-core" }

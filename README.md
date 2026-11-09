@@ -264,6 +264,6 @@ Third-party components retain their own licenses and notices.
 
 ## Copyright and Trademarks
 
-Copyright © 2026 by ReallyMe LLC.
+Copyright © 2026 by ReallyMe Technologies Limited.
 
-ReallyMe® is a registered trademark of ReallyMe LLC.
+ReallyMe® is a registered trademark of ReallyMe Technologies Limited.

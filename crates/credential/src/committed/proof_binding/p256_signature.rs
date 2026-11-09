@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -6,11 +6,9 @@
 
 use super::P256_SIGNATURE_BYTES;
 use crate::committed::error::VcError;
+use crypto_p256::{verify_p256_sha256_digest_low_s_der, P256Sha256Digest};
 use reallyme_crypto::{
-    p256::{
-        normalize_p256_ecdsa_jose_signature_low_s, p256_ecdsa_jose_signature_to_der,
-        verify_p256_digest_der,
-    },
+    p256::{normalize_p256_ecdsa_jose_signature_low_s, p256_ecdsa_jose_signature_to_der},
     sha2::digest as sha2_256_digest,
 };
 
@@ -41,7 +39,9 @@ pub(super) fn verify_p256_zk_signature(
     require_p256_zk_signature_low_s(signature)?;
     let der = p256_ecdsa_jose_signature_to_der(signature)
         .map_err(|_| VcError::ProofBindingSignatureInvalid)?;
-    let digest = sha2_256_digest(payload).into_bytes();
-    verify_p256_digest_der(der.as_slice(), &digest, issuer_public_key)
+    // The typed digest owner clears proof-bound message material on drop and
+    // prevents a second hash at the P-256 verification boundary.
+    let digest = P256Sha256Digest::new(sha2_256_digest(payload).into_bytes());
+    verify_p256_sha256_digest_low_s_der(der.as_slice(), &digest, issuer_public_key)
         .map_err(|_| VcError::ProofBindingSignatureInvalid)
 }

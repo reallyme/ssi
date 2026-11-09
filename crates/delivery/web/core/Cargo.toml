@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -21,16 +21,16 @@ reallyme-ssi-proto = { workspace = true }
 
 # JWT / JWS
 envelopes-jwt = { workspace = true }
-envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.15", default-features = false }
+envelopes-jwk = { package = "reallyme-crypto-jwk", version = "0.3.17", default-features = false }
 
-crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.15" }
-crypto-core = { package = "reallyme-crypto-core", version = "0.3.15" }
+crypto-dispatch = { package = "reallyme-crypto-dispatch", version = "0.3.17" }
+crypto-core = { package = "reallyme-crypto-core", version = "0.3.17" }
 
 # JSON + utilities
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.1" }
+codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.2" }
 thiserror = { workspace = true }
 url = "2.5"
 zeroize = { workspace = true }

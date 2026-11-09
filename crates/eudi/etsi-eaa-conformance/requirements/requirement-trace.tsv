@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # source	requirement_id	source_edition	applicability	disposition	eu_profile_status	owner_repository	code_path	code_symbol	test_path	test_symbol	external_evidence	justification
 ETSI-TS-119-472-1	EAA-4.2.1.2-01	V1.2.1-2026-02	eaa_or_pid:all_formats	code_and_composed_evidence	incorporated_subject_to_eu_adaptations	ssi	crates/eudi/etsi-eaa-conformance/src/validate.rs	validate_attestation	crates/eudi/etsi-eaa-conformance/tests/conformance_tests/status_common.rs	rejects_duplicate_context_uris	credential_parser;signature_verifier;trust_path;status_resolver	policy_gate_consumes_verified_protocol_neutral_facts

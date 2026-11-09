@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -53,7 +53,7 @@ identity-trust-wasm = { version = "0.5.0", path = "../wasm", optional = true, de
 envelopes-x509 = { workspace = true }
 
 # Codecs
-codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.1" }
+codec-base64url = { package = "reallyme-codec-base64url", version = "0.3.2" }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios", target_os = "tvos", target_os = "watchos", target_os = "visionos")))'.dependencies]
 identity-trust-openssl = { version = "0.5.0", path = "../openssl", optional = true }

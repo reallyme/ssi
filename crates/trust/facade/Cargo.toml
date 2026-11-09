@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+# SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -45,7 +45,7 @@ envelopes-x509 = { package = "reallyme-trust-x509", path = "../x509", version = 
 reallyme-trust-core = { path = "../core", version = "=0.5.0", default-features = false }
 reallyme-revocation = { path = "../../revocation", version = "=0.5.0", default-features = false }
 reallyme-ssi-proto = { path = "../../proto", version = "=0.5.0", features = ["generated"] }
-reallyme-crypto = { version = "=0.3.15", default-features = false, features = ["sha2"] }
+reallyme-crypto = { version = "=0.3.17", default-features = false, features = ["sha2"] }
 thiserror = { workspace = true }
 time = { workspace = true }
 x509-parser = { workspace = true }

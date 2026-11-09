@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved
+// SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -86,7 +86,7 @@ function assertFixtureCopies() {
 
 shared.assertReallyMeReleasePackagePolicy({
   scriptPath: "scripts/check_release_readiness.mjs",
-  version: "0.6.7",
+  version: "0.6.9",
 });
 shared.assertWorkflowActionsPinned();
 shared.assertWorkflowPolicy({
@@ -353,7 +353,7 @@ shared.assertSpdxHeaders({
   requireExclusionsMatched: true,
   requireExclusionReasons: true,
   copyright:
-    "SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved",
+    "SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved",
   license: "SPDX-License-Identifier: MIT OR Apache-2.0",
 });
 
@@ -800,7 +800,7 @@ for (const path of findHeaderPolicyFiles()) {
   const expectedCopyright =
     path === thirdPartyOnlySource
       ? "SPDX-FileCopyrightText: Copyright (c) 2024 DSR Corporation, Denver, Colorado."
-      : "SPDX-FileCopyrightText: Copyright © 2026 ReallyMe LLC. All rights reserved";
+      : "SPDX-FileCopyrightText: Copyright © 2026 ReallyMe Technologies Limited. All rights reserved";
   const expectedLicense = apacheOnlySources.has(path)
     ? "SPDX-License-Identifier: Apache-2.0"
     : "SPDX-License-Identifier: MIT OR Apache-2.0";
@@ -1242,11 +1242,11 @@ assertContains(
 );
 assertContains(
   ".github/workflows/rust-ci.yml",
-  "ref: 5c2da5e5d5795c2c895d0dca0819287ee7101207",
+  "ref: 9cf40c7da1def8a8d809af51789284097c572dd5",
 );
 assertContains(
   ".github/workflows/crates-package-preflight.yml",
-  "ref: 5c2da5e5d5795c2c895d0dca0819287ee7101207",
+  "ref: 9cf40c7da1def8a8d809af51789284097c572dd5",
 );
 assertExists(".github/workflows/crates-package-preflight.yml");
 assertExists(".github/workflows/crates-release.yml");
@@ -1586,7 +1586,7 @@ assertContains("scripts/generate_conformance_reports.mjs", "Cargo.lock does not 
 assertContains("scripts/generate_conformance_reports.mjs", "reallyme.ssi.conformance.bundle.v1");
 assertContains(
   "conformance/dependencies.lock.json",
-  '"version": "0.3.15"',
+  '"version": "0.3.17"',
 );
 assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.5.0");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
@@ -1648,12 +1648,12 @@ assertContains("scripts/proto-workspace.sh", '"me-id/protos"');
 assertContains("scripts/check-proto-contract.sh", "reallyme.crypto.v1.CryptoAlgorithmIdentifier");
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity.common.v1");
 assertContains("scripts/check-proto-contract.sh", "reallyme.identity_core.v1");
-assertContains("Cargo.toml", 'reallyme-codec = { version = "0.3.1"');
-assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.15"');
-assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.15"');
+assertContains("Cargo.toml", 'reallyme-codec = { version = "0.3.2"');
+assertContains("Cargo.toml", 'reallyme-crypto = { version = "0.3.17"');
+assertContains("Cargo.toml", 'reallyme-crypto-proto = { version = "0.3.17"');
 assertContains("crates/proto/Cargo.toml", "reallyme-crypto-proto/generated");
-assertContains("Cargo.toml", 'reallyme-cose = { version = "0.2.7"');
-assertContains("Cargo.toml", 'reallyme-jose = { version = "0.4.4"');
+assertContains("Cargo.toml", 'reallyme-cose = { version = "0.2.9"');
+assertContains("Cargo.toml", 'reallyme-jose = { version = "0.4.6"');
 for (const dependency of [
   "reallyme-codec",
   "reallyme-cose",
