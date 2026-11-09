@@ -604,7 +604,7 @@ fn web_rejects_dummy_zk_presentation_crypto_failure() {
     let reg = empty_registry("eu.age.v1");
 
     let err = validate_web_presentation(WebValidationInput {
-        presentation: &dummy_zk_presentation("rm-zk-vc-base-v1"),
+        presentation: &dummy_zk_presentation("rm-zk-credential-subject-claim-v1"),
         claims_registry: &reg,
         claimset_id: "eu.age.v1",
         status: None,
