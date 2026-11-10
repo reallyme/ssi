@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-ssi-fuzz"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 publish = false
 
@@ -20,20 +20,20 @@ non_kebab_case_bins = "allow"
 members = ["."]
 
 [dependencies]
-identity-trust-tsl-xmlsec = { path = "../crates/trust/tsl-xmlsec", default-features = false }
-identity-trust-jades = { path = "../crates/trust/jades", default-features = false, features = ["native"] }
+identity-trust-tsl-xmlsec = { version = "0.6.1", path = "../crates/trust/tsl-xmlsec", default-features = false }
+identity-trust-jades = { version = "0.6.1", path = "../crates/trust/jades", default-features = false, features = ["native"] }
 reallyme-codec = { version = "0.3.2", default-features = false, features = ["base64url", "multikey"] }
 reallyme-crypto = { version = "0.3.17", default-features = false, features = ["native", "jwk"] }
 reallyme-cose = { version = "0.2.9", default-features = false, features = ["native"] }
 time = "0.3"
-reallyme-mdoc = { path = "../crates/envelopes/mdoc", default-features = false }
-identity-trust-tsl-core = { path = "../crates/trust/tsl-core" }
+reallyme-mdoc = { version = "0.6.1", path = "../crates/envelopes/mdoc", default-features = false }
+identity-trust-tsl-core = { version = "0.6.1", path = "../crates/trust/tsl-core" }
 libfuzzer-sys = "0.4"
-reallyme-credential-claims = { path = "../crates/claims", default-features = false, features = ["native"] }
-reallyme-credential-status = { path = "../crates/status", default-features = false, features = ["native"] }
-reallyme-sd-jwt = { path = "../crates/envelopes/sd_jwt", default-features = false, features = ["native"] }
+reallyme-credential-claims = { version = "0.6.1", path = "../crates/claims", default-features = false, features = ["native"] }
+reallyme-credential-status = { version = "0.6.1", path = "../crates/status", default-features = false, features = ["native"] }
+reallyme-sd-jwt = { version = "0.6.1", path = "../crates/envelopes/sd_jwt", default-features = false, features = ["native"] }
 serde_json = "1.0"
-reallyme-trust-x509 = { path = "../crates/trust/x509", default-features = false }
+reallyme-trust-x509 = { version = "0.6.1", path = "../crates/trust/x509", default-features = false }
 
 [[bin]]
 name = "fuzz_claim_path"

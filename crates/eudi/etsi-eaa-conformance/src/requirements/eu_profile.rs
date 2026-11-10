@@ -16,6 +16,7 @@ const EU_LEDGER_COLUMN_COUNT: usize = 4;
 
 /// Legal or incorporated-profile source owning an EU-profile row.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum EuProfileSource {
     /// Consolidated CIR (EU) 2024/2977.
     Cir2024_2977,

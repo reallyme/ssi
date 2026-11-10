@@ -13,6 +13,7 @@ const STATUS_LIST_CONTENT_TYPE: &str = "application/statuslist+cwt";
 
 /// COSE signature algorithms permitted for an EU mdoc revocation list.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum EuMdocStatusAlgorithm {
     /// ECDSA with NIST P-256 and SHA-256.
     Es256,
@@ -29,6 +30,7 @@ pub enum EuMdocStatusAlgorithm {
 }
 
 /// Authenticated correlation key carried in an mdoc MSO status reference.
+#[non_exhaustive]
 pub enum MdocStatusCorrelationKey<'a> {
     /// Status-list URI and issuer-selected bit index.
     StatusList {

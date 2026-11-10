@@ -93,6 +93,8 @@ impl WrpEntitlement {
 pub enum ProtocolProfile {
     /// EUDI TS5 registrar API v1.5.
     Ts5V1_5,
+    /// EUDI TS5 registrar API v1.6.
+    Ts5V1_6,
     /// Explicit compatibility profile for the pinned v0.2.2 reference service.
     EuReferenceLegacyV0_2_2,
 }

@@ -634,10 +634,10 @@
       ],
       "mapping_status": "section_by_section",
       "publishing": {
-        "role": "unpublished_internal",
+        "role": "core_support_candidate",
         "package": "reallyme-etsi-eaa-conformance",
         "publish_ready": true,
-        "notes": "The source-only policy crate pins and routes all 740 normative identifiers from ETSI TS 119 472 Parts 1 through 3 while keeping HTTP and OpenID state machines in their protocol repositories."
+        "notes": "The reusable policy crate is prepared for publication and pins and routes all 740 normative identifiers from ETSI TS 119 472 Parts 1 through 3. Cross-language contracts remain in the canonical SSI protobuf package; HTTP and OpenID state machines remain in their protocol repositories."
       },
       "release_blocker": false,
       "coverage_notes": []

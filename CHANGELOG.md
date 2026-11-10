@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.1
+
+This patch adds explicit draft-07 Client Attestation PoP signing through
+`AttestationPopRequest::sign_for_draft07`. The caller supplies the authenticated
+client identifier for the `iss` claim; the existing `sign` method retains its
+current claim set. Invalid and oversized identifiers return a typed error.
+
+- The source-only EUDI registration crate adds an explicit TS5 v1.6 profile,
+  strict version-specific parsing, and lossless registration-document encoding.
+  Canonical profile material preserves fields used in service-definition binding.
+  Source consumers with exhaustive `ProtocolProfile` matches must handle
+  `Ts5V1_6`; the published crate API remains backward-compatible.
+- Rust CI requires every validation lane and checks the dedicated fuzz dependency
+  graph. Fuzz workflows build targets once before bounded execution. The bounded
+  test runner accepts Cargo binary and example identifiers without broadening
+  its filter syntax.
+- Conformance metadata distinguishes accepted evidence from coverage gaps and
+  keeps publication blockers explicit.
+- `reallyme-etsi-eaa-conformance` joins the public package set with its requirement
+  ledgers and dual-license files included. Cross-language contracts remain in
+  the canonical SSI protobuf package.
+
+All workspace crates advance together to 0.6.1. Existing protobuf field numbers
+and ProtoJSON field names are unchanged.
+
 ## 0.6.0
 
 This release updates the OAuth and EUDI issuance boundaries and uses

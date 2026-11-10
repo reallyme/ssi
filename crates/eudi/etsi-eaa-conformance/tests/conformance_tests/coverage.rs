@@ -65,28 +65,24 @@ fn production_registry_resolves_all_740_normative_identifiers() {
         let Ok(control) = control else {
             return;
         };
-        let expected_part = match part {
-            "1" => NormativeRequirementPart::Part1,
-            "2" => NormativeRequirementPart::Part2,
-            "3" => NormativeRequirementPart::Part3,
+        let (expected_part, expected_boundary) = match part {
+            "1" => (
+                NormativeRequirementPart::Part1,
+                ComposedEvidenceBoundary::CredentialVerification,
+            ),
+            "2" => (
+                NormativeRequirementPart::Part2,
+                ComposedEvidenceBoundary::PresentationProtocol,
+            ),
+            "3" => (
+                NormativeRequirementPart::Part3,
+                ComposedEvidenceBoundary::IssuanceProtocol,
+            ),
             _ => return,
         };
         assert_eq!(control.identifier(), identifier);
         assert_eq!(control.part(), expected_part);
-        assert_eq!(
-            control.evidence_boundary(),
-            match expected_part {
-                NormativeRequirementPart::Part1 => {
-                    ComposedEvidenceBoundary::CredentialVerification
-                }
-                NormativeRequirementPart::Part2 => {
-                    ComposedEvidenceBoundary::PresentationProtocol
-                }
-                NormativeRequirementPart::Part3 => {
-                    ComposedEvidenceBoundary::IssuanceProtocol
-                }
-            }
-        );
+        assert_eq!(control.evidence_boundary(), expected_boundary);
     }
 }
 

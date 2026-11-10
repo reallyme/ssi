@@ -19,6 +19,7 @@ use parse::{
 
 /// Evidence disposition recorded for one exact requirement row.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum RequirementDisposition {
     /// Executable local code plus any named composed evidence.
     CodeAndComposedEvidence,
@@ -124,6 +125,7 @@ const EXPECTED_HANDLER_COUNTS: [u16; HANDLER_COUNT] =
 
 /// ETSI TS 119 472 part owning a normative requirement identifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum NormativeRequirementPart {
     /// ETSI TS 119 472-1 common and credential-format requirements.
     Part1,
@@ -139,6 +141,7 @@ pub enum NormativeRequirementPart {
 /// It does not claim that the protocol, cryptographic, trust, UI, or deployment
 /// evidence named by [`ComposedEvidenceBoundary`] was produced by this crate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum NormativeRequirementHandler {
     /// Common ETSI EAA/PID and category validation.
     CommonAttestation,
@@ -176,6 +179,7 @@ pub enum NormativeRequirementHandler {
 
 /// Evidence outside this policy crate that remains necessary for conformity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ComposedEvidenceBoundary {
     /// Credential parsing, signature verification, trust-path validation, and status resolution.
     CredentialVerification,
@@ -187,6 +191,7 @@ pub enum ComposedEvidenceBoundary {
 
 /// Credential/category profile to which a normative identifier applies.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum NormativeRequirementProfile {
     /// Generic EAA or PID behavior.
     EaaOrPid,
@@ -208,6 +213,7 @@ pub enum NormativeRequirementProfile {
 
 /// Operation or realization selected by a normative applicability predicate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum NormativeRequirementArea {
     /// Every supported credential realization.
     AllFormats,
@@ -250,6 +256,7 @@ pub struct NormativeRequirementApplicability {
 
 /// Status of an ETSI identifier in the current consolidated EU profile.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum NormativeEuProfileStatus {
     /// Applicable without an additional recorded adaptation.
     Applicable,

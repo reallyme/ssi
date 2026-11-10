@@ -12,6 +12,7 @@ const MAX_REVOCATION_NOTIFICATION_DELAY_SECONDS: u64 = 24 * 60 * 60;
 
 /// High-assurance mechanism used by a PID provider to identify itself.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum PidProviderAuthentication {
     /// Wallet-relying party access certificate.
     WalletRelyingPartyAccessCertificate,
@@ -97,6 +98,7 @@ pub fn validate_pid_allocation(
 
 /// Trigger for a PID revocation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum PidRevocationReason {
     /// Explicit wallet-user request.
     WalletUserRequest,

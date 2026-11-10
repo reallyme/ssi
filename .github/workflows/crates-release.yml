@@ -114,7 +114,7 @@ jobs:
               --deny-self-hosted-runners
             archive_count=$((archive_count + 1))
           done
-          test "$archive_count" -eq 19
+          test "$archive_count" -eq 20
           node scripts/verify_release_attestation.mjs
 
       - name: Download reviewed conformance evidence before publication

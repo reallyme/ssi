@@ -29,7 +29,7 @@ permissions:
 env:
   CARGO_AUDIT_VERSION: 0.22.2
   CARGO_DENY_VERSION: 0.20.2
-  CARGO_NEXTEST_VERSION: 0.9.140
+  CARGO_NEXTEST_VERSION: 0.9.146
   CARGO_SEMVER_CHECKS_VERSION: 0.50.0
   CARGO_MUTANTS_VERSION: 27.1.0
 
@@ -71,7 +71,7 @@ jobs:
       - name: Install pinned nightly toolchain
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
-          toolchain: nightly-2026-09-01
+          toolchain: nightly-2026-09-15
 
       - name: Cache fuzz workspace
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -83,7 +83,19 @@ jobs:
 
       - name: Build every fuzz target
         working-directory: reallyme/ssi
-        run: cargo +nightly-2026-09-01 fuzz build
+        run: |
+          cargo +nightly-2026-09-15 metadata --locked --manifest-path fuzz/Cargo.toml --format-version 1
+          cargo +nightly-2026-09-15 fuzz build
+
+      - name: Exercise each fuzz target without rebuilding
+        working-directory: reallyme/ssi
+        env:
+          SSI_FUZZ_MAX_TOTAL_TIME: "20"
+          SSI_FUZZ_RSS_LIMIT_MB: "4096"
+        run: |
+          host_target="$(rustc +nightly-2026-09-15 -vV | sed -n 's/^host: //p')"
+          test -n "$host_target"
+          SSI_FUZZ_BINARY_DIRECTORY="fuzz/target/${host_target}/release" scripts/run-fuzz-smoke.sh
 
   security-mutations:
     name: Security mutation gate (${{ matrix.name }})
@@ -135,10 +147,17 @@ jobs:
 
       - name: Require security tests to kill mutations
         working-directory: reallyme/ssi
-        run: >-
-          cargo mutants --package "${{ matrix.package }}"
-          --file "${{ matrix.file }}" --examine-re '${{ matrix.examine }}'
-          --timeout 300 --jobs 2
+        env:
+          MUTATION_PACKAGE: ${{ matrix.package }}
+          MUTATION_FILE: ${{ matrix.file }}
+          MUTATION_EXAMINE: ${{ matrix.examine }}
+        run: |
+          mutation_list="$(cargo mutants --list --package "$MUTATION_PACKAGE" \
+            --file "$MUTATION_FILE" --examine-re "$MUTATION_EXAMINE")"
+          test -n "$mutation_list"
+          env -u CARGO_TARGET_DIR cargo mutants --gitignore true --copy-target false --package "$MUTATION_PACKAGE" \
+            --file "$MUTATION_FILE" --examine-re "$MUTATION_EXAMINE" \
+            --timeout 300 --jobs 2
 
   semver:
     name: Public API semver
@@ -430,7 +449,11 @@ jobs:
 
       - name: Dependency policy
         working-directory: reallyme/ssi
-        run: cargo deny check
+        run: cargo deny --locked check
+
+      - name: Fuzz dependency policy
+        working-directory: reallyme/ssi
+        run: cargo deny --locked --manifest-path fuzz/Cargo.toml --config fuzz/deny.toml check
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
@@ -533,7 +556,7 @@ jobs:
   rust:
     name: fmt, lint, test, dependency policy
     if: ${{ always() }}
-    needs: [rust-checks, workspace-tests, package-archives]
+    needs: [rust-checks, workspace-tests, package-archives, msrv, fuzz-build, security-mutations, semver, platform-boundaries]
     runs-on: ubuntu-24.04
     steps:
       # Keep the existing required check name while making every parallel lane
@@ -543,10 +566,20 @@ jobs:
           SOURCE_RESULT: ${{ needs.rust-checks.result }}
           TEST_RESULT: ${{ needs.workspace-tests.result }}
           PACKAGE_RESULT: ${{ needs.package-archives.result }}
+          MSRV_RESULT: ${{ needs.msrv.result }}
+          FUZZ_RESULT: ${{ needs.fuzz-build.result }}
+          MUTATION_RESULT: ${{ needs.security-mutations.result }}
+          SEMVER_RESULT: ${{ needs.semver.result }}
+          PLATFORM_RESULT: ${{ needs.platform-boundaries.result }}
         run: |
           test "$SOURCE_RESULT" = success
           test "$TEST_RESULT" = success
           test "$PACKAGE_RESULT" = success
+          test "$MSRV_RESULT" = success
+          test "$FUZZ_RESULT" = success
+          test "$MUTATION_RESULT" = success
+          test "$SEMVER_RESULT" = success
+          test "$PLATFORM_RESULT" = success
 
   platform-boundaries:
     name: OCSP mobile fail-closed lane (${{ matrix.name }})

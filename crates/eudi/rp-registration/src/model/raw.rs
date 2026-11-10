@@ -165,7 +165,9 @@ impl RawWalletRelyingParty {
                 .take()
                 .map(RawSupervisoryAuthority::validate)
                 .transpose()?,
-            trade_name: BoundedText::try_from_owned(core::mem::take(&mut self.trade_name))?,
+            trade_name: Some(BoundedText::try_from_owned(core::mem::take(
+                &mut self.trade_name,
+            ))?),
             registry_uri: uri_text_owned(core::mem::take(&mut self.registry_uri))?,
             services,
             policy: validate_policies(core::mem::take(&mut self.policy))?,
@@ -175,6 +177,8 @@ impl RawWalletRelyingParty {
                 .take()
                 .map(validate_certificate_history)
                 .transpose()?,
+            source_profile: crate::ProtocolProfile::Ts5V1_5,
+            canonical_source: Vec::new(),
         })
     }
 }
@@ -254,9 +258,9 @@ impl RawService {
             service_trade_name: BoundedText::try_from_owned(core::mem::take(
                 &mut self.service_trade_name,
             ))?,
-            service_identifier: BoundedText::try_from_owned(core::mem::take(
+            service_identifier: Some(BoundedText::try_from_owned(core::mem::take(
                 &mut self.service_identifier,
-            ))?,
+            ))?),
             support_uri: self.support_uri.take().map(uri_text_owned).transpose()?,
             email: self
                 .email
@@ -284,6 +288,7 @@ impl RawService {
             uses_intermediaries: intermediaries,
             is_intermediary: self.is_intermediary,
             served_wrp_services: texts(core::mem::take(&mut self.served_wrp_services))?,
+            profile_specific_material: Vec::new(),
         })
     }
 }

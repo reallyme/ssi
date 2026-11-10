@@ -6,6 +6,7 @@ use crate::{ConformanceError, Result};
 
 /// ETSI TS 119 472-2 edition selected for presentation validation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum EtsiPart2Profile {
     /// Edition incorporated by the 2026 EU implementing-rule amendments.
     EuLegallyIncorporatedV1_2_1,
@@ -15,6 +16,7 @@ pub enum EtsiPart2Profile {
 
 /// Allowed SD-JWT VC presentation serialization.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum SdJwtSerialization {
     /// RFC 9901 compact serialization.
     Compact,
@@ -135,6 +137,7 @@ pub struct RegisteredClaim<'a> {
 
 /// Result of validating a wallet-relying party registration certificate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum RelyingPartyRegistrationStatus {
     /// Certificate, path, time, revocation, and signature checks all succeeded.
     Valid,
@@ -152,6 +155,7 @@ pub enum RelyingPartyRegistrationStatus {
 
 /// Provider policy for a failed registration-certificate validation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum FailedRegistrationPolicy {
     /// Reject the request.
     Reject,
@@ -161,6 +165,7 @@ pub enum FailedRegistrationPolicy {
 
 /// Provider policy for a request that exceeds the registration certificate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum OveraskingPolicy {
     /// Reject the request.
     Reject,
@@ -172,6 +177,7 @@ pub enum OveraskingPolicy {
 
 /// Explicit user response collected for a presentation transaction.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum PresentationUserDecision {
     /// No affirmative user action was collected.
     NotCollected,

@@ -327,6 +327,30 @@ impl ZeroizeOnDrop for AttestationPopRequest {}
 impl AttestationPopRequest {
     /// Signs the Client Attestation PoP JWT.
     pub fn sign(&self, signer: &dyn JwtSigner) -> OauthResult<CompactJwt> {
+        self.sign_with_issuer(None, signer)
+    }
+
+    /// Sign the draft-07 profile, whose PoP issuer must equal the corresponding
+    /// Client Attestation subject and OAuth client identifier. The caller must
+    /// obtain this identity from its authenticated client registration.
+    ///
+    /// This explicit method preserves the current profile's claim set while
+    /// supporting deployments pinned to draft-07 section 5.2. No profile is
+    /// inferred from an authentication failure or silently retried.
+    pub fn sign_for_draft07(
+        &self,
+        client_id: &str,
+        signer: &dyn JwtSigner,
+    ) -> OauthResult<CompactJwt> {
+        validate_token(client_id).map_err(|_| OauthError::new(Reason::InvalidClientAttestation))?;
+        self.sign_with_issuer(Some(client_id), signer)
+    }
+
+    fn sign_with_issuer(
+        &self,
+        issuer: Option<&str>,
+        signer: &dyn JwtSigner,
+    ) -> OauthResult<CompactJwt> {
         let header = AttestationPopHeader {
             typ: "oauth-client-attestation-pop+jwt".to_owned(),
             alg: signer.algorithm().to_owned(),
@@ -340,6 +364,22 @@ impl AttestationPopRequest {
             challenge: self.challenge.clone(),
         };
         claims.validate()?;
-        sign_compact_jwt(&header, &claims, signer)
+        // Borrow the optional identity so this profile adapter creates no new
+        // long-lived plaintext owner. Compact JWT encoding owns zeroization.
+        #[derive(Serialize)]
+        struct ProfileClaims<'a> {
+            #[serde(skip_serializing_if = "Option::is_none")]
+            iss: Option<&'a str>,
+            #[serde(flatten)]
+            claims: &'a AttestationPopClaims,
+        }
+        sign_compact_jwt(
+            &header,
+            &ProfileClaims {
+                iss: issuer,
+                claims: &claims,
+            },
+            signer,
+        )
     }
 }

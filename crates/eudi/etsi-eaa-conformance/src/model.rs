@@ -4,6 +4,7 @@
 
 /// Supported EAA/PID envelope realization.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum AttestationFormat {
     /// SD-JWT VC as profiled by ETSI TS 119 472-1 clause 5.
     SdJwtVc,
@@ -19,6 +20,7 @@ pub enum AttestationFormat {
 
 /// Regulatory category of the attestation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum AttestationCategory {
     /// Electronic attestation without a qualified or public-body designation.
     Eaa,
@@ -34,6 +36,7 @@ pub enum AttestationCategory {
 
 /// Encoded signal identifying an attestation's regulatory category.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum AttestationCategorySignal<'a> {
     /// The optional signal is absent.
     Absent,
@@ -45,6 +48,7 @@ pub enum AttestationCategorySignal<'a> {
 
 /// Privacy-safe description of subject binding.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum SubjectBinding {
     /// No subject binding is present.
     None,
@@ -56,6 +60,7 @@ pub enum SubjectBinding {
 
 /// Issuer signature assurance established by the signature-verification layer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum IssuerSignature {
     /// No valid issuer signature was established.
     Unverified,
@@ -102,6 +107,7 @@ pub struct SelectiveDisclosureFacts {
 
 /// EAA identifier supplied to the common-profile validator.
 #[derive(Clone, Copy, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum AttestationIdentifier<'a> {
     /// Absolute URI identifier.
     Uri(&'a str),
@@ -173,6 +179,7 @@ pub struct CommonProfileData<'a> {
 
 /// Status facts already authenticated by the status layer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum StatusFacts {
     /// No status mechanism is present.
     Absent,
@@ -304,6 +311,7 @@ pub struct X509AttributeCertificateFacts {
 
 /// Format-specific facts paired with a common attestation record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum FormatFacts<'a> {
     /// SD-JWT VC facts.
     SdJwt(SdJwtFacts<'a>),

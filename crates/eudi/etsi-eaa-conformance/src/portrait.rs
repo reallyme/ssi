@@ -31,6 +31,7 @@ impl<'a> PortraitDisclosureRequest<'a> {
 
 /// User decision made after the portrait-specific warning.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum PortraitDisclosureDecision {
     /// The user explicitly confirms this relying party transaction.
     Confirmed,
@@ -39,6 +40,7 @@ pub enum PortraitDisclosureDecision {
 }
 
 /// Events accepted by the portrait disclosure gate.
+#[non_exhaustive]
 pub enum PortraitDisclosureEvent<'a> {
     /// The mandatory portrait-specific warning was displayed to the user.
     WarningDisplayed,

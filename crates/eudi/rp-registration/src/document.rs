@@ -72,9 +72,23 @@ pub fn prepare_registration_document(
             RegistrationErrorReason::InvalidField,
         ));
     }
-    let normalized = Zeroizing::new(canonical_json(relying_party)?);
+    let normalized = Zeroizing::new(match profile {
+        ProtocolProfile::Ts5V1_6 => {
+            if relying_party.source_profile() != ProtocolProfile::Ts5V1_6
+                || relying_party.canonical_source().is_empty()
+            {
+                return Err(RegistrationError::from_reason(
+                    RegistrationErrorReason::PayloadShapeMismatch,
+                ));
+            }
+            relying_party.canonical_source().to_vec()
+        }
+        ProtocolProfile::Ts5V1_5 | ProtocolProfile::EuReferenceLegacyV0_2_2 => {
+            canonical_json(relying_party)?
+        }
+    });
     let mut encoded_document = match profile {
-        ProtocolProfile::Ts5V1_5 => normalized.clone(),
+        ProtocolProfile::Ts5V1_5 | ProtocolProfile::Ts5V1_6 => normalized.clone(),
         ProtocolProfile::EuReferenceLegacyV0_2_2 => {
             Zeroizing::new(canonical_json(&[relying_party])?)
         }

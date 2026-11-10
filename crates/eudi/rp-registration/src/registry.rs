@@ -379,8 +379,12 @@ fn authenticate_registry_record_with_verifier(
             RegistrationErrorReason::AuthenticationReceiptMismatch,
         ));
     }
-    let (payload, metadata) =
-        parse_selected_payload(input.payload_shape, &receipt.payload, freshness)?;
+    let (payload, metadata) = parse_selected_payload(
+        input.profile,
+        input.payload_shape,
+        &receipt.payload,
+        freshness,
+    )?;
     if let Some(query) = input.expected_intended_use.as_ref() {
         validate_intended_use_query(&payload, query, input.evaluation_time)?;
     }
@@ -426,10 +430,14 @@ fn validate_intended_use_query(
         ));
     };
     let registered = record.services().iter().any(|service| {
-        service.service_identifier() == query.service_id
+        service.registered_service_identifier() == Some(query.service_id)
             && service.intended_uses().iter().any(|intended_use| {
                 intended_use.intended_use_identifier() == query.intended_use_id
-                    && intended_use_is_active(intended_use, evaluation_time)
+                    && intended_use_is_active(
+                        record.source_profile(),
+                        intended_use,
+                        evaluation_time,
+                    )
             })
     });
     if !registered {
@@ -441,15 +449,25 @@ fn validate_intended_use_query(
 }
 
 fn intended_use_is_active(
+    profile: ProtocolProfile,
     intended_use: &crate::IntendedUse,
     evaluation_time: OffsetDateTime,
 ) -> bool {
-    let created = intended_use
-        .created_at()
-        .and_then(|value| OffsetDateTime::parse(value, &Rfc3339).ok());
-    let revoked = intended_use
-        .revoked_at()
-        .and_then(|value| OffsetDateTime::parse(value, &Rfc3339).ok());
+    let parse = |value: &str| match profile {
+        ProtocolProfile::Ts5V1_6 => crate::model::parse_registration_date(value),
+        ProtocolProfile::Ts5V1_5 | ProtocolProfile::EuReferenceLegacyV0_2_2 => {
+            OffsetDateTime::parse(value, &Rfc3339).map_err(|_error| {
+                RegistrationError::from_reason(RegistrationErrorReason::InvalidValidityInterval)
+            })
+        }
+    };
+    // A parse failure must not erase an authenticated validity constraint.
+    let Ok(created) = intended_use.created_at().map(parse).transpose() else {
+        return false;
+    };
+    let Ok(revoked) = intended_use.revoked_at().map(parse).transpose() else {
+        return false;
+    };
     created.is_none_or(|value| value <= evaluation_time)
         && revoked.is_none_or(|value| value > evaluation_time)
 }

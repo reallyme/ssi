@@ -8,7 +8,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use super::RegistryMetadata;
 use crate::json::{canonical_json, deserialize_strict, MAX_JSON_BYTES};
-use crate::model::RawWalletRelyingParty;
+use crate::model::{RawWalletRelyingParty, RawWalletRelyingPartyV1_6};
 use crate::{
     ArtifactDigest, BoundedText, ProtocolProfile, RegistrationError, RegistrationErrorReason,
     RegistryPagination, RegistryPayload, RegistryPayloadShape,
@@ -71,7 +71,7 @@ pub(super) fn validate_profile_shape(
     let valid = matches!(
         (profile, shape),
         (
-            ProtocolProfile::Ts5V1_5,
+            ProtocolProfile::Ts5V1_5 | ProtocolProfile::Ts5V1_6,
             RegistryPayloadShape::Ts5SignedWrpArray
                 | RegistryPayloadShape::Ts5SignedWrp
                 | RegistryPayloadShape::Ts5SignedIntendedUseCheck
@@ -135,36 +135,14 @@ pub(super) fn decode_compact_payload(
 }
 
 pub(super) fn parse_selected_payload(
+    profile: ProtocolProfile,
     shape: RegistryPayloadShape,
     bytes: &[u8],
     freshness: FreshnessPolicy,
 ) -> Result<(RegistryPayload, RegistryMetadata), RegistrationError> {
     match shape {
-        RegistryPayloadShape::Ts5SignedWrpArray => {
-            let mut envelope: SignedWrpArray = deserialize_strict(bytes)?;
-            let metadata = current_metadata(&envelope.iss, envelope.iat, freshness)?;
-            let records = core::mem::take(&mut envelope.data)
-                .into_iter()
-                .map(RawWalletRelyingParty::validate)
-                .collect::<Result<Vec<_>, RegistrationError>>()?;
-            let pagination = validate_pagination(envelope.pagination.as_ref())?;
-            Ok((
-                RegistryPayload::WrpArray {
-                    records,
-                    pagination,
-                },
-                metadata,
-            ))
-        }
-        RegistryPayloadShape::Ts5SignedWrp => {
-            let mut envelope: SignedWrp = deserialize_strict(bytes)?;
-            let issuer = Zeroizing::new(core::mem::take(&mut envelope.iss));
-            let metadata = current_metadata(&issuer, envelope.iat, freshness)?;
-            Ok((
-                RegistryPayload::Wrp(Box::new(envelope.data.validate()?)),
-                metadata,
-            ))
-        }
+        RegistryPayloadShape::Ts5SignedWrpArray => parse_wrp_array(profile, bytes, freshness),
+        RegistryPayloadShape::Ts5SignedWrp => parse_single_wrp(profile, bytes, freshness),
         RegistryPayloadShape::Ts5SignedIntendedUseCheck => {
             let envelope: SignedIntendedUseCheck = deserialize_strict(bytes)?;
             let _metadata = current_metadata(&envelope.iss, envelope.iat, freshness)?;
@@ -209,6 +187,80 @@ pub(super) fn parse_selected_payload(
     }
 }
 
+fn parse_wrp_array(
+    profile: ProtocolProfile,
+    bytes: &[u8],
+    freshness: FreshnessPolicy,
+) -> Result<(RegistryPayload, RegistryMetadata), RegistrationError> {
+    match profile {
+        ProtocolProfile::Ts5V1_5 => {
+            let mut envelope: SignedWrpArray = deserialize_strict(bytes)?;
+            let metadata = current_metadata(&envelope.iss, envelope.iat, freshness)?;
+            let records = core::mem::take(&mut envelope.data)
+                .into_iter()
+                .map(RawWalletRelyingParty::validate)
+                .collect::<Result<Vec<_>, RegistrationError>>()?;
+            let pagination = validate_pagination(envelope.pagination.as_ref())?;
+            Ok((
+                RegistryPayload::WrpArray {
+                    records,
+                    pagination,
+                },
+                metadata,
+            ))
+        }
+        ProtocolProfile::Ts5V1_6 => {
+            let mut envelope: SignedWrpArrayV1_6 = deserialize_strict(bytes)?;
+            let metadata = current_metadata(&envelope.iss, envelope.iat, freshness)?;
+            let records = core::mem::take(&mut envelope.data)
+                .into_iter()
+                .map(RawWalletRelyingPartyV1_6::validate)
+                .collect::<Result<Vec<_>, RegistrationError>>()?;
+            let pagination = validate_pagination(envelope.pagination.as_ref())?;
+            Ok((
+                RegistryPayload::WrpArray {
+                    records,
+                    pagination,
+                },
+                metadata,
+            ))
+        }
+        ProtocolProfile::EuReferenceLegacyV0_2_2 => Err(RegistrationError::from_reason(
+            RegistrationErrorReason::PayloadShapeMismatch,
+        )),
+    }
+}
+
+fn parse_single_wrp(
+    profile: ProtocolProfile,
+    bytes: &[u8],
+    freshness: FreshnessPolicy,
+) -> Result<(RegistryPayload, RegistryMetadata), RegistrationError> {
+    match profile {
+        ProtocolProfile::Ts5V1_5 => {
+            let mut envelope: SignedWrp = deserialize_strict(bytes)?;
+            let issuer = Zeroizing::new(core::mem::take(&mut envelope.iss));
+            let metadata = current_metadata(&issuer, envelope.iat, freshness)?;
+            Ok((
+                RegistryPayload::Wrp(Box::new(envelope.data.validate()?)),
+                metadata,
+            ))
+        }
+        ProtocolProfile::Ts5V1_6 => {
+            let mut envelope: SignedWrpV1_6 = deserialize_strict(bytes)?;
+            let issuer = Zeroizing::new(core::mem::take(&mut envelope.iss));
+            let metadata = current_metadata(&issuer, envelope.iat, freshness)?;
+            Ok((
+                RegistryPayload::Wrp(Box::new(envelope.data.validate()?)),
+                metadata,
+            ))
+        }
+        ProtocolProfile::EuReferenceLegacyV0_2_2 => Err(RegistrationError::from_reason(
+            RegistrationErrorReason::PayloadShapeMismatch,
+        )),
+    }
+}
+
 fn current_metadata(
     issuer: &str,
     issued_at: i64,
@@ -247,12 +299,29 @@ struct SignedWrpArray {
     pagination: Option<Pagination>,
 }
 
+#[derive(Deserialize, Zeroize, ZeroizeOnDrop)]
+#[serde(deny_unknown_fields)]
+struct SignedWrpArrayV1_6 {
+    iss: String,
+    iat: i64,
+    data: Vec<RawWalletRelyingPartyV1_6>,
+    pagination: Option<Pagination>,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SignedWrp {
     iss: String,
     iat: i64,
     data: RawWalletRelyingParty,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SignedWrpV1_6 {
+    iss: String,
+    iat: i64,
+    data: RawWalletRelyingPartyV1_6,
 }
 
 #[derive(Deserialize, Zeroize, ZeroizeOnDrop)]

@@ -105,7 +105,7 @@ shared.assertWorkflowPolicy({
     "rust-checks": { needs: [] },
     "workspace-tests": { needs: [] },
     "package-archives": { needs: [] },
-    rust: { needs: ["rust-checks", "workspace-tests", "package-archives"] },
+    rust: { needs: ["rust-checks", "workspace-tests", "package-archives", "msrv", "fuzz-build", "security-mutations", "semver", "platform-boundaries"] },
   },
   runSteps: [
     {
@@ -165,7 +165,7 @@ shared.assertWorkflowPolicy({
     {
       job: "rust",
       name: "Require all Rust validation jobs",
-      run: 'test "$SOURCE_RESULT" = success\ntest "$TEST_RESULT" = success\ntest "$PACKAGE_RESULT" = success',
+      run: 'test "$SOURCE_RESULT" = success\ntest "$TEST_RESULT" = success\ntest "$PACKAGE_RESULT" = success\ntest "$MSRV_RESULT" = success\ntest "$FUZZ_RESULT" = success\ntest "$MUTATION_RESULT" = success\ntest "$SEMVER_RESULT" = success\ntest "$PLATFORM_RESULT" = success',
     },
   ],
 });
@@ -231,6 +231,18 @@ shared.assertWorkflowPolicy({
   ],
 });
 shared.assertNodeWorkflowJobsPinNode({ nodeVersion: "26" });
+shared.assertCargoFuzzWorkflowPolicy({
+  workflow: ".github/workflows/fuzz.yml",
+  version: "0.13.2",
+  minimumInstallations: 1,
+  requiredInstallSteps: [{ job: "build", name: "Install cargo-fuzz" }],
+});
+shared.assertCargoFuzzWorkflowPolicy({
+  workflow: ".github/workflows/rust-ci.yml",
+  version: "0.13.2",
+  minimumInstallations: 1,
+  requiredInstallSteps: [{ job: "fuzz-build", name: "Install cargo-fuzz" }],
+});
 shared.assertCargoWorkspacePolicy();
 assertProtoZeroizeCoverage();
 assertFixtureCopies();
@@ -423,6 +435,7 @@ const forbiddenRetiredManifests = [
 ];
 
 const approvedPublicPackages = new Set([
+  "reallyme-etsi-eaa-conformance",
   "reallyme-mdoc",
   "reallyme-sd-jwt",
   "reallyme-trust-core",
@@ -477,7 +490,7 @@ const requiredCiNeedles = [
   "sh scripts/check-proto-contract.sh",
   "sh scripts/check-protos-fresh.sh",
   "node scripts/check_conformance_coverage.mjs",
-  "cargo deny check",
+  "cargo deny --locked check",
   "scripts/audit_committed_lockfiles.sh",
   "node .release-readiness/scripts/run-consumer-check.mjs",
 ];
@@ -969,6 +982,11 @@ for (const needle of [
   "SOURCE_RESULT: ${{ needs.rust-checks.result }}",
   "TEST_RESULT: ${{ needs.workspace-tests.result }}",
   "PACKAGE_RESULT: ${{ needs.package-archives.result }}",
+  "MSRV_RESULT: ${{ needs.msrv.result }}",
+  "FUZZ_RESULT: ${{ needs.fuzz-build.result }}",
+  "MUTATION_RESULT: ${{ needs.security-mutations.result }}",
+  "SEMVER_RESULT: ${{ needs.semver.result }}",
+  "PLATFORM_RESULT: ${{ needs.platform-boundaries.result }}",
 ]) {
   if (!rustGateJob.includes(needle)) {
     fail(`rust-ci.yml required Rust gate is missing ${needle}`);
@@ -1212,9 +1230,12 @@ assertContains(
   rustCiWorkflow,
   "cargo +1.99.0 check --locked --workspace --no-default-features --features native",
 );
-assertContains(rustCiWorkflow, "cargo +nightly-2026-09-01 fuzz build");
+assertContains(rustCiWorkflow, "cargo +nightly-2026-09-15 fuzz build");
 assertContains(rustCiWorkflow, "cargo-mutants@${{ env.CARGO_MUTANTS_VERSION }}");
-assertContains(rustCiWorkflow, "--examine-re '${{ matrix.examine }}'");
+assertContains(rustCiWorkflow, "MUTATION_PACKAGE: ${{ matrix.package }}");
+assertContains(rustCiWorkflow, "MUTATION_FILE: ${{ matrix.file }}");
+assertContains(rustCiWorkflow, "MUTATION_EXAMINE: ${{ matrix.examine }}");
+assertContains(rustCiWorkflow, '--examine-re "$MUTATION_EXAMINE"');
 assertContains(rustCiWorkflow, "scripts/check-protos-breaking.sh");
 assertContains(rustCiWorkflow, "identity-revocation-crl-openssl");
 assertContains(rustCiWorkflow, "identity-revocation-ocsp-openssl");
@@ -1319,7 +1340,7 @@ for (const duplicatedCiCommand of [
   "cargo clippy",
   "scripts/run_bounded_nextest.mjs",
   "cargo doc",
-  "cargo deny check",
+  "cargo deny --locked check",
   "node --test scripts/*.test.mjs",
   "cargo-fuzz",
   "protoc-gen-buffa",
@@ -1418,7 +1439,7 @@ assertNotContains(
 );
 assertContains(releaseWorkflow, "reallyme-ssi-crate-archives-${{");
 assertContains(releaseWorkflow, "REVIEWED_CRATE_ARCHIVES_DIRECTORY: reviewed-crates");
-assertContains(releaseWorkflow, 'test "$archive_count" -eq 19');
+assertContains(releaseWorkflow, 'test "$archive_count" -eq 20');
 assertContains(
   releaseWorkflow,
   "node scripts/publish_crates_in_order.mjs publish",
@@ -1599,7 +1620,7 @@ assertContains(
   "conformance/dependencies.lock.json",
   '"version": "0.3.17"',
 );
-assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.6.0");
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.6.1");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
 assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
 assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");
