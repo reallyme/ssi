@@ -42,6 +42,7 @@ pub struct BirthPlace<'a> {
 /// Sex values permitted by the natural-person PID Annex.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum Sex {
     /// Not known.
     NotKnown = 0,
@@ -63,6 +64,7 @@ pub enum Sex {
 
 /// Biometric image-quality assessment associated with a non-empty portrait.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum PortraitQualityProfile {
     /// Quality is not assessed because the 2028 requirement is not yet applicable.
     NotAssessedBefore2028,
@@ -75,6 +77,7 @@ pub enum PortraitQualityProfile {
 /// Portrait representation carried by the selected PID credential format.
 ///
 /// Portrait bytes are borrowed and never allocated, copied, or retained.
+#[non_exhaustive]
 pub enum Portrait<'a> {
     /// JPEG bytes decoded from an ISO/IEC mdoc `bstr`.
     MdocJpeg {

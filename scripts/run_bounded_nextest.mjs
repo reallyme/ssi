@@ -15,7 +15,9 @@ const BINARIES_PER_BATCH =
   process.platform === "darwin" ? MACOS_BINARIES_PER_BATCH : DEFAULT_CONCURRENCY;
 const TEST_THREADS =
   process.platform === "darwin" ? MACOS_CONCURRENCY : DEFAULT_CONCURRENCY;
-const SAFE_BINARY_ID = /^[A-Za-z0-9_.:+-]+$/u;
+// Nextest uses kind/name for Cargo binary targets. Filter operators and
+// whitespace stay excluded so metadata cannot broaden a batch selection.
+const SAFE_BINARY_ID = /^[A-Za-z0-9_.:+/-]+$/u;
 
 const laneArguments = new Map([
   ["default", []],

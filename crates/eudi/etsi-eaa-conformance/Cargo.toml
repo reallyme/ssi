@@ -4,13 +4,26 @@
 
 [package]
 name = "reallyme-etsi-eaa-conformance"
-version = "0.6.0"
+version = "0.6.1"
 description = "Typed ETSI TS 119 472 and EUDI PID conformance policy for ReallyMe SSI."
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-publish = false
+publish = true
+readme = "README.md"
+keywords = ["eudi", "eidas", "etsi", "credentials", "identity"]
+categories = ["authentication"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*.rs",
+    "/requirements/*.tsv",
+    "/requirements/README.md",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
 
 [features]
 default = ["native"]

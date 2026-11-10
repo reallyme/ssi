@@ -13,6 +13,7 @@ const MAX_REVOCATION_NOTIFICATION_DELAY_SECONDS: u64 = 24 * 60 * 60;
 
 /// Wallet operation subject to the CIR (EU) 2024/2979 authentication gate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum WalletOperation {
     /// Authenticate the user to unlock the wallet unit.
     AuthenticateUser,
@@ -134,6 +135,7 @@ pub fn validate_wallet_format_capabilities(formats: CredentialFormatSet) -> Resu
 
 /// Reason a wallet provider revoked a wallet-unit attestation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum WalletAttestationRevocationReason {
     /// Authenticated request from the wallet user.
     WalletUserRequest,
@@ -223,6 +225,7 @@ pub fn validate_relying_party_pseudonym(
 
 /// Reason a wallet transaction did not complete.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum TransactionFailureReason {
     /// The wallet user declined or cancelled.
     UserDeclined,
@@ -238,6 +241,7 @@ pub enum TransactionFailureReason {
 
 /// Completion state recorded in a transaction log.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum TransactionOutcome {
     /// Transaction completed.
     Completed,
@@ -260,6 +264,7 @@ pub struct WalletRelyingPartyLogData<'a> {
 }
 
 /// Transaction classes Article 9 requires wallet instances to record.
+#[non_exhaustive]
 pub enum WalletTransactionKind<'a> {
     /// PID or EAA request from an authenticated wallet-relying party.
     RelyingPartyPresentation(WalletRelyingPartyLogData<'a>),
@@ -377,6 +382,7 @@ fn valid_relying_party_log_data(data: &WalletRelyingPartyLogData<'_>) -> bool {
 }
 
 /// Common embedded disclosure policy evaluated against a concrete relying party.
+#[non_exhaustive]
 pub enum WalletDisclosurePolicy<'a> {
     /// No policy applies.
     NoPolicy,

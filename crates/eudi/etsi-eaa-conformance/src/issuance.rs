@@ -58,6 +58,7 @@ impl CredentialFormatSet {
 
 /// Reuse method listed in ARF Annex II issuer metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ReuseMethod {
     /// Every credential instance is presented once.
     OnceOnly,
@@ -71,6 +72,7 @@ pub enum ReuseMethod {
 
 /// Credential reuse policy conveyed in issuer metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ReusePolicy<'a> {
     /// Parameter omitted; ETSI defines this as unrestricted reuse.
     OmittedUnrestricted,
@@ -145,6 +147,7 @@ pub struct ReusePolicyDecision {
 
 /// Embedded disclosure policy carried through issuer metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum EmbeddedDisclosurePolicy {
     /// No restrictions apply.
     NoPolicy,
@@ -183,6 +186,7 @@ pub struct IssuerMetadataFacts<'a> {
 
 /// Issuance flow support and request authentication facts.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum NotificationEvent {
     /// Credential was accepted and stored by the wallet.
     CredentialAccepted,
@@ -194,6 +198,7 @@ pub enum NotificationEvent {
 
 /// Optional OpenID4VCI notification request.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum NotificationRequest<'a> {
     /// This issuance did not produce a notification identifier.
     NotUsed,

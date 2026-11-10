@@ -245,7 +245,10 @@ fn attestation_client_auth_headers_are_draft_names() -> Result<(), OauthError> {
     }
     .sign(&TestSigner)?;
     let (_header, claims, _signature): (Value, Value, Vec<u8>) = decode_compact_jwt(&pop)?;
-    assert_eq!(claims.get("aud").and_then(Value::as_str), Some("https://as.example"));
+    assert_eq!(
+        claims.get("aud").and_then(Value::as_str),
+        Some("https://as.example")
+    );
     assert_eq!(claims.get("jti").and_then(Value::as_str), Some("pop-1"));
     assert!(claims.get("iss").is_none());
     let attestation = client_attestation(test_client_instance_jwk(TestP256Key::Primary))?;
@@ -412,8 +415,8 @@ fn attestation_client_authentication_validation_enforces_replay_hook() -> Result
 }
 
 #[test]
-fn attestation_client_authentication_accepts_x5c_header_and_omitted_iat(
-) -> Result<(), OauthError> {
+fn attestation_client_authentication_accepts_x5c_header_and_omitted_iat() -> Result<(), OauthError>
+{
     let public_jwk = test_client_instance_jwk(TestP256Key::Primary);
     let key_thumbprint = jwk_thumbprint(&public_jwk)?;
     let pop = AttestationPopRequest {
@@ -672,19 +675,15 @@ fn attestation_client_authentication_rejects_unsafe_trust_freshness_configuratio
 #[test]
 fn attestation_trust_receipt_preserves_rejected_and_indeterminate_outcomes() {
     assert_eq!(
-        trust_evidence_for_decision(&attestation_trust_decision(
-            TrustOutcome::Rejected,
-        ))
-        .err()
-        .map(|error| error.reason()),
+        trust_evidence_for_decision(&attestation_trust_decision(TrustOutcome::Rejected,))
+            .err()
+            .map(|error| error.reason()),
         Some(Reason::AttestationTrustRejected)
     );
     assert_eq!(
-        trust_evidence_for_decision(&attestation_trust_decision(
-            TrustOutcome::Indeterminate,
-        ))
-        .err()
-        .map(|error| error.reason()),
+        trust_evidence_for_decision(&attestation_trust_decision(TrustOutcome::Indeterminate,))
+            .err()
+            .map(|error| error.reason()),
         Some(Reason::AttestationTrustIndeterminate)
     );
 }
@@ -693,11 +692,8 @@ fn attestation_trust_receipt_preserves_rejected_and_indeterminate_outcomes() {
 fn attestation_trust_receipt_rejects_stale_and_future_evidence() -> Result<(), OauthError> {
     const CURRENT_TIME: i64 = 1_700_000_000;
     let attestation = client_attestation(test_client_instance_jwk(TestP256Key::Primary))?;
-    let mut stale = attestation_trust_evidence_for_times(
-        &attestation,
-        CURRENT_TIME - 100,
-        CURRENT_TIME - 1,
-    )?;
+    let mut stale =
+        attestation_trust_evidence_for_times(&attestation, CURRENT_TIME - 100, CURRENT_TIME - 1)?;
     assert_eq!(
         stale
             .validate_freshness_at(CURRENT_TIME, 30)
@@ -706,11 +702,8 @@ fn attestation_trust_receipt_rejects_stale_and_future_evidence() -> Result<(), O
         Some(Reason::AttestationTrustEvidenceStale)
     );
 
-    let mut future = attestation_trust_evidence_for_times(
-        &attestation,
-        CURRENT_TIME + 1,
-        CURRENT_TIME + 100,
-    )?;
+    let mut future =
+        attestation_trust_evidence_for_times(&attestation, CURRENT_TIME + 1, CURRENT_TIME + 100)?;
     assert_eq!(
         future
             .validate_freshness_at(CURRENT_TIME, 30)
@@ -719,11 +712,8 @@ fn attestation_trust_receipt_rejects_stale_and_future_evidence() -> Result<(), O
         Some(Reason::AttestationTrustEvidenceFutureIssued)
     );
 
-    let mut current = attestation_trust_evidence_for_times(
-        &attestation,
-        CURRENT_TIME - 10,
-        CURRENT_TIME + 100,
-    )?;
+    let mut current =
+        attestation_trust_evidence_for_times(&attestation, CURRENT_TIME - 10, CURRENT_TIME + 100)?;
     current.validate_freshness_at(CURRENT_TIME, 30)?;
     assert_eq!(current.valid_until_unix(), CURRENT_TIME + 20);
     Ok(())
@@ -742,5 +732,51 @@ fn attestation_trust_receipt_expires_with_the_earliest_path_certificate() -> Res
 
     let evidence = trust_evidence_for_decision(&decision)?;
     assert_eq!(evidence.valid_until_unix(), ROOT_EXPIRY);
+    Ok(())
+}
+
+#[test]
+fn draft07_pop_explicitly_binds_client_identity_and_preserves_current_profile(
+) -> Result<(), OauthError> {
+    let request = AttestationPopRequest {
+        audience: "https://as.example".to_owned(),
+        jti: "draft07-pop".to_owned(),
+        iat: 1_700_000_000,
+        challenge: Some("challenge".to_owned()),
+    };
+    let pop = request.sign_for_draft07("wallet-client", &TestSigner)?;
+    let (_, claims, _): (Value, Value, Vec<u8>) = decode_compact_jwt(&pop)?;
+    assert_eq!(
+        claims.get("iss").and_then(Value::as_str),
+        Some("wallet-client")
+    );
+    assert_eq!(
+        claims.get("challenge").and_then(Value::as_str),
+        Some("challenge")
+    );
+    let current = request.sign(&TestSigner)?;
+    let (_, current_claims, _): (Value, Value, Vec<u8>) = decode_compact_jwt(&current)?;
+    assert!(current_claims.get("iss").is_none());
+    for invalid in ["", "client\nidentity"] {
+        assert_eq!(
+            request
+                .sign_for_draft07(invalid, &TestSigner)
+                .err()
+                .map(|error| error.reason()),
+            Some(Reason::InvalidClientAttestation)
+        );
+    }
+    let oversized = "x".repeat(
+        MAX_TOKEN_BYTES
+            .checked_add(1)
+            .ok_or(OauthError::new(Reason::InvalidClientAttestation))?,
+    );
+    assert_eq!(
+        request
+            .sign_for_draft07(&oversized, &TestSigner)
+            .err()
+            .map(|error| error.reason()),
+        Some(Reason::InvalidClientAttestation)
+    );
     Ok(())
 }

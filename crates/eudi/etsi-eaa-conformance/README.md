@@ -9,6 +9,19 @@ actual relying-party registration/overasking comparison, status-reference
 non-correlation checks, and detailed WIA/KA lifecycle policy. Private keys and
 complete credential payloads never enter this crate.
 
+## Runtime ownership
+
+Public classification and error enums are non-exhaustive. Consumers must reject
+unsupported classifications rather than infer a successful conformance result.
+
+This public SSI crate is the shared runtime policy boundary used by Wallet,
+protocol engines and Identity. Wallet composes these rules rather than copying
+ETSI/EAA/PID validation into its inventory or flow state machines. Shared
+vocabulary and federated coverage belong to Identity Taxonomy; complete composed
+runs and reviewed execution evidence belong to Identity Conformance. Publishing
+this library does not establish certification or satisfaction of operational,
+hardware, UI or deployment requirements.
+
 ## Normative Baseline
 
 The implementation targets the standards and law in force on 21 September

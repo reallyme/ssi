@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const approvedPublicPackages = new Set([
+  "reallyme-etsi-eaa-conformance",
   "reallyme-mdoc",
   "reallyme-sd-jwt",
   "reallyme-trust-core",
@@ -32,6 +33,19 @@ const approvedPublicPackages = new Set([
   "reallyme-trust-x509",
 ]);
 const requiredContractPackages = new Map([
+  [
+    "reallyme-etsi-eaa-conformance",
+    {
+      manifestPath: "crates/eudi/etsi-eaa-conformance/Cargo.toml",
+      requiredEntries: [
+        "requirements/etsi-ts-119-472.tsv",
+        "requirements/eu-2026-profile.tsv",
+        "requirements/requirement-trace.tsv",
+        "LICENSE-MIT",
+        "LICENSE-APACHE",
+      ],
+    },
+  ],
   [
     "reallyme-ssi-proto",
     {

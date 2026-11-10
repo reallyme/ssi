@@ -11,6 +11,7 @@ const MAX_AUTHORIZATION_SERVER_BYTES: usize = 2_048;
 
 /// Signature algorithms permitted for WIA, KA, PoP, and their Token Status Lists.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum WalletAttestationAlgorithm {
     /// ECDSA with SHA-256 and P-256.
     Es256,
@@ -29,6 +30,7 @@ pub struct WiaIndexBinding<'a> {
 }
 
 /// Privacy policy for wallet-instance-attestation status indices.
+#[non_exhaustive]
 pub enum WiaStatusIndexPolicy<'a> {
     /// Each WIA receives a fresh index that was not used before.
     FreshUnlinkable {
@@ -51,6 +53,7 @@ pub enum WiaStatusIndexPolicy<'a> {
 }
 
 /// Key-attestation status-index strategy.
+#[non_exhaustive]
 pub enum KeyAttestationIndexPolicy<'a> {
     /// One index is shared by all stores of a certified type.
     TypeShared {
@@ -84,6 +87,7 @@ pub struct PerIssuerIndexReuse<'a> {
 
 /// Proof container used to transport a key attestation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum KeyAttestationProof {
     /// JWT proof signed by attested key zero and containing a current nonce.
     Jwt {

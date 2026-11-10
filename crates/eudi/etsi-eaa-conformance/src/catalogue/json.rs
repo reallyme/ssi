@@ -24,6 +24,7 @@ thread_local! {
     static PARSE_REASON: Cell<Option<CatalogueErrorReason>> = const { Cell::new(None) };
 }
 
+#[non_exhaustive]
 pub(super) enum StrictValue {
     Null,
     Bool(bool),

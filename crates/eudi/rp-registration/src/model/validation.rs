@@ -19,7 +19,20 @@ pub(super) const MAX_SERVICE_DEPTH: usize = 4;
 const MAX_CERTIFICATE_HISTORY_BYTES: usize = 131_072;
 
 pub(super) fn validate_metadata(
+    meta: BTreeMap<String, StrictValue>,
+) -> Result<CredentialMetadata, RegistrationError> {
+    validate_metadata_cardinality(meta, true)
+}
+
+pub(super) fn validate_v1_6_metadata(
+    meta: BTreeMap<String, StrictValue>,
+) -> Result<CredentialMetadata, RegistrationError> {
+    validate_metadata_cardinality(meta, false)
+}
+
+fn validate_metadata_cardinality(
     mut meta: BTreeMap<String, StrictValue>,
+    require_vct_value: bool,
 ) -> Result<CredentialMetadata, RegistrationError> {
     if meta.len() != 1 {
         return Err(RegistrationError::from_reason(
@@ -32,7 +45,7 @@ pub(super) fn validate_metadata(
                 RegistrationErrorReason::InvalidField,
             ));
         };
-        validate_items(&values, true)?;
+        validate_items(&values, require_vct_value)?;
         let mut texts_out = Vec::new();
         for mut value in values {
             let Some(text) = value.take_string() else {
@@ -130,11 +143,26 @@ pub(super) fn validate_entitlements(
 
 pub(super) fn uri_text_owned(value: String) -> Result<BoundedText, RegistrationError> {
     let mut value = Zeroizing::new(value);
-    super::validate_text(&value, MAX_URI_BYTES)?;
+    super::validate_text::validate_text(&value, MAX_URI_BYTES)?;
     let parsed = Url::parse(&value)
         .map_err(|_error| RegistrationError::from_reason(RegistrationErrorReason::InvalidUri))?;
     let invalid_uri =
         parsed.cannot_be_a_base() || parsed.host_str().is_none() || parsed.fragment().is_some();
+    let _parsed_serialization = Zeroizing::new(String::from(parsed));
+    if invalid_uri {
+        return Err(RegistrationError::from_reason(
+            RegistrationErrorReason::InvalidUri,
+        ));
+    }
+    Ok(BoundedText(core::mem::take(&mut *value)))
+}
+
+pub(super) fn absolute_uri_text_owned(value: String) -> Result<BoundedText, RegistrationError> {
+    let mut value = Zeroizing::new(value);
+    super::validate_text::validate_text(&value, MAX_URI_BYTES)?;
+    let parsed = Url::parse(&value)
+        .map_err(|_error| RegistrationError::from_reason(RegistrationErrorReason::InvalidUri))?;
+    let invalid_uri = parsed.fragment().is_some();
     let _parsed_serialization = Zeroizing::new(String::from(parsed));
     if invalid_uri {
         return Err(RegistrationError::from_reason(
