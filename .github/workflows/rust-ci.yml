@@ -152,11 +152,16 @@ jobs:
           MUTATION_FILE: ${{ matrix.file }}
           MUTATION_EXAMINE: ${{ matrix.examine }}
         run: |
-          mutation_list="$(cargo mutants --list --package "$MUTATION_PACKAGE" \
-            --file "$MUTATION_FILE" --examine-re "$MUTATION_EXAMINE")"
+          mutation_args=(
+            --package "$MUTATION_PACKAGE"
+            --file "$MUTATION_FILE"
+            --examine-re "$MUTATION_EXAMINE"
+          )
+          mutation_list="$(cargo mutants --list "${mutation_args[@]}")"
           test -n "$mutation_list"
-          env -u CARGO_TARGET_DIR cargo mutants --gitignore true --copy-target false --package "$MUTATION_PACKAGE" \
-            --file "$MUTATION_FILE" --examine-re "$MUTATION_EXAMINE" \
+          # Respecting .gitignore already excludes target; cargo-mutants rejects
+          # combining that mode with an explicit --copy-target setting.
+          env -u CARGO_TARGET_DIR cargo mutants --gitignore true "${mutation_args[@]}" \
             --timeout 300 --jobs 2
 
   semver:
