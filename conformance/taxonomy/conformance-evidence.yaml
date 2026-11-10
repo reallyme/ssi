@@ -5,7 +5,9 @@
 schema: reallyme.identity.conformance_evidence_map.v1
 repository: reallyme/ssi
 # Each row binds a pinned requirement digest to verified source and test
-# locators. Requirements without an accepted binding remain in the planned state.
+# locators. Unmapped requirements have no accepted evidence binding.
+# The shared ledger schema encodes that absence as `planned`; it is not a
+# delivery commitment or proof that implementation is absent.
 requirements:
   type-rule:types.DidResolutionResult.document:
     accepted_requirement_sha256: 0213da1134fb04725cad9473a6f4ad74677e9043739ef586c21b61d03fc353db

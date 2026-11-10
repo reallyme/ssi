@@ -347,9 +347,14 @@ for (const concept of conceptInventory.concepts) {
     }
   }
 
-  for (const field of ["local_crates", "external_crates", "public_api", "conformance_files", "next_actions"]) {
+  for (const field of ["local_crates", "external_crates", "public_api", "conformance_files", "coverage_notes"]) {
     if (!Array.isArray(concept[field])) {
       fail(`conformance/concepts.json:${concept.id} field ${field} must be an array`);
+    }
+  }
+  for (const note of concept.coverage_notes) {
+    if (typeof note !== "string" || note.trim().length === 0) {
+      fail(`conformance/concepts.json:${concept.id} coverage_notes must contain nonempty text`);
     }
   }
   if (concept.local_crates.length === 0 && concept.external_crates.length === 0) {
@@ -361,8 +366,8 @@ for (const concept of conceptInventory.concepts) {
   if (!allowedMappingStatuses.has(concept.mapping_status)) {
     fail(`conformance/concepts.json:${concept.id} has unsupported mapping_status ${concept.mapping_status}`);
   }
-  if (concept.mapping_status !== "section_by_section" && concept.next_actions.length === 0) {
-    fail(`conformance/concepts.json:${concept.id} must list next_actions until section-by-section coverage is complete`);
+  if (concept.mapping_status !== "section_by_section" && concept.coverage_notes.length === 0) {
+    fail(`conformance/concepts.json:${concept.id} must describe its current coverage boundary in coverage_notes`);
   }
   if (typeof concept.release_blocker !== "boolean") {
     fail(`conformance/concepts.json:${concept.id} field release_blocker must be boolean`);
@@ -382,8 +387,8 @@ for (const concept of conceptInventory.concepts) {
   if (typeof concept.publishing.notes !== "string" || concept.publishing.notes.length === 0) {
     fail(`conformance/concepts.json:${concept.id} publishing.notes is required`);
   }
-  if (!concept.publishing.publish_ready && concept.next_actions.length === 0) {
-    fail(`conformance/concepts.json:${concept.id} must list next_actions when publish_ready is false`);
+  if (!concept.publishing.publish_ready && concept.coverage_notes.length === 0) {
+    fail(`conformance/concepts.json:${concept.id} must describe publication gaps in coverage_notes when publish_ready is false`);
   }
 
   for (const localCrate of concept.local_crates) {

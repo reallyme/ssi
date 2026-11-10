@@ -9,7 +9,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// Protocol-agnostic presentation binding and freshness input.
 ///
 /// This captures the minimal semantic requirements shared across OpenID4VP,
-/// web, QR, BLE, mdoc, and future delivery transports.
+/// web, QR, BLE, and mdoc without depending on a delivery transport.
 #[derive(Clone, PartialEq, Eq)]
 pub struct PresentationBinding {
     /// Verifier challenge or nonce.

@@ -27,7 +27,7 @@
         "notes": "The reallyme-ssi facade remains source-only and publish = false. The smaller support-crate closure consumed by the public reallyme-identity package is released separately with the SSI workspace."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "jose",
@@ -55,8 +55,8 @@
         "notes": "Owned by the standalone jose repository and consumed from crates.io."
       },
       "release_blocker": false,
-      "next_actions": [
-        "Keep identity records focused on facade and envelope consumption while detailed section-by-section JOSE coverage lives in reallyme/jose."
+      "coverage_notes": [
+        "Detailed JOSE conformance evidence is owned by reallyme/jose; SSI records facade and envelope consumption."
       ]
     },
     {
@@ -83,8 +83,8 @@
         "notes": "Owned by the standalone cose repository and consumed from crates.io."
       },
       "release_blocker": false,
-      "next_actions": [
-        "Keep identity records focused on mdoc and facade consumption while detailed COSE coverage lives in reallyme/cose."
+      "coverage_notes": [
+        "Detailed COSE conformance evidence is owned by reallyme/cose; SSI records mdoc and facade consumption."
       ]
     },
     {
@@ -111,7 +111,7 @@
         "notes": "This crate is intentionally reusable because protobuf and JSON payloads can exceed practical transport sizes with large PQ material."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "sd-jwt",
@@ -138,7 +138,7 @@
         "notes": "Section-by-section coverage is complete for the supported RFC 9901 and SD-JWT VC draft-19 identity surface. The reusable envelope crate is published independently."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "mdoc",
@@ -164,7 +164,7 @@
         "notes": "Section-by-section coverage is complete for the supported identity surface. The reusable mdoc crate is published independently."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "data-integrity",
@@ -186,10 +186,10 @@
         "role": "unpublished_internal",
         "package": "envelopes-data-integrity",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate is source-only behind the SSI facade."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "jwt-vc",
@@ -213,10 +213,10 @@
         "role": "unpublished_internal",
         "package": "envelopes-jwt-vc",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate is source-only behind the SSI facade."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "envelope-profiles",
@@ -243,7 +243,7 @@
         "notes": "Section-by-section coverage is complete for the supported identity surface. reallyme-openid4vc-profiles is published independently; envelopes-profiles remains source-only behind the SSI facade."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "claims-and-disclosure-policy",
@@ -272,7 +272,7 @@
         "notes": "The claims and disclosure-policy crates are published independently. Claims normalization, nested paths, registry-backed payload validation, cross-format vectors, claim commitment verification, and claims fuzz harnesses are implemented. Every predefined registry-backed profile is source-mapped in vectors/claims/catalog-sources.json."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "audit-evidence",
@@ -299,7 +299,7 @@
         "notes": "Section-by-section coverage is complete for the supported identity surface. The reusable audit-evidence crate is published independently."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "status-and-revocation",
@@ -333,7 +333,7 @@
         "notes": "Section-by-section coverage is complete for the supported identity surface. The status and revocation crates are published independently; CRL/OCSP provider and single-use crates remain source-only."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "credential-envelope-core",
@@ -369,7 +369,7 @@
         "notes": "Section-by-section coverage is complete for the supported identity surface. The credential core is published independently while format adapters remain source-only. IETF SD-JWT VC is the only SD-JWT credential issuance format; generic SD-JWT envelope and VP presentation support remain separate concepts."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "reallyme-trust-x509",
@@ -407,7 +407,7 @@
         "notes": "The certificate trust facade, trust core, and X.509 policy crates are published independently. The source-only compatibility API, JAdES, TSL, OpenSSL, wasm, and xmlsec adapters remain outside the facade's publishable dependency graph."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "oauth-substrate",
@@ -434,7 +434,7 @@
         "notes": "Section-by-section coverage is complete for the supported identity surface. The reusable OAuth substrate is published independently; protocol orchestration stays in OpenID repositories."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "keys",
@@ -458,10 +458,10 @@
         "role": "unpublished_internal",
         "package": "reallyme-keys",
         "publish_ready": true,
-        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate remains source-only behind the SSI facade unless a later package strategy explicitly publishes it."
+        "notes": "Section-by-section coverage is complete for the supported identity surface. The crate is source-only behind the SSI facade."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "did-core",
@@ -489,7 +489,7 @@
         "notes": "The core-primitives and DID-types support packages are published for the reallyme-identity dependency graph. The DID engine, API, method, and validation crates remain source-only."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "did-methods",
@@ -521,7 +521,7 @@
         "notes": "DID method helper crates have method-specific identifier vector coverage for the supported syntax and generation boundaries and remain source-only behind the SSI facade."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "did-proto",
@@ -549,7 +549,7 @@
         "notes": "The canonical SSI protobuf package and bounded proto-codec package are published for reallyme-identity. Product operation transport, dispatch, and provider execution remain in reallyme/identity."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "vp-core",
@@ -581,7 +581,7 @@
         "notes": "The protocol-neutral VP core support package is published for the reallyme-identity codec graph. VP API, policy, SD-JWT presentation, and validator crates remain source-only; concrete ZK composition and OpenID4VP session behavior remain in reallyme/openid4vp."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "presentation-delivery",
@@ -614,7 +614,7 @@
         "notes": "Delivery helpers own protocol-neutral contact, SIOP, and web presentation delivery validation primitives. OpenID4VP request/response state machines and HTTP sessions remain outside identity."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "etsi-eaa-conformance",
@@ -640,7 +640,7 @@
         "notes": "The source-only policy crate pins and routes all 740 normative identifiers from ETSI TS 119 472 Parts 1 through 3 while keeping HTTP and OpenID state machines in their protocol repositories."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     },
     {
       "id": "eudi-rp-registration",
@@ -668,7 +668,7 @@
         "notes": "The private reusable crate pins TS5 v1.5 and TS6 v1.2.2, authenticates explicit registrar shapes, retains the exact bounded leaf-first signer chain for one-time artifact handoff, parses TS 119 475 WRPRCs including the normative policy identity, seals WRPRC proof receipts behind proof-only JAdES or COSE_Sign1 verification against an exact expected leaf, validates TS 119 411-8 WRPAC leaf profiles, and keeps issuer/path trust in the separate trust service."
       },
       "release_blocker": false,
-      "next_actions": []
+      "coverage_notes": []
     }
   ]
 }

@@ -8,8 +8,9 @@ use crate::ParsedOcspResponse;
 
 /// Browser hosts cannot mint verified OCSP evidence from JSON assertions.
 ///
-/// A future Wasm backend must verify DER and responder authorization inside
-/// the trusted module before returning an opaque response capability.
+/// OCSP DER parsing and responder authorization are unsupported in this lane.
+/// This boundary returns [`OcspError::Unsupported`] without issuing verified
+/// evidence.
 pub fn parse_ocsp_response_der(
     _ocsp_response_der: &[u8],
     _cert_der: &[u8],

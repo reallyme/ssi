@@ -183,8 +183,8 @@ pub fn validate_domain_entry(
 
             // DIF Domain Linkage requires a signed Domain Linkage Credential.
             // Treating an unsigned JSON object as equivalent creates a false
-            // authentication signal, so this legacy method fails closed until
-            // a proof-suite verifier is injected at this boundary.
+            // authentication signal. This boundary has no Domain Linkage
+            // Credential verifier and therefore rejects the method.
             let _unused_fetcher = env.fetch_url;
             Err(DomainVerificationError::UnsupportedMethod)
         }

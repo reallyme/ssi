@@ -45,7 +45,7 @@
     "positive_tests": [],
     "negative_tests": [],
     "applicable": false,
-    "exclusion_reason": "Typed product operation transport, dispatch, and provider execution moved to reallyme/identity. SSI retains only protocol-neutral messages and bounded domain codecs."
+    "exclusion_reason": "Typed product operation transport, dispatch, and provider execution belong to reallyme/identity. SSI retains only protocol-neutral messages and bounded domain codecs."
   },
   {
     "id": "BOUNDARY-PROVIDER-002",
@@ -57,6 +57,6 @@
     "positive_tests": [],
     "negative_tests": [],
     "applicable": false,
-    "exclusion_reason": "Replay-safe provider executor sequencing and operation binding moved to reallyme/identity with the product operation runtime."
+    "exclusion_reason": "Replay-safe provider executor sequencing, operation binding, and the product operation runtime belong to reallyme/identity."
   }
 ]

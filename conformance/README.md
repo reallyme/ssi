@@ -11,15 +11,13 @@ concrete ZK backend tests.
 - `requirements/` contains requirement records by identity-owned concept.
 - `upstream/` contains pinned normative source metadata and upstream reference
   test registries.
-- `fixtures/` contains inputs owned specifically by conformance executions.
 - `dependencies.lock.json` pins the published dependency versions recorded in
   release evidence.
 - `concepts.json` ties local crates, public APIs, requirement files, and
   publishing posture into one machine-checked inventory.
 
 The root `vectors/` directory contains reusable cross-crate and cross-language
-vectors. Files move into `conformance/fixtures/` only when they exist solely as
-inputs to a conformance run.
+vectors. Crate-specific fixtures live beside the tests that consume them.
 
 Generated reports are release evidence rather than source metadata. The package
 preflight workflow generates them from a clean release commit, uploads the
@@ -74,19 +72,33 @@ identity concept to:
 - current mapping status;
 - publishing posture.
 
-The checker requires every local Cargo manifest to be assigned to a concept.
-This is deliberately stricter than requirement-record validation: it prevents
-new crates, placeholder method packages, or extracted support crates from
-landing without a conformance and publishing decision.
+The checker requires every local Cargo manifest to be assigned to a concept
+with an explicit conformance status and publication policy.
 
 `mapping_status` values are intentionally conservative:
 
 - `section_by_section` means every applicable section-level MUST/MUST NOT for
   the selected normative source has mapped tests.
-- `representative` means there is useful tested coverage, but the concept still
-  needs exhaustive section-by-section mapping before a final release claim.
-- `in_progress` means the concept is actively moving and should block a public
-  identity core release until the named next actions close.
+- `representative` means tested coverage is not an exhaustive section-by-section
+  mapping and does not substantiate a complete conformance claim.
+- `in_progress` means required coverage is missing. The record identifies the
+  current gaps and whether they block release.
 - `external_upstream` means detailed conformance lives in another ReallyMe
   repository and SSI records only consumption or facade behavior.
 - `not_applicable` means the concept is explicitly out of identity scope.
+
+The `reallyme.identity.conformance.concepts.v1` inventory uses `coverage_notes`
+to describe current evidence boundaries or missing coverage. A non-section-level
+mapping or a package that is not publication-ready requires a nonempty
+explanation. `release_blocker` records whether the concept prevents release;
+these fields do not replace the executable requirement and test checks.
+
+## Taxonomy Evidence
+
+`taxonomy/conformance-ledger-evidence.json` records accepted evidence against
+pinned taxonomy requirements. Its shared schema uses `planned` with
+`implementation_planned` for requirements without accepted evidence bindings.
+These values identify an evidence gap, not a delivery commitment or a finding
+that implementation is absent. Only accepted, source-bound code and test
+locators substantiate an implemented requirement. Unmapped requirements remain
+visible and must not be counted as verified coverage.

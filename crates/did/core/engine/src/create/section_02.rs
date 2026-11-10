@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// Step 6: create engine (Rust).
+/// Create a canonical DID core, its attestations, and its document projection.
 ///
 /// - validate inputs
 /// - autopopulate domain verification bindings
@@ -215,7 +215,7 @@ pub fn create_engine(
     let core_cbor = core.canonical_cbor()?;
     let core_cid = compute_core_cid(&core)?;
 
-    // 6. Core attestations (Step 4)
+    // Core attestations over the canonical snapshot
     let core_attestations = sign_core(
         &core,
         &core_controller_keys,
@@ -232,7 +232,7 @@ pub fn create_engine(
         })
         .collect();
 
-    // Step 7: Optional ES256 DataIntegrityProof over CID
+    // Optional ES256 DataIntegrityProof over the core CID
     let mut data_integrity_proof: Option<DataIntegrityProof> = None;
 
     // find first P-256 VM in assertion
@@ -269,7 +269,7 @@ pub fn create_engine(
     let verification_method =
         canonicalize_projection_verification_methods(&opts.controller_keys, &core_controller_keys)?;
 
-    // 8. DIDDocument projection (Step 5)
+    // DIDDocument projection
     let doc = project_did_document(DocumentProjection {
         core: &core,
         core_cid: &core_cid,
