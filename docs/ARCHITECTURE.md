@@ -8,8 +8,8 @@ infrastructure.
 ## Ownership Boundaries
 
 - `crates/ssi` owns the composed Rust facade with Cargo package name
-  `reallyme-ssi`. It remains source-only until its support graph is
-  deliberately publishable. The workspace root is virtual.
+  `reallyme-ssi`. The facade is source-only (`publish = false`); selected
+  component crates are published independently. The workspace root is virtual.
 - `crates/credential` owns canonical credential semantics. Representation and
   transport envelopes such as SD-JWT, mdoc, JWT-VC, and Data Integrity remain
   under `crates/envelopes`.
@@ -17,11 +17,9 @@ infrastructure.
   `crates/proto` owns presentation wire and data-model messages, while
   `crates/proto-codec` owns their authored validation and conversion; these
   layers are deliberately separate.
-  Existing Cargo package names retain the established `vp` vocabulary because
-  they describe verifiable-presentation APIs and are already dependency
-  identities. Directory names follow the broader `presentation` ownership
-  taxonomy; renaming published or consumed package identities is a separate
-  compatibility change, not part of this repository move.
+  Cargo package names use the `vp` vocabulary for verifiable-presentation APIs.
+  Directory names use `presentation` for the broader ownership boundary.
+  Package names are dependency identities subject to API compatibility policy.
 - `crates/trust` owns trust implementations. `crates/trust/wasm` is an
   internal implementation adapter, not a public SDK binding.
 - `crates/trust/jades` owns reusable ETSI TS 119 182-1 JAdES Baseline policy
@@ -66,9 +64,8 @@ repository, so SSI has no dependency on `reallyme/zk`.
 `reallyme-ssi` is the composed Rust facade. It exposes stable modules including
 `reallyme_ssi::credential::api`, `reallyme_ssi::delivery`,
 `reallyme_ssi::trust`, and generated-protobuf surfaces under the SSI facade.
-The facade remains source-only until its full dependency graph is deliberately
-accepted as public API. The smaller package set required by ReallyMe Identity
-is published independently.
+The facade is source-only (`publish = false`). The component packages required
+by ReallyMe Identity are published independently.
 
 ## Runtime and Provider Policy
 
@@ -142,7 +139,6 @@ surfaces must not be added under root `bindings/`, `gen/`, `packages/`, or
 ## Verification Data
 
 - `vectors/` owns reusable cross-crate and cross-language vectors.
-- `conformance/fixtures/` owns inputs that exist only for conformance runs.
 - SSI owns the requirement mappings and the generator that produces a clean,
   commit-stamped evidence bundle for attachment to the corresponding release.
 - OIDF certification orchestration remains outside this repository in

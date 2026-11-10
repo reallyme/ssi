@@ -52,7 +52,6 @@ Out of scope:
 
 ## Supported Versions
 
-The currently published component-crate line is `0.2.x`. Security fixes are
-developed against `main`; the `0.3.x` line becomes supported only after its
-release is published. Source-based users should pin an exact commit and watch
-GitHub releases and security advisories.
+The current component-crate release line is `0.6.x`. Security fixes are
+developed against `main`. Source-based users should pin an exact commit and
+watch GitHub releases and security advisories.

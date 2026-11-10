@@ -6,10 +6,9 @@ intentionally language-neutral: no Rust
 serialization formats, no test-only structs, and no platform-specific paths
 beyond repository-relative fixture references.
 
-Inputs that exist only to drive a conformance run belong in
-`conformance/fixtures/`; generated execution evidence belongs in
-the release artifact generated from the clean release commit. An external
-conformance run may import that artifact alongside evidence from other
+Crate-specific fixtures live beside their consuming tests. Generated execution
+evidence belongs in the release artifact generated from the clean release
+commit. An external conformance run may import that artifact alongside evidence from other
 participating repositories.
 
 Regenerate with:

@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 /// Core attestation over a canonical DID core snapshot.
 ///
-/// This corresponds to TS `Attestation` produced in step 5
-/// of `createEngine`, but WITHOUT envelopes.
+/// The attestation authenticates the core snapshot independently of its
+/// transport envelope.
 ///
 /// - One per signing verification method
 /// - Signature is over canonical CBOR bytes

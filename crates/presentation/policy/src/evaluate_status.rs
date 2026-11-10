@@ -111,7 +111,7 @@ pub(super) fn presentation_status_reference(
             }
             identity_presentation_vp_core::model::ZkPresentation::Persona(_)
             | identity_presentation_vp_core::model::ZkPresentation::CommonRoot(_) => None,
-            // A future proof statement needs an explicit status binding.
+            // Unrecognized statements cannot establish an authenticated status binding.
             _ => None,
         },
         Presentation::SdJwtVc(_) | Presentation::Mdoc(_) => None,

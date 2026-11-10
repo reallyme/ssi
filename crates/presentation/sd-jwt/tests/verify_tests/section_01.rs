@@ -92,7 +92,6 @@ fn key(did_url: &str, bytes: Vec<u8>) -> PublicKeyRef {
 }
 
 /// Build a real issuer-signed SD-JWT VC for this issued credential.
-/// (This is test-only scaffolding until `identity/vc/sd-jwt` exists.)
 fn issuer_sd_jwt_for_issued(
     issued: &reallyme_credential::committed::issue::IssueResult,
     issuer_jwk: &Jwk,

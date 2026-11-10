@@ -19,10 +19,10 @@ identifiers. Applicability and disposition belong in the assessment evidence;
 an identifier's presence in this file does not turn an optional provision into
 a mandatory implementation feature.
 
-`requirement-trace.tsv` replaces a former three-row part-level default with an
-explicit row for every ETSI identifier and every EU ledger entry. Each row
-records source edition, applicability, EU-profile status, owner, exact code and
-test symbols, required external evidence, or a fixed non-applicability
+`requirement-trace.tsv` contains an explicit row for every ETSI identifier and
+every EU ledger entry. Each row records source edition, applicability,
+EU-profile status, owner, exact code and test symbols, required external
+evidence, or a fixed non-applicability
 justification. `code_and_composed_evidence` never means that a Boolean supplied
 by a caller proves cryptography, trust, transport, UI, hardware, or deployed
 operations. `external_evidence_required` is intentionally open until the named

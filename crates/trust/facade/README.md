@@ -1,7 +1,7 @@
 # reallyme-trust
 
 `reallyme-trust` is the public entry point for ReallyMe trust capabilities.
-Its first domain, `certificate`, provides typed certificate trust decisions
+The `certificate` domain provides typed certificate trust decisions
 using the released `reallyme-trust-core` and `reallyme-trust-x509` packages.
 The same X.509 certificate type is used for parsing, path evaluation, signature
 verification, and status checking.
@@ -29,8 +29,6 @@ evidence.
 
 EU trusted-list ingestion, QTSP operations, and proprietary trust services are
 separate capabilities. They are not enabled by this package's default feature.
-Each future public capability must have a separately auditable, publishable
-dependency closure before it is exposed here.
 
 ```toml
 [dependencies]
