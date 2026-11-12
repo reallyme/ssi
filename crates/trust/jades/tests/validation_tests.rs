@@ -8,12 +8,6 @@
 
 use envelopes_x509::{parse_cert_der, X509Certificate, X509Chain, X509Policy};
 use identity_revocation_core::{StatusCheckError, StatusChecker};
-use identity_trust_jades::{
-    authenticate_compact_jades, validate_compact_jades, AuthenticatedCompactJws,
-    CompactJwsVerificationError, CompactJwsVerificationErrorReason, CompactJwsVerifier,
-    JadesAuthenticationInput, JadesErrorReason, JadesPolicy, JadesSignatureAlgorithm,
-    JadesValidationInput, JadesVerificationKey,
-};
 use openssl::{
     asn1::Asn1Time,
     bn::BigNum,
@@ -34,6 +28,12 @@ use reallyme_trust_core::{
     CertificateStatusPolicy, DirectTrustEntry, SignatureVerifier, SignatureVerifyError,
     StatusRequirement, TrustConfig, TrustEvaluationContext, TrustOutcome, TrustPolicyId,
     TrustPurpose, TrustSourceEvidence,
+};
+use reallyme_trust_jades::{
+    authenticate_compact_jades, validate_compact_jades, AuthenticatedCompactJws,
+    CompactJwsVerificationError, CompactJwsVerificationErrorReason, CompactJwsVerifier,
+    JadesAuthenticationInput, JadesErrorReason, JadesPolicy, JadesSignatureAlgorithm,
+    JadesValidationInput, JadesVerificationKey,
 };
 use time::OffsetDateTime;
 use zeroize::Zeroizing;
@@ -437,7 +437,7 @@ fn validate(
     header: &str,
     certificates: &[X509Certificate],
     status_policy: CertificateStatusPolicy,
-) -> Result<identity_trust_jades::ValidatedJades, identity_trust_jades::JadesError> {
+) -> Result<reallyme_trust_jades::ValidatedJades, reallyme_trust_jades::JadesError> {
     validate_with_status_checker(header, certificates, status_policy, Some(&AllowAllStatus))
 }
 
@@ -446,7 +446,7 @@ fn validate_with_status_checker(
     certificates: &[X509Certificate],
     status_policy: CertificateStatusPolicy,
     status_checker: Option<&dyn StatusChecker>,
-) -> Result<identity_trust_jades::ValidatedJades, identity_trust_jades::JadesError> {
+) -> Result<reallyme_trust_jades::ValidatedJades, reallyme_trust_jades::JadesError> {
     let certificate = certificates
         .first()
         .cloned()

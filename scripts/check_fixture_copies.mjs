@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const copies = [
+  ["crates/trust/x509/tests/fixtures/qwac_server_auth_cert.der.b64", "crates/eudi/rp-registration/tests/vectors/qwac_server_auth_cert.der.b64"],
   ["vectors/claims/catalog-sources.json", "crates/claims/tests/fixtures/catalog-sources.json"],
   ["vectors/claims/normalization.json", "crates/claims/tests/fixtures/normalization.json"],
   ["vectors/claims/predefined-credentials.json", "crates/claims/tests/fixtures/predefined-credentials.json"],

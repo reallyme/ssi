@@ -45,6 +45,8 @@ const publishedPackages = [
   "reallyme-did-api",
   "reallyme-vp-api",
   "reallyme-etsi-eaa-conformance",
+  "reallyme-trust-jades",
+  "reallyme-eudi-rp-registration",
 ];
 
 function runFixture({ mode = "publish", scenario = "success", requirement = "^0.1.0", version = "0.1.0" } = {}) {
@@ -194,6 +196,8 @@ childProcess.spawnSync = (command, args) => {
       { name: "reallyme-did-api", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-did-core", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-keys", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-ssi-proto-codec", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-cheqd", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-ebsi", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-ion", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-jwk", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-key", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-me", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-web", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
       { name: "reallyme-vp-api", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-vp-policy", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-disclosure-policy", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
       { name: "reallyme-etsi-eaa-conformance", version: ${JSON.stringify(version)}, publish: null, dependencies: [] },
+      { name: "reallyme-trust-jades", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-trust-core", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-trust-x509", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-revocation", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "reallyme-eudi-rp-registration", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-trust-jades", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
       { name: "reallyme-ssi", version: ${JSON.stringify(version)}, publish: [], dependencies: [] },
     ].filter((pkg) => scenario !== "missing-did-method" || pkg.name !== "reallyme-did-method-web"),
   }) };

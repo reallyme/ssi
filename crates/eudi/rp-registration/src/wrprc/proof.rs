@@ -4,7 +4,7 @@
 
 //! Proof-only WRPRC authentication without issuer or certification-path trust.
 
-use identity_trust_jades::{
+use reallyme_trust_jades::{
     authenticate_compact_jades, AuthenticatedCompactJws, CompactJwsVerificationError,
     CompactJwsVerificationErrorReason, CompactJwsVerifier, JadesAuthenticationInput, JadesError,
     JadesErrorReason, JadesSignatureAlgorithm, JadesVerificationKey,
@@ -19,7 +19,7 @@ use super::{
 use crate::json::MAX_JSON_BYTES;
 use crate::{RegistrationError, RegistrationErrorReason};
 
-pub use identity_trust_jades::JadesPolicy as RegistrationCertificateJadesPolicy;
+pub use reallyme_trust_jades::JadesPolicy as RegistrationCertificateJadesPolicy;
 
 mod cbor;
 mod cose;
@@ -32,6 +32,7 @@ const WRPRC_CLOCK_SKEW_SECONDS: u64 = 60;
 
 /// Exact COSE signature algorithms admitted for a WRPRC representation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum RegistrationCertificateCoseAlgorithm {
     /// COSE algorithm `-7`, ECDSA with P-256 and SHA-256.
     Es256,
@@ -336,6 +337,8 @@ const fn map_jades_error(error: JadesError) -> RegistrationError {
             RegistrationErrorReason::AuthenticationReceiptMismatch
         }
         JadesErrorReason::ResourceLimit => RegistrationErrorReason::ResourceLimitExceeded,
+        // A future JAdES policy result cannot establish a supported profile.
+        _ => RegistrationErrorReason::UnsupportedProfile,
     };
     RegistrationError::from_reason(reason)
 }

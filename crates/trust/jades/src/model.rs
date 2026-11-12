@@ -16,6 +16,7 @@ pub const MAX_JADES_PROTECTED_HEADER_BYTES: usize = 786_432;
 
 /// JWS algorithms admitted by the versioned JAdES policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum JadesSignatureAlgorithm {
     /// ECDSA using P-256 and SHA-256 (RFC 7518 §3.4).
     Es256,
@@ -25,6 +26,7 @@ pub enum JadesSignatureAlgorithm {
 
 /// Public-key representation passed to the cryptographic JOSE backend.
 #[derive(Clone, Copy)]
+#[non_exhaustive]
 pub enum JadesVerificationKey<'a> {
     /// SEC1-encoded P-256 public point.
     P256Sec1(&'a [u8]),
@@ -81,6 +83,7 @@ pub trait CompactJwsVerifier {
 
 /// Which protected JAdES parameter supplied the claimed signing time.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ClaimedSigningTimeKind {
     /// RFC 7519 NumericDate `iat`, required for newly created signatures from
     /// 2025-07-15 by ETSI TS 119 182-1 v1.2.1 §5.1.11.

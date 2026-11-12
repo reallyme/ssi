@@ -11,6 +11,7 @@ use crate::{RegistrationError, RegistrationErrorReason};
 
 /// Semantically validated registry payload.
 #[derive(Zeroize, ZeroizeOnDrop)]
+#[non_exhaustive]
 pub enum RegistryPayload {
     /// One bounded page of WRP records.
     WrpArray {
@@ -198,6 +199,7 @@ impl ClaimPath {
 /// Closed format-specific credential metadata.
 #[derive(Serialize, ZeroizeOnDrop)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum CredentialMetadata {
     /// SD-JWT VC type identifiers.
     DcSdJwt(DcSdJwtMetadata),

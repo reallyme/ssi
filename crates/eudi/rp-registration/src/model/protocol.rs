@@ -9,6 +9,7 @@ use crate::{RegistrationError, RegistrationErrorReason};
 
 /// Closed ETSI TS 119 475 Annex A.2 WRP entitlement registry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Zeroize)]
+#[non_exhaustive]
 pub enum WrpEntitlement {
     /// General service provider.
     #[serde(rename = "https://uri.etsi.org/19475/Entitlement/Service_Provider")]
@@ -90,6 +91,7 @@ impl WrpEntitlement {
 
 /// Pinned registration protocol profile.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Zeroize)]
+#[non_exhaustive]
 pub enum ProtocolProfile {
     /// EUDI TS5 registrar API v1.5.
     Ts5V1_5,
@@ -101,6 +103,7 @@ pub enum ProtocolProfile {
 
 /// Caller-selected authenticated payload shape.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum RegistryPayloadShape {
     /// Current `SignedWRPArray` response.
     Ts5SignedWrpArray,

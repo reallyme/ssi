@@ -1538,24 +1538,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "identity-trust-jades"
-version = "0.6.2"
-dependencies = [
- "openssl",
- "reallyme-codec",
- "reallyme-crypto",
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-core",
- "reallyme-trust-x509",
- "serde",
- "serde_json",
- "thiserror",
- "time",
- "zeroize",
-]
-
-[[package]]
 name = "identity-trust-openssl"
 version = "0.6.2"
 dependencies = [
@@ -3339,11 +3321,11 @@ dependencies = [
 name = "reallyme-eudi-rp-registration"
 version = "0.6.2"
 dependencies = [
- "identity-trust-jades",
  "openssl",
  "reallyme-codec",
  "reallyme-crypto",
  "reallyme-jose",
+ "reallyme-trust-jades",
  "reallyme-trust-x509",
  "serde",
  "serde_json",
@@ -3484,7 +3466,6 @@ dependencies = [
  "identity-presentation-delivery-web-validator",
  "identity-presentation-vp-sd-jwt",
  "identity-presentation-vp-validator",
- "identity-trust-jades",
  "identity-trust-wasm",
  "reallyme-compression-brotli",
  "reallyme-cose",
@@ -3519,6 +3500,7 @@ dependencies = [
  "reallyme-ssi-proto",
  "reallyme-ssi-proto-codec",
  "reallyme-trust-core",
+ "reallyme-trust-jades",
  "reallyme-trust-x509",
  "reallyme-vp-api",
  "reallyme-vp-core",
@@ -3593,6 +3575,24 @@ dependencies = [
  "reallyme-trust-x509",
  "thiserror",
  "time",
+]
+
+[[package]]
+name = "reallyme-trust-jades"
+version = "0.6.2"
+dependencies = [
+ "openssl",
+ "reallyme-codec",
+ "reallyme-crypto",
+ "reallyme-revocation",
+ "reallyme-ssi-proto",
+ "reallyme-trust-core",
+ "reallyme-trust-x509",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "time",
+ "zeroize",
 ]
 
 [[package]]

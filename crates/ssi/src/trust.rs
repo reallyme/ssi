@@ -9,7 +9,7 @@ pub use identity_credential_trust_api as api;
 pub use reallyme_trust_core as core;
 
 /// ETSI TS 119 182-1 JAdES Baseline validation.
-pub use identity_trust_jades as jades;
+pub use reallyme_trust_jades as jades;
 
 /// Buffa protobuf transport for trust decisions.
 pub use reallyme_ssi_proto as proto;

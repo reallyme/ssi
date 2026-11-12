@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// Stable reason returned by a compact-JWS cryptographic backend.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum CompactJwsVerificationErrorReason {
     /// Compact input or its authenticated encoding is invalid.
     InvalidInput,
@@ -41,6 +42,7 @@ impl CompactJwsVerificationError {
 
 /// Stable JAdES validation failure reason.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum JadesErrorReason {
     /// Compact JWS structure or size is invalid.
     InvalidCompactSerialization,

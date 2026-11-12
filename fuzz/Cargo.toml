@@ -21,7 +21,7 @@ members = ["."]
 
 [dependencies]
 identity-trust-tsl-xmlsec = { version = "0.6.2", path = "../crates/trust/tsl-xmlsec", default-features = false }
-identity-trust-jades = { version = "0.6.2", path = "../crates/trust/jades", default-features = false, features = ["native"] }
+reallyme-trust-jades = { version = "0.6.2", path = "../crates/trust/jades", default-features = false, features = ["native"] }
 reallyme-codec = { version = "0.3.2", default-features = false, features = ["base64url", "multikey"] }
 reallyme-crypto = { version = "0.3.17", default-features = false, features = ["native", "jwk"] }
 reallyme-cose = { version = "0.2.9", default-features = false, features = ["native"] }

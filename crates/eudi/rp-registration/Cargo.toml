@@ -10,25 +10,36 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-publish = false
+publish = true
+readme = "README.md"
+keywords = ["identity", "ssi", "eidas"]
+categories = ["authentication", "data-structures"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
 
 [features]
 default = []
 native = [
-    "identity-trust-jades/native",
+    "reallyme-trust-jades/native",
     "reallyme-crypto/native",
     "reallyme-jose/native",
     "reallyme-trust-x509/native",
 ]
 wasm = [
-    "identity-trust-jades/wasm",
+    "reallyme-trust-jades/wasm",
     "reallyme-crypto/wasm",
     "reallyme-jose/wasm",
     "reallyme-trust-x509/wasm",
 ]
 
 [dependencies]
-identity-trust-jades = { path = "../../trust/jades", version = "0.6.2", optional = true }
+reallyme-trust-jades = { path = "../../trust/jades", version = "0.6.2", optional = true }
 reallyme-codec = { workspace = true, features = ["base64", "base64url", "jcs"] }
 reallyme-crypto = { workspace = true, features = ["ed25519", "sha2"] }
 reallyme-jose = { workspace = true, optional = true }
