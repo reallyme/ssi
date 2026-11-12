@@ -6,7 +6,9 @@ use serde::Serialize;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::json::canonical_json;
-use crate::{ArtifactDigest, BoundedText, RegistrationError, RegistrationErrorReason};
+#[cfg(any(feature = "native", feature = "wasm"))]
+use crate::RegistrationErrorReason;
+use crate::{ArtifactDigest, BoundedText, RegistrationError};
 
 mod authenticate;
 mod parse;
