@@ -1156,23 +1156,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "identity-trust-jades"
-version = "0.6.2"
-dependencies = [
- "reallyme-codec",
- "reallyme-crypto",
- "reallyme-revocation",
- "reallyme-ssi-proto",
- "reallyme-trust-core",
- "reallyme-trust-x509",
- "serde",
- "serde_json",
- "thiserror",
- "time",
- "zeroize",
-]
-
-[[package]]
 name = "identity-trust-tsl-core"
 version = "0.6.2"
 dependencies = [
@@ -2616,7 +2599,6 @@ dependencies = [
 name = "reallyme-ssi-fuzz"
 version = "0.6.2"
 dependencies = [
- "identity-trust-jades",
  "identity-trust-tsl-core",
  "identity-trust-tsl-xmlsec",
  "libfuzzer-sys",
@@ -2627,6 +2609,7 @@ dependencies = [
  "reallyme-crypto",
  "reallyme-mdoc",
  "reallyme-sd-jwt",
+ "reallyme-trust-jades",
  "reallyme-trust-x509",
  "serde_json",
  "time",
@@ -2652,6 +2635,23 @@ dependencies = [
  "reallyme-trust-x509",
  "thiserror",
  "time",
+]
+
+[[package]]
+name = "reallyme-trust-jades"
+version = "0.6.2"
+dependencies = [
+ "reallyme-codec",
+ "reallyme-crypto",
+ "reallyme-revocation",
+ "reallyme-ssi-proto",
+ "reallyme-trust-core",
+ "reallyme-trust-x509",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "time",
+ "zeroize",
 ]
 
 [[package]]

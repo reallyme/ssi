@@ -230,7 +230,7 @@ jobs:
             echo
             echo "- Version: \`${RELEASE_VERSION}\`"
             echo "- Commit: \`${RELEASE_SHA}\`"
-            echo "- Publish set: 33 approved SSI crates in verified dependency order"
+            echo "- Publish set: 35 approved SSI crates in verified dependency order"
             echo "- Conformance evidence: \`reallyme-ssi-conformance-${RELEASE_VERSION}-${RELEASE_SHA}\`"
             echo "- Attestation run ID: \`${GITHUB_RUN_ID}\`"
           } >> "$GITHUB_STEP_SUMMARY"

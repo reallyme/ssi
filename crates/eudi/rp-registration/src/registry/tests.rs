@@ -16,8 +16,7 @@ const ED25519_JWK: &[u8] = br#"{
     "use":"sig",
     "kid":"mismatch-key"
 }"#;
-const RSA_CERTIFICATE_B64: &str =
-    include_str!("../../../../trust/x509/tests/fixtures/qwac_server_auth_cert.der.b64");
+const RSA_CERTIFICATE_B64: &str = include_str!("../../tests/vectors/qwac_server_auth_cert.der.b64");
 const ED25519_PUBLIC_X: &str = "oTAW9-L-_6jfPknLn8QI6XEEJeGQdTuPK-yyaVql44E";
 const ED25519_PRIVATE_D: &str = "YDJ4Zc0ZAUD8NV1fXcV8kQPDdLZ2lQEfOX98qsTLyAY";
 const ED25519_CERTIFICATE_B64: &str = "MIIBTDCB/6ADAgECAhR8ihYYs45gphDNqlBWi1e/4u8ePTAFBgMrZXAwHDEaMBgGA1UEAwwRcmVnaXN0cmFyLmV4YW1wbGUwHhcNMjYwOTE3MDIyNjA5WhcNMzYwOTE0MDIyNjA5WjAcMRowGAYDVQQDDBFyZWdpc3RyYXIuZXhhbXBsZTAqMAUGAytlcAMhAKEwFvfi/v+o3z5Jy5/ECOlxBCXhkHU7jyvssmlapeOBo1MwUTAdBgNVHQ4EFgQUI84oCnu825+r7YxjQ16htWGRJ9QwHwYDVR0jBBgwFoAUI84oCnu825+r7YxjQ16htWGRJ9QwDwYDVR0TAQH/BAUwAwEB/zAFBgMrZXADQQACG8TaM4FszNVtp3cqZHH9TsmLKSe7UVokJkctTnt+OM5YRATKw4OYyh42O8G/yglt4JH83Kekr0ua64YmWAIF";

@@ -33,6 +33,7 @@ const ETSI_TS_119_475_WRPRC_POLICY_OID: &str = "0.4.0.19475.3.1";
 
 /// Closed certificate-policy identity admitted for an ETSI WRPRC.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum RegistrationCertificatePolicy {
     /// ETSI TS 119 475 clause 6.1.3 `wrprc` policy identifier.
     EtsiTs119475Wrprc,
@@ -50,6 +51,7 @@ impl RegistrationCertificatePolicy {
 
 /// ETSI TS 119 475 representation authenticated by a cryptographic backend.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum RegistrationCertificateFormat {
     /// Compact JWT authenticated under the JAdES profile.
     JadesJwt,
@@ -59,6 +61,7 @@ pub enum RegistrationCertificateFormat {
 
 /// Credential format that a signed WRPRC authorizes the relying party to request.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum RegisteredCredentialFormat {
     /// IETF SD-JWT VC using the `dc+sd-jwt` format identifier.
     DcSdJwt,

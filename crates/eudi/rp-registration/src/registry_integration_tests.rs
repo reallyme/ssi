@@ -17,7 +17,7 @@ use crate::{
 
 const WRP: &str = include_str!("../tests/vectors/valid-ts5-wrp.json");
 const ALTERNATE_CERTIFICATE_B64: &str =
-    include_str!("../../../trust/x509/tests/fixtures/qwac_server_auth_cert.der.b64");
+    include_str!("../tests/vectors/qwac_server_auth_cert.der.b64");
 const P256_PUBLIC_X: &str = "zovuXfZo2sBrLwEy_9yuyzmsnqAmSz9e7kMWaPUtlPU";
 const P256_PUBLIC_Y: &str = "y_n6M-ozBp7M4eq5rAx52ghP-a8dgbtXMkQCNRGgvHE";
 const P256_LEAF_CERTIFICATE_B64: &str = "MIIB6jCCAZGgAwIBAgIUcE7RmpSme/eHZaGfCzWjNjtsiHYwCgYIKoZIzj0EAwIwQzELMAkGA1UEBhMCQ0gxFjAUBgNVBAoMDVJlYWxseU1lIFRlc3QxHDAaBgNVBAMME1JlZ2lzdHJhciBUZXN0IFJvb3QwHhcNMjYwOTE3MDMwMzAzWhcNMzYwOTE0MDMwMzAzWjBGMQswCQYDVQQGEwJDSDEWMBQGA1UECgwNUmVhbGx5TWUgVGVzdDEfMB0GA1UEAwwWUmVnaXN0cmFyIFNpZ25pbmcgTGVhZjBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABM6L7l32aNrAay8BMv/crss5rJ6gJks/Xu5DFmj1LZT1y/n6M+ozBp7M4eq5rAx52ghP+a8dgbtXMkQCNRGgvHGjYDBeMAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMB0GA1UdDgQWBBQQ5eNWwS359uWZOUcjTI/BCZXTETAfBgNVHSMEGDAWgBS7GhUOGTtG3XD7Dp/zpjQWZO9nSTAKBggqhkjOPQQDAgNHADBEAiBjp76nIMdHH4LUSJYoi9yO0eglrwAqE4TgPpCMhsV9jwIgfASVYeMgtDM4sTYyPZpiOfKI6umX7hVL9mMdV91Kpzs=";

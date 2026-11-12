@@ -22,6 +22,8 @@ const identityPackages = [
   "reallyme-keys",
   "reallyme-did-api",
   "reallyme-vp-api",
+  "reallyme-trust-jades",
+  "reallyme-eudi-rp-registration",
 ];
 const metadata = JSON.parse(execFileSync(
   "cargo", ["metadata", "--locked", "--no-deps", "--format-version", "1"],
@@ -30,8 +32,8 @@ const metadata = JSON.parse(execFileSync(
 const byName = new Map(metadata.packages.map((pkg) => [pkg.name, pkg]));
 const publicPackages = metadata.packages.filter((pkg) => pkg.publish === null);
 
-test("the thirteen Identity dependencies join the public release without a version split", () => {
-  assert.equal(publicPackages.length, 33);
+test("the fifteen Identity dependencies join the public release without a version split", () => {
+  assert.equal(publicPackages.length, 35);
   for (const pkg of publicPackages) {
     assert.ok(pkg.name.startsWith("reallyme-"), pkg.name);
     assert.equal(pkg.version, "0.6.2", pkg.name);
@@ -46,7 +48,7 @@ test("the thirteen Identity dependencies join the public release without a versi
     assert.equal(pkg.publish, null, name);
     assert.equal(pkg.version, version, name);
   }
-  for (const name of ["identity-trust-jades", "reallyme-eudi-rp-registration", "reallyme-ssi"]) {
+  for (const name of ["reallyme-ssi"]) {
     assert.deepEqual(byName.get(name).publish, [], name);
   }
 });
@@ -76,22 +78,26 @@ test("release archive verification requires the complete approved public set", (
   assert.match(workflow, /for \(const crate of ledger\.crates\)/u);
 });
 
-test("manual publication instructions cover the full current release in dependency order", () => {
+test("manual 0.6.2 additions publish only JAdES and then RP-registration", () => {
   const instructions = readFileSync(new URL("docs/CRATES_RELEASE.md", root), "utf8");
-  const loop = /for package in \\\n([\s\S]+?)\n  do/u.exec(instructions);
-  assert.ok(loop);
-  const packages = loop[1].split("\n").map((line) => line.replace(/\\$/u, "").trim());
-  assert.deepEqual([...packages].sort(), publicPackages.map((pkg) => pkg.name).sort());
-  const positions = new Map(packages.map((name, index) => [name, index]));
+  const packages = [...instructions.matchAll(
+    /^  cargo publish --locked --registry crates-io -p ([a-z0-9-]+)$/gmu,
+  )].map((match) => match[1]);
+  assert.deepEqual(packages, ["reallyme-trust-jades", "reallyme-eudi-rp-registration"]);
+  assert.match(instructions, /Do not rerun the complete 0\.6\.2 release workflow/u);
+});
+
+test("the existing public components do not gain a dependency on the additions", () => {
+  const additions = new Set(["reallyme-trust-jades", "reallyme-eudi-rp-registration"]);
   for (const pkg of publicPackages) {
-    for (const dependency of pkg.dependencies) {
-      if (dependency.path == null || !positions.has(dependency.name)) continue;
-      assert.ok(positions.get(dependency.name) < positions.get(pkg.name),
-        `${dependency.name} before ${pkg.name}`);
-    }
+    if (additions.has(pkg.name)) continue;
+    assert.ok(pkg.dependencies.every((dependency) => !additions.has(dependency.name)), pkg.name);
   }
-  assert.match(instructions, /RELEASE_VERSION=0\.6\.2/u);
-  assert.match(instructions, /cargo publish --locked --registry crates-io -p "\$package"/u);
+  const rp = byName.get("reallyme-eudi-rp-registration");
+  assert.ok(rp.dependencies.some((dependency) => dependency.name === "reallyme-trust-jades"));
+  for (const lane of ["native", "wasm"]) {
+    assert.ok(rp.features[lane].includes(`reallyme-trust-jades/${lane}`));
+  }
 });
 
 test("preflight uploads archives only for its certified release version", () => {

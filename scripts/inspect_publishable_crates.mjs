@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const approvedPublicPackages = new Set([
+  "reallyme-trust-jades",
+  "reallyme-eudi-rp-registration",
   "reallyme-data-integrity",
   "reallyme-vp-policy",
   "reallyme-did-api",

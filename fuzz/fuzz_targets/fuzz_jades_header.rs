@@ -4,7 +4,7 @@
 
 #![no_main]
 
-use identity_trust_jades::{
+use reallyme_trust_jades::{
     authenticate_compact_jades, AuthenticatedCompactJws, CompactJwsVerificationError,
     CompactJwsVerificationErrorReason, CompactJwsVerifier, JadesAuthenticationInput, JadesPolicy,
     JadesSignatureAlgorithm, JadesVerificationKey,

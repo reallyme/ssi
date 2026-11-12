@@ -14,6 +14,10 @@ const MAX_PUBLISH_ATTEMPTS = 12;
 const CRATES_IO_DEFAULT_RATE_LIMIT_RETRY_MS = 60000;
 const CRATES_IO_INDEX_RETRY_BASE_MS = 15000;
 const REQUIRED_PUBLISH_ORDER_EDGES = [
+  ["reallyme-trust-core", "reallyme-trust-jades"],
+  ["reallyme-trust-x509", "reallyme-trust-jades"],
+  ["reallyme-revocation", "reallyme-trust-jades"],
+  ["reallyme-trust-jades", "reallyme-eudi-rp-registration"],
   ["reallyme-did-types", "reallyme-data-integrity"],
   ["reallyme-data-integrity", "reallyme-did-core"],
   ["reallyme-did-core", "reallyme-did-method-me"],

@@ -28,7 +28,7 @@ native = [
     "identity-credential-vc-api/ietf-sd-jwt",
     "reallyme-credential-status/native",
     "identity-credential-trust-api/native",
-    "identity-trust-jades/native",
+    "reallyme-trust-jades/native",
     "reallyme-etsi-eaa-conformance/native",
     "reallyme-eudi-rp-registration/native",
     "identity-presentation-delivery-siop-api/native",
@@ -68,7 +68,7 @@ wasm = [
     "identity-credential-vc-api/ietf-sd-jwt",
     "reallyme-credential-status/wasm",
     "identity-credential-trust-api/wasm",
-    "identity-trust-jades/wasm",
+    "reallyme-trust-jades/wasm",
     "reallyme-etsi-eaa-conformance/wasm",
     "reallyme-eudi-rp-registration/wasm",
     "identity-presentation-delivery-siop-api/wasm",
@@ -115,7 +115,7 @@ reallyme-vp-policy = { path = "../presentation/policy", version = "0.6.2" }
 identity-presentation-vp-sd-jwt = { path = "../presentation/sd-jwt", version = "0.6.2", default-features = false }
 identity-presentation-vp-validator = { path = "../presentation/validator", version = "0.6.2", default-features = false }
 reallyme-trust-core = { path = "../trust/core", version = "0.6.2", default-features = false }
-identity-trust-jades = { path = "../trust/jades", version = "0.6.2", default-features = false }
+reallyme-trust-jades = { path = "../trust/jades", version = "0.6.2", default-features = false }
 reallyme-etsi-eaa-conformance = { path = "../eudi/etsi-eaa-conformance", version = "0.6.2", default-features = false }
 reallyme-eudi-rp-registration = { path = "../eudi/rp-registration", version = "0.6.2", default-features = false }
 identity-trust-wasm = { path = "../trust/wasm", version = "0.6.2", default-features = false }

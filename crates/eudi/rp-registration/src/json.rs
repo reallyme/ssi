@@ -24,6 +24,7 @@ thread_local! {
 
 #[derive(Deserialize, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub(crate) enum StrictValue {
     Null,
     Bool(bool),

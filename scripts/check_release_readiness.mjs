@@ -401,6 +401,8 @@ const requiredPackageIncludeEntries = [
 ];
 
 const publicPackageManifests = [
+  "crates/trust/jades/Cargo.toml",
+  "crates/eudi/rp-registration/Cargo.toml",
   "crates/did/core/api/Cargo.toml",
   "crates/did/core/engine/Cargo.toml",
   "crates/did/methods/cheqd/Cargo.toml",
@@ -461,6 +463,8 @@ const forbiddenRetiredManifests = [
 ];
 
 const approvedPublicPackages = new Set([
+  "reallyme-trust-jades",
+  "reallyme-eudi-rp-registration",
   "reallyme-data-integrity",
   "reallyme-vp-policy",
   "reallyme-did-api",
@@ -1479,7 +1483,7 @@ assertNotContains(
 );
 assertContains(releaseWorkflow, "reallyme-ssi-crate-archives-${{");
 assertContains(releaseWorkflow, "REVIEWED_CRATE_ARCHIVES_DIRECTORY: reviewed-crates");
-assertContains(releaseWorkflow, 'test "$archive_count" -eq 33');
+assertContains(releaseWorkflow, 'test "$archive_count" -eq 35');
 assertContains(
   releaseWorkflow,
   "node scripts/publish_crates_in_order.mjs publish",

@@ -122,7 +122,7 @@ reallyme-did-method-ebsi = { path = "crates/did/methods/ebsi", version = "0.6.2"
 reallyme-did-types = { path = "crates/did/core/types", version = "0.6.2" }
 identity-credential-status-core = { package = "reallyme-credential-status", path = "crates/status", version = "0.6.2", default-features = false }
 identity-revocation-core = { package = "reallyme-revocation", path = "crates/revocation", version = "0.6.2", default-features = false }
-identity-trust-jades = { path = "crates/trust/jades", version = "0.6.2", default-features = false }
+reallyme-trust-jades = { path = "crates/trust/jades", version = "0.6.2", default-features = false }
 reallyme-eudi-rp-registration = { path = "crates/eudi/rp-registration", version = "0.6.2", default-features = false }
 identity-presentation-vp-core = { package = "reallyme-vp-core", path = "crates/presentation/core", version = "0.6.2", default-features = false }
 envelopes-x509 = { package = "reallyme-trust-x509", path = "crates/trust/x509", version = "0.6.2" }

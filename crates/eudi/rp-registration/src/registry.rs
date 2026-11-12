@@ -269,6 +269,7 @@ trait RegistryJwsVerifier {
 
 /// Authenticated current-envelope metadata or explicit legacy absence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Zeroize)]
+#[non_exhaustive]
 pub enum RegistryMetadata {
     /// Mandatory metadata from a current TS5 envelope.
     Current {
