@@ -8,6 +8,7 @@ use reallyme_did_types::VerificationMethod;
 
 /// DID profile identifiers for built-in did:me document templates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidProfile {
     /// Full identity profile with classical, post-quantum, and key-agreement methods.
     CoreIdentity,

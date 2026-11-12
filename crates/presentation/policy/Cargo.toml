@@ -5,9 +5,23 @@
 [package]
 name = "identity-presentation-vp-policy"
 version = "0.6.1"
-edition = "2021"
-publish = false
-license = "MIT OR Apache-2.0"
+description = "Protocol-neutral verifiable presentation policy evaluation."
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = true
+readme = "README.md"
+keywords = ["identity", "ssi", "credentials"]
+categories = ["authentication", "data-structures"]
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+license.workspace = true
 
 [dependencies]
 # Errors

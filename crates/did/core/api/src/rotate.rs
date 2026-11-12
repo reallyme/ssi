@@ -16,6 +16,7 @@ use reallyme_did_core::keys::{
 
 /// DID relationship used to select a group of keys for rotation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RekeyRelationship {
     /// Rotate keys listed in `authentication`.
     Authentication,

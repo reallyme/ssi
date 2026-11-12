@@ -9,6 +9,7 @@ pub const ES256_JWS_CID_2025_CRYPTOSUITE: &str = "es256-jws-cid-2025";
 
 /// Compile-time status for the staged cryptosuite.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum Es256JwsCid2025Status {
     /// Typed DID document integration is compiled into this crate.
     Active,

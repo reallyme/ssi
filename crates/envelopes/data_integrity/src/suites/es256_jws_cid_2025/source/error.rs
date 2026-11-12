@@ -8,6 +8,7 @@ use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityC
 
 /// Verification and signing failures for the `es256-jws-cid-2025` cryptosuite.
 #[derive(Debug, Clone, Copy, Error, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Es256JwsCid2025Error {
     /// The DID document or signing inputs are structurally unusable.
     #[error("invalid input")]

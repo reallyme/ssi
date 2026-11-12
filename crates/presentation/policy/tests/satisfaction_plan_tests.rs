@@ -46,7 +46,7 @@ fn planner_returns_semantic_inputs_without_selecting_a_circuit() {
             assert_eq!(derivation.inputs[1].claim_path, "/claims/family_name");
             assert_eq!(derivation.inputs[1].mode, DisclosureMode::Reveal);
         }
-        SatisfactionPlan::Disclose(_) => panic!("expected derivation plan"),
+        _ => panic!("expected derivation plan"),
     }
 }
 
@@ -63,7 +63,7 @@ fn planner_discloses_when_only_reveal_claims_are_required() {
             assert_eq!(claims.len(), 1);
             assert_eq!(claims[0].mode, DisclosureMode::Reveal);
         }
-        SatisfactionPlan::Derive(_) => panic!("expected disclosure plan"),
+        _ => panic!("expected disclosure plan"),
     }
 }
 
@@ -88,7 +88,7 @@ fn planner_preserves_proof_system_neutral_predicates() {
                 PredicateOperand::Set(vec![b"18".to_vec(), b"21".to_vec()])
             );
         }
-        SatisfactionPlan::Disclose(_) => panic!("expected derivation plan"),
+        _ => panic!("expected derivation plan"),
     }
 }
 

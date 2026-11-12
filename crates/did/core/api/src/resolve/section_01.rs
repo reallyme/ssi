@@ -113,6 +113,7 @@ pub struct DidResolutionFreshness {
 
 /// Resolution assurance achieved by the provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidResolutionAssurance {
     /// The provider verified controller attestations.
     AttestationVerified,
@@ -122,6 +123,7 @@ pub enum DidResolutionAssurance {
 
 /// DID deactivation state returned by resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidDeactivationStatus {
     /// The DID is active.
     Active,
@@ -297,6 +299,7 @@ impl ZeroizeOnDrop for SensitiveDidResolutionResult {}
 
 /// Provider capabilities used by typed dispatch policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidProviderCapability {
     /// Create a DID through provider-owned key, storage, and publication policy.
     Create,

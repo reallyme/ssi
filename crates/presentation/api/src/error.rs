@@ -10,6 +10,7 @@ use thiserror::Error;
 /// Stable reasons for presentation command validation failures.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Error, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PresentationCommandReason {
     /// Required request, record, or context field is absent.
     #[error("missing presentation field")]
@@ -38,6 +39,7 @@ pub enum PresentationCommandReason {
 /// can display or protocol-map every failure. The strict helper uses this error
 /// for consumers that need a `Result<(), _>` shape.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum VpApiError {
     /// The presentation failed one or more policy requirements.
     #[error("presentation rejected by policy")]

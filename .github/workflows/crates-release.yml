@@ -114,7 +114,7 @@ jobs:
               --deny-self-hosted-runners
             archive_count=$((archive_count + 1))
           done
-          test "$archive_count" -eq 20
+          test "$archive_count" -eq 33
           node scripts/verify_release_attestation.mjs
 
       - name: Download reviewed conformance evidence before publication
@@ -187,6 +187,12 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ needs.verify-preflight.outputs.preflight_run_id }}
 
+      - name: Verify approved public package set and publication order
+        working-directory: reallyme/ssi
+        run: |
+          node scripts/inspect_publishable_crates.mjs
+          node scripts/publish_crates_in_order.mjs order
+
       - name: Publish crates in reviewed dependency order
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -205,29 +211,19 @@ jobs:
           retention-days: 90
 
       - name: Summarize crates.io publication
+        env:
+          PUBLICATION_LEDGER_PATH: ${{ runner.temp }}/crates-publication-ledger.json
         run: |
           {
             echo '## crates.io publication completed'
             echo
-            echo "- [reallyme-compression-brotli ${RELEASE_VERSION}](https://crates.io/crates/reallyme-compression-brotli/${RELEASE_VERSION})"
-            echo "- [reallyme-ssi-proto ${RELEASE_VERSION}](https://crates.io/crates/reallyme-ssi-proto/${RELEASE_VERSION})"
-            echo "- [reallyme-ssi-core ${RELEASE_VERSION}](https://crates.io/crates/reallyme-ssi-core/${RELEASE_VERSION})"
-            echo "- [reallyme-did-types ${RELEASE_VERSION}](https://crates.io/crates/reallyme-did-types/${RELEASE_VERSION})"
-            echo "- [reallyme-vp-core ${RELEASE_VERSION}](https://crates.io/crates/reallyme-vp-core/${RELEASE_VERSION})"
-            echo "- [reallyme-trust-x509 ${RELEASE_VERSION}](https://crates.io/crates/reallyme-trust-x509/${RELEASE_VERSION})"
-            echo "- [reallyme-credential-status ${RELEASE_VERSION}](https://crates.io/crates/reallyme-credential-status/${RELEASE_VERSION})"
-            echo "- [reallyme-credential-audit ${RELEASE_VERSION}](https://crates.io/crates/reallyme-credential-audit/${RELEASE_VERSION})"
-            echo "- [reallyme-credential-claims ${RELEASE_VERSION}](https://crates.io/crates/reallyme-credential-claims/${RELEASE_VERSION})"
-            echo "- [reallyme-revocation ${RELEASE_VERSION}](https://crates.io/crates/reallyme-revocation/${RELEASE_VERSION})"
-            echo "- [reallyme-trust-core ${RELEASE_VERSION}](https://crates.io/crates/reallyme-trust-core/${RELEASE_VERSION})"
-            echo "- [reallyme-trust ${RELEASE_VERSION}](https://crates.io/crates/reallyme-trust/${RELEASE_VERSION})"
-            echo "- [reallyme-openid-oauth ${RELEASE_VERSION}](https://crates.io/crates/reallyme-openid-oauth/${RELEASE_VERSION})"
-            echo "- [reallyme-openid4vc-profiles ${RELEASE_VERSION}](https://crates.io/crates/reallyme-openid4vc-profiles/${RELEASE_VERSION})"
-            echo "- [reallyme-disclosure-policy ${RELEASE_VERSION}](https://crates.io/crates/reallyme-disclosure-policy/${RELEASE_VERSION})"
-            echo "- [reallyme-credential ${RELEASE_VERSION}](https://crates.io/crates/reallyme-credential/${RELEASE_VERSION})"
-            echo "- [reallyme-mdoc ${RELEASE_VERSION}](https://crates.io/crates/reallyme-mdoc/${RELEASE_VERSION})"
-            echo "- [reallyme-sd-jwt ${RELEASE_VERSION}](https://crates.io/crates/reallyme-sd-jwt/${RELEASE_VERSION})"
-            echo "- [reallyme-ssi-proto-codec ${RELEASE_VERSION}](https://crates.io/crates/reallyme-ssi-proto-codec/${RELEASE_VERSION})"
+            node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const ledger = JSON.parse(readFileSync(process.env.PUBLICATION_LEDGER_PATH, 'utf8'));
+          for (const crate of ledger.crates) {
+            console.log(`- [${crate.name} ${crate.version}](https://crates.io/crates/${crate.name}/${crate.version})`);
+          }
+          JS
           } >> "$GITHUB_STEP_SUMMARY"
 
   finalize:

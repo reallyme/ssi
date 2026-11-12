@@ -12,6 +12,7 @@ use identity_credential_claims_core::DisclosureMode;
 ///
 /// Policy only decides whether derivation is possible. It never invokes a prover.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SatisfactionPlan {
     /// The wallet must disclose the listed claims.
     Disclose(Vec<RequiredClaim>),

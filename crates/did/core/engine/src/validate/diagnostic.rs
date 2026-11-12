@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Severity assigned to a DID validation issue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum DidValidationSeverity {
     /// The DID document is not valid unless this issue is resolved.
     Error,
@@ -18,6 +19,7 @@ pub enum DidValidationSeverity {
 /// Stable machine-readable category for a DID validation issue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum DidValidationCode {
     /// Required DID document contexts are missing, reordered, or duplicated.
     ContextInvalid,
@@ -80,6 +82,7 @@ pub enum DidValidationCode {
 /// Stable location category for a DID validation issue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum DidValidationLocation {
     /// The top-level DID document.
     Document,

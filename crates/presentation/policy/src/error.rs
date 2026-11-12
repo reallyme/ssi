@@ -10,6 +10,7 @@ use thiserror::Error;
 /// Variants intentionally carry no claim paths or raw values so the error surface
 /// remains deterministic and safe for SDKs, logs, and FFI mappings.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum VpPolicyError {
     /// Holder binding, audience binding, or equivalent freshness binding failed.
     #[error("presentation binding invalid")]
@@ -90,6 +91,7 @@ pub enum VpPolicyError {
 
 /// Policy evaluation outcome.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PolicyDecision {
     /// Presentation satisfies the verifier policy.
     Accept,

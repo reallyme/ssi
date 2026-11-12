@@ -6,6 +6,7 @@ use thiserror::Error;
 
 /// Non-secret reason codes for invalid canonical DID core state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum CanonicalStateViolation {
     /// The DID sequence number cannot be represented in canonical CBOR.
     #[error("sequence exceeds CBOR integer range")]

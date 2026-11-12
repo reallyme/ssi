@@ -21,6 +21,7 @@ const RELATIONSHIPS: [&str; 5] = [
 
 /// Kind of local resource selected from a validated did:web document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidWebDereferenceKind {
     /// The complete DID document.
     Document,

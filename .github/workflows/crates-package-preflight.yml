@@ -122,6 +122,12 @@ jobs:
         working-directory: reallyme/ssi
         run: node scripts/inspect_publishable_crates.mjs
 
+      - name: Verify publication dependency order
+        env:
+          RELEASE_VERSION: ${{ needs.verify-source-sha.outputs.release_version }}
+        working-directory: reallyme/ssi
+        run: node scripts/publish_crates_in_order.mjs order
+
       - name: Run pinned release-readiness gates
         env:
           RELEASE_VERSION: ${{ needs.verify-source-sha.outputs.release_version }}
@@ -224,7 +230,7 @@ jobs:
             echo
             echo "- Version: \`${RELEASE_VERSION}\`"
             echo "- Commit: \`${RELEASE_SHA}\`"
-            echo "- Publish set: approved SSI crates in verified dependency order"
+            echo "- Publish set: 33 approved SSI crates in verified dependency order"
             echo "- Conformance evidence: \`reallyme-ssi-conformance-${RELEASE_VERSION}-${RELEASE_SHA}\`"
             echo "- Attestation run ID: \`${GITHUB_RUN_ID}\`"
           } >> "$GITHUB_STEP_SUMMARY"

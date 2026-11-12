@@ -230,6 +230,8 @@ Contributor-facing crate boundaries are documented in
 evidence are documented in the executable
 [conformance inventory](conformance/README.md). Cargo metadata and release
 preflight are the authoritative package inventory.
+Publication workflows and the ordered initial component uploads are documented
+in [Publishing SSI components](docs/CRATES_RELEASE.md).
 
 ## Security
 
@@ -251,6 +253,8 @@ SSI is in active pre-1.0 development. Workspace crates advance in lockstep, but
 only component crates whose manifests opt into publication are released to
 crates.io; the `reallyme-ssi` facade remains a source-workspace composition
 crate. Public Rust API changes follow Cargo's pre-1.0 compatibility rules.
+Public enums are non-exhaustive; consumers must reject variants they do not
+understand rather than assume a newly introduced outcome is supported.
 Protobuf schemas additionally pass freshness and wire-compatibility gates
 because they form cross-language integration contracts. Public crates declare
 Rust 1.99 as their minimum supported Rust version.

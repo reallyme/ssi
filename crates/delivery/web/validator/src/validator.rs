@@ -120,10 +120,12 @@ pub fn validate_web_presentation<'a>(
         verified.envelope,
     )?;
 
-    Ok(match decision {
-        PolicyDecision::Accept => WebValidationResult::Accepted,
-        PolicyDecision::Reject(errs) => WebValidationResult::Rejected(errs),
-    })
+    match decision {
+        PolicyDecision::Accept => Ok(WebValidationResult::Accepted),
+        PolicyDecision::Reject(errs) => Ok(WebValidationResult::Rejected(errs)),
+        // Future policy outcomes need an explicit delivery-layer interpretation.
+        _ => Err(VpValidationError::UnsupportedPolicyDecision),
+    }
 }
 
 /// Facts established by cryptographic verification of the presentation.

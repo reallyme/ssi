@@ -21,6 +21,7 @@ const MAX_REGISTRY_METADATA_BYTES: usize = 1024;
 
 /// Closed write operations supported by the legal-entity registry profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidEbsiRegistryOperation {
     /// Insert the initial legal-entity document.
     RegisterDocument,

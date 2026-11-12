@@ -11,6 +11,7 @@ const TEST_NETWORK: &str = "test";
 
 /// ION network segment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IonNetwork {
     /// Mainnet / production network, represented by omitting a network segment.
     Mainnet,

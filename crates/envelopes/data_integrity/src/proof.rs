@@ -8,6 +8,7 @@ use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityC
 
 /// Current Data Integrity proof implementation status.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum DataIntegrityProofStatus {
     /// At least one typed Data Integrity cryptosuite is active.
     Active,
@@ -15,6 +16,7 @@ pub enum DataIntegrityProofStatus {
 
 /// Supported Data Integrity cryptosuites.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum DataIntegrityCryptosuite {
     /// ReallyMe did:me proof over the current core CID.
     Es256JwsCid2025,
@@ -22,6 +24,7 @@ pub enum DataIntegrityCryptosuite {
 
 /// Error for Data Integrity proof operations.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum DataIntegrityProofError {
     /// Signing or verification input is structurally invalid.
     #[error("invalid Data Integrity proof input")]

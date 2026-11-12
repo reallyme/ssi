@@ -37,6 +37,7 @@ pub const MAX_DID_KEY_ROTATION_TIMESTAMP_BYTES: usize = 128;
 
 /// DID method requested at SDK command boundaries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidMethod {
     /// ReallyMe self-proving DID method.
     DidMe,
@@ -113,6 +114,7 @@ pub struct DidValidationRequest {
 
 /// Explicit update for an optional string-valued DID document property.
 #[derive(PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidStringPropertyUpdate {
     /// Replace the property with a non-empty value.
     Set(String),
@@ -130,6 +132,7 @@ impl Zeroize for DidStringPropertyUpdate {
 
 /// Explicit update for an optional boolean-valued DID document property.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidBoolPropertyUpdate {
     /// Replace the property with the supplied boolean value.
     Set(bool),

@@ -11,6 +11,20 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const approvedPublicPackages = new Set([
+  "envelopes-data-integrity",
+  "identity-presentation-vp-policy",
+  "reallyme-did-api",
+  "reallyme-did-core",
+  "reallyme-did-method-cheqd",
+  "reallyme-did-method-ebsi",
+  "reallyme-did-method-ion",
+  "reallyme-did-method-jwk",
+  "reallyme-did-method-key",
+  "reallyme-did-method-me",
+  "reallyme-did-method-web",
+  "reallyme-keys",
+  "reallyme-vp-api",
+
   "reallyme-etsi-eaa-conformance",
   "reallyme-mdoc",
   "reallyme-sd-jwt",

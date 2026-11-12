@@ -68,6 +68,7 @@ impl Drop for FullValidationResult {
 impl ZeroizeOnDrop for FullValidationResult {}
 
 /// Source of the update authority used to verify core attestations.
+#[non_exhaustive]
 pub(crate) enum AttestationAuthority<'a> {
     /// Sequence-one genesis core: the core's own controller keys and update
     /// policy authorize it, and the DID identifier commits to that authority.

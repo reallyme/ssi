@@ -20,12 +20,17 @@ pub fn resolve_did_ebsi_with_provider<P: DidProvider + ?Sized>(
         minimum_version_sequence: request.minimum_version_sequence,
     })?;
     validate_did_ebsi_resolution(&method_request, &result).map_err(map_did_ebsi_error)?;
-    let achieved = result.assurance_achieved.map(|value| match value {
-        DidEbsiResolutionAssurance::AttestationVerified => {
-            DidResolutionAssurance::AttestationVerified
+    let achieved = match result.assurance_achieved {
+        Some(DidEbsiResolutionAssurance::AttestationVerified) => {
+            Some(DidResolutionAssurance::AttestationVerified)
         }
-        DidEbsiResolutionAssurance::ChainVerified => DidResolutionAssurance::ChainVerified,
-    });
+        Some(DidEbsiResolutionAssurance::ChainVerified) => {
+            Some(DidResolutionAssurance::ChainVerified)
+        }
+        None => None,
+        // New method assurance levels require an explicit API policy mapping.
+        Some(_) => return Err(DidApiError::ResolutionResultInvalid),
+    };
     if request.assurance.is_some() && request.assurance != achieved {
         return Err(DidApiError::ResolutionResultInvalid);
     }

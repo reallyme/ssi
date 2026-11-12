@@ -30,6 +30,7 @@ const RELATIONSHIPS: [&str; 5] = [
 ];
 /// Lifecycle state expected from an EBSI registry document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidEbsiDocumentState {
     /// An active legal-entity document with usable registry invocation authority.
     Active,
