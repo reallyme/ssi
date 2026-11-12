@@ -216,7 +216,7 @@
     {
       "source": "CONTRACT/did:me/data-integrity",
       "path": "crates/did/core/engine/tests and crates/envelopes/data_integrity/tests",
-      "local_equivalent": "cargo test -p reallyme-did-core-engine -p envelopes-data-integrity",
+      "local_equivalent": "cargo test -p reallyme-did-core -p reallyme-data-integrity",
       "notes": "did:me core/projection validation and es256-jws-cid-2025 Data Integrity suite vectors."
     },
     {

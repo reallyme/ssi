@@ -6,15 +6,15 @@
 #![allow(missing_docs)]
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-use envelopes_data_integrity::{
+use reallyme_codec::base64url::bytes_to_base64url;
+use reallyme_crypto::core::Algorithm;
+use reallyme_crypto::dispatch::generate_multikey_keypair;
+use reallyme_data_integrity::{
     data_integrity_proof_status, sign_data_integrity_proof,
     suites::es256_jws_cid_2025::{verify_es256_jws_cid_2025, Es256JwsCid2025Error},
     verify_data_integrity_proof, DataIntegrityCryptosuite, DataIntegrityProofError,
     DataIntegrityProofStatus, DataIntegritySignInput, DataIntegrityVerifyInput,
 };
-use reallyme_codec::base64url::bytes_to_base64url;
-use reallyme_crypto::core::Algorithm;
-use reallyme_crypto::dispatch::generate_multikey_keypair;
 use reallyme_did_types::{Controller, DIDDocument, VerificationMethod};
 
 const CURRENT_CORE: &str = "bafyreib6examplecurrentcorecid";

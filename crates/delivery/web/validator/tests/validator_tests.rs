@@ -25,14 +25,14 @@ use identity_presentation_vp_core::model::{
     SdJwtVcPresentation, StatusPurpose as VpStatusPurpose, ZkCredentialPresentation,
     ZkPresentation, ZkProof,
 };
-use identity_presentation_vp_policy::StatusContext;
-use identity_presentation_vp_policy::VpPolicyError;
 use identity_presentation_vp_sd_jwt::{
     build_sd_jwt_presentation, build_sd_jwt_presentation_with_kb_binding, ExpectedKbJwtBinding,
     KbJwtBindingInput,
 };
 use identity_presentation_vp_validator::VpValidationError;
 use reallyme_credential_audit::{IdentityProofingLevel, QeaaCompliance};
+use reallyme_vp_policy::StatusContext;
+use reallyme_vp_policy::VpPolicyError;
 
 use crypto_core::Algorithm;
 use crypto_dispatch::generate_keypair;
@@ -474,7 +474,7 @@ fn web_rejects_holder_bound_sd_jwt_without_relying_party_binding() {
     assert!(matches!(
         error,
         VpValidationError::PolicyRejected(errors)
-            if errors.iter().any(|item| matches!(item, identity_presentation_vp_policy::VpPolicyError::ProofInvalid))
+            if errors.iter().any(|item| matches!(item, reallyme_vp_policy::VpPolicyError::ProofInvalid))
     ));
 }
 
@@ -502,7 +502,7 @@ fn web_rejects_holder_binding_for_a_different_audience() {
     assert!(matches!(
         error,
         VpValidationError::PolicyRejected(errors)
-            if errors.iter().any(|item| matches!(item, identity_presentation_vp_policy::VpPolicyError::ProofInvalid))
+            if errors.iter().any(|item| matches!(item, reallyme_vp_policy::VpPolicyError::ProofInvalid))
     ));
 }
 
@@ -543,7 +543,7 @@ fn web_rejects_missing_qeaa() {
     assert!(matches!(
         err,
         VpValidationError::PolicyRejected(errs)
-            if errs.iter().any(|e| matches!(e, identity_presentation_vp_policy::VpPolicyError::QeaaRequired))
+            if errs.iter().any(|e| matches!(e, reallyme_vp_policy::VpPolicyError::QeaaRequired))
     ));
 }
 
@@ -594,7 +594,7 @@ fn web_rejects_dummy_sd_jwt_presentation_crypto_failure() {
     assert!(matches!(
         err,
         VpValidationError::PolicyRejected(errs)
-            if errs.iter().any(|e| matches!(e, identity_presentation_vp_policy::VpPolicyError::ProofInvalid))
+            if errs.iter().any(|e| matches!(e, reallyme_vp_policy::VpPolicyError::ProofInvalid))
     ));
 }
 
@@ -618,7 +618,7 @@ fn web_rejects_dummy_zk_presentation_crypto_failure() {
     assert!(matches!(
         err,
         VpValidationError::PolicyRejected(errs)
-            if errs.iter().any(|e| matches!(e, identity_presentation_vp_policy::VpPolicyError::PresentationFormatNotAllowed))
+            if errs.iter().any(|e| matches!(e, reallyme_vp_policy::VpPolicyError::PresentationFormatNotAllowed))
     ));
 }
 

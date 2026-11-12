@@ -126,3 +126,10 @@ test("rejects a Git dependency in a public crate", () => {
   });
   assert.match(publicReleaseGraphFailures(graph).join("; "), /Git package external-helper/u);
 });
+
+test("rejects any public package outside the ReallyMe namespace", () => {
+  const graph = fixture();
+  graph.packages.push(releasedPeer("unprefixed-component"));
+  assert.match(publicReleaseGraphFailures(graph).join("; "),
+    /unprefixed-component must use the reallyme- package namespace/u);
+});

@@ -27,6 +27,11 @@ export function publicReleaseGraphFailures(metadata) {
   }
 
   const failures = [];
+  for (const pkg of publicPackages) {
+    if (!pkg.name.startsWith("reallyme-")) {
+      failures.push(`${pkg.name} must use the reallyme- package namespace`);
+    }
+  }
   const peerVersion = peer.version;
   const sameRelease = facade.version === peerVersion;
   if (!sameRelease) {

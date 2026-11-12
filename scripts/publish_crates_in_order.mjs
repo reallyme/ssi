@@ -14,8 +14,8 @@ const MAX_PUBLISH_ATTEMPTS = 12;
 const CRATES_IO_DEFAULT_RATE_LIMIT_RETRY_MS = 60000;
 const CRATES_IO_INDEX_RETRY_BASE_MS = 15000;
 const REQUIRED_PUBLISH_ORDER_EDGES = [
-  ["reallyme-did-types", "envelopes-data-integrity"],
-  ["envelopes-data-integrity", "reallyme-did-core"],
+  ["reallyme-did-types", "reallyme-data-integrity"],
+  ["reallyme-data-integrity", "reallyme-did-core"],
   ["reallyme-did-core", "reallyme-did-method-me"],
   ["reallyme-did-core", "reallyme-did-api"],
   ["reallyme-keys", "reallyme-did-api"],
@@ -23,8 +23,8 @@ const REQUIRED_PUBLISH_ORDER_EDGES = [
   ["reallyme-did-method-jwk", "reallyme-did-method-ebsi"],
   ["reallyme-did-method-jwk", "reallyme-did-method-web"],
   ["reallyme-did-method-key", "reallyme-did-method-web"],
-  ["reallyme-credential", "identity-presentation-vp-policy"],
-  ["identity-presentation-vp-policy", "reallyme-vp-api"],
+  ["reallyme-credential", "reallyme-vp-policy"],
+  ["reallyme-vp-policy", "reallyme-vp-api"],
   ["reallyme-disclosure-policy", "reallyme-vp-api"],
   ["reallyme-did-method-cheqd", "reallyme-did-api"],
   ["reallyme-did-method-ebsi", "reallyme-did-api"],

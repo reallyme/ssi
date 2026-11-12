@@ -13,7 +13,7 @@
 //! Tests for VP policy satisfaction planning.
 
 use identity_credential_claims_core::DisclosureMode;
-use identity_presentation_vp_policy::{
+use reallyme_vp_policy::{
     plan_satisfaction, PredicateOperand, RequiredClaim, SatisfactionPlan, VpPolicy, VpPolicyError,
 };
 

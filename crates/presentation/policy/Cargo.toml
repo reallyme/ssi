@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
 [package]
-name = "identity-presentation-vp-policy"
-version = "0.6.1"
+name = "reallyme-vp-policy"
+version = "0.6.2"
 description = "Protocol-neutral verifiable presentation policy evaluation."
 edition.workspace = true
 rust-version.workspace = true

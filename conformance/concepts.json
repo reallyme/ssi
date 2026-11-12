@@ -184,7 +184,7 @@
       "mapping_status": "section_by_section",
       "publishing": {
         "role": "core_support_published",
-        "package": "envelopes-data-integrity",
+        "package": "reallyme-data-integrity",
         "publish_ready": true,
         "notes": "The Data Integrity package is published independently with coverage for the supported did:me cryptosuite."
       },
@@ -576,7 +576,7 @@
       "mapping_status": "section_by_section",
       "publishing": {
         "role": "core_support_published",
-        "package": "reallyme-vp-core + reallyme-vp-api + identity-presentation-vp-policy",
+        "package": "reallyme-vp-core + reallyme-vp-api + reallyme-vp-policy",
         "publish_ready": true,
         "notes": "The protocol-neutral VP core, VP API, and presentation policy packages are published for the reallyme-identity dependency graph. SD-JWT presentation and validator crates remain source-only; concrete ZK composition and OpenID4VP session behavior remain in reallyme/openid4vp."
       },

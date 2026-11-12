@@ -23,8 +23,8 @@ use identity_presentation_vp_validator::{
 use identity_core_primitives::{vc_alg_str_to_alg, Algorithm};
 use identity_credential_claims_core::ClaimsRegistry;
 use identity_presentation_vp_core::model::{Presentation, SdJwtVcPresentation};
-use identity_presentation_vp_policy::{PolicyDecision, StatusContext, VpPolicyError};
 use identity_presentation_vp_sd_jwt::{verify_sd_jwt_vp_with_binding, ExpectedKbJwtBinding};
+use reallyme_vp_policy::{PolicyDecision, StatusContext, VpPolicyError};
 
 use reallyme_credential::committed::model::{
     CredentialEnvelope, HolderBinding, PublicKeyRepresentation,
@@ -49,7 +49,7 @@ pub enum WebValidationResult {
     /// Presentation cryptography and policy checks passed.
     Accepted,
     /// Presentation was well-formed enough to evaluate but failed policy.
-    Rejected(Vec<identity_presentation_vp_policy::VpPolicyError>),
+    Rejected(Vec<reallyme_vp_policy::VpPolicyError>),
 }
 
 /// Inputs required to validate a VP in a Web / QR / direct flow.

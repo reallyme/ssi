@@ -9,7 +9,7 @@ pub use reallyme_vp_api as api;
 pub use reallyme_vp_core as core;
 
 /// Protocol-neutral VP policy helpers.
-pub use identity_presentation_vp_policy as policy;
+pub use reallyme_vp_policy as policy;
 
 /// Raw Buffa-generated VP protobuf models.
 pub use reallyme_ssi_proto as generated_proto;

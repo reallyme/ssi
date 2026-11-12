@@ -1,4 +1,4 @@
-# envelopes-data-integrity
+# reallyme-data-integrity
 
 W3C Data Integrity envelope helpers and the ReallyMe did:me proof suite.
 

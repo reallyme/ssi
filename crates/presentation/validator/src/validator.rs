@@ -11,7 +11,7 @@
 //! It also does **not** depend on any delivery or transport protocol (OpenID4VP,
 //! Web, mdoc, etc.).
 
-use identity_presentation_vp_policy::{
+use reallyme_vp_policy::{
     evaluate, evaluate_with_verified_credential, selector::policy_for_claimset, EvaluationContext,
     PolicyDecision, StatusContext,
 };

@@ -8,7 +8,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::indexing_slicing)]
 
-use envelopes_data_integrity::suites::es256_jws_cid_2025::{
+use reallyme_data_integrity::suites::es256_jws_cid_2025::{
     verify_es256_jws_cid_2025, Es256JwsCid2025Error,
 };
 use reallyme_did_core::{

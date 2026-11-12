@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.2
+
+All workspace packages, internal dependency requirements, and the fuzz workspace
+advance together to 0.6.2.
+
+- Publish Data Integrity as `reallyme-data-integrity` and presentation policy as
+  `reallyme-vp-policy`. Rust imports use `reallyme_data_integrity` and
+  `reallyme_vp_policy`; the composed SSI facade retains its existing module paths.
+- Release all 33 public component packages in dependency order. Every public
+  package must use the `reallyme-` namespace; release checks reject exceptions.
+- Public component archives include their documentation, licenses, and test
+  resources and are verified independently of the source checkout.
+
+Existing protobuf field numbers and ProtoJSON field names are unchanged.
+
 ## 0.6.1
 
 This patch adds explicit draft-07 Client Attestation PoP signing through
