@@ -179,6 +179,12 @@ shared.assertWorkflowPolicy({
   runSteps: [
     {
       job: "crates-package",
+      name: "Verify publication dependency order",
+      run: "node scripts/publish_crates_in_order.mjs order",
+      workingDirectory: "reallyme/ssi",
+    },
+    {
+      job: "crates-package",
       name: "Inspect normalized crate tarballs and dry-run publication",
       run: "node scripts/publish_crates_in_order.mjs inspect",
       workingDirectory: "reallyme/ssi",
@@ -211,6 +217,12 @@ shared.assertWorkflowPolicy({
     finalize: { needs: ["verify-preflight", "publish"] },
   },
   runSteps: [
+    {
+      job: "publish",
+      name: "Verify approved public package set and publication order",
+      run: "node scripts/inspect_publishable_crates.mjs\nnode scripts/publish_crates_in_order.mjs order",
+      workingDirectory: "reallyme/ssi",
+    },
     {
       job: "publish",
       name: "Publish crates in reviewed dependency order",
@@ -388,7 +400,27 @@ const requiredPackageIncludeEntries = [
   '"/LICENSE-APACHE"',
 ];
 
+// Existing dependency identities are retained for consumers of these packages.
+const legacyPublicPackageNames = new Set([
+  "envelopes-data-integrity",
+  "identity-presentation-vp-policy",
+]);
+
 const publicPackageManifests = [
+  "crates/did/core/api/Cargo.toml",
+  "crates/did/core/engine/Cargo.toml",
+  "crates/did/methods/cheqd/Cargo.toml",
+  "crates/did/methods/ebsi/Cargo.toml",
+  "crates/did/methods/ion/Cargo.toml",
+  "crates/did/methods/jwk/Cargo.toml",
+  "crates/did/methods/key/Cargo.toml",
+  "crates/did/methods/me/Cargo.toml",
+  "crates/did/methods/web/Cargo.toml",
+  "crates/envelopes/data_integrity/Cargo.toml",
+  "crates/keys/Cargo.toml",
+  "crates/presentation/api/Cargo.toml",
+  "crates/presentation/policy/Cargo.toml",
+
   "crates/audit/Cargo.toml",
   "crates/claims/Cargo.toml",
   "crates/compression/brotli/Cargo.toml",
@@ -435,6 +467,20 @@ const forbiddenRetiredManifests = [
 ];
 
 const approvedPublicPackages = new Set([
+  "envelopes-data-integrity",
+  "identity-presentation-vp-policy",
+  "reallyme-did-api",
+  "reallyme-did-core",
+  "reallyme-did-method-cheqd",
+  "reallyme-did-method-ebsi",
+  "reallyme-did-method-ion",
+  "reallyme-did-method-jwk",
+  "reallyme-did-method-key",
+  "reallyme-did-method-me",
+  "reallyme-did-method-web",
+  "reallyme-keys",
+  "reallyme-vp-api",
+
   "reallyme-etsi-eaa-conformance",
   "reallyme-mdoc",
   "reallyme-sd-jwt",
@@ -865,7 +911,7 @@ for (const manifestPath of publicPackageManifests) {
   const name = parsePackageName(manifestPath);
   const rootPath = packageRoot(manifestPath);
 
-  if (!name.startsWith("reallyme-")) {
+  if (!name.startsWith("reallyme-") && !legacyPublicPackageNames.has(name)) {
     fail(`${manifestPath} package name must be namespaced with reallyme-`);
   }
 
@@ -1439,7 +1485,7 @@ assertNotContains(
 );
 assertContains(releaseWorkflow, "reallyme-ssi-crate-archives-${{");
 assertContains(releaseWorkflow, "REVIEWED_CRATE_ARCHIVES_DIRECTORY: reviewed-crates");
-assertContains(releaseWorkflow, 'test "$archive_count" -eq 20');
+assertContains(releaseWorkflow, 'test "$archive_count" -eq 33');
 assertContains(
   releaseWorkflow,
   "node scripts/publish_crates_in_order.mjs publish",

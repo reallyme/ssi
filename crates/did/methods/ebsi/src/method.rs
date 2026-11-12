@@ -18,6 +18,7 @@ const BASE58_ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghij
 
 /// EBSI method identifier versions supported by this crate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EbsiDidVersion {
     /// Version 1 Legal Entity identifier envelope.
     LegalEntity,

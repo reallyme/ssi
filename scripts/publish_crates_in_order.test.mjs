@@ -31,6 +31,20 @@ const publishedPackages = [
   "reallyme-mdoc",
   "reallyme-sd-jwt",
   "reallyme-trust",
+  "envelopes-data-integrity",
+  "identity-presentation-vp-policy",
+  "reallyme-did-core",
+  "reallyme-did-method-cheqd",
+  "reallyme-did-method-jwk",
+  "reallyme-did-method-ebsi",
+  "reallyme-did-method-ion",
+  "reallyme-did-method-key",
+  "reallyme-did-method-me",
+  "reallyme-did-method-web",
+  "reallyme-keys",
+  "reallyme-did-api",
+  "reallyme-vp-api",
+  "reallyme-etsi-eaa-conformance",
 ];
 
 function runFixture({ mode = "publish", scenario = "success", requirement = "^0.1.0", version = "0.1.0" } = {}) {
@@ -166,8 +180,22 @@ childProcess.spawnSync = (command, args) => {
           { name: "reallyme-revocation", source: "registry+https://github.com/rust-lang/crates.io-index", path: null, kind: null, req: "=0.4.0" },
           { name: "reallyme-ssi-proto", source: "registry+https://github.com/rust-lang/crates.io-index", path: null, kind: null, req: "=0.4.0" },
         ] },
+      { name: "envelopes-data-integrity", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-ssi-core", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-ssi-proto", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-types", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "identity-presentation-vp-policy", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-credential", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-vp-core", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "reallyme-did-core", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "envelopes-data-integrity", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "reallyme-did-method-cheqd", version: ${JSON.stringify(version)}, publish: null, dependencies: [] },
+      { name: "reallyme-did-method-jwk", version: ${JSON.stringify(version)}, publish: null, dependencies: [] },
+      { name: "reallyme-did-method-ebsi", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-did-method-jwk", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "reallyme-did-method-ion", version: ${JSON.stringify(version)}, publish: null, dependencies: [] },
+      { name: "reallyme-did-method-key", version: ${JSON.stringify(version)}, publish: null, dependencies: [] },
+      { name: "reallyme-did-method-me", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-did-core", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "reallyme-did-method-web", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-did-method-jwk", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-key", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "reallyme-keys", version: ${JSON.stringify(version)}, publish: null, dependencies: [] },
+      { name: "reallyme-did-api", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "reallyme-did-core", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-keys", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-ssi-proto-codec", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-cheqd", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-ebsi", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-ion", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-jwk", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-key", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-me", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-did-method-web", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "reallyme-vp-api", version: ${JSON.stringify(version)}, publish: null, dependencies: [{ name: "identity-presentation-vp-policy", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} },{ name: "reallyme-disclosure-policy", source: null, path: "crates/fixture", kind: null, req: ${JSON.stringify(requirement)} }] },
+      { name: "reallyme-etsi-eaa-conformance", version: ${JSON.stringify(version)}, publish: null, dependencies: [] },
       { name: "reallyme-ssi", version: ${JSON.stringify(version)}, publish: [], dependencies: [] },
-    ],
+    ].filter((pkg) => scenario !== "missing-did-method" || pkg.name !== "reallyme-did-method-web"),
   }) };
   if (args[0] === "package") {
     packageAttempts += 1;
@@ -356,4 +384,11 @@ test("zero-major caret requirements match Cargo compatibility boundaries", () =>
     assert.equal(result.status === 0, accepted, `${requirement} / ${version}`);
     assert.ok(result.calls.every((call) => call[1] === "metadata"));
   }
+});
+
+test("a missing DID method prevents publication order approval", () => {
+  const result = runFixture({ mode: "order", scenario: "missing-did-method" });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /reallyme-did-method-web before reallyme-did-api cannot be checked/u);
+  assert.ok(result.calls.every((call) => call[1] === "metadata"));
 });

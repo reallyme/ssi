@@ -10,6 +10,7 @@ use crate::{DidEbsiDocument, DidEbsiError, DidEbsiErrorReason};
 
 /// Resource class selected from a validated EBSI document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidEbsiDereferenceKind {
     /// The complete registry document.
     Document,

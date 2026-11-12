@@ -46,6 +46,7 @@ impl From<DidDereferenceError> for DidApiError {
 
 /// Location selected from a caller-owned DID document representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidDereferenceSelection {
     /// Select the complete DID document.
     Document,
@@ -64,6 +65,7 @@ pub struct DidDereferenceRequest {
 
 /// Resource selected by DID URL dereferencing.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum DereferencedResource {
     /// Whole DID document.
     Document(Box<DIDDocument>),

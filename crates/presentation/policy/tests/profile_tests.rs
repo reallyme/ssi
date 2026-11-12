@@ -594,6 +594,6 @@ fn evaluation_rejects_disclosure_sets_over_the_policy_cap() {
         PolicyDecision::Reject(errors) => {
             assert!(errors.contains(&VpPolicyError::ProofInvalid));
         }
-        PolicyDecision::Accept => panic!("oversized disclosure set must be rejected"),
+        _ => panic!("oversized disclosure set must be rejected"),
     }
 }

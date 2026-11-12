@@ -129,6 +129,7 @@ pub struct ServiceInput {
 
 /// Built-in domain verification derivation presets.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum DomainVerificationPreset {
     /// Generate the default did:me DNS or well-known binding.
     DidMeDefault,

@@ -14,6 +14,26 @@ const MAX_PUBLISH_ATTEMPTS = 12;
 const CRATES_IO_DEFAULT_RATE_LIMIT_RETRY_MS = 60000;
 const CRATES_IO_INDEX_RETRY_BASE_MS = 15000;
 const REQUIRED_PUBLISH_ORDER_EDGES = [
+  ["reallyme-did-types", "envelopes-data-integrity"],
+  ["envelopes-data-integrity", "reallyme-did-core"],
+  ["reallyme-did-core", "reallyme-did-method-me"],
+  ["reallyme-did-core", "reallyme-did-api"],
+  ["reallyme-keys", "reallyme-did-api"],
+  ["reallyme-ssi-proto-codec", "reallyme-did-api"],
+  ["reallyme-did-method-jwk", "reallyme-did-method-ebsi"],
+  ["reallyme-did-method-jwk", "reallyme-did-method-web"],
+  ["reallyme-did-method-key", "reallyme-did-method-web"],
+  ["reallyme-credential", "identity-presentation-vp-policy"],
+  ["identity-presentation-vp-policy", "reallyme-vp-api"],
+  ["reallyme-disclosure-policy", "reallyme-vp-api"],
+  ["reallyme-did-method-cheqd", "reallyme-did-api"],
+  ["reallyme-did-method-ebsi", "reallyme-did-api"],
+  ["reallyme-did-method-ion", "reallyme-did-api"],
+  ["reallyme-did-method-jwk", "reallyme-did-api"],
+  ["reallyme-did-method-key", "reallyme-did-api"],
+  ["reallyme-did-method-me", "reallyme-did-api"],
+  ["reallyme-did-method-web", "reallyme-did-api"],
+
   ["reallyme-ssi-proto", "reallyme-credential-audit"],
   ["reallyme-ssi-proto", "reallyme-credential-status"],
   ["reallyme-ssi-proto", "reallyme-ssi-core"],
@@ -449,9 +469,12 @@ function inspectCombinedArchiveGraph() {
   fs.rmSync(consumerDirectory, { force: true, recursive: true });
   fs.mkdirSync(path.join(consumerDirectory, "src"), { recursive: true });
   fs.writeFileSync(path.join(consumerDirectory, "src", "main.rs"), "fn main() {}\n");
+  // Resolve every public component directly so newly published DID and policy
+  // crates receive the same normalized-graph checks as the original facades.
+  const dependencies = ordered.map((pkg) => `${pkg.name} = "=${version}"`).join("\n");
   fs.writeFileSync(
     path.join(consumerDirectory, "Cargo.toml"),
-    `[package]\nname = "ssi-release-graph-check"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nreallyme-trust = "=${version}"\nreallyme-credential = "=${version}"\n`,
+    `[package]\nname = "ssi-release-graph-check"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\n${dependencies}\n`,
   );
   const patchArgs = [];
   for (const pkg of ordered) {
@@ -475,7 +498,7 @@ function inspectCombinedArchiveGraph() {
   );
   if (result.status !== 0) {
     process.stderr.write(result.stderr);
-    console.error("combined normalized facade and credential archives cannot resolve");
+    console.error("combined normalized public archives cannot resolve");
     process.exit(result.status ?? 1);
   }
   const resolved = JSON.parse(result.stdout);
@@ -502,21 +525,13 @@ function inspectCombinedArchiveGraph() {
       }
     }
   }
-  for (const name of [
-    "reallyme-trust",
-    "reallyme-credential",
-    "reallyme-trust-core",
-    "reallyme-trust-x509",
-    "reallyme-revocation",
-    "reallyme-credential-status",
-    "reallyme-ssi-proto",
-  ]) {
+  for (const name of publicNames) {
     if (!seen.has(name)) {
       console.error(`combined normalized graph omitted ${name}`);
       process.exit(1);
     }
   }
-  console.log(`combined normalized facade and credential graph passed at ${version}`);
+  console.log(`combined normalized public graph passed at ${version}`);
 }
 
 function unresolvedRegistryPackages(output) {

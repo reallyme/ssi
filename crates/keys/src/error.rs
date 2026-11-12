@@ -12,6 +12,7 @@ use thiserror::Error;
 /// sensitive in logs, crash reports, or FFI mappings, so callers get stable
 /// machine-readable reasons without accidental data disclosure.
 #[derive(Debug, Clone, Copy, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum KeySetError {
     /// Verification method identifier was empty, oversized, or log-unsafe.
     #[error("invalid verification method id")]

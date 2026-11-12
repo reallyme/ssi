@@ -108,3 +108,21 @@ test("rejects a version split among public SSI peer packages", () => {
   graph.packages[1].version = "0.4.0";
   assert.match(publicReleaseGraphFailures(graph).join("; "), /reallyme-trust-x509 is 0\.4\.0/u);
 });
+
+for (const kind of [null, "build", "dev"]) {
+  test(`rejects an unpublished ${kind ?? "normal"} path dependency of a public crate`, () => {
+    const graph = fixture();
+    graph.packages[0].dependencies.push({ ...dependency("private-helper"), kind });
+    assert.match(publicReleaseGraphFailures(graph).join("; "), /unpublished workspace package private-helper/u);
+  });
+}
+
+test("rejects a Git dependency in a public crate", () => {
+  const graph = fixture();
+  graph.packages[0].dependencies.push({
+    name: "external-helper",
+    source: "git+https://example.invalid/helper",
+    path: null,
+  });
+  assert.match(publicReleaseGraphFailures(graph).join("; "), /Git package external-helper/u);
+});

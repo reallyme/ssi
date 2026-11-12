@@ -8,6 +8,7 @@ use reallyme_did_core::CreateOptions;
 /// This enum exists to provide a stable, developer-facing profile selector.
 /// All actual profile semantics live in `identity-did-core`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidProfile {
     /// Minimal did:me core identity profile.
     CoreIdentity,

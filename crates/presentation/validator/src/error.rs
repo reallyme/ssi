@@ -29,6 +29,10 @@ pub enum VpValidationError {
     #[error("missing credential envelope")]
     MissingCredentialEnvelope,
 
+    /// Policy evaluation returned a decision this validator does not support.
+    #[error("unsupported presentation policy decision")]
+    UnsupportedPolicyDecision,
+
     /// Policy evaluation rejected the presentation.
     #[error("presentation rejected by policy")]
     PolicyRejected(Vec<VpPolicyError>),
@@ -51,6 +55,9 @@ impl From<&VpValidationError> for IdentityCoreErrorReason {
             }
             VpValidationError::MissingCredentialEnvelope => {
                 Self::IDENTITY_CORE_ERROR_REASON_CREDENTIAL_INVALID_ENVELOPE
+            }
+            VpValidationError::UnsupportedPolicyDecision => {
+                Self::IDENTITY_CORE_ERROR_REASON_POLICY_VIOLATION
             }
             VpValidationError::PolicyRejected(_) => {
                 Self::IDENTITY_CORE_ERROR_REASON_PRESENTATION_POLICY_NOT_SATISFIED

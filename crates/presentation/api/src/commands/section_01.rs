@@ -19,6 +19,7 @@ use crate::{validate_vp, VpVerificationOutcome};
 /// Taxonomy presentation verification decision.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PresentationDecision {
     /// Presentation satisfies all mandatory local checks.
     Allow,
@@ -33,6 +34,7 @@ pub enum PresentationDecision {
 /// Presentation check outcome.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PresentationCheckOutcome {
     /// Check passed.
     Pass,
@@ -47,6 +49,7 @@ pub enum PresentationCheckOutcome {
 /// Presentation check severity.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PresentationCheckSeverity {
     /// Informational check.
     Info,
@@ -61,6 +64,7 @@ pub enum PresentationCheckSeverity {
 /// Presentation verification check name from the taxonomy.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PresentationCheckName {
     /// OAuth or response-mode state binding.
     State,
@@ -97,6 +101,7 @@ pub enum PresentationCheckName {
 /// Stable non-PII presentation check code.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PresentationCheckCode {
     /// Check completed successfully.
     Ok,

@@ -12,6 +12,7 @@ use thiserror::Error;
 
 /// Proto conversion failures for VP verification report boundary values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum VpReportProtoError {
     /// The proto outcome was unspecified or unknown.
     #[error("unknown VP verification outcome")]
@@ -31,6 +32,7 @@ impl From<VpReportProtoError> for IdentityCoreErrorReason {
 
 /// Stable high-level failure classes for SDKs and delivery adapters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum VpFailureClass {
     /// Holder binding or audience binding failed.
     Binding,
@@ -107,6 +109,7 @@ impl TryFrom<EnumValue<presentation_pb::VpFailureClass>> for VpFailureClass {
 
 /// Truth-first verification outcome.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum VpVerificationOutcome {
     /// The presentation satisfies policy.
     Accepted,

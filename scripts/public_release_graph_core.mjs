@@ -43,6 +43,12 @@ export function publicReleaseGraphFailures(metadata) {
     }
     const seenFacadePeers = new Set();
     for (const dep of pkg.dependencies) {
+      if (byName.has(pkg.name) && dep.source == null && dep.path != null && !byName.has(dep.name)) {
+        failures.push(`${pkg.name} depends on unpublished workspace package ${dep.name}`);
+      }
+      if (byName.has(pkg.name) && dep.source?.startsWith("git+")) {
+        failures.push(`${pkg.name} depends on Git package ${dep.name}`);
+      }
       if (!byName.has(dep.name)) continue;
       if (pkg.name === FACADE_NAME) seenFacadePeers.add(dep.name);
       const exact = `=${peerVersion}`;

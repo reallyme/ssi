@@ -17,6 +17,7 @@ const BASE58_ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghij
 
 /// Public-key multicodecs supported by the did:key specification profile here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidKeyMulticodec {
     /// `secp256k1-pub`, compressed, multicodec `0xe7`.
     Secp256k1,
@@ -66,6 +67,7 @@ impl DidKeyMulticodec {
 /// Restricting identifiers to Base58 BTC prevents one public key from having
 /// multiple DID aliases with different multibase prefixes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidKeyMultibase {
     /// Multibase Base58 BTC, `z` prefix.
     Base58Btc,

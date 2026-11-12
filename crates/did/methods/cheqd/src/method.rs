@@ -16,6 +16,7 @@ const BASE58_ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghij
 
 /// cheqd unique identifier family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CheqdIdentifierKind {
     /// UUID-style identifier, preferred by the cheqd method ADR.
     Uuid,

@@ -49,6 +49,7 @@ impl ZeroizeOnDrop for DidEbsiResolveRequest {}
 
 /// Stable lifecycle state returned by an EBSI registry adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidEbsiResolutionStatus {
     /// A usable document was valid at the selected point.
     Active,
@@ -60,6 +61,7 @@ pub enum DidEbsiResolutionStatus {
 
 /// Verification strength achieved by an EBSI registry adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidEbsiResolutionAssurance {
     /// The adapter verified controller attestations.
     AttestationVerified,

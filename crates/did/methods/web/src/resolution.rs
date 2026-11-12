@@ -51,6 +51,7 @@ impl Default for DidWebResolutionPolicy {
 
 /// Media types accepted for a did:web document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidWebMediaType {
     /// `application/did+json`.
     ApplicationDidJson,

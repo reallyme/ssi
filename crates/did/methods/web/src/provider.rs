@@ -14,6 +14,7 @@ use crate::method::{did_web_document_url, parse_did_web};
 
 /// Closed hosting operations required by the ReallyMe did:web profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DidWebHostingOperation {
     /// Publish a previously absent document.
     Create,
