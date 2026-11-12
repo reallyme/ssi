@@ -280,7 +280,7 @@ pub fn update_engine(
 
             if let Some(privkey) = current_priv_lookup(&vm_id).map(zeroize::Zeroizing::new) {
                 let proof =
-                    envelopes_data_integrity::suites::es256_jws_cid_2025::sign_es256_jws_cid_2025(
+                    reallyme_data_integrity::suites::es256_jws_cid_2025::sign_es256_jws_cid_2025(
                         &core_cid, &privkey, &vm_id, created,
                     )
                     .map_err(|_| UpdateError::InvalidState)?;
@@ -294,7 +294,7 @@ pub fn update_engine(
     else if let (Some(vm_id), Some(created)) = (p256_vmid, opts.created.as_deref()) {
         if let Some(privkey) = current_priv_lookup(&vm_id).map(zeroize::Zeroizing::new) {
             let proof =
-                envelopes_data_integrity::suites::es256_jws_cid_2025::sign_es256_jws_cid_2025(
+                reallyme_data_integrity::suites::es256_jws_cid_2025::sign_es256_jws_cid_2025(
                     &core_cid, &privkey, &vm_id, created,
                 )
                 .map_err(|_| UpdateError::InvalidState)?;

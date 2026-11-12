@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use identity_presentation_vp_policy::PolicyDecision;
+use reallyme_vp_policy::PolicyDecision;
 
 use crate::error::VpValidationError;
 

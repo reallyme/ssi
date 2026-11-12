@@ -9,8 +9,8 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 const identityPackages = [
-  "envelopes-data-integrity",
-  "identity-presentation-vp-policy",
+  "reallyme-data-integrity",
+  "reallyme-vp-policy",
   "reallyme-did-core",
   "reallyme-did-method-cheqd",
   "reallyme-did-method-jwk",
@@ -32,6 +32,13 @@ const publicPackages = metadata.packages.filter((pkg) => pkg.publish === null);
 
 test("the thirteen Identity dependencies join the public release without a version split", () => {
   assert.equal(publicPackages.length, 33);
+  for (const pkg of publicPackages) {
+    assert.ok(pkg.name.startsWith("reallyme-"), pkg.name);
+    assert.equal(pkg.version, "0.6.2", pkg.name);
+  }
+  for (const pkg of metadata.packages) {
+    assert.equal(pkg.version, "0.6.2", pkg.name);
+  }
   const version = byName.get("reallyme-credential").version;
   for (const name of identityPackages) {
     const pkg = byName.get(name);
@@ -44,13 +51,13 @@ test("the thirteen Identity dependencies join the public release without a versi
   }
 });
 
-test("all public dependencies precede their consumers and Identity retains its reviewed order", () => {
+test("all public dependencies precede their consumers", () => {
   const output = execFileSync(process.execPath, ["scripts/publish_crates_in_order.mjs", "order"], {
     cwd: root, encoding: "utf8",
   });
   const ordered = [...output.matchAll(/^- (\S+) \S+$/gmu)].map((match) => match[1]);
   assert.equal(ordered.length, publicPackages.length);
-  assert.deepEqual(ordered.filter((name) => identityPackages.includes(name)), identityPackages);
+  assert.deepEqual(ordered.filter((name) => identityPackages.includes(name)).sort(), [...identityPackages].sort());
   const positions = new Map(ordered.map((name, index) => [name, index]));
   for (const pkg of publicPackages) {
     for (const dependency of pkg.dependencies) {
@@ -69,12 +76,25 @@ test("release archive verification requires the complete approved public set", (
   assert.match(workflow, /for \(const crate of ledger\.crates\)/u);
 });
 
-test("manual publication instructions include exactly the reviewed thirteen packages in order", () => {
+test("manual publication instructions cover the full current release in dependency order", () => {
   const instructions = readFileSync(new URL("docs/CRATES_RELEASE.md", root), "utf8");
   const loop = /for package in \\\n([\s\S]+?)\n  do/u.exec(instructions);
   assert.ok(loop);
   const packages = loop[1].split("\n").map((line) => line.replace(/\\$/u, "").trim());
-  assert.deepEqual(packages, identityPackages);
-  assert.match(instructions, /RELEASE_VERSION=0\.6\.1/u);
+  assert.deepEqual([...packages].sort(), publicPackages.map((pkg) => pkg.name).sort());
+  const positions = new Map(packages.map((name, index) => [name, index]));
+  for (const pkg of publicPackages) {
+    for (const dependency of pkg.dependencies) {
+      if (dependency.path == null || !positions.has(dependency.name)) continue;
+      assert.ok(positions.get(dependency.name) < positions.get(pkg.name),
+        `${dependency.name} before ${pkg.name}`);
+    }
+  }
+  assert.match(instructions, /RELEASE_VERSION=0\.6\.2/u);
   assert.match(instructions, /cargo publish --locked --registry crates-io -p "\$package"/u);
+});
+
+test("preflight uploads archives only for its certified release version", () => {
+  const workflow = readFileSync(new URL(".github/workflows/crates-package-preflight.yml", root), "utf8");
+  assert.ok(workflow.includes("target/package/*-${{ needs.verify-source-sha.outputs.release_version }}.crate"));
 });

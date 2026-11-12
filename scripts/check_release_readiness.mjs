@@ -400,12 +400,6 @@ const requiredPackageIncludeEntries = [
   '"/LICENSE-APACHE"',
 ];
 
-// Existing dependency identities are retained for consumers of these packages.
-const legacyPublicPackageNames = new Set([
-  "envelopes-data-integrity",
-  "identity-presentation-vp-policy",
-]);
-
 const publicPackageManifests = [
   "crates/did/core/api/Cargo.toml",
   "crates/did/core/engine/Cargo.toml",
@@ -467,8 +461,8 @@ const forbiddenRetiredManifests = [
 ];
 
 const approvedPublicPackages = new Set([
-  "envelopes-data-integrity",
-  "identity-presentation-vp-policy",
+  "reallyme-data-integrity",
+  "reallyme-vp-policy",
   "reallyme-did-api",
   "reallyme-did-core",
   "reallyme-did-method-cheqd",
@@ -911,7 +905,7 @@ for (const manifestPath of publicPackageManifests) {
   const name = parsePackageName(manifestPath);
   const rootPath = packageRoot(manifestPath);
 
-  if (!name.startsWith("reallyme-") && !legacyPublicPackageNames.has(name)) {
+  if (!name.startsWith("reallyme-")) {
     fail(`${manifestPath} package name must be namespaced with reallyme-`);
   }
 
@@ -1666,7 +1660,7 @@ assertContains(
   "conformance/dependencies.lock.json",
   '"version": "0.3.17"',
 );
-assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.6.1");
+assertContains(".github/workflows/crates-package-preflight.yml", "default: 0.6.2");
 assertContains(".github/workflows/crates-package-preflight.yml", "Generate clean SSI conformance evidence");
 assertContains(".github/workflows/crates-package-preflight.yml", "reallyme-ssi-conformance-${{ inputs.version }}-${{ github.sha }}");
 assertContains(".github/workflows/crates-release.yml", "Download reviewed conformance evidence");

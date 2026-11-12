@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// W3C Data Integrity proof suites.
-pub use envelopes_data_integrity as data_integrity;
+pub use reallyme_data_integrity as data_integrity;
 
 /// JWT-VC envelope wrapping canonical credential bytes and protobuf transport bytes.
 pub use envelopes_jwt_vc as jwt_vc;

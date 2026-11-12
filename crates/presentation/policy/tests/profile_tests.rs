@@ -11,7 +11,7 @@
 )]
 //! Tests for built-in VP policy profiles.
 
-use identity_presentation_vp_policy::{
+use reallyme_vp_policy::{
     evaluate, policy_for_claimset,
     profiles::{eu_age_policy, eu_pid_policy},
     EvaluationContext, PolicyDecision, StatusContext, VpPolicyError,
@@ -451,7 +451,7 @@ fn status_list_issued_at(issued_at: u64) -> StatusList {
 }
 
 fn evaluate_pid_at(
-    policy: &identity_presentation_vp_policy::VpPolicy,
+    policy: &reallyme_vp_policy::VpPolicy,
     claimset_id: &str,
     status_list: &StatusList,
     now_unix: u64,
@@ -561,7 +561,7 @@ fn evaluation_rejects_disclosure_sets_over_the_policy_cap() {
     let disclosure = codec_base64url::bytes_to_base64url(br#"["c2FsdA","/claims/age","NDI",0,[]]"#);
     let presentation = Presentation::SdJwtVc(Box::new(SdJwtVcPresentation {
         sd_jwt: "dummy".into(),
-        disclosures: vec![disclosure; identity_presentation_vp_policy::MAX_POLICY_DISCLOSURES + 1],
+        disclosures: vec![disclosure; reallyme_vp_policy::MAX_POLICY_DISCLOSURES + 1],
         kb_jwt: None,
         vct: None,
         envelope_hash: None,

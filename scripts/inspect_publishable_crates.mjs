@@ -11,8 +11,8 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const approvedPublicPackages = new Set([
-  "envelopes-data-integrity",
-  "identity-presentation-vp-policy",
+  "reallyme-data-integrity",
+  "reallyme-vp-policy",
   "reallyme-did-api",
   "reallyme-did-core",
   "reallyme-did-method-cheqd",
@@ -130,6 +130,9 @@ const publishable = manifests
   }));
 
 for (const crate of publishable) {
+  if (!crate.name.startsWith("reallyme-")) {
+    fail(`${crate.name} must use the reallyme- package namespace`);
+  }
   if (!approvedPublicPackages.has(crate.name)) {
     fail(`${crate.name} is publishable but is not approved for this repository`);
   }

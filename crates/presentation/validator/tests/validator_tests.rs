@@ -11,11 +11,11 @@
 )]
 //! Tests for the protocol-agnostic VP validator.
 
-use identity_presentation_vp_policy::VpPolicyError;
 use identity_presentation_vp_validator::{
     evaluate_presentation_policy as validate_presentation, CryptoContext, QeaaContext,
     VpValidationError, VpValidationInput,
 };
+use reallyme_vp_policy::VpPolicyError;
 
 use identity_core_primitives::Algorithm;
 use identity_credential_claims_core::ClaimsRegistry;
@@ -32,7 +32,7 @@ use identity_credential_status_core::{
     StatusListVerifier, StatusPurpose,
 };
 
-use identity_presentation_vp_policy::{PolicyDecision, StatusContext};
+use reallyme_vp_policy::{PolicyDecision, StatusContext};
 
 use std::collections::BTreeMap;
 

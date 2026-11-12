@@ -145,7 +145,7 @@ fn validate_selected_claims(
         };
     }
 
-    let actual = identity_presentation_vp_policy::extract_disclosed_claims(presentation).map_err(
+    let actual = reallyme_vp_policy::extract_disclosed_claims(presentation).map_err(
         |_| VpApiError::InvalidCommand(PresentationCommandReason::InvalidDisclosure),
     )?;
     if actual.len() != selected.len() {

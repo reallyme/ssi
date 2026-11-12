@@ -1,4 +1,4 @@
-# identity-presentation-vp-policy
+# reallyme-vp-policy
 
 Protocol-neutral verifiable presentation policy evaluation.
 

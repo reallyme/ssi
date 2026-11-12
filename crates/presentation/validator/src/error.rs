@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use identity_presentation_vp_policy::VpPolicyError;
 use reallyme_ssi_proto::generated::proto::reallyme::identity_core::v1::IdentityCoreErrorReason;
+use reallyme_vp_policy::VpPolicyError;
 use thiserror::Error;
 
 /// Typed VP validation errors.

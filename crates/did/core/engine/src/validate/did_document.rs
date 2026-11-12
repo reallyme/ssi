@@ -261,7 +261,7 @@ pub(crate) fn validate_with_authority(
     if doc.data_integrity_proof.is_some() {
         let dip = validate_data_integrity_proof_schema(doc);
         if dip.ok {
-            if envelopes_data_integrity::suites::es256_jws_cid_2025::verify_es256_jws_cid_2025(doc)
+            if reallyme_data_integrity::suites::es256_jws_cid_2025::verify_es256_jws_cid_2025(doc)
                 .is_err()
             {
                 errors.push(DidValidationIssue::new(

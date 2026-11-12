@@ -14,9 +14,7 @@
 use identity_core_primitives::Algorithm;
 use identity_credential_claims_core::ClaimsRegistry;
 use identity_presentation_vp_core::model::{Presentation, SdJwtVcPresentation};
-use identity_presentation_vp_policy::{
-    evaluate, EvaluationContext, PolicyDecision, VpPolicy, VpPolicyError,
-};
+use reallyme_vp_policy::{evaluate, EvaluationContext, PolicyDecision, VpPolicy, VpPolicyError};
 
 use reallyme_credential_audit::{
     AuditInfo, IdentityProofing, IdentityProofingLevel, IssuerCredential, KeyManagement,

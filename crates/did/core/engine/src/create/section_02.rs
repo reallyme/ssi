@@ -257,7 +257,7 @@ pub fn create_engine(
 
         if let Some(privkey) = key_lookup(&vm_id).map(zeroize::Zeroizing::new) {
             let proof =
-                envelopes_data_integrity::suites::es256_jws_cid_2025::sign_es256_jws_cid_2025(
+                reallyme_data_integrity::suites::es256_jws_cid_2025::sign_es256_jws_cid_2025(
                     &core_cid, &privkey, &vm_id, created,
                 )
                 .map_err(|_| DidCoreError::InternalInvariant)?;

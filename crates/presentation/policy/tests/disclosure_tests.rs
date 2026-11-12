@@ -13,7 +13,7 @@
 //! Tests for VP policy disclosure extraction.
 
 use identity_credential_claims_core::DisclosureMode;
-use identity_presentation_vp_policy::extract_disclosed_claims;
+use reallyme_vp_policy::extract_disclosed_claims;
 
 use identity_presentation_vp_core::model::{
     ClaimDisclosure, CredentialReference, CredentialStatusRef, DisclosureMode as ZkMode,
