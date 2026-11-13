@@ -122,13 +122,21 @@ for target in "${selected_targets[@]}"; do
       "-artifact_prefix=${artifact_dir}/"
     )
   fi
-  # Curated corpora are intentionally checked in for boundary-heavy targets.
-  # Passing them explicitly prevents a green smoke run from exercising only
-  # libFuzzer's synthetic empty input when contract fixtures are available.
-  if [ -d "$corpus_dir" ]; then
-    fuzz_args+=("$corpus_dir")
+  # Every target needs a persistent corpus, including targets without curated
+  # seeds. Otherwise libFuzzer runs successfully but cannot retain its evolved
+  # inputs and the qualification artifact upload fails.
+  mkdir -p "$artifact_dir" "$corpus_dir"
+  corpus_has_seed=0
+  for seed in "$corpus_dir"/*; do
+    if [ -f "$seed" ]; then
+      corpus_has_seed=1
+      break
+    fi
+  done
+  if [ "$corpus_has_seed" -eq 0 ]; then
+    printf '\0' > "$corpus_dir/initial"
   fi
-  mkdir -p "$artifact_dir"
+  fuzz_args+=("$corpus_dir")
   fuzz_binary="${fuzz_binary_directory}/${target}"
   if [ ! -x "$fuzz_binary" ]; then
     printf 'fuzz target executable is missing or not executable: %s\n' "$target" >&2

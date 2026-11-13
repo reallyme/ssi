@@ -1618,6 +1618,9 @@ assertContains(
   "node scripts/check_release_semver.mjs",
 );
 assertExists("scripts/check_release_semver.mjs");
+assertExists("scripts/prepublished_crates.json");
+assertExists("scripts/reused_crate_archives.mjs");
+assertExists("scripts/reused_crate_archives.test.mjs");
 assertExists("scripts/check_fixture_copies.mjs");
 assertExists("scripts/generate_conformance_reports.mjs");
 assertExists("scripts/run_upstream_conformance_tests.mjs");

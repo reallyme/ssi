@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { loadReusePolicy, prepareReusedArchive, ReusedArchiveError } from "./reused_crate_archives.mjs";
 
 const MODE_INSPECT = "inspect";
 const MODE_ORDER = "order";
@@ -419,6 +420,24 @@ if (mode === MODE_ORDER) {
   process.exit(0);
 }
 
+let reusedArchives;
+try {
+  reusedArchives = loadReusePolicy(ordered[0].version, new Set(publishable.keys()));
+} catch (error) {
+  const code = error instanceof ReusedArchiveError ? error.code : "unexpected-failure";
+  console.error(`immutable archive policy failed: ${code}`);
+  process.exit(1);
+}
+function prepareExistingArchive(pkg) {
+  try {
+    prepareReusedArchive(pkg, reusedArchives.get(pkg.name), packageDirectory, run, allowDirty);
+  } catch (error) {
+    const code = error instanceof ReusedArchiveError ? error.code : "unexpected-failure";
+    console.error(`immutable archive verification failed: ${code}`);
+    process.exit(1);
+  }
+}
+
 const unpackDirectory = path.join(packageDirectory, "release-preflight");
 const inspectionTargetDirectory = path.join(packageDirectory, "release-preflight-target");
 const inspectionEnvironment = {
@@ -427,6 +446,10 @@ const inspectionEnvironment = {
 };
 
 if (mode === MODE_INSPECT) {
+  fs.mkdirSync(packageDirectory, { recursive: true });
+  for (const pkg of ordered) {
+    if (reusedArchives.has(pkg.name)) prepareExistingArchive(pkg);
+  }
   // This workspace intentionally contains source-only implementation crates.
   // Package the reviewed set as one workspace operation so Cargo can normalize
   // dependencies whose earlier versions do not exist in the registry yet.
@@ -434,7 +457,7 @@ if (mode === MODE_INSPECT) {
   // inputs or blocking package construction.
   const packageArgs = ["package", "--workspace", "--no-verify", "--locked"];
   for (const pkg of metadata.packages) {
-    if (!publishable.has(pkg.name)) {
+    if (!publishable.has(pkg.name) || reusedArchives.has(pkg.name)) {
       packageArgs.push("--exclude", pkg.name);
     }
   }
@@ -623,6 +646,12 @@ function inspectPackage(pkg) {
     process.exit(testResult.status ?? 1);
   }
 
+  if (reusedArchives.has(pkg.name)) {
+    // The immutable, registry-accepted archive was tested above. Repacking
+    // the source here would replace it with different commit metadata.
+    console.log(`${pkg.name} immutable registry archive passed isolated checks and tests`);
+    return;
+  }
   const dryRunArgs = ["publish", "-p", pkg.name, "--dry-run", "--locked"];
   if (allowDirty) {
     dryRunArgs.push("--allow-dirty");
@@ -653,6 +682,16 @@ function inspectPackage(pkg) {
 }
 
 function publishPackage(pkg) {
+  if (reusedArchives.has(pkg.name)) {
+    prepareExistingArchive(pkg);
+    const checksum = verifyLocalPackageMatchesReviewed(pkg);
+    if (checksum !== reusedArchives.get(pkg.name).sha256) {
+      console.error("reviewed immutable archive differs from the registry pin");
+      process.exit(1);
+    }
+    verifyPublishedPackageMatches(pkg, checksum);
+    return "verified_existing";
+  }
   // Rebuild and compare before invoking `cargo publish`: detecting a mismatch
   // after Cargo uploads would be an audit signal, not a release control.
   // The release job receives only reviewed archives from preflight, and this
@@ -727,6 +766,7 @@ const publicationLedger = {
     publish_order,
     state: "pending",
     archive_sha256: null,
+    source_commit: reusedArchives.get(pkg.name)?.source_commit ?? releaseSha,
   })),
 };
 
