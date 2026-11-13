@@ -446,12 +446,28 @@ fn project_name(name: &X509Name<'_>) -> Result<DistinguishedName, X509Error> {
                 ));
             }
             let oid = attribute.attr_type().to_id_string();
-            let value = match attribute.as_str() {
-                Ok(text) => NameAttributeValue::Text(text.to_owned()),
-                Err(_) => NameAttributeValue::Binary(attribute.as_slice().to_vec()),
+            let source = attribute.attr_value();
+            let encoding = crate::projections::AttributeEncoding {
+                class: match source.class() {
+                    asn1_rs::Class::Universal => crate::projections::Asn1Class::Universal,
+                    asn1_rs::Class::Application => crate::projections::Asn1Class::Application,
+                    asn1_rs::Class::ContextSpecific => {
+                        crate::projections::Asn1Class::ContextSpecific
+                    }
+                    asn1_rs::Class::Private => crate::projections::Asn1Class::Private,
+                },
+                tag_number: source.tag().0,
+                constructed: source.header.constructed(),
+            };
+            let decoded = crate::projections::decode_attribute(encoding, source.data)
+                .map_err(|_| X509Error::InvalidDer)?;
+            let value = match decoded.text() {
+                Some(text) => NameAttributeValue::Text(text.to_owned()),
+                None => NameAttributeValue::Binary(attribute.as_slice().to_vec()),
             };
             attributes.push(NameAttribute {
                 kind: name_attribute_kind(&oid)?,
+                encoding,
                 value,
             });
         }

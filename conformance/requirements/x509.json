@@ -190,5 +190,65 @@
     "negative_tests": ["wrpac_preset_rejects_missing_policy_qc_and_forbidden_extensions", "ca_issuers_aia_alone_does_not_satisfy_revocation_pointer_policy"],
     "applicable": true,
     "exclusion_reason": null
+  },
+  {
+    "id": "X509-MUST-004",
+    "source": "RFC5280",
+    "section": "4.1.2.4 and 4.1.2.6",
+    "keyword": "MUST",
+    "feature": "lossless_name_identifiers_and_declared_string_validation",
+    "implementation": [
+      "crates/trust/x509/src/projections/project_name.rs"
+    ],
+    "positive_tests": [
+      "preserves_dn_encoding_for_identical_text_in_both_existing_and_borrowed_models",
+      "preserves_rdn_grouping_order_and_attribute_multiplicity"
+    ],
+    "negative_tests": [
+      "rejects_malformed_declared_strings_in_both_parsers",
+      "rejects_noncanonical_der_lengths_tags_sets_defaults_and_trailing_data"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "X509-MUST-005",
+    "source": "RFC5280",
+    "section": "4.2.1.6 and 4.2.1.7",
+    "keyword": "MUST",
+    "feature": "separate_issuer_alternative_names_with_all_general_name_choices",
+    "implementation": [
+      "crates/trust/x509/src/projections/project_extensions.rs"
+    ],
+    "positive_tests": [
+      "san_and_ian_are_separate_present_extensions_with_exact_values_and_criticality",
+      "retains_all_nine_general_name_alternatives_and_original_der"
+    ],
+    "negative_tests": [
+      "rejects_invalid_general_names_even_in_noncritical_extensions",
+      "rejects_duplicate_known_and_unknown_extensions"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
+  },
+  {
+    "id": "X509-MUST-006",
+    "source": "RFC5280",
+    "section": "4.2.1.13",
+    "keyword": "MUST",
+    "feature": "complete_ordered_crl_distribution_point_syntax_and_field_presence",
+    "implementation": [
+      "crates/trust/x509/src/projections/project_extensions.rs"
+    ],
+    "positive_tests": [
+      "preserves_ordered_points_choices_reasons_presence_and_crl_issuer",
+      "keeps_non_uri_full_names_and_multiple_names_in_a_point"
+    ],
+    "negative_tests": [
+      "rejects_duplicate_out_of_order_or_malformed_crl_fields",
+      "enforces_shared_attribute_general_name_point_and_extension_limits"
+    ],
+    "applicable": true,
+    "exclusion_reason": null
   }
 ]

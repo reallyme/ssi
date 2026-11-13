@@ -32,5 +32,5 @@ separate capabilities. They are not enabled by this package's default feature.
 
 ```toml
 [dependencies]
-reallyme-trust = "0.6.2"
+reallyme-trust = "0.7.0"
 ```

@@ -87,3 +87,15 @@ impl core::fmt::Debug for X509Certificate {
             .finish()
     }
 }
+
+impl X509Certificate {
+    /// Reprojects original DER into immutable, lossless borrowed views.
+    ///
+    /// Public legacy profile fields are intentionally not trusted as a source.
+    pub fn projections(
+        &self,
+    ) -> Result<crate::projections::CertificateProjections<'_>, crate::projections::ProjectionError>
+    {
+        crate::projections::project_certificate(&self.der)
+    }
+}

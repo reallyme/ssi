@@ -109,6 +109,11 @@ fn certificate() -> X509Certificate {
         rdns: vec![RelativeDistinguishedName {
             attributes: vec![NameAttribute {
                 kind: NameAttributeKind::OrganizationName,
+                encoding: envelopes_x509::projections::AttributeEncoding {
+                    class: envelopes_x509::projections::Asn1Class::Universal,
+                    tag_number: 12,
+                    constructed: false,
+                },
                 value: NameAttributeValue::Text("Example".to_owned()),
             }],
         }],

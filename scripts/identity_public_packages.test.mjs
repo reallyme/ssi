@@ -36,10 +36,10 @@ test("the fifteen Identity dependencies join the public release without a versio
   assert.equal(publicPackages.length, 35);
   for (const pkg of publicPackages) {
     assert.ok(pkg.name.startsWith("reallyme-"), pkg.name);
-    assert.equal(pkg.version, "0.6.2", pkg.name);
+    assert.equal(pkg.version, "0.7.0", pkg.name);
   }
   for (const pkg of metadata.packages) {
-    assert.equal(pkg.version, "0.6.2", pkg.name);
+    assert.equal(pkg.version, "0.7.0", pkg.name);
   }
   const version = byName.get("reallyme-credential").version;
   for (const name of identityPackages) {
@@ -78,13 +78,13 @@ test("release archive verification requires the complete approved public set", (
   assert.match(workflow, /for \(const crate of ledger\.crates\)/u);
 });
 
-test("manual 0.6.2 additions publish only JAdES and then RP-registration", () => {
+test("initial X.509 release publishes its protobuf prerequisite before X.509", () => {
   const instructions = readFileSync(new URL("docs/CRATES_RELEASE.md", root), "utf8");
   const packages = [...instructions.matchAll(
     /^  cargo publish --locked --registry crates-io -p ([a-z0-9-]+)$/gmu,
   )].map((match) => match[1]);
-  assert.deepEqual(packages, ["reallyme-trust-jades", "reallyme-eudi-rp-registration"]);
-  assert.match(instructions, /Do not rerun the complete 0\.6\.2 release workflow/u);
+  assert.deepEqual(packages, ["reallyme-ssi-proto", "reallyme-trust-x509"]);
+  assert.match(instructions, /same clean source commit/u);
 });
 
 test("the existing public components do not gain a dependency on the additions", () => {
