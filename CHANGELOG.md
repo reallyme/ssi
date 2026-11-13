@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.0
+
+All workspace packages and internal dependency requirements advance together to
+0.7.0.
+
+- X.509 Name attributes retain their original ASN.1 class, tag number, and
+  constructed form. Text is validated against its declared string encoding;
+  callers constructing `NameAttribute` values must supply `encoding`.
+- `reallyme-trust-x509::projections::project_certificate` provides bounded,
+  DER-bound views of subject and issuer Names, separate SAN and IAN extensions,
+  and complete ordered CRL distribution points with extension criticality and
+  optional-field presence. Unsupported GeneralName structures retain their DER.
+- Projections borrow their source certificate; decoded BMP/Universal strings
+  use zeroizing owners and identifying values have redacted diagnostics.
+- Existing certificate-path, signature, revocation, timestamp, SKI, and mdoc
+  behavior remains available. Application-specific mdoc profiles stay outside
+  these generic certificate projections.
+
 ## 0.6.2
 
 All workspace packages, internal dependency requirements, and the fuzz workspace

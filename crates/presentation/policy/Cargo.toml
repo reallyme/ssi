@@ -4,7 +4,7 @@
 
 [package]
 name = "reallyme-vp-policy"
-version = "0.6.2"
+version = "0.7.0"
 description = "Protocol-neutral verifiable presentation policy evaluation."
 edition.workspace = true
 rust-version.workspace = true

@@ -179,7 +179,9 @@ impl core::fmt::Debug for NameAttributeValue {
 pub struct NameAttribute {
     /// Attribute type.
     pub kind: NameAttributeKind,
-    /// Attribute value.
+    /// Original ASN.1 class, tag number and constructed/primitive form.
+    pub encoding: crate::projections::AttributeEncoding,
+    /// Attribute value, validated according to its declared encoding.
     pub value: NameAttributeValue,
 }
 

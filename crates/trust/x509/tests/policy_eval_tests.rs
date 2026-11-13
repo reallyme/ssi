@@ -89,6 +89,11 @@ fn name(attributes: &[(NameAttributeKind, &str)]) -> DistinguishedName {
             .map(|(kind, value)| RelativeDistinguishedName {
                 attributes: vec![NameAttribute {
                     kind: kind.clone(),
+                    encoding: reallyme_trust_x509::projections::AttributeEncoding {
+                        class: reallyme_trust_x509::projections::Asn1Class::Universal,
+                        tag_number: 12,
+                        constructed: false,
+                    },
                     value: NameAttributeValue::Text((*value).to_owned()),
                 }],
             })

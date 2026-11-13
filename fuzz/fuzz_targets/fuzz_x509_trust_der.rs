@@ -5,7 +5,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use reallyme_trust_x509::{parse_cert_der, parse_qc_statements};
+use reallyme_trust_x509::{parse_cert_der, parse_qc_statements, projections::project_certificate};
 
 const MAX_FUZZ_INPUT_BYTES: usize = 16_384;
 
@@ -16,4 +16,5 @@ fuzz_target!(|data: &[u8]| {
 
     let _ = parse_qc_statements(data);
     let _ = parse_cert_der(data);
+    let _ = project_certificate(data);
 });

@@ -27,6 +27,8 @@ pub mod parse;
 pub mod policy;
 /// Versioned ETSI and EUDI certificate-policy presets.
 pub mod presets;
+/// Generic lossless certificate-name and distribution-point projections.
+pub mod projections;
 /// ETSI `qcStatements` object identifiers and parsing.
 pub mod qcstatements;
 /// Certificate signature verification.

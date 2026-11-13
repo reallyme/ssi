@@ -6,21 +6,20 @@ The approved release set contains 35 component packages, all using the
 source-only. The workspace defaults to `publish = false`; public components
 opt in explicitly and are checked against the approved package set.
 
-## Adding JAdES and RP-registration at 0.6.2
+## X.509 projections at 0.7.0
 
-These two package names have no earlier 0.6.2 publication. They can be published
-at 0.6.2 without replacing the existing component releases or advancing the
-workspace version. Existing public component manifests do not acquire a new
-JAdES or RP-registration dependency through this addition.
+All workspace packages and internal requirements advance together to 0.7.0.
+Consumers needing the lossless certificate projections can depend directly on
+`reallyme-trust-x509 = "0.7.0"` from crates.io. They do not need a Git dependency
+or the composed SSI facade.
 
-From a clean checkout of the reviewed commit, publish JAdES first and then
-RP-registration using an authorized crates.io account:
+For the initial X.509 publication, publish its protobuf prerequisite first:
 
 ```sh
 (
   set -eu
-  cargo publish --locked --registry crates-io -p reallyme-trust-jades
-  cargo publish --locked --registry crates-io -p reallyme-eudi-rp-registration
+  cargo publish --locked --registry crates-io -p reallyme-ssi-proto
+  cargo publish --locked --registry crates-io -p reallyme-trust-x509
 )
 ```
 
@@ -29,11 +28,10 @@ times out, confirm whether the upload completed before resuming; the timeout
 does not undo the upload. See the
 [Cargo publication reference](https://doc.rust-lang.org/cargo/commands/cargo-publish.html).
 
-Do not rerun the complete 0.6.2 release workflow from this new commit. Already
-published packages retain their original source commit and archive checksums.
-The automated publisher requires those checksums to match its reviewed source,
-so publishing these two additions manually avoids attempting to replace or
-reproduce the other component archives from a different commit.
+Use the same clean source commit for these two archives and any later complete
+0.7.0 release. Published versions are immutable. The release publisher verifies
+archive checksums, including source-commit provenance; it cannot replace an
+already published archive with different bytes.
 
 ## Subsequent release workflows
 
@@ -55,5 +53,5 @@ Inspect the complete current order locally with:
 
 ```sh
 node scripts/inspect_publishable_crates.mjs
-RELEASE_VERSION=0.6.2 node scripts/publish_crates_in_order.mjs order
+RELEASE_VERSION=0.7.0 node scripts/publish_crates_in_order.mjs order
 ```
