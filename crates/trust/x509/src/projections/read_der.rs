@@ -156,10 +156,6 @@ pub(super) fn bit_string(content: &[u8]) -> Result<(), ProjectionError> {
 
 /// Validate framing before allocating projection collections. Extension OCTET
 /// STRING payloads are validated separately according to their selected syntax.
-#[cfg(test)]
-pub(super) fn validate_tree(input: &[u8]) -> Result<(), ProjectionError> {
-    validate_tree_with_budget(input, &mut 0)
-}
 pub(super) fn validate_tree_with_budget(
     input: &[u8],
     elements: &mut usize,

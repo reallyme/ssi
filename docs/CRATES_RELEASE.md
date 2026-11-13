@@ -6,32 +6,33 @@ The approved release set contains 35 component packages, all using the
 source-only. The workspace defaults to `publish = false`; public components
 opt in explicitly and are checked against the approved package set.
 
-## X.509 projections at 0.7.0
+## Complete 0.7.0 release
 
-All workspace packages and internal requirements advance together to 0.7.0.
-Consumers needing the lossless certificate projections can depend directly on
-`reallyme-trust-x509 = "0.7.0"` from crates.io. They do not need a Git dependency
-or the composed SSI facade.
+All 65 workspace packages and the standalone fuzz package use version 0.7.0.
+The approved public set remains 35 packages. Run the complete Rust, fuzz, secret,
+and repository-security workflows for the release commit, then run **Crates
+Package Preflight** with version `0.7.0`. Publish only after those gates pass.
 
-For the initial X.509 publication, publish its protobuf prerequisite first:
+Two 0.7.0 packages already exist in crates.io: `reallyme-ssi-proto` and
+`reallyme-trust-x509`. Their immutable archive checksums and original source
+commit are pinned in `scripts/prepublished_crates.json`. Preflight downloads
+those exact bytes, verifies their source provenance, and compares every member
+against a fresh source package. The only approved source difference is moving
+an X.509 test helper into the test module; both original and replacement file
+hashes are pinned. Manifests, lockfiles, production behavior, binary fixtures,
+and every other member must remain identical. Source-commit metadata is checked
+against the respective original and current commits.
 
-```sh
-(
-  set -eu
-  cargo publish --locked --registry crates-io -p reallyme-ssi-proto
-  cargo publish --locked --registry crates-io -p reallyme-trust-x509
-)
-```
+Preflight tests the original immutable archives alongside the newly packaged
+components. Already-published packages are excluded from workspace packaging,
+so new archives retain the registry's real dependency checksums. All 35 reviewed
+archives are attested together. **Crates.io Release** verifies and reuses the two
+pinned archives, publishes the remaining 33 in dependency order, and creates the
+`reallyme-ssi-v0.7.0` GitHub release with its publication ledger and evidence.
 
-Cargo verifies each package and polls for its registry index entry. If polling
-times out, confirm whether the upload completed before resuming; the timeout
-does not undo the upload. See the
-[Cargo publication reference](https://doc.rust-lang.org/cargo/commands/cargo-publish.html).
-
-Use the same clean source commit for these two archives and any later complete
-0.7.0 release. Published versions are immutable. The release publisher verifies
-archive checksums, including source-commit provenance; it cannot replace an
-already published archive with different bytes.
+The reuse policy is scoped to 0.7.0. Subsequent versions package the entire
+approved public set normally. It never permits replacing an existing upload or
+silently accepting an unreviewed source change.
 
 ## Subsequent release workflows
 

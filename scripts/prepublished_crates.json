@@ -1,0 +1,35 @@
+{
+  "schema": "reallyme.ssi.prepublished-crates.v1",
+  "release_version": "0.7.0",
+  "crates": [
+    {
+      "name": "reallyme-ssi-proto",
+      "version": "0.7.0",
+      "sha256": "712d626a559c7a4503d19e0bd86ed2051579cb4156b33cdf6fc3df1f86eef416",
+      "source_commit": "6d4364c53de11c867639847b1da589822fe34efe",
+      "path_in_vcs": "crates/proto",
+      "allowed_changes": []
+    },
+    {
+      "name": "reallyme-trust-x509",
+      "version": "0.7.0",
+      "sha256": "c09c59b5ef880d00bc8cde8b659d0784f559818dbbe7432882b62bc67ebf03ce",
+      "source_commit": "6d4364c53de11c867639847b1da589822fe34efe",
+      "path_in_vcs": "crates/trust/x509",
+      "allowed_changes": [
+        {
+          "path": "src/projections/read_der.rs",
+          "before_sha256": "ae1f597240719120f492d5d478215cf8a5d65712c8ce69f1ca8ed82a97d9979e",
+          "after_sha256": "77aa0352f5f49db1f8362214bc65cbbffdf8f27ad8a8ac0464b794ad8fbe5294",
+          "reason": "test-helper-relocation"
+        },
+        {
+          "path": "src/projections/tests.rs",
+          "before_sha256": "cd42168ef7d26fa8ac3412bcd2672d582b8b388d345884b7ee791e2a7904eed4",
+          "after_sha256": "2bf4639686f596194f10cb3c442d03fa6bfcc97c52e22c405c86f4535c941e95",
+          "reason": "test-helper-relocation"
+        }
+      ]
+    }
+  ]
+}

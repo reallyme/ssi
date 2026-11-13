@@ -10,7 +10,7 @@
 )]
 
 use super::project_name::{name, Budget};
-use super::read_der::{one, take, validate_tree};
+use super::read_der::{one, take, validate_tree_with_budget};
 use super::{
     project_certificate, Asn1Class, DecodedNameValue, DistributionPointNameProjection,
     GeneralNameValue, ProjectionErrorReason, MAX_PROJECTION_DER_DEPTH, MAX_PROJECTION_DER_ELEMENTS,
@@ -18,6 +18,10 @@ use super::{
     MAX_PROJECTION_NAME_ATTRIBUTES,
 };
 use reallyme_codec::base64::base64_to_bytes;
+
+fn validate_tree(input: &[u8]) -> Result<(), super::ProjectionError> {
+    validate_tree_with_budget(input, &mut 0)
+}
 
 fn tlv(tag: u8, content: &[u8]) -> Vec<u8> {
     let mut out = vec![tag];

@@ -15,7 +15,7 @@ const manifest = readFileSync(new URL("../fuzz/Cargo.toml", import.meta.url), "u
 const targets = [...manifest.matchAll(/\[\[bin\]\]\s+name = "([a-z0-9_]+)"/gu)].map((match) => match[1]);
 const prefix = "SSI";
 
-function invoke({ overrides = {}, failingTarget = "", omitTarget = "" } = {}) {
+function invoke({ overrides = {}, failingTarget = "", omitTarget = "", seedCorpus = true } = {}) {
   const directory = mkdtempSync(join(tmpdir(), "fuzz-runner-test-"));
   try {
     const bin = join(directory, "bin");
@@ -23,12 +23,16 @@ function invoke({ overrides = {}, failingTarget = "", omitTarget = "" } = {}) {
     mkdirSync(bin);
     for (const target of targets) {
       const corpus = join(directory, "fuzz/corpus", target);
-      mkdirSync(corpus, { recursive: true });
-      writeFileSync(join(corpus, "seed"), "fixture");
+      if (seedCorpus) {
+        mkdirSync(corpus, { recursive: true });
+        writeFileSync(join(corpus, "seed"), "fixture");
+      }
       if (target === omitTarget) continue;
       writeFileSync(join(bin, target), `#!/usr/bin/env node
 const fs = require("node:fs");
-fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ target: ${JSON.stringify(target)}, args: process.argv.slice(2) }) + "\\n");
+const args = process.argv.slice(2);
+const corpus = args[args.length - 1];
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ target: ${JSON.stringify(target)}, args, corpusFiles: fs.readdirSync(corpus) }) + "\\n");
 process.exit(${target === failingTarget ? 23 : 0});
 `, { mode: 0o755 });
     }
@@ -52,6 +56,7 @@ test("staged fuzz execution covers every manifest target with corpus and explici
     assert.ok(call.args.includes("-max_total_time=20"));
     assert.ok(call.args.includes("-rss_limit_mb=4096"));
     assert.ok(call.args.includes(`fuzz/corpus/${call.target}`));
+    assert.ok(call.corpusFiles.includes("seed"));
   }
 });
 
@@ -66,5 +71,15 @@ test("unknown targets and invalid time limits fail without executing a fuzzer", 
 test("failed or absent executables fail qualification", () => {
   for (const input of [{ failingTarget: targets[0] }, { omitTarget: targets[0] }]) {
     assert.notEqual(invoke(input).result.status, 0);
+  }
+});
+
+test("targets without curated seeds receive a persistent initial corpus", () => {
+  const { result, calls } = invoke({ seedCorpus: false });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(calls.length, targets.length);
+  for (const call of calls) {
+    assert.ok(call.args.includes(`fuzz/corpus/${call.target}`));
+    assert.deepEqual(call.corpusFiles, ["initial"]);
   }
 });

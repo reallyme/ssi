@@ -78,13 +78,13 @@ test("release archive verification requires the complete approved public set", (
   assert.match(workflow, /for \(const crate of ledger\.crates\)/u);
 });
 
-test("initial X.509 release publishes its protobuf prerequisite before X.509", () => {
+test("the complete 0.7.0 release preserves the two pinned registry archives", () => {
   const instructions = readFileSync(new URL("docs/CRATES_RELEASE.md", root), "utf8");
-  const packages = [...instructions.matchAll(
-    /^  cargo publish --locked --registry crates-io -p ([a-z0-9-]+)$/gmu,
-  )].map((match) => match[1]);
-  assert.deepEqual(packages, ["reallyme-ssi-proto", "reallyme-trust-x509"]);
-  assert.match(instructions, /same clean source commit/u);
+  const pins = JSON.parse(readFileSync(new URL("scripts/prepublished_crates.json", root), "utf8"));
+  assert.equal(pins.release_version, "0.7.0");
+  assert.deepEqual(pins.crates.map((pin) => pin.name), ["reallyme-ssi-proto", "reallyme-trust-x509"]);
+  assert.match(instructions, /remaining 33 in dependency order/u);
+  assert.match(instructions, /All 35 reviewed/u);
 });
 
 test("the existing public components do not gain a dependency on the additions", () => {
